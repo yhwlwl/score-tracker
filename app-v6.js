@@ -5,8 +5,9 @@
   style.id = 'app-v6-extra-style';
   style.textContent = `
     .axis-caption-v6{font-size:11px;color:var(--muted);margin-top:8px}
-    .radar-wrap{height:440px}
-    @media(max-width:620px){.radar-wrap{height:390px}}
+    .radar-wrap{height:470px}
+    .radar-wrap svg{display:block;width:100%;height:100%}
+    @media(max-width:620px){.radar-wrap{height:430px}}
   `;
   document.head.appendChild(style);
 })();
@@ -107,8 +108,8 @@ if (typeof radarChartHtml === 'function') {
     selected.forEach((exam) => subjects.forEach((subject) => allValues.push(scoreRate(exam, subject, state.radarMode))));
     const axis = calcDynamicAxisRangeV6(allValues, { minLimit: 0, maxLimit: 100, step: 5, minSpan: 20, padRatio: 0.16 });
 
-    const W = 760, H = 430;
-    const cx = 380, cy = 210, radius = 158;
+    const W = 620, H = 430;
+    const cx = 310, cy = 210, radius = 190;
     const angleStep = (Math.PI * 2) / subjects.length;
     const angleAt = (i) => -Math.PI / 2 + i * angleStep;
     const pointAt = (ratio, i) => {
@@ -129,7 +130,7 @@ if (typeof radarChartHtml === 'function') {
     subjects.forEach((subject, i) => {
       const [x, y] = pointAt(1, i);
       grid += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#edf0f4"/>`;
-      const labelPos = pointAt(1.14, i);
+      const labelPos = pointAt(1.11, i);
       grid += `<text x="${labelPos[0]}" y="${labelPos[1]}" text-anchor="middle" dominant-baseline="middle" class="axis-label" style="font-size:12px;fill:#55627a">${SUBJECT_SHORT[subject]}</text>`;
     });
 
