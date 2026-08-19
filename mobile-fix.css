@@ -1,0 +1,43 @@
+/* Mobile consistency patch */
+html,body,#app{max-width:100%;overflow-x:hidden}
+.shell,main,.hero,.grid-main,.stack-main,.side-stack{min-width:0;max-width:100%}
+
+@media(max-width:620px){
+  .shell{width:100%;max-width:100%;padding:15px 14px 105px;overflow:hidden}
+  main,.hero,.grid-main,.stack-main,.side-stack{width:100%;max-width:100%;min-width:0}
+  .hero,.grid-main,.stack-main,.side-stack{gap:14px}
+
+  .card,.hero-main,.hero-stat,.chart-card,.radar-card,.overview-card,.quick-card,.recent-card{
+    width:100%;max-width:100%;min-width:0;margin:0
+  }
+  .card{border-radius:20px}
+  .hero-main{padding:20px}
+  .hero-stat{padding:20px;min-height:0}
+  .chart-card,.radar-card,.overview-card,.quick-card,.recent-card{padding-left:16px;padding-right:16px}
+  .chart-card,.radar-card,.overview-card{overflow:hidden}
+
+  .chips,.multi-select,.overview-legend,.radar-legend{width:100%;max-width:100%;min-width:0}
+  .chips,.multi-select{
+    overflow-x:auto;
+    overscroll-behavior-x:contain;
+    -webkit-overflow-scrolling:touch;
+    padding-right:2px
+  }
+
+  .chart-wrap,.radar-wrap,.overview-wrap,.overview-stage-v5{
+    width:100%;max-width:100%;min-width:0;overflow:hidden
+  }
+  .chart-wrap svg,.radar-wrap svg,.overview-wrap svg,.overview-stage-v5 svg{max-width:100%}
+
+  .quick-grid{grid-template-columns:1fr 1fr}
+  .bottom-nav{left:14px;right:14px;width:auto;max-width:none}
+}
+
+@media(max-width:420px){
+  .shell{padding-left:12px;padding-right:12px}
+  .hero,.grid-main,.stack-main,.side-stack{gap:12px}
+  .hero-main,.hero-stat,.chart-card,.radar-card,.overview-card,.quick-card,.recent-card{border-radius:18px}
+  .hero-main,.hero-stat{padding:18px}
+  .chart-card,.radar-card,.overview-card,.quick-card,.recent-card{padding-left:14px;padding-right:14px}
+  .bottom-nav{left:12px;right:12px}
+}
