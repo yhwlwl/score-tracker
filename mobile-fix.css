@@ -29,6 +29,37 @@ html,body,#app{max-width:100%;overflow-x:hidden}
   }
   .chart-wrap svg,.radar-wrap svg,.overview-wrap svg,.overview-stage-v5 svg{max-width:100%}
 
+  /* Records: keep metadata/actions on the first row and give score chips the full card width. */
+  .records-card{padding:4px 14px!important;overflow:hidden}
+  .record{
+    width:100%;min-width:0;
+    grid-template-columns:minmax(0,1fr) auto!important;
+    grid-template-areas:"date actions" "scores scores";
+    gap:12px 10px!important;
+    align-items:start!important;
+    padding:16px 0!important
+  }
+  .record-date{grid-area:date;min-width:0;line-height:1.45}
+  .record-date b{max-width:100%;overflow-wrap:anywhere}
+  .record-scores{
+    grid-area:scores;
+    width:100%;min-width:0;
+    display:flex!important;flex-wrap:wrap!important;
+    align-items:flex-start;gap:7px!important
+  }
+  .record-scores .score-tag{
+    flex:0 1 auto;max-width:100%;min-width:0;
+    white-space:normal!important;overflow-wrap:anywhere;word-break:normal;
+    line-height:1.45
+  }
+  .record-actions,.record-actions-v10{
+    grid-area:actions;
+    min-width:0;max-width:92px;
+    display:flex!important;flex-direction:column;align-items:stretch!important;
+    gap:6px!important
+  }
+  .record-action-btn-v10{width:100%;min-width:54px;padding:7px 9px!important}
+
   .quick-grid{grid-template-columns:1fr 1fr}
   .bottom-nav{left:14px;right:14px;width:auto;max-width:none}
 }
@@ -39,5 +70,9 @@ html,body,#app{max-width:100%;overflow-x:hidden}
   .hero-main,.hero-stat,.chart-card,.radar-card,.overview-card,.quick-card,.recent-card{border-radius:18px}
   .hero-main,.hero-stat{padding:18px}
   .chart-card,.radar-card,.overview-card,.quick-card,.recent-card{padding-left:14px;padding-right:14px}
+  .records-card{padding-left:12px!important;padding-right:12px!important}
+  .record{grid-template-columns:minmax(0,1fr) 66px!important;gap:10px 8px!important}
+  .record-actions,.record-actions-v10{max-width:66px}
+  .record-action-btn-v10{min-width:0;padding:7px 6px!important}
   .bottom-nav{left:12px;right:12px}
 }
