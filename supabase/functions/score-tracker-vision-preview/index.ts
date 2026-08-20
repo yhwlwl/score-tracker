@@ -7,9 +7,6 @@ const db = createClient(
   { auth: { persistSession: false, autoRefreshToken: false } },
 );
 
-const ARK_RESPONSES_URL = "https://ark.cn-beijing.volces.com/api/v3/responses";
-const VISION_MODEL = "doubao-seed-2-0-mini-260215";
-
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -24,7 +21,6 @@ async function sha(value: string) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
-
 async function auth(token: string) {
   if (!token) return null;
   const { data, error } = await db.from("score_tracker_users")
@@ -59,22 +55,15 @@ function parseJson(text: string) {
   }
 }
 function outputText(payload: any) {
-  if (typeof payload?.output_text === "string" && payload.output_text.trim()) return payload.output_text;
-  for (const item of payload?.output ?? []) {
-    for (const content of item?.content ?? []) {
-      if ((content?.type === "output_text" || content?.type === "text") && typeof content.text === "string") return content.text;
-    }
-  }
+  const content = payload?.choices?.[0]?.message?.content;
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) return content.map((item: any) => typeof item?.text === "string" ? item.text : "").join("");
   return "";
 }
 
 function normalize(raw: any, context: any) {
-  const warnings = Array.isArray(raw?.warnings)
-    ? raw.warnings.map((x: unknown) => cleanText(x, 160)).filter(Boolean)
-    : [];
-  const allowedCategories = Array.isArray(context?.classificationOptions)
-    ? context.classificationOptions.map((x: unknown) => String(x))
-    : [];
+  const warnings = Array.isArray(raw?.warnings) ? raw.warnings.map((x: unknown) => cleanText(x, 160)).filter(Boolean) : [];
+  const allowedCategories = Array.isArray(context?.classificationOptions) ? context.classificationOptions.map((x: unknown) => String(x)) : [];
   const examRaw = raw?.exam ?? {};
   const category = cleanText(examRaw.category, 40);
   const exam = {
@@ -118,7 +107,6 @@ function normalize(raw: any, context: any) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-
   try {
     const body = await req.json().catch(() => ({}));
     const user = await auth(String(body.token ?? ""));
@@ -127,37 +115,42 @@ Deno.serve(async (req) => {
     const images = Array.isArray(body.images) ? body.images : [];
     if (!images.length || images.length > 3) return json({ error: "请选择 1～3 张图片" }, 400);
     for (const image of images) {
-      if (typeof image !== "string" || !/^data:image\/(?:jpeg|jpg|png|webp);base64,/i.test(image)) {
-        return json({ error: "仅支持 JPG、PNG、WEBP 图片" }, 400);
-      }
+      if (typeof image !== "string" || !/^data:image\/(?:jpeg|jpg|png|webp);base64,/i.test(image)) return json({ error: "仅支持 JPG、PNG、WEBP 图片" }, 400);
       if (image.length > 2_800_000) return json({ error: "单张图片处理后仍过大，请裁剪后再试" }, 400);
     }
 
-    const apiKey = Deno.env.get("ARK_API_KEY");
-    if (!apiKey) return json({ error: "预览识图服务尚未配置豆包 API Key，请联系管理员后再试" }, 503);
+    const apiKey = Deno.env.get("OPENROUTER_API_KEY");
+    if (!apiKey) return json({ error: "预览识图服务尚未配置 OpenRouter Key" }, 503);
 
     const context = body.context ?? {};
     const prompt = `你是一个中文学生成绩单识别器。请从用户提供的 1～3 张同一次考试的截图/照片中提取明确可见的数据。\n\n重要规则：\n1. 绝不猜测看不清或没有明确标注的数字；不确定就返回 null，并在 warnings 说明。\n2. “原始分/卷面分”和“赋分/等级分/最终分”必须根据图片文字语义区分。若只有一个分数且无法确定是哪一种，放到 ambiguousScore，不要擅自归类。\n3. “年排/年级排名”和“班排/班级排名”必须按图片标注区分；只写“排名”而无法判断范围时，不要擅自归类，并加入 warnings。\n4. 参考人数只在图片明确出现时提取。\n5. 科目/模块名称按图片原文，可包含自定义题型。\n6. 不要根据常识补满分；图片没有满分就返回 null。\n7. 日期必须转换成 YYYY-MM-DD；年份不明确则返回 null。\n8. 分类只允许从这些选项里选择：${JSON.stringify(context.classificationOptions || [])}；不明确就 null。\n9. 多张图若内容重复，合并为一个考试，不要重复科目。\n\n只返回 JSON，不要 Markdown，不要解释。格式：\n{\n  "exam": {"name": string|null, "date": string|null, "category": string|null, "yearRank": number|null, "yearParticipants": number|null, "classRank": number|null, "classParticipants": number|null},\n  "subjects": [{"name": string, "target": number|null, "rawScore": number|null, "rawMax": number|null, "finalScore": number|null, "finalMax": number|null, "yearRank": number|null, "yearParticipants": number|null, "classRank": number|null, "classParticipants": number|null, "ambiguousScore": number|null}],\n  "warnings": [string]\n}`;
 
-    const content: any[] = [{ type: "input_text", text: prompt }];
-    for (const image of images) content.push({ type: "input_image", image_url: image });
+    const content: any[] = [{ type: "text", text: prompt }];
+    for (const image of images) content.push({ type: "image_url", image_url: { url: image } });
 
-    const response = await fetch(ARK_RESPONSES_URL, {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
-      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://score.yhwlwl.xyz",
+        "X-Title": "Score Tracker Preview",
+      },
       body: JSON.stringify({
-        model: VISION_MODEL,
-        input: [{ role: "user", content }],
-        thinking: { type: "disabled" },
-        max_output_tokens: 2400,
+        model: "openrouter/free",
+        messages: [{ role: "user", content }],
+        response_format: { type: "json_object" },
+        max_tokens: 2600,
+        provider: { data_collection: "deny" },
       }),
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      console.error("doubao vision upstream", response.status, payload?.error?.type, payload?.error?.code);
-      return json({ error: response.status === 429 ? "识别请求较多，请稍后再试" : "识别服务暂时不可用，请稍后再试" }, 502);
+      console.error("openrouter vision", response.status, payload?.error?.code, payload?.error?.message);
+      if (response.status === 429) return json({ error: "免费识别额度暂时繁忙，请稍后再试" }, 429);
+      if (response.status === 402) return json({ error: "当前免费视觉模型暂不可用，请稍后再试" }, 503);
+      return json({ error: "识别服务暂时不可用，请稍后再试" }, 502);
     }
-
     const text = outputText(payload);
     if (!text) return json({ error: "没有识别到可用内容，请换一张更清晰的图片" }, 422);
     return json(normalize(parseJson(text), context));
