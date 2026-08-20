@@ -130,8 +130,8 @@ accountHtml=function accountHtmlV18(){return accountHtmlBeforeV18()+moduleCardHt
 function normalizeBuiltinV18(module){
   var core=['语文','数学','英语'],subjects=[...(module.subjects||[])],extras=subjects.filter(function(s){return !core.includes(s)});
   if(module.name==='语数外')return core;
-  if(module.name==='语数外 + 首选科')return core.concat(extras.slice(0,1));
-  if(module.name==='语数外 + 所选科')return core.concat(extras.slice(0,3));
+  if(module.name==='语数外 + 物理/历史（四科）')return core.concat(extras.slice(0,1));
+  if(module.name==='语数外 + 所选科（六科）')return core.concat(extras.slice(0,3));
   return subjects;
 }
 function openModuleManagerV18(){
@@ -144,16 +144,16 @@ function openModuleManagerV18(){
     if(m.isBuiltin&&core.includes(name))return;
     var has=m.subjects.includes(name);
     if(m.name==='语数外')return;
-    if(m.name==='语数外 + 首选科'){
+    if(m.name==='语数外 + 物理/历史（四科）'){
       if(has)m.subjects=core.slice();else m.subjects=core.concat([name]);
-    }else if(m.name==='语数外 + 所选科'){
+    }else if(m.name==='语数外 + 所选科（六科）'){
       var extras=m.subjects.filter(function(s){return !core.includes(s)});
       if(has)extras=extras.filter(function(s){return s!==name});else{if(extras.length>=3)return toast('六科模块最多选择 3 门选科');extras.push(name);}m.subjects=core.concat(extras);
     }else{if(has)m.subjects=m.subjects.filter(function(s){return s!==name});else m.subjects.push(name);}
     renderRows();
   }
   function renderRows(){
-    list.innerHTML=draft.map(function(m,i){m.subjects=normalizeBuiltinV18(m);var note=m.name==='语数外'?'固定汇总语文、数学、英语。':m.name==='语数外 + 首选科'?'语数外 + 物理/历史，四科。':m.name==='语数外 + 所选科'?'语数外 + 3 门选科，六科。':'至少选择 2 个科目。';return `<div class="module-editor-v18" data-module-index="${i}"><div class="module-editor-head-v18"><input class="module-name-v18" maxlength="30" value="${escapeHtml(m.name||'')}" ${m.isBuiltin?'readonly':''} placeholder="模块名称">${m.isBuiltin?'<span class="module-badge-v18">内置</span>':`<button type="button" class="module-delete-v18">删除</button>`}</div><div class="module-subjects-v18">${options.map(function(name){var active=m.subjects.includes(name),locked=m.isBuiltin&&['语文','数学','英语'].includes(name);return `<button type="button" class="module-subject-v18 ${active?'active':''} ${locked?'locked':''}" data-module-subject="${escapeHtml(name)}">${escapeHtml(name)}</button>`}).join('')}</div><div class="module-editor-note-v18">${note}</div></div>`}).join('');
+    list.innerHTML=draft.map(function(m,i){m.subjects=normalizeBuiltinV18(m);var note=m.name==='语数外'?'固定汇总语文、数学、英语。':m.name==='语数外 + 物理/历史（四科）'?'语数外 + 物理/历史，四科。':m.name==='语数外 + 所选科（六科）'?'语数外 + 3 门选科，六科。':'至少选择 2 个科目。';return `<div class="module-editor-v18" data-module-index="${i}"><div class="module-editor-head-v18"><input class="module-name-v18" maxlength="30" value="${escapeHtml(m.name||'')}" ${m.isBuiltin?'readonly':''} placeholder="模块名称">${m.isBuiltin?'<span class="module-badge-v18">内置</span>':`<button type="button" class="module-delete-v18">删除</button>`}</div><div class="module-subjects-v18">${options.map(function(name){var active=m.subjects.includes(name),locked=m.isBuiltin&&['语文','数学','英语'].includes(name);return `<button type="button" class="module-subject-v18 ${active?'active':''} ${locked?'locked':''}" data-module-subject="${escapeHtml(name)}">${escapeHtml(name)}</button>`}).join('')}</div><div class="module-editor-note-v18">${note}</div></div>`}).join('');
     list.querySelectorAll('.module-editor-v18').forEach(function(card,index){
       card.querySelectorAll('[data-module-subject]').forEach(function(button){button.onclick=function(){syncNames();toggleSubject(index,button.dataset.moduleSubject)}});
       var del=card.querySelector('.module-delete-v18');if(del)del.onclick=function(){syncNames();draft.splice(index,1);renderRows();};
@@ -165,7 +165,7 @@ function openModuleManagerV18(){
   document.getElementById('addModuleV18').onclick=function(){syncNames();if(draft.length>=12)return toast('最多 12 个模块');draft.push({id:null,name:'',subjects:[],isBuiltin:false});renderRows();list.querySelector('.module-editor-v18:last-child .module-name-v18')?.focus();};
   document.getElementById('saveModulesV18').onclick=async function(){
     syncNames();var names=new Set();
-    for(var i=0;i<draft.length;i++){var m=draft[i];m.subjects=normalizeBuiltinV18(m);if(!m.name)return toast('请填写模块名称');if(names.has(m.name))return toast('模块名称不能重复');names.add(m.name);if(m.name==='语数外'&&m.subjects.length!==3)return toast('语数外模块应为 3 科');if(m.name==='语数外 + 首选科'&&m.subjects.length!==4)return toast('四科模块请选择物理或历史之一');if(m.name==='语数外 + 所选科'&&m.subjects.length!==6)return toast('六科模块请选择 3 门选科');if(!m.isBuiltin&&m.subjects.length<2)return toast(`模块「${m.name}」至少选择 2 个科目`);}
+    for(var i=0;i<draft.length;i++){var m=draft[i];m.subjects=normalizeBuiltinV18(m);if(!m.name)return toast('请填写模块名称');if(names.has(m.name))return toast('模块名称不能重复');names.add(m.name);if(m.name==='语数外'&&m.subjects.length!==3)return toast('语数外模块应为 3 科');if(m.name==='语数外 + 物理/历史（四科）'&&m.subjects.length!==4)return toast('四科模块请选择物理或历史之一');if(m.name==='语数外 + 所选科（六科）'&&m.subjects.length!==6)return toast('六科模块请选择 3 门选科');if(!m.isBuiltin&&m.subjects.length<2)return toast(`模块「${m.name}」至少选择 2 个科目`);}
     var button=document.getElementById('saveModulesV18');button.disabled=true;button.textContent='保存中…';
     try{var data=await modulesApiV18('save_modules',{modules:draft});state.modulesV18=data.modules||[];if(typeof applyExamSubjectsV10==='function')applyExamSubjectsV10(state.exams||[],state.subjectConfigs||[]);close();render();toast('模块设置已保存');}
     catch(e){toast(e.message);button.disabled=false;button.textContent='保存';}
