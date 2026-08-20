@@ -1,4 +1,5 @@
 const UPSTREAM = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-admin';
+const METRICS_UPSTREAM = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-admin-metrics';
 
 const MOBILE_PATCH = `<style id="mg-mobile-v11">
 html.mg-phone body{overflow-x:hidden!important}html.mg-phone .app{display:block!important;min-height:100vh;width:100%!important;max-width:100vw!important}html.mg-phone .side{position:sticky!important;top:0!important;height:auto!important;min-height:0!important;width:100%!important;padding:max(8px,env(safe-area-inset-top)) 8px 8px!important;border-right:0!important;border-bottom:1px solid var(--l)!important;z-index:40!important;box-shadow:0 7px 24px #0005}html.mg-phone .brand{display:none!important}html.mg-phone .nav{display:flex!important;gap:6px!important;overflow-x:auto!important;white-space:nowrap!important;scrollbar-width:none!important}html.mg-phone .nav::-webkit-scrollbar{display:none!important}html.mg-phone .nav button{flex:0 0 auto!important;min-height:42px!important;padding:8px 12px!important;text-align:center!important}html.mg-phone .main{width:100%!important;max-width:100vw!important;min-width:0!important;overflow:hidden!important;padding:12px 10px calc(24px + env(safe-area-inset-bottom))!important}html.mg-phone .top{position:static!important;width:100%!important;margin:0 0 10px!important;padding:4px 0 8px!important;gap:8px!important}html.mg-phone .top>div{min-width:0!important}html.mg-phone .top h1{font-size:19px!important}html.mg-phone .top .btn{flex:0 0 auto!important;min-height:40px!important;padding:8px 11px!important}html.mg-phone .grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}html.mg-phone .g2{grid-template-columns:1fr!important}html.mg-phone .tw{border:0!important;overflow:visible!important;width:100%!important}html.mg-phone .t{min-width:0!important;width:100%!important;border-collapse:separate!important;border-spacing:0!important}html.mg-phone .t thead{display:none!important}html.mg-phone .t tbody,html.mg-phone .t tr,html.mg-phone .t td{display:block!important;width:100%!important}html.mg-phone .t tr{margin-bottom:10px!important;padding:8px 10px!important;background:var(--p)!important;border:1px solid var(--l)!important;border-radius:12px!important}html.mg-phone .t td{display:grid!important;grid-template-columns:84px minmax(0,1fr)!important;gap:8px!important;align-items:start!important;border:0!important;padding:5px 2px!important;white-space:normal!important;word-break:break-word!important}html.mg-phone .t td:before{content:attr(data-label)!important;color:var(--m)!important;font-size:10px!important;font-weight:600!important}html.mg-phone .t td:empty{display:none!important}html.mg-phone .wrap,html.mg-phone .feedback-content{max-width:none!important}html.mg-phone .feedback-action{flex-wrap:wrap!important}html.mg-phone .feedback-action .btn{width:100%!important;min-height:42px!important}html.mg-phone .overlay{place-items:stretch!important}html.mg-phone .drawer{width:100vw!important;max-width:none!important;border-left:0!important;padding:0 12px calc(18px + env(safe-area-inset-bottom))!important}html.mg-phone .status-toolbar{grid-template-columns:1fr!important}html.mg-phone .status-toolbar .btn{min-height:44px!important}@media(max-width:430px){html.mg-phone .grid{grid-template-columns:1fr!important}}
@@ -35,6 +36,36 @@ const OPTIMISTIC_PATCH = `<script id="mg-optimistic-v11">
 })();
 </script>`;
 
+function adminHeaders(req, isHtml) {
+  const headers = { Accept: isHtml ? 'text/html' : 'application/json' };
+  if (req.headers['x-score-token']) headers['x-score-token'] = String(req.headers['x-score-token']);
+  if (req.method === 'POST') headers['content-type'] = 'application/json';
+  return headers;
+}
+
+function mergeExactMetrics(data, metrics) {
+  if (!data || !metrics) return data;
+  data.counts = Object.assign({}, data.counts || {}, {
+    logs: Number(metrics.visitors_total || 0),
+    visitors: Number(metrics.visitors_24h || 0),
+    sessions: Number(metrics.sessions_24h || 0),
+    users: Number(metrics.users_total || 0),
+    online: Number(metrics.online_5m || 0),
+    exams: Number(metrics.exams_total || 0),
+    scores: Number(metrics.scores_total || 0),
+    feedback: Number(metrics.feedback_total || 0),
+  });
+  if (data.inventory) {
+    if (data.inventory.score_tracker_users) data.inventory.score_tracker_users.rows = Number(metrics.users_total || 0);
+    if (data.inventory.score_tracker_exams) data.inventory.score_tracker_exams.rows = Number(metrics.exams_total || 0);
+    if (data.inventory.score_tracker_scores) data.inventory.score_tracker_scores.rows = Number(metrics.scores_total || 0);
+    if (data.inventory.score_tracker_visit_logs) data.inventory.score_tracker_visit_logs.rows = Number(metrics.events_total || 0);
+    if (data.inventory.score_tracker_feedback_submissions) data.inventory.score_tracker_feedback_submissions.rows = Number(metrics.feedback_total || 0);
+  }
+  data.exact_metrics = metrics;
+  return data;
+}
+
 export default async function handler(req, res) {
   if (!['GET', 'POST'].includes(req.method)) {
     res.status(405).json({ error: 'method_not_allowed' });
@@ -42,16 +73,19 @@ export default async function handler(req, res) {
   }
   const query = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
   const isHtml = !query.includes('action=');
-  const headers = { Accept: isHtml ? 'text/html' : 'application/json' };
-  if (req.headers['x-score-token']) headers['x-score-token'] = String(req.headers['x-score-token']);
-  if (req.method === 'POST') headers['content-type'] = 'application/json';
+  const headers = adminHeaders(req, isHtml);
+  const action = isHtml ? '' : new URL(`https://local.invalid${req.url}`).searchParams.get('action') || '';
   try {
-    const upstream = await fetch(UPSTREAM + query, {
+    const upstreamPromise = fetch(UPSTREAM + query, {
       method: req.method,
       headers,
       body: req.method === 'POST' ? JSON.stringify(req.body || {}) : undefined,
       signal: AbortSignal.timeout(15000),
     });
+    const metricsPromise = action === 'overview' && req.method === 'GET'
+      ? fetch(METRICS_UPSTREAM, { method: 'GET', headers: { 'x-score-token': String(req.headers['x-score-token'] || '') }, signal: AbortSignal.timeout(8000) }).catch(() => null)
+      : Promise.resolve(null);
+    const [upstream, metricsResponse] = await Promise.all([upstreamPromise, metricsPromise]);
     res.status(upstream.status);
     res.setHeader('Cache-Control', 'private, no-store, max-age=0');
     res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
@@ -61,8 +95,20 @@ export default async function handler(req, res) {
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.supabase.co; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
       let html = await upstream.text();
-      html = html.replace('</head>', MOBILE_PATCH + '</head>').replace('</body>', OPTIMISTIC_PATCH + '</body>');
+      html = html
+        .replace('累计访问事件', '累计访客')
+        .replace('近期 Visitor', '近24h Visitor')
+        .replace('近期 Session', '近24h Session')
+        .replaceAll('最近事件窗口', '过去 24 小时精确去重')
+        .replace('</head>', MOBILE_PATCH + '</head>')
+        .replace('</body>', OPTIMISTIC_PATCH + '</body>');
       res.send(html);
+    } else if (action === 'overview' && upstream.ok) {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      const data = await upstream.json();
+      let metrics = null;
+      if (metricsResponse && metricsResponse.ok) metrics = await metricsResponse.json().catch(() => null);
+      res.send(JSON.stringify(mergeExactMetrics(data, metrics)));
     } else {
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
       res.send(Buffer.from(await upstream.arrayBuffer()));
