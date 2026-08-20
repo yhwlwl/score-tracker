@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const API = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-api';
-  const APP_VERSION = 'v1.1';
+  const APP_VERSION = 'v1.9';
   const nativeFetch = window.fetch.bind(window);
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
