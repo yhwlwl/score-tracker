@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#f7f8fb" />
-  <meta name="application-version" content="v1.9" />
+  <meta name="application-version" content="v2.0" />
   <title>成绩轨迹 · Score Tracker</title>
   <meta name="description" content="记录全年考试成绩与目标成绩，用趋势图和雷达图看见自己的变化。" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📈</text></svg>">
@@ -12,11 +12,12 @@
   <link rel="stylesheet" href="./mobile-fix.css" />
 </head>
 <body>
-  <!-- v1.9: fix subject add/remove freezes; each future main commit increments the decimal version -->
+  <!-- v2.0: subject-list mapping, weighted total overrides, bundled data reads -->
   <div id="app">
     <div class="splash"><div class="brand-mark">↗</div><div>成绩轨迹</div><small>正在准备你的学习空间…</small></div>
   </div>
   <script src="./compat.js" defer></script>
+  <script src="./request-budget-v24.js" defer></script>
   <script src="./telemetry-feedback.js" defer></script>
   <script src="./feedback-statuses.js" defer></script>
   <script src="./app-v3.js" defer></script>
@@ -41,5 +42,6 @@
   <script src="./app-v21.js" defer></script>
   <script src="./app-v22.js" defer></script>
   <script src="./app-v23.js" defer></script>
+  <script src="./app-v24.js" defer></script>
 </body>
 </html>
