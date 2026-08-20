@@ -145,6 +145,7 @@ function openModuleManagerV18(){
     var has=m.subjects.includes(name);
     if(m.name==='语数外')return;
     if(m.name==='语数外 + 物理/历史（四科）'){
+      if(!core.includes(name)&&!['物理','历史'].includes(name))return toast('四科模块只能选择物理或历史');
       if(has)m.subjects=core.slice();else m.subjects=core.concat([name]);
     }else if(m.name==='语数外 + 所选科（六科）'){
       var extras=m.subjects.filter(function(s){return !core.includes(s)});
@@ -153,7 +154,7 @@ function openModuleManagerV18(){
     renderRows();
   }
   function renderRows(){
-    list.innerHTML=draft.map(function(m,i){m.subjects=normalizeBuiltinV18(m);var note=m.name==='语数外'?'固定汇总语文、数学、英语。':m.name==='语数外 + 物理/历史（四科）'?'语数外 + 物理/历史，四科。':m.name==='语数外 + 所选科（六科）'?'语数外 + 3 门选科，六科。':'至少选择 2 个科目。';return `<div class="module-editor-v18" data-module-index="${i}"><div class="module-editor-head-v18"><input class="module-name-v18" maxlength="30" value="${escapeHtml(m.name||'')}" ${m.isBuiltin?'readonly':''} placeholder="模块名称">${m.isBuiltin?'<span class="module-badge-v18">内置</span>':`<button type="button" class="module-delete-v18">删除</button>`}</div><div class="module-subjects-v18">${options.map(function(name){var active=m.subjects.includes(name),locked=m.isBuiltin&&['语文','数学','英语'].includes(name);return `<button type="button" class="module-subject-v18 ${active?'active':''} ${locked?'locked':''}" data-module-subject="${escapeHtml(name)}">${escapeHtml(name)}</button>`}).join('')}</div><div class="module-editor-note-v18">${note}</div></div>`}).join('');
+    list.innerHTML=draft.map(function(m,i){m.subjects=normalizeBuiltinV18(m);var note=m.name==='语数外'?'固定汇总语文、数学、英语。':m.name==='语数外 + 物理/历史（四科）'?'语数外 + 物理/历史，四科。':m.name==='语数外 + 所选科（六科）'?'语数外 + 3 门选科，六科。':'至少选择 2 个科目。';return `<div class="module-editor-v18" data-module-index="${i}"><div class="module-editor-head-v18"><input class="module-name-v18" maxlength="30" value="${escapeHtml(m.name||'')}" ${m.isBuiltin?'readonly':''} placeholder="模块名称">${m.isBuiltin?'<span class="module-badge-v18">内置</span>':`<button type="button" class="module-delete-v18">删除</button>`}</div><div class="module-subjects-v18">${options.map(function(name){if(m.name==='语数外 + 物理/历史（四科）'&&!['语文','数学','英语','物理','历史'].includes(name))return '';var active=m.subjects.includes(name),locked=m.isBuiltin&&['语文','数学','英语'].includes(name);return `<button type="button" class="module-subject-v18 ${active?'active':''} ${locked?'locked':''}" data-module-subject="${escapeHtml(name)}">${escapeHtml(name)}</button>`}).join('')}</div><div class="module-editor-note-v18">${note}</div></div>`}).join('');
     list.querySelectorAll('.module-editor-v18').forEach(function(card,index){
       card.querySelectorAll('[data-module-subject]').forEach(function(button){button.onclick=function(){syncNames();toggleSubject(index,button.dataset.moduleSubject)}});
       var del=card.querySelector('.module-delete-v18');if(del)del.onclick=function(){syncNames();draft.splice(index,1);renderRows();};
