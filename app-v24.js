@@ -166,15 +166,31 @@
     return result;
   };
 
+  function subjectSettingsCardV24(){
+    var subjects=(state.subjectConfigs&&state.subjectConfigs.length)
+      ?state.subjectConfigs
+      :SUBJECTS.map(function(name,index){return{name:name,defaultMax:defaultMax(name),sortOrder:index+1};});
+    return '<div class="card subject-settings-v7"><div class="subject-settings-head-v7"><div><h3 class="card-title">科目设置</h3><p class="card-sub">在这里添加、改名、删除科目并设置默认满分；保存后会立即同步到“记录考试 → 选择科目”的列表。</p></div><button class="secondary" id="manageSubjectsBtn">管理科目</button></div><div class="subject-chip-list-v7">'+subjects.map(function(item){return '<span class="subject-chip-v7"><b>'+escapeHtml(item.name)+'</b> · 满分 '+formatScore(item.defaultMax)+'</span>';}).join('')+'</div><div class="subtle-note" style="margin-top:12px">移除科目不会删除历史成绩；以后重新添加同名科目，历史数据会重新显示。</div><div class="subject-sync-note-v24"><b>科目设置就是录入时的选择列表。</b> 这里没有的科目不会作为新考试的可选项；历史考试仍保留原数据。</div></div>';
+  }
+
   // Make the settings -> entry-list relationship explicit. The underlying picker already reads
   // state.subjectConfigs; this wording makes the source of truth obvious to users.
   var accountHtmlBeforeV24=accountHtml;
   accountHtml=function accountHtmlV24(){
     var html=accountHtmlBeforeV24();
-    html=html.replace(/(<h3 class="card-title">科目设置<\/h3><p class="card-sub">)[\s\S]*?(<\/p>)/,
-      '$1在这里添加、改名、删除科目并设置默认满分；保存后会立即同步到“记录考试 → 选择科目”的列表。$2');
-    html=html.replace(/(<div class="subtle-note" style="margin-top:12px">移除科目不会删除历史成绩；以后重新添加同名科目，历史数据会重新显示。<\/div>)/,
-      '$1<div class="subject-sync-note-v24"><b>科目设置就是录入时的选择列表。</b> 这里没有的科目不会作为新考试的可选项；历史考试仍保留原数据。</div>');
+    if(html.indexOf('subject-settings-v7')===-1){
+      // The account page dropped the subject settings card back in v10/v14; restore it here so
+      // “账号 → 科目设置” exists again and the manager modal keeps its entry point.
+      var card=subjectSettingsCardV24();
+      var anchor='<div class="card category-settings-v14">';
+      if(html.indexOf(anchor)!==-1)html=html.replace(anchor,card+anchor);
+      else html+=card;
+    }else{
+      html=html.replace(/(<h3 class="card-title">科目设置<\/h3><p class="card-sub">)[\s\S]*?(<\/p>)/,
+        '$1在这里添加、改名、删除科目并设置默认满分；保存后会立即同步到“记录考试 → 选择科目”的列表。$2');
+      html=html.replace(/(<div class="subtle-note" style="margin-top:12px">移除科目不会删除历史成绩；以后重新添加同名科目，历史数据会重新显示。<\/div>)/,
+        '$1<div class="subject-sync-note-v24"><b>科目设置就是录入时的选择列表。</b> 这里没有的科目不会作为新考试的可选项；历史考试仍保留原数据。</div>');
+    }
     return html;
   };
   if(typeof openSubjectManagerV7==='function'){
