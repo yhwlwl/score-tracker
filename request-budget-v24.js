@@ -1,7 +1,7 @@
 // v24: small client request budget. Loaded before telemetry so background polling can be coalesced.
 (function(){
   var API='https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-api';
-  var PRODUCT_VERSION='v2.3';
+  var PRODUCT_VERSION='v2.4';
   var nativeFetch=window.fetch.bind(window);
   var lastHeartbeatAt=0;
   var unreadCache=null;

@@ -1,7 +1,7 @@
-// v25 / product v2.3: combo ranks, combo trends, score/percent view, full-trend PNG export,
-// tooltip clamping, record/group reordering, password rule update.
+// v25 / product v2.4: combo ranks, combo trends, score/percent view, full-trend PNG export,
+// tooltip clamping, record/group reordering, password rule update, overview redesign.
 (function(){
-  var PRODUCT_VERSION_V25='v2.3';
+  var PRODUCT_VERSION_V25='v2.4';
 
   function syncVersionV25(){
     var meta=document.querySelector('meta[name="application-version"]');
@@ -60,6 +60,7 @@
       .trend-legend-row-v25{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px}
       .trend-legend-row-v25 .legend{margin:0}
       .trend-legend-row-v25 .trend-scroll-hint-v19{margin:0;margin-left:auto;text-align:right}
+      .quick-card .mini-stat span{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .rank-entry-mode-v17{gap:6px;margin:2px 0 28px}
       .rank-entry-mode-v17 button{padding:5px 9px;font-size:10.5px}
       .rank-entry-top-v21{margin:10px 0 14px;padding:9px 12px}
@@ -99,6 +100,25 @@
     return(d&&typeof d==='object')?d:{};
   }
   function peopleSaveV25(d){try{localStorage.setItem(peopleKeyV25(),JSON.stringify(d||{}));}catch(e){}}
+
+  // 首页侧栏概况：次数 / 平均得分率 / 达成目标次数 / 距最近目标分差
+  // 得分率用于「平均」（科目数不同可比）；目标达成与差距按同一场考试的原始总分比较（同一场满分相同，分差最直观）
+  function quickStatsV25(){
+    var exams=state.exams||[];
+    var rates=[];
+    exams.forEach(function(e){var r=totalRate(e,'actual');if(r!==null)rates.push({rate:r,exam:e});});
+    var sum=0;rates.forEach(function(x){sum+=x.rate;});
+    var avg=rates.length?Math.round(sum/rates.length*10)/10:null;
+    var met=0,targetExams=0,gap=null;
+    for(var i=0;i<exams.length;i++){
+      var e=exams[i],a=totalFor(e,'actual'),t=totalFor(e,'target');
+      if(t===null)continue;
+      targetExams++;
+      if(a!==null&&a>=t)met++;
+      if(gap===null&&a!==null)gap=Math.round((t-a)*10)/10;
+    }
+    return{count:exams.length,avg:avg,met:met,targetExams:targetExams,gap:gap};
+  }
 
   // 组合排名：云端优先，本地兜底（后端 Edge Function 支持 moduleRanks 前先存在本机）
   function comboRanksKeyV25(){return 'st_moduleranks_v25_'+(state.user&&state.user.username||'anon');}
@@ -385,6 +405,15 @@
     html=html.replace(/<div class="chips">([\s\S]*?)<\/div>/,function(m,inner){
       return '<div class="combo-chips-v25">'+comboRow+'</div><div class="combo-chips-v25">'+subjectRow+'</div>';
     });
+    // 侧栏「这一年的记录」：只留最有信息量的指标（次数/最高分/平均分/最近目标；删「次已出分」和与 Hero 重复的「最近变化」）
+    var qs=quickStatsV25();
+    var quickGrid='<div class="quick-grid">'
+      +'<div class="mini-stat"><b>'+qs.count+'</b><span>次考试</span></div>'
+      +'<div class="mini-stat"><b>'+(qs.avg===null?'—':formatPercent(qs.avg))+'</b><span>平均得分率</span></div>'
+      +'<div class="mini-stat"><b>'+(qs.targetExams?(qs.met+'/'+qs.targetExams):'—')+'</b><span>次达成目标</span></div>'
+      +'<div class="mini-stat"><b>'+(qs.gap===null?'—':(qs.gap<=0?'✓':formatScore(Math.abs(qs.gap))))+'</b><span>'+(qs.gap===null?'最近目标':(qs.gap<=0?'已达成目标':'分 · 距目标'))+'</span></div>'
+      +'</div>';
+    html=html.replace(/<div class="quick-grid">[\s\S]*?<\/div><\/div>/,quickGrid);
     // 完整趋势 / 保存图片
     html=html.replace(/<div class="chart-wrap[^"]*" id="chart">/,
       '<div class="trend-actions-v25"><button type="button" id="trendFullV25">⛶ 完整趋势</button><button type="button" id="trendSaveV25">⭳ 保存图片</button></div><div class="chart-wrap" id="chart">');
