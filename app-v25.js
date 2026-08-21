@@ -1,7 +1,7 @@
-// v25 / product v2.2: combo ranks, combo trends, score/percent view, full-trend PNG export,
+// v25 / product v2.3: combo ranks, combo trends, score/percent view, full-trend PNG export,
 // tooltip clamping, record/group reordering, password rule update.
 (function(){
-  var PRODUCT_VERSION_V25='v2.2';
+  var PRODUCT_VERSION_V25='v2.3';
 
   function syncVersionV25(){
     var meta=document.querySelector('meta[name="application-version"]');
@@ -40,6 +40,30 @@
       .order-btn-v25:hover, .order-btn-v25:active{border-color:#a9b4c8;color:#2c3648}
       .grade-section-head-v13 .order-btn-v25{width:30px;height:26px}
       .tooltip-card{white-space:normal;overflow-wrap:anywhere;word-break:break-word;max-width:min(300px,calc(100vw - 16px))}
+      .people-total-v25{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 10px}
+      .people-total-v25>div{display:grid;gap:5px;min-width:0}
+      .people-total-v25 label{font-size:10px;color:var(--muted);font-weight:700}
+      .people-total-v25 input{width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;padding:9px 10px;background:#fff;outline:none}
+      .end-date-field-v25{min-width:0}
+      .combo-chips-v25 .label{font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap}
+      .basis-btn-v13.active{background:var(--text);color:#fff;border-color:var(--text)}
+      .score-basis-v13{margin:0 0 10px}
+      .radar-pick-v25{margin-top:8px}
+      .radar-pick-v25 .secondary{border:1px solid var(--line);background:#fff;color:#556070;border-radius:999px;padding:8px 13px;font-size:12px;cursor:pointer}
+      .radar-picked-v25{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+      .radar-pick-chip-v25{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#f7f8fb;color:#556070;border-radius:999px;padding:7px 10px;font-size:11px;cursor:pointer}
+      .radar-pick-chip-v25:hover{border-color:#a9b4c8}
+      .radar-pick-group-v25{margin:0 0 12px}
+      .radar-pick-group-v25 h4{font-size:12px;color:var(--muted);margin:0 0 4px}
+      .radar-pick-option-v25{display:flex;align-items:center;gap:8px;padding:9px 2px;font-size:13px;color:var(--text);border-bottom:1px solid var(--line);cursor:pointer}
+      .radar-pick-option-v25 input{width:16px;height:16px;accent-color:#5d72e8}
+      .trend-legend-row-v25{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px}
+      .trend-legend-row-v25 .legend{margin:0}
+      .trend-legend-row-v25 .trend-scroll-hint-v19{margin:0;margin-left:auto;text-align:right}
+      .rank-entry-mode-v17{gap:6px;margin:2px 0 28px}
+      .rank-entry-mode-v17 button{padding:5px 9px;font-size:10.5px}
+      .rank-entry-top-v21{margin:10px 0 14px;padding:9px 12px}
+      .people-total-v25{margin-top:10px}
       @media(max-width:620px){
         .combo-rank-v25{grid-template-columns:1fr;gap:8px;padding-top:9px}
         .full-trend-stage-v25{padding:10px 8px}
@@ -56,7 +80,8 @@
   function comboRankInfoV25(exam,name,scope){
     if(!exam||!name)return{rank:null,participants:null,performance:null};
     var id=comboIdV25(name);if(!id)return{rank:null,participants:null,performance:null};
-    var row=(exam.moduleRanks&&exam.moduleRanks[id])||{};
+    var ranksMap=examRanksForV25(exam);
+    var row=(ranksMap&&ranksMap[id])||{};
     var isClass=scope==='class';
     var rank=num(isClass?row.classRank:row.yearRank);
     var participants=num(isClass?row.classParticipants:row.yearParticipants);
@@ -64,19 +89,123 @@
     var performance=rank===null?null:(typeof rankPerformanceV7==='function'?rankPerformanceV7(rank,participants):null);
     return{rank:rank,participants:participants,performance:performance};
   }
-  function decodeHtmlV25(s){return String(s||'').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');}
   function scopeLabelV25(){return(state.rankScopeV16==='class')?'班排':'年排';}
+
+  // A) 年级/班级总人数的本机记忆与自动填充
+  function peopleKeyV25(){return 'st_people_v25_'+(state.user&&state.user.username||'anon');}
+  function peopleLoadV25(){
+    var raw=localStorage.getItem(peopleKeyV25())||'';var d=null;
+    try{d=raw?JSON.parse(raw):null;}catch(e){d=null;}
+    return(d&&typeof d==='object')?d:{};
+  }
+  function peopleSaveV25(d){try{localStorage.setItem(peopleKeyV25(),JSON.stringify(d||{}));}catch(e){}}
+
+  // 组合排名：云端优先，本地兜底（后端 Edge Function 支持 moduleRanks 前先存在本机）
+  function comboRanksKeyV25(){return 'st_moduleranks_v25_'+(state.user&&state.user.username||'anon');}
+  function comboRanksCacheV25(){
+    try{var raw=localStorage.getItem(comboRanksKeyV25())||'';var d=raw?JSON.parse(raw):null;return d&&typeof d==='object'?d:{};}catch(e){return{};}
+  }
+  function examRanksForV25(exam){
+    if(exam&&exam.moduleRanks&&typeof exam.moduleRanks==='object'&&Object.keys(exam.moduleRanks).length)return exam.moduleRanks;
+    if(!exam||!exam.exam_date||!exam.name)return{};
+    return comboRanksCacheV25()[exam.exam_date+'|'+exam.name]||{};
+  }
+  function rememberRanksV25(examDate,examName,ranks){
+    try{var c=comboRanksCacheV25();c[String(examDate||'')+'|'+String(examName||'')]=ranks||{};localStorage.setItem(comboRanksKeyV25(),JSON.stringify(c));}catch(e){}
+  }
+  function fillPeopleDownV25(modal,year,cls){
+    if(!modal)return;
+    function fill(input,val){
+      if(!input||!val)return;
+      if(input.dataset.userSetV25==='1')return;                 // 用户改过：以用户为准
+      if(input.dataset.autoV25!=='1'&&String(input.value||'')!=='')return; // 已有保存值（编辑旧考试）
+      input.value=val;input.dataset.autoV25='1';
+    }
+    fill(modal.querySelector('#totalParticipantsV16'),year);
+    fill(modal.querySelector('#totalClassParticipantsV16'),cls);
+    modal.querySelectorAll('.year-participants-v16').forEach(function(i){fill(i,year);});
+    modal.querySelectorAll('.class-participants-v16').forEach(function(i){fill(i,cls);});
+    // 组合分的人数空同样自动填（用户改过的不覆盖）
+    modal.querySelectorAll('.combo-yp-v25').forEach(function(i){fill(i,year);});
+    modal.querySelectorAll('.combo-cp-v25').forEach(function(i){fill(i,cls);});
+  }
+  // C1) 弹窗内文案精简：删纯说明文字，保留必要提示（防误删、状态说明）
+  function declutterModalV25(modal){
+    if(!modal)return;
+    modal.querySelectorAll('.rank-science-box-v7,.rank-compat-v16,.position-note-v17,.template-note-v10').forEach(function(el){el.remove();});
+    modal.querySelectorAll('.section-head-v7 p').forEach(function(p){p.remove();});
+    // 科目设置弹窗里的「移除不删历史成绩」是必要提示，保留
+    if(!modal.querySelector('#subjectConfigList')){
+      modal.querySelectorAll('p.form-note').forEach(function(p){p.remove();});
+    }
+  }
+  // C1) 页面文案精简：删冗余介绍，保留必要提示（防误删、功能前缀、空态、图例）
+  function stripVerboseV25(html){
+    return String(html||'')
+      .replace(/<p class="card-sub">[\s\S]*?<\/p>/g,'')
+      .replace(/<p class="hero-desc">[\s\S]*?<\/p>/g,'')
+      .replace(/<div class="axis-caption-v6">[\s\S]*?<\/div>/g,'')
+      .replace(/<div class="rank-method-v7">[\s\S]*?<\/div>/g,'')
+      .replace(/<div class="raw-rank-note-v11">[\s\S]*?<\/div>/g,'')
+      .replace(/<div class="rank-science-box-v7">[\s\S]*?<\/div>/g,'')
+      .replace(/<div class="rank-compat-v16">[\s\S]*?<\/div>/g,'')
+      .replace(/<div class="position-note-v17">[\s\S]*?<\/div>/g,'')
+      .replace(/<div class="subject-sync-note-v24">[\s\S]*?<\/div>/g,'')
+      .replace(/<div class="username-origin-v19">[\s\S]*?<\/div>/g,'')
+      .replace(/<span class="template-note-v10">[\s\S]*?<\/span>/g,'')
+      .replace(/<div class="subtle-note"([^>]*)>([\s\S]*?)<\/div>/g,function(m,attrs,inner){
+        if(inner.indexOf('移除科目')!==-1||inner.indexOf('不会删除历史成绩')!==-1||inner.indexOf('组合：')!==-1)return m;
+        return '';
+      })
+      .replace(/(<div class="card hero-main">[\s\S]*?<h2>)[\s\S]*?(<\/h2>)/,'$1看见起伏，也看见自己在进步。$2')
+      .replace(/(<div class="page-head">[\s\S]*?<h2>[^<]*<\/h2>)<p>[\s\S]*?<\/p>/g,'$1');
+  }
 
   // ---------- A) optional ranks per combo in the exam modal ----------
   var openExamBeforeV25=openExam;
   openExam=function openExamV25(exam){
     openExamBeforeV25(exam);
     var modal=state.modal;if(!modal)return;
+
+    // A) 年级/班级总人数：一行设置，本机记住，自动填到下面所有人数空（用户改过的不覆盖）
+    var entry=modal.querySelector('.rank-entry-mode-v17');
+    if(entry&&!modal.querySelector('.people-total-v25')){
+      var peopleBox=document.createElement('div');
+      peopleBox.className='people-total-v25';
+      peopleBox.innerHTML='<div><label>年级总人数</label><input class="pt-year-v25" inputmode="numeric" pattern="[0-9]*" placeholder="如 620"></div><div><label>班级总人数</label><input class="pt-class-v25" inputmode="numeric" pattern="[0-9]*" placeholder="如 45"></div>';
+      entry.insertAdjacentElement('afterend',peopleBox);
+      var pYear=peopleBox.querySelector('.pt-year-v25'),pClass=peopleBox.querySelector('.pt-class-v25');
+      var savedPeople=peopleLoadV25();
+      pYear.value=savedPeople.year??(modal.querySelector('#totalParticipantsV16')?.value||'');
+      pClass.value=savedPeople.class??(modal.querySelector('#totalClassParticipantsV16')?.value||'');
+      function fillDown(){fillPeopleDownV25(modal,pYear.value.trim(),pClass.value.trim());}
+      pYear.addEventListener('input',function(){peopleSaveV25({year:pYear.value.trim(),class:pClass.value.trim()});fillDown();});
+      pClass.addEventListener('input',function(){peopleSaveV25({year:pYear.value.trim(),class:pClass.value.trim()});fillDown();});
+      modal.querySelectorAll('#totalParticipantsV16,#totalClassParticipantsV16,.year-participants-v16,.class-participants-v16').forEach(function(input){
+        input.addEventListener('input',function(){input.dataset.userSetV25='1';delete input.dataset.autoV25;});
+      });
+      fillDown();
+    }
+
+    // B) 结束日期（时间段，可选；仅考试记录页展示，趋势图仍用开始日期）
+    var dateField=modal.querySelector('#examDate')?.closest('.field');
+    if(dateField&&!modal.querySelector('#examEndDateV25')){
+      var endField=document.createElement('div');
+      endField.className='field end-date-field-v25';
+      endField.innerHTML='<label>结束日期（可选）</label><input id="examEndDateV25" type="date" value="'+escapeHtml(exam&&exam.end_date?exam.end_date:'')+'">';
+      dateField.insertAdjacentElement('afterend',endField);
+    }
+
+    // C1) 弹窗文案精简
+    declutterModalV25(modal);
+
     var list=modal.querySelector('#comboListV21');if(!list)return;
-    var saved={};Object.entries(exam&&exam.moduleRanks?exam.moduleRanks:{}).forEach(function(entry){saved[entry[0]]=entry[1]||{};});
+    var saved={};Object.entries(exam&&exam.moduleRanks?exam.moduleRanks:examRanksForV25(exam)).forEach(function(entry){saved[entry[0]]=entry[1]||{};});
     function decorateCard(card){
       if(card.querySelector('.combo-rank-v25'))return;
-      var id=card.dataset.comboId;var s=saved[id]||{};
+      var id=card.dataset.comboId;
+      modal._comboRankCacheV25=modal._comboRankCacheV25||{};
+      var s=(modal._comboRankCacheV25&&modal._comboRankCacheV25[id])||saved[id]||{};
       var block=document.createElement('div');
       block.className='combo-rank-v25';
       block.innerHTML=
@@ -89,11 +218,29 @@
         '<input class="combo-cp-v25" inputmode="numeric" pattern="[0-9]*" placeholder="班级人数" value="'+escapeHtml(s.classParticipants??'')+'">'+
         '</div></div>';
       card.appendChild(block);
+      // 输入即缓存：组合卡被重建（增删组合）时已填排名不丢失；用户改过的人数不再被自动填充覆盖
+      block.querySelectorAll('input').forEach(function(inp){
+        inp.dataset.userSetV25=(String(inp.value||'').trim()!=='')?'1':'';
+        inp.addEventListener('input',function(){
+          inp.dataset.userSetV25='1';
+          delete inp.dataset.autoV25;
+          var c={};
+          c.yearRank=(card.querySelector('.combo-yr-v25')?.value||'').trim();
+          c.yearParticipants=(card.querySelector('.combo-yp-v25')?.value||'').trim();
+          c.classRank=(card.querySelector('.combo-cr-v25')?.value||'').trim();
+          c.classParticipants=(card.querySelector('.combo-cp-v25')?.value||'').trim();
+          modal._comboRankCacheV25[id]=c;
+        });
+      });
     }
     function decorateAll(){list.querySelectorAll('.combo-card-v21').forEach(decorateCard);}
     decorateAll();
     try{
-      var obs=new MutationObserver(function(){decorateAll();});
+      var obs=new MutationObserver(function(){
+        decorateAll();
+        var ptY=modal.querySelector('.pt-year-v25'),ptC=modal.querySelector('.pt-class-v25');
+        if(ptY)fillPeopleDownV25(modal,ptY.value.trim(),ptC?ptC.value.trim():'');
+      });
       obs.observe(list,{childList:true,subtree:true});
       modal._comboRankObserverV25=obs;
     }catch(e){}
@@ -135,7 +282,10 @@
             var err=validateComboRanksV25(ranks);
             if(err)throw new Error(err);
             payload.exam.moduleRanks=ranks;
+            rememberRanksV25(payload.exam.exam_date,payload.exam.name,ranks); // 本地兜底
           }
+          var endInput=modal.querySelector('#examEndDateV25');
+          if(endInput)payload.exam.end_date=String(endInput.value||'').trim();
         }
       }
       return dataApiV25Before(action,payload);
@@ -217,28 +367,29 @@
   var homeHtmlBeforeV25=homeHtml;
   homeHtml=function homeHtmlV25(){
     var html=homeHtmlBeforeV25();
-    // 查看：分数 / 百分比（成绩口径行的下方；仅成绩+最终分模式有意义）
+    // 1) 英雄区问候语：Hi，用户名！
+    html=html.replace(/<span class="eyebrow">[^<]*<\/span>/,'<span class="eyebrow">Hi，'+escapeHtml((state.user&&state.user.username)||'')+'！</span>');
+    // 查看：分数/百分比，与「趋势类型」同级（插入趋势类型行内末尾；仅成绩+最终分模式）
     if(state.trendMetric==='score'&&state.subject!=='总览'&&state.scoreBasis!=='raw'){
-      var viewRow='<div class="score-view-v25"><span class="label">查看</span><button class="basis-btn-v13 '+(state.scoreViewV25==='score'?'active':'')+'" data-score-view-v25="score">分数</button><button class="basis-btn-v13 '+(state.scoreViewV25==='percent'?'active':'')+'" data-score-view-v25="percent">百分比</button></div>';
-      if(html.indexOf('score-basis-v13')!==-1)html=html.replace(/(<div class="score-basis-v13">[\s\S]*?<\/div>)/,'$1'+viewRow);
-      else html=html.replace('<div class="chips">',viewRow+'<div class="chips">');
+      var viewBtns='<span class="label">查看</span><button class="basis-btn-v13 '+(state.scoreViewV25==='score'?'active':'')+'" data-score-view-v25="score">分数</button><button class="basis-btn-v13 '+(state.scoreViewV25==='percent'?'active':'')+'" data-score-view-v25="percent">百分比</button>';
+      html=html.replace(/(<div class="trend-metric-toggle-v7[^"]*">)([\s\S]*?)(<\/div>)/,'$1$2'+viewBtns+'$3');
     }
     if(state.trendMetric==='score'&&state.scoreViewV25==='percent'&&state.subject!=='总览'&&state.scoreBasis!=='raw'){
       html=html.replace('<p class="card-sub">真实成绩与目标成绩放在同一张图里</p>','<p class="card-sub">按得分率（百分比）查看真实与目标走势，不同满分的项目也能直接比较</p>');
     }
-    // 组合分单独一排，排在科目下方
+    // 3) chips 重排：组合行（组合：总览 总分 组合分）+ 科目行（科目：语文 数学 …）
     var combos=(state.modulesV18||[]).filter(function(m){return m&&m.name&&(m.subjects||[]).length>0;});
-    if(combos.length){
-      var chips=combos.map(function(c){
-        var active=state.subject===c.name;
-        return '<button class="chip '+(active?'active':'')+'" data-subject="'+escapeHtml(c.name)+'">'+escapeHtml(c.name)+'</button>';
-      }).join('');
-      html=html.replace(/<div class="chips">([\s\S]*?)<\/div>/,function(m,inner){return '<div class="chips">'+inner+'</div><div class="combo-chips-v25"><span class="subtle-note" style="white-space:nowrap">组合：</span>'+chips+'</div>';});
-    }
+    var chip=function(s){var active=state.subject===s;return '<button class="chip '+(active?'active':'')+'" data-subject="'+escapeHtml(s)+'">'+escapeHtml(s)+'</button>';};
+    var comboRow=(combos.length?'<span class="label">组合：</span>':'')+chip('总览')+chip('总分')+combos.map(function(c){return chip(c.name);}).join('');
+    var subjectRow='<span class="label">科目：</span>'+(SUBJECTS||[]).map(function(s){return chip(s);}).join('');
+    html=html.replace(/<div class="chips">([\s\S]*?)<\/div>/,function(m,inner){
+      return '<div class="combo-chips-v25">'+comboRow+'</div><div class="combo-chips-v25">'+subjectRow+'</div>';
+    });
     // 完整趋势 / 保存图片
     html=html.replace(/<div class="chart-wrap[^"]*" id="chart">/,
       '<div class="trend-actions-v25"><button type="button" id="trendFullV25">⛶ 完整趋势</button><button type="button" id="trendSaveV25">⭳ 保存图片</button></div><div class="chart-wrap" id="chart">');
-    return html;
+    // C1) 精简文案
+    return stripVerboseV25(html);
   };
 
   // ---------- E) PNG export (string-based: no DOM serialization quirks, blob URL + data URL fallback) ----------
@@ -451,6 +602,75 @@
     };
   }
 
+  // ---------- F2) 雷达图考试选择器：选择最近考试 → 分类勾选弹窗 → 只显示所选 ----------
+  // 不再自动预选最近考试：初始为「选择最近考试」按钮，用户勾选后才显示所选
+  var ensureRadarBeforeV25=(typeof ensureRadarSelection==='function')?ensureRadarSelection:null;
+  if(ensureRadarBeforeV25){
+    ensureRadarSelection=function ensureRadarSelectionV25(){
+      var ids=state.radarSelection||[];
+      var availableIds=new Set((typeof radarAvailableExams==='function'?radarAvailableExams():[]).map(function(e){return e.id;}));
+      state.radarSelection=ids.filter(function(id){return availableIds.has(id);}).slice(0,4);
+    };
+  }
+  var radarCardHtmlBeforeV25=(typeof radarCardHtml==='function')?radarCardHtml:null;
+  if(radarCardHtmlBeforeV25){
+    radarCardHtml=function radarCardHtmlV25(){
+      var html=radarCardHtmlBeforeV25();
+      var available=typeof radarAvailableExams==='function'?radarAvailableExams():[];
+      var selected=state.radarSelection||[];
+      var picker;
+      if(!available.length){
+        picker='<div class="multi-select" style="margin-top:8px"><span class="subtle-note">当前还没有可用于雷达图的数据</span></div>';
+      }else if(selected.length){
+        picker='<div class="radar-picked-v25">'+selected.map(function(id){
+          var e=(state.exams||[]).find(function(x){return x.id===id;});
+          return e?'<span class="radar-pick-chip-v25" data-radar-unpick="'+escapeHtml(id)+'">'+escapeHtml(e.name)+' · '+fmtDate(e.exam_date)+' ✕</span>':'';
+        }).join('')+'</div>';
+      }else{
+        picker='<div class="radar-pick-v25"><button class="secondary" id="radarPickV25" type="button">选择最近考试</button></div>';
+      }
+      html=html.replace(/<div class="multi-select"[^>]*>[\s\S]*?<\/div>/,picker);
+      return html;
+    };
+  }
+  function openRadarPickerV25(){
+    var available=typeof radarAvailableExams==='function'?radarAvailableExams():[];
+    if(!available.length)return toast('暂无可用考试');
+    var cats=typeof categoryOptionsV14==='function'?categoryOptionsV14():[];
+    var groups=[].concat(
+      cats.map(function(c){return{name:c,list:available.filter(function(e){return e.grade_level===c;})};}),
+      [{name:'未分类',list:available.filter(function(e){return !e.grade_level;})}]
+    ).filter(function(g){return g.list.length;});
+    groups.forEach(function(g){g.list.sort(function(a,b){return String(a.exam_date||'').localeCompare(String(b.exam_date||''));});});
+    var picked=new Set((state.radarSelection||[]).map(String));
+    var modal=document.createElement('div');
+    modal.className='modal-backdrop';
+    modal.innerHTML='<div class="modal"><div class="modal-head"><h3>选择考试（最多 4 次）</h3><button class="close-btn" type="button">×</button></div><div class="modal-body">'
+      +groups.map(function(g){
+        return '<div class="radar-pick-group-v25"><h4>'+escapeHtml(g.name)+'</h4>'
+          +g.list.map(function(e){
+            return '<label class="radar-pick-option-v25"><input type="checkbox" value="'+escapeHtml(e.id)+'"'+(picked.has(String(e.id))?' checked':'')+'> '+escapeHtml(e.name)+' · '+fmtDate(e.exam_date)+'</label>';
+          }).join('')
+          +'</div>';
+      }).join('')
+      +'<div class="modal-actions"><button class="secondary cancel-btn">取消</button><button class="primary" id="radarPickOkV25">确定</button></div></div></div>';
+    document.body.appendChild(modal);
+    var close=function(){modal.remove();};
+    modal.querySelector('.close-btn').onclick=close;
+    modal.querySelector('.cancel-btn').onclick=close;
+    modal.onclick=function(e){if(e.target===modal)close();};
+    modal.querySelectorAll('input[type="checkbox"]').forEach(function(b){
+      b.addEventListener('change',function(){
+        if(modal.querySelectorAll('input[type="checkbox"]:checked').length>4){toast('最多选择 4 次考试');b.checked=false;}
+      });
+    });
+    modal.querySelector('#radarPickOkV25').onclick=function(){
+      state.radarSelection=[].slice.call(modal.querySelectorAll('input[type="checkbox"]:checked')).map(function(b){return b.value;});
+      if(state.radarSelection.length&&typeof ensureRadarSelection==='function')ensureRadarSelection();
+      close();render();
+    };
+  }
+
   // ---------- G) tooltip: fixed viewport positioning, never overflows the card ----------
   var tipPointV25=null;
   function hideChartTipsV25(){
@@ -633,12 +853,65 @@
     };
   }
 
+  // ---------- I2) 记录页/账号页：精简文案 + 时间段展示 ----------
+  var recordHtmlBeforeV25=(typeof recordHtml==='function')?recordHtml:null;
+  if(recordHtmlBeforeV25){
+    recordHtml=function recordHtmlV25(exam){
+      var html=recordHtmlBeforeV25(exam);
+      if(exam&&exam.end_date){
+        html=html.replace(/(<div class="record-date">)[^<]*(<b[^>]*>)/,function(m,a,b){
+          return a+fmtYearDate(exam.exam_date)+' - '+fmtYearDate(exam.end_date)+b;
+        });
+      }
+      return html;
+    };
+  }
+  var recordsHtmlBeforeV25=(typeof recordsHtml==='function')?recordsHtml:null;
+  if(recordsHtmlBeforeV25){
+    recordsHtml=function recordsHtmlV25(){return stripVerboseV25(recordsHtmlBeforeV25());};
+  }
+  var accountHtmlBeforeV25=(typeof accountHtml==='function')?accountHtml:null;
+  if(accountHtmlBeforeV25){
+    accountHtml=function accountHtmlV25(){
+      var html=accountHtmlBeforeV25();
+      // 修改密码：源头去掉纯数字限制（inputmode/pattern），支持字母数字符号
+      html=html.replace(/<input id="newPasswordV15"[^>]*>/,
+        '<input id="newPasswordV15" type="password" autocomplete="new-password" placeholder="6～20位，可含字母数字符号">');
+      html=html.replace(/<input id="confirmPasswordV15"[^>]*>/,
+        '<input id="confirmPasswordV15" type="password" autocomplete="new-password" placeholder="再次输入新密码">');
+      return stripVerboseV25(html);
+    };
+  }
+
   // ---------- J) bind page ----------
+  function moveLegendBelowChartV25(){
+    var wrap=document.getElementById('chart');
+    if(!wrap||state.page!=='home')return;
+    var legend=document.querySelector('.chart-card .legend');
+    if(!legend)return;
+    var row=legend.parentNode&&legend.parentNode.classList&&legend.parentNode.classList.contains('trend-legend-row-v25')
+      ?legend.parentNode:null;
+    if(!row){
+      row=document.createElement('div');
+      row.className='trend-legend-row-v25';
+      legend.parentNode&&legend.parentNode.removeChild(legend);
+      wrap.insertAdjacentElement('afterend',row);
+      row.appendChild(legend);
+    }
+    var hint=document.querySelector('.trend-scroll-hint-v19');
+    if(hint&&hint.parentNode!==row)row.appendChild(hint);
+  }
   var bindPageBeforeV25=bindPage;
   bindPage=function bindPageV25(){
     bindPageBeforeV25();
+    // 图例移到图表下方，与「左右滑动查看全部考试」同行
+    moveLegendBelowChartV25();
     // 查看：分数/百分比
     $$('[data-score-view-v25]').forEach(function(b){b.onclick=function(){state.scoreViewV25=b.dataset.scoreViewV25;render();};});
+    // 雷达图：选择考试/移除所选
+    var pick=document.getElementById('radarPickV25');
+    if(pick)pick.onclick=openRadarPickerV25;
+    $$('[data-radar-unpick]').forEach(function(c){c.onclick=function(){state.radarSelection=(state.radarSelection||[]).filter(function(id){return id!==c.dataset.radarUnpick;});render();};});
     // 完整趋势 / 保存图片
     var full=document.getElementById('trendFullV25');
     if(full)full.onclick=openFullTrendV25;
@@ -676,22 +949,32 @@
     }
   };
 
-  // ---------- K) show combo ranks on record cards ----------
+  // ---------- K) 记录页组合汇总：分数与排名独立展示（成员缺分时排名仍显示） ----------
   if(typeof moduleSummaryV18==='function'){
-    var moduleSummaryBeforeV25=moduleSummaryV18;
     moduleSummaryV18=function moduleSummaryV25(exam){
-      var html=moduleSummaryBeforeV25(exam);
-      if(!html)return html;
-      return html.replace(/(<span class="module-chip-v18"><b>)([\s\S]*?)(<\/b>)([\s\S]*?)(<\/span>)/g,function(all,a,escName,b,rest,c){
-        var name=decodeHtmlV25(escName),id=comboIdV25(name),parts=[],extra='';
-        if(id&&exam&&exam.moduleRanks&&exam.moduleRanks[id]){
-          var r=exam.moduleRanks[id];
+      if(!state.modulesV18||!exam)return '';
+      var selected=new Set((exam.moduleIds||[]).map(String));
+      if(!selected.size)return '';
+      var items=(state.modulesV18||[]).filter(function(m){return selected.has(String(m&&m.id));}).map(function(m){
+        if(!m||!m.name)return '';
+        var final=examScore(exam,m.name,'actual');
+        var raw=(typeof examRawScoreV13==='function')?examRawScoreV13(exam,m.name):null;
+        var target=examScore(exam,m.name,'target');
+        var max=(typeof examMax==='function')?examMax(exam,m.name):null;
+        var parts=[];
+        if(final!==null)parts.push(formatScore(final)+(max?('/'+formatScore(max)):''));
+        if(raw!==null&&raw!==final)parts.push('原始 '+formatScore(raw));
+        if(target!==null)parts.push('目标 '+formatScore(target));
+        var ranksMap=examRanksForV25(exam);
+        var r=ranksMap&&ranksMap[String(m.id)];
+        if(r){
           if(num(r.yearRank)!==null)parts.push('年排 '+formatScore(r.yearRank)+(num(r.yearParticipants)!==null?('/'+formatScore(r.yearParticipants)):''));
           if(num(r.classRank)!==null)parts.push('班排 '+formatScore(r.classRank)+(num(r.classParticipants)!==null?('/'+formatScore(r.classParticipants)):''));
-          if(parts.length)extra='<i style="color:#667085"> · '+parts.join(' · ')+'</i>';
         }
-        return a+escName+b+rest+extra+c;
-      });
+        if(!parts.length)return '';
+        return '<span class="module-chip-v18"><b>'+escapeHtml(m.name)+'</b> '+parts.join(' · ')+'</span>';
+      }).filter(Boolean);
+      return items.length?'<div class="record-module-summary-v18">'+items.join('')+'</div>':'';
     };
   }
 
