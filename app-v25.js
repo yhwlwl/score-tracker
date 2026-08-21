@@ -1,6 +1,16 @@
-// v25 / product v2.0+: combo ranks, combo trends, score/percent view, full-trend PNG export,
+// v25 / product v2.2: combo ranks, combo trends, score/percent view, full-trend PNG export,
 // tooltip clamping, record/group reordering, password rule update.
 (function(){
+  var PRODUCT_VERSION_V25='v2.2';
+
+  function syncVersionV25(){
+    var meta=document.querySelector('meta[name="application-version"]');
+    if(meta)meta.setAttribute('content',PRODUCT_VERSION_V25);
+    var footer=document.getElementById('app-version-v17');
+    if(footer)footer.textContent='Score Tracker · '+PRODUCT_VERSION_V25;
+  }
+  syncVersionV25();
+
   state.scoreViewV25 = state.scoreViewV25 || 'score';
 
   // ---------- styles ----------
@@ -685,4 +695,5 @@
     };
   }
 
+  syncVersionV25();
 })();
