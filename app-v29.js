@@ -7,7 +7,7 @@
 //    折线路径与数据点（SVG 子元素按 path+后续circle 分组，与图例顺序天然一致）。
 // C) 手感补齐：全局按钮按压缩放(0.96)、精确属性过渡、:focus-visible 焦点环。
 (function(){
-  var PRODUCT_VERSION_V29='v4.0';
+  var PRODUCT_VERSION_V29='v4.1';
 
   /* ================= 版本号 ================= */
   function syncVersionV29(){
