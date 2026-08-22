@@ -129,7 +129,17 @@
     'html[data-theme="night"] .study-tool-thumb-v18 img{filter:saturate(.8) contrast(.95) brightness(.85)}',
     'html[data-theme="night"] .splash .brand-mark{color:#10141b}',
     /* ---- 分段选择按钮：全部统一为「外观」卡的选中语言（accent-soft 底 + accent 描边） ---- */
-    '.metric-btn-v7.metric-btn-v7.active,.basis-btn-v13.basis-btn-v13.active,.grade-chip-v13.grade-chip-v13.active,.rank-entry-mode-v17.rank-entry-mode-v17 button.active{background:var(--accent-soft)!important;color:var(--accent)!important;border-color:var(--accent)!important}',
+    '.metric-btn-v7.metric-btn-v7.active,.basis-btn-v13.basis-btn-v13.active,.grade-chip-v13.grade-chip-v13.active,.rank-entry-mode-v17.rank-entry-mode-v17 button.active,.select-pill.select-pill.active,.module-subject-v18.module-subject-v18.active{background:var(--accent-soft)!important;color:var(--accent)!important;border-color:var(--accent)!important}',
+    /* ---- 未选中态的硬编码浅色收编 ---- */
+    '.metric-btn-v7{background:var(--chip-bg,#fff);color:var(--muted)}',
+    '.select-pill{background:var(--chip-bg,#fff)}',
+    '.subject-chip-v7,.category-chip-v14,.module-chip-v18,.legend-pill{background:var(--cell,#f7f8fb);color:var(--muted)}',
+    '.module-badge-v18{background:var(--cell,#f4f7fb);border-color:var(--line-soft,#d9e3f3);color:var(--muted)}',
+    '.module-editor-v18{background:var(--panel-solid,#fbfcfe)}',
+    '.module-editor-head-v18 input{background:var(--input-bg,#fff);color:var(--text)}',
+    '.module-editor-head-v18 input[readonly]{background:var(--cell,#f5f7fa);color:var(--muted)}',
+    '.module-delete-v18{background:var(--chip-bg,#fff)}',
+    '.module-subject-v18{background:var(--chip-bg,#fff);color:var(--muted)}',
     /* ---- 图例可点击的可见暗示 ---- */
     '.legend span::after,.overview-legend .overview-pill::after,.rank-legend-v7 span::after{content:"🎨";font-size:9px;margin-left:4px;opacity:.45;transition:opacity .15s ease}',
     '.legend span:hover::after,.overview-legend .overview-pill:hover::after,.rank-legend-v7 span:hover::after{opacity:1}',
@@ -495,9 +505,27 @@
     (document.head||document.documentElement).appendChild(link);
   }
 
+  /* 科目行只保留真科目：历史版本把组合名 push 进了 SUBJECTS，这里在展示层剔除 */
+  function pruneComboFromSubjectRowV29(){
+    var modSet=null;
+    try{
+      var names=(typeof moduleNameSetV21==='function')?moduleNameSetV21():[];
+      modSet=new Set(names||[]);
+    }catch(e){return;}
+    if(!modSet.size)return;
+    document.querySelectorAll('.combo-chips-v25').forEach(function(rowEl){
+      var label=rowEl.querySelector('.label');
+      if(!label||String(label.textContent||'').indexOf('科目：')!==0)return;
+      rowEl.querySelectorAll('button[data-subject]').forEach(function(b){
+        if(modSet.has(b.getAttribute('data-subject'))&&b.parentNode)b.parentNode.removeChild(b);
+      });
+    });
+  }
+
   /* ================= 渲染后钩子 ================= */
   function afterRenderV29(){
     applyCustomLineColorsV29();
+    pruneComboFromSubjectRowV29();
     injectAppearanceCardV29();
     swapLogosV29();
     try{
