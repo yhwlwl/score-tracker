@@ -159,9 +159,10 @@
   var THEMES_V29=[
     {id:'sunny',name:'晴白 · 默认',dot:'linear-gradient(135deg,#5d72e8,#f5f7fb)',meta:'#f5f7fb'},
     {id:'paper',name:'暖纸',dot:'linear-gradient(135deg,#bc6b3c,#f6f1e8)',meta:'#f6f1e8'},
-    {id:'mist', name:'雾蓝',dot:'linear-gradient(135deg,#3466e0,#eef1f6)',meta:'#eef1f6'},
-    {id:'night',name:'墨夜 · 暗',dot:'linear-gradient(135deg,#8b9dff,#10141b)',meta:'#10141b'},
-    {id:'mint', name:'青屿',dot:'linear-gradient(135deg,#2f8f6b,#eef3ef)',meta:'#eef3ef'}
+    {id:'sakura',name:'樱粉',dot:'linear-gradient(135deg,#cf5f83,#faf4f6)',meta:'#faf4f6'},
+    {id:'violet',name:'淡紫',dot:'linear-gradient(135deg,#8a70d6,#f4f2fa)',meta:'#f4f2fa'},
+    {id:'mint',name:'青屿',dot:'linear-gradient(135deg,#2f8f6b,#eef3ef)',meta:'#eef3ef'},
+    {id:'night',name:'墨夜 · 暗',dot:'linear-gradient(135deg,#8b9dff,#10141b)',meta:'#10141b'}
   ];
   var THEME_CSS={
     sunny:[],
@@ -180,20 +181,35 @@
       '--promo-bg:linear-gradient(135deg,#fdf8ec,#f8f0dd)','--promo-line:#dcc9a4',
       '--nav-shadow:0 10px 35px rgba(90,72,44,.14)'
     ],
-    mist:[
-      '--bg:#eef1f6','--panel:rgba(255,255,255,.93)','--panel-solid:#ffffff','--text:#222c3a','--muted:#76828f',
-      '--line:#e0e6ee','--accent:#3466e0','--accent-soft:#e9efff','--green:#2f9d76','--green-soft:#e6f5ef','--danger:#d95c66',
-      '--glow1:#e7edff','--glow2:#e9f3fb','--logo-a:#2c3950','--logo-b:#5a6c8c',
-      '--nav-glass:rgba(255,255,255,.66)','--nav-line:#ffffff','--nav-active:#eef2f8','--navbg:rgba(255,255,255,.93)','--navline:#ffffff',
-      '--chip-bg:#ffffff','--cell:#f3f6fa','--line-soft:#dbe2ec',
-      '--axis:#93a0b4','--point-label:#8090a4','--grid:#e4e9f1','--dotfill:#ffffff',
-      '--info-bg:#eaf0fd','--info-line:#d8e2fa','--info-text:#4d5c7d',
-      '--raw-field:#fdf6ea','--final-field:#eef7f2','--combo-cell:#f0f5ff','--combo-line:#d5e0f7',
-      '--shadow:0 12px 40px rgba(38,52,80,.09)','--focus:#3466e0','--focus-ring:rgba(52,102,224,.14)',
-      '--sel-bg:#c9d9ff','--sel-text:#14243f',
-      '--hero-bg:linear-gradient(145deg,rgba(255,255,255,.96),rgba(243,247,253,.92))',
-      '--promo-bg:linear-gradient(135deg,#f6f9ff,#eef3fb)','--promo-line:#c3d2ee',
-      '--nav-shadow:0 10px 35px rgba(38,52,80,.13)'
+    sakura:[
+      '--bg:#faf4f6','--panel:rgba(255,255,255,.93)','--panel-solid:#ffffff','--text:#382a33','--muted:#94828f',
+      '--line:#f0dfe7','--accent:#cf5f83','--accent-soft:#fbe8ee','--green:#3fa17c','--green-soft:#e7f6ef','--danger:#d25e68',
+      '--glow1:#fdeef3','--glow2:#f5eefa','--logo-a:#8f3a58','--logo-b:#d98ba6',
+      '--nav-glass:rgba(255,255,255,.66)','--nav-line:#ffffff','--nav-active:#faeef2','--navbg:rgba(255,255,255,.93)','--navline:#ffffff',
+      '--chip-bg:#ffffff','--cell:#f9eff3','--line-soft:#ecd2de',
+      '--axis:#ab95a1','--point-label:#967f8d','--grid:#f2e4ea','--dotfill:#ffffff',
+      '--info-bg:#fdecf2','--info-line:#f4d7e2','--info-text:#7c5566',
+      '--raw-field:#fdf3e7','--final-field:#ebf6f0','--combo-cell:#fceef3','--combo-line:#f0d7e1',
+      '--shadow:0 12px 40px rgba(120,60,90,.10)','--focus:#cf5f83','--focus-ring:rgba(207,95,131,.15)',
+      '--sel-bg:#f7d3df','--sel-text:#57283a',
+      '--hero-bg:linear-gradient(145deg,rgba(255,236,243,.75) 0%,rgba(255,255,255,.97) 55%)',
+      '--promo-bg:linear-gradient(135deg,#fef1f5,#fbe9f0)','--promo-line:#eec3d3',
+      '--nav-shadow:0 10px 35px rgba(120,60,90,.13)'
+    ],
+    violet:[
+      '--bg:#f4f2fa','--panel:rgba(255,255,255,.93)','--panel-solid:#ffffff','--text:#2f2a3d','--muted:#8b8499',
+      '--line:#e6e1f0','--accent:#8a70d6','--accent-soft:#edeafb','--green:#3aa07e','--green-soft:#e6f5ef','--danger:#d75f76',
+      '--glow1:#ece7fb','--glow2:#f6ecf5','--logo-a:#4c3d80','--logo-b:#9c8ae0',
+      '--nav-glass:rgba(255,255,255,.66)','--nav-line:#ffffff','--nav-active:#efeaf8','--navbg:rgba(255,255,255,.93)','--navline:#ffffff',
+      '--chip-bg:#ffffff','--cell:#f1eef8','--line-soft:#dbd3ec',
+      '--axis:#9c93b3','--point-label:#867d9c','--grid:#e8e3f2','--dotfill:#ffffff',
+      '--info-bg:#edebfa','--info-line:#dcd6f4','--info-text:#5b5378',
+      '--raw-field:#faf3e7','--final-field:#ecf6f1','--combo-cell:#f0edf9','--combo-line:#ded5f2',
+      '--shadow:0 12px 40px rgba(80,64,130,.10)','--focus:#8a70d6','--focus-ring:rgba(138,112,214,.15)',
+      '--sel-bg:#ddd4f6','--sel-text:#2e2650',
+      '--hero-bg:linear-gradient(145deg,rgba(238,232,251,.65) 0%,rgba(255,255,255,.97) 55%)',
+      '--promo-bg:linear-gradient(135deg,#f3effc,#ebe5f9)','--promo-line:#cfc4ee',
+      '--nav-shadow:0 10px 35px rgba(80,64,130,.13)'
     ],
     night:[
       '--bg:#10141b','--panel:rgba(22,28,38,.92)','--panel-solid:#161c26','--text:#e7eaf1','--muted:#97a1b4',
