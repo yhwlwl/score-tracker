@@ -25,7 +25,7 @@
     'body{background:radial-gradient(circle at 8% 0%,var(--glow1,#eef0ff) 0,transparent 28%),radial-gradient(circle at 92% 8%,var(--glow2,#eff9f5) 0,transparent 24%),var(--bg)}',
     '.logo{background:linear-gradient(145deg,var(--logo-a,#1f2939),var(--logo-b,#48546a))}',
     '.primary{color:var(--on-surface,#fff)}',
-    '.chip.active{color:var(--on-surface,#fff)}',
+    '.chip.chip.active{background:var(--accent-soft)!important;color:var(--accent)!important;border-color:var(--accent)!important}',
     '.desktop-nav{background:var(--nav-glass,rgba(255,255,255,.65));border-color:var(--nav-line,rgba(255,255,255,.9))}',
     '.nav-btn.active{background:var(--nav-active,#fff)}',
     '.bottom-nav{background:var(--navbg,rgba(255,255,255,.92));border-color:var(--navline,rgba(255,255,255,.95))}',
