@@ -166,54 +166,111 @@ function buildJsonV30(exams,scopeLabel){
   return JSON.stringify(payload,null,2);
 }
 
-/* 总分趋势 SVG（打印内嵌，零依赖）：最终总分实线 + 原始总分虚线 */
-function trendSvgV30(exams){
-  var pts=[];
-  exams.forEach(function(ex){
-    var t=sumTotalV30(ex,'actual');
-    if(t===null)return;
-    pts.push({date:ex.exam_date||'',v:t,raw:sumTotalV30(ex,'raw')});
-  });
-  if(!pts.length)return '';
-  var hasRaw=pts.some(function(p){return p.raw!==null;});
+/* 通用折线图 SVG（打印内嵌，零依赖）
+   opt:{n, xlabels[], yFmt(v), ptFmt(v), invert?, series:[{name,color,dash?,pts:[[i,v],…]}]} */
+function lineChartV30(opt){
+  var ptsAll=[];
+  opt.series.forEach(function(s){s.pts.forEach(function(p){ptsAll.push(p[1]);});});
+  if(!ptsAll.length||!opt.n)return '';
   var W=720,H=200,L=48,R=16,T=30,B=44;
-  var all=[];
-  pts.forEach(function(p){all.push(p.v);if(p.raw!==null)all.push(p.raw);});
-  var lo=Math.min.apply(null,all),hi=Math.max.apply(null,all);
-  var span=(hi-lo)||Math.max(1,hi*0.1);
+  var lo=Math.min.apply(null,ptsAll),hi=Math.max.apply(null,ptsAll);
+  var span=(hi-lo)||Math.max(1,Math.abs(hi)*0.1);
   lo-=span*0.18;hi+=span*0.18;
-  function X(i){return L+(W-L-R)*(pts.length===1?0.5:i/(pts.length-1));}
-  function Y(v){return T+(H-T-B)*(1-(v-lo)/(hi-lo));}
+  function X(i){return L+(W-L-R)*(opt.n===1?0.5:i/(opt.n-1));}
+  function Y(v){var f=(v-lo)/(hi-lo);return T+(H-T-B)*(opt.invert?f:1-f);}
   var grid='';
   for(var i=0;i<=4;i++){
     var tick=lo+(hi-lo)*i/4,yy=Y(tick);
     grid+='<line x1="'+L+'" y1="'+yy+'" x2="'+(W-R)+'" y2="'+yy+'" stroke="#edf0f4" stroke-width="1"/>'
-      +'<text x="'+(L-7)+'" y="'+(yy+3)+'" text-anchor="end" font-size="9" fill="#98a1ae">'+Math.round(tick)+'</text>';
+      +'<text x="'+(L-7)+'" y="'+(yy+3)+'" text-anchor="end" font-size="9" fill="#98a1ae">'+opt.yFmt(tick)+'</text>';
   }
-  var main=pts.map(function(p,i){return X(i)+','+Y(p.v);}).join(' ');
-  var dots=pts.map(function(p,i){
-    return '<circle cx="'+X(i)+'" cy="'+Y(p.v)+'" r="3.6" fill="#fff" stroke="#5d72e8" stroke-width="2.2"/>'
-      +'<text x="'+X(i)+'" y="'+(Y(p.v)-9)+'" text-anchor="middle" font-size="10" font-weight="700" fill="#1c2430">'+p.v+'</text>';
-  }).join('');
-  var rot=pts.length>6;
-  var xlab=pts.map(function(p,i){
-    var d=String(p.date),short=d.length>=10?d.slice(5):d;
-    return '<text x="'+X(i)+'" y="'+(H-B+16)+'" text-anchor="'+(rot?'end':'middle')+'" font-size="9" fill="#98a1ae"'
-      +(rot?' transform="rotate(-35 '+X(i)+' '+(H-B+16)+')"':'')+'>'+escV30(short)+'</text>';
-  }).join('');
-  var rawLine='';
-  if(hasRaw){
-    var rp=pts.map(function(p,i){return p.raw!==null?X(i)+','+Y(p.raw):null;}).filter(Boolean);
-    if(rp.length>1)rawLine='<polyline points="'+rp.join(' ')+'" fill="none" stroke="#b6bfcc" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round" stroke-linejoin="round"/>';
+  var rot=opt.n>6;
+  var xlab='';
+  for(var k=0;k<opt.n;k++){
+    var xx=X(k);
+    xlab+='<text x="'+xx+'" y="'+(H-B+16)+'" text-anchor="'+(rot?'end':'middle')+'" font-size="9" fill="#98a1ae"'
+      +(rot?' transform="rotate(-35 '+xx+' '+(H-B+16)+')"':'')+'>'+escV30(opt.xlabels[k]||'')+'</text>';
   }
-  var legend=hasRaw?'<g font-size="9.5" fill="#6d7787">'
-    +'<line x1="'+(W-R-158)+'" y1="14" x2="'+(W-R-142)+'" y2="14" stroke="#5d72e8" stroke-width="2.5"/><text x="'+(W-R-136)+'" y="17">最终总分</text>'
-    +'<line x1="'+(W-R-66)+'" y1="14" x2="'+(W-R-50)+'" y2="14" stroke="#b6bfcc" stroke-width="2" stroke-dasharray="4 3"/><text x="'+(W-R-44)+'" y="17">原始总分</text></g>'
-    :'';
-  return '<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block" role="img" aria-label="总分趋势图">'
-    +grid+rawLine
-    +'<polyline points="'+main+'" fill="none" stroke="#5d72e8" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>'
-    +dots+xlab+legend+'</svg>';
+  var body='',legendW=0,items=[];
+  opt.series.forEach(function(s){
+    if(s.pts.length<2)return;
+    body+='<polyline points="'+s.pts.map(function(p){return X(p[0])+','+Y(p[1]);}).join(' ')
+      +'" fill="none" stroke="'+s.color+'" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"'
+      +(s.dash?' stroke-dasharray="'+s.dash+'"':'')+'/>';
+  });
+  opt.series.forEach(function(s){
+    s.pts.forEach(function(p){
+      body+='<circle cx="'+X(p[0])+'" cy="'+Y(p[1])+'" r="3.4" fill="#fff" stroke="'+s.color+'" stroke-width="2.2"/>'
+        +'<text x="'+X(p[0])+'" y="'+(Y(p[1])-9)+'" text-anchor="middle" font-size="9.5" font-weight="700" fill="#1c2430">'+escV30(opt.ptFmt(p[1]))+'</text>';
+    });
+  });
+  /* 图例（右上，从右往左排） */
+  var lx=W-R;
+  opt.series.slice().reverse().forEach(function(s){
+    var tw=String(s.name).length*10+34;
+    lx-=tw;
+    items.push('<line x1="'+lx+'" y1="14" x2="'+(lx+20)+'" y2="14" stroke="'+s.color+'" stroke-width="2.5"'
+      +(s.dash?' stroke-dasharray="4 3"':'')+'/>'
+      +'<text x="'+(lx+25)+'" y="17">'+escV30(s.name)+'</text>');
+  });
+  var legend=items.length?('<g font-size="9.5" fill="#6d7787">'+items.join('')+'</g>'):'';
+  return '<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block" role="img">'
+    +grid+body+xlab+legend+'</svg>';
+}
+function rateOfTotalsV30(sum,num){
+  return (sum!==null&&num!==null&&num>0)?Math.round(sum/num*1000)/10:null;
+}
+function rateTrendChartV30(exams){
+  var xs=[],fin=[],raw=[];
+  exams.forEach(function(ex,i){
+    var ft=sumTotalV30(ex,'actual'),fm=sumTotalV30(ex,'max');
+    var rt=sumTotalV30(ex,'raw'),rm=sumRawMaxV30(ex);
+    var fr=rateOfTotalsV30(ft,fm),rr=rateOfTotalsV30(rt,rm);
+    if(fr===null&&rr===null)return;
+    xs.push(String(ex.exam_date||'').slice(5));
+    if(fr!==null)fin.push([xs.length-1,fr]);
+    if(rr!==null)raw.push([xs.length-1,rr]);
+  });
+  if(!xs.length)return '';
+  return lineChartV30({
+    n:xs.length,xlabels:xs,
+    yFmt:function(v){return Math.round(v)+'%';},
+    ptFmt:function(v){return v+'%';},
+    series:[
+      {name:'最终得分率',color:'#5d72e8',pts:fin},
+      {name:'原始得分率',color:'#b6bfcc',dash:'5 4',pts:raw}
+    ]
+  });
+}
+function sumRawMaxV30(ex){
+  var sum=null;
+  Object.values(ex.scores||{}).forEach(function(row){
+    if(!row||row.excludeFromTotal)return;
+    var rm=numV30(row.rawMax);if(rm===null)rm=numV30(row.max);
+    var rw=numV30(row.raw);
+    if(rw!==null&&rm!==null)sum=(sum===null?rm:sum+rm);
+  });
+  return sum;
+}
+function rankTrendChartV30(exams){
+  var xs=[],yr=[],cr=[];
+  exams.forEach(function(ex,i){
+    var y=numV30(ex.total_rank),c=numV30(ex.total_class_rank);
+    if(y===null&&c===null)return;
+    xs.push(String(ex.exam_date||'').slice(5));
+    if(y!==null)yr.push([xs.length-1,y]);
+    if(c!==null)cr.push([xs.length-1,c]);
+  });
+  if(!xs.length)return '';
+  return lineChartV30({
+    n:xs.length,xlabels:xs,invert:true,
+    yFmt:function(v){return String(Math.round(v));},
+    ptFmt:function(v){return String(Math.round(v));},
+    series:[
+      {name:'年排',color:'#5d72e8',pts:yr},
+      {name:'班排',color:'#b6bfcc',dash:'5 4',pts:cr}
+    ]
+  });
 }
 
 /* ================= 打印报告（PDF）· v2 排版 ================= */
@@ -346,6 +403,7 @@ function buildPrintHtmlV30(exams,scopeLabel){
     +'i.ok{color:#2f9d76;background:#e8f5ee}'
     +'i.miss{color:#b26a12;background:#fdf3e4}'
     +'.chart-wrap{border:1px solid #e6eaf1;border-radius:10px;padding:8px 6px 2px}'
+    +'.chart-note{font-size:9.5px;color:#98a1ae;margin-top:4px}'
     +'.exam-block{margin:0 0 16px;page-break-inside:avoid;border:1px solid #e6eaf1;border-radius:10px;padding:12px 13px 10px}'
     +'.block-head{display:flex;align-items:center;gap:7px;margin-bottom:8px;flex-wrap:wrap}'
     +'.idx{width:17px;height:17px;border-radius:6px;background:#eef1ff;color:#4356c9;font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none}'
@@ -364,7 +422,8 @@ function buildPrintHtmlV30(exams,scopeLabel){
     +'<div class="stat"><b>'+(lastTotal==='—'?'—':lastTotal)+'</b><span>最近总分</span></div>'
     +'<div class="stat"><b style="font-size:11.5px;line-height:22px">'+escV30((function(){var o=[];exams.forEach(function(e){if(e.grade_level&&o.indexOf(e.grade_level)<0)o.push(e.grade_level);});return o.length?o.join(' / '):'—';})())+'</b><span>包含分类</span></div>'
     +'</div>'
-    +(function(){var chart=trendSvgV30(exams);return chart?('<h2 class="sec">总分趋势</h2><div class="chart-wrap">'+chart+'</div>'):'';})()
+    +(function(){var c=rateTrendChartV30(exams);return c?('<h2 class="sec">得分率趋势</h2><div class="chart-wrap">'+c+'</div>'):'';})()
+    +(function(){var rc=rankTrendChartV30(exams);return rc?('<h2 class="sec">排名趋势</h2><div class="chart-wrap">'+rc+'</div><div class="chart-note">名次越小越好 · 线向上表示进步</div>'):'';})()
     +(exams.length?('<h2 class="sec">成绩总览</h2>'
     +'<table class="ov"><thead><tr><th>日期</th><th>考试</th><th>分类</th><th>总分</th><th>原始总分</th><th>年排</th><th>班排</th></tr></thead><tbody>'+overviewRows+'</tbody></table>'
     +'<h2 class="sec">各科明细</h2>'+blocks)
