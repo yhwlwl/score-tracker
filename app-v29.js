@@ -86,7 +86,6 @@
     '.legend span,.overview-legend .overview-pill,.rank-legend-v7 span{cursor:pointer}',
     '.legend span:hover,.overview-legend .overview-pill:hover,.rank-legend-v7 span:hover{background:var(--accent-soft)}',
     '.overview-legend .overview-pill:hover,.rank-legend-v7 span:hover{border-color:var(--accent)}',
-    '.lg-custom-v29::after{content:"✎";font-size:9px;color:var(--muted);margin-left:2px}',
     '.picker-pop-v29{position:fixed;z-index:300;background:var(--modal-bg,#fff);border:1px solid var(--line,#e6e9ef);border-radius:14px;box-shadow:0 16px 44px rgba(15,22,40,.2);padding:12px;display:none;width:230px}',
     '.picker-pop-v29.show{display:block}',
     '.picker-pop-v29 b{display:block;font-size:12px;margin-bottom:9px;color:var(--text)}',
@@ -128,8 +127,13 @@
     'html[data-theme="night"] .st-fb-item{border-color:var(--line)}',
     'html[data-theme="night"] .st-fb-item:hover{background:var(--cell)}',
     'html[data-theme="night"] .study-tool-thumb-v18 img{filter:saturate(.8) contrast(.95) brightness(.85)}',
-    /* ---- 顶栏深色快捷开关 ---- */
-    '.theme-toggle-v29{width:38px;height:38px;border-radius:12px;font-size:17px;display:grid;place-items:center;padding:0;line-height:1}'
+    'html[data-theme="night"] .splash .brand-mark{color:#10141b}',
+    /* ---- 分段选择按钮：全部统一为「外观」卡的选中语言（accent-soft 底 + accent 描边） ---- */
+    '.metric-btn-v7.metric-btn-v7.active,.basis-btn-v13.basis-btn-v13.active,.grade-chip-v13.grade-chip-v13.active,.rank-entry-mode-v17.rank-entry-mode-v17 button.active{background:var(--accent-soft)!important;color:var(--accent)!important;border-color:var(--accent)!important}',
+    /* ---- 图例可点击的可见暗示 ---- */
+    '.legend span::after,.overview-legend .overview-pill::after,.rank-legend-v7 span::after{content:"🎨";font-size:9px;margin-left:4px;opacity:.45;transition:opacity .15s ease}',
+    '.legend span:hover::after,.overview-legend .overview-pill:hover::after,.rank-legend-v7 span:hover::after{opacity:1}',
+    '.lg-custom-v29::after{content:"✎";font-size:9px;color:var(--muted);margin-left:2px;opacity:.95}'
   ].join('\n');
 
   function injectStylesV29(){
@@ -186,14 +190,14 @@
       '--line:#27303f','--accent:#8b9dff','--accent-soft:#212a44','--green:#43bd8a','--green-soft:#17302a','--orange:#d38429','--danger:#ef7078',
       '--shadow:0 14px 44px rgba(0,0,0,.45)',
       '--glow1:#1a2130','--glow2:#131f29','--logo-a:#2c3654','--logo-b:#5566c9',
-      '--nav-glass:rgba(22,28,38,.7)','--nav-line:#2a3342','--nav-active:#232c3b','--navbg:rgba(22,28,38,.94)','--navline:#2a3342',
+      '--nav-glass:rgba(22,28,38,.7)','--nav-line:#2a3342','--nav-active:#1d2431','--navbg:rgba(22,28,38,.94)','--navline:#2a3342',
       '--chip-bg:#1d2431','--cell:#1d2431','--line-soft:#323d52','--on-surface:#10141b',
       '--axis:#7e8899','--point-label:#8b96ab','--grid:#232c3b','--dotfill:#161c26',
       '--modal-bg:#161c26','--head-bg:rgba(22,28,38,.96)','--input-bg:#10141b','--input-line:#323d52','--label:#aab4c8',
       '--focus:#8b9dff','--focus-ring:rgba(139,157,255,.18)',
-      '--info-bg:#1c2438','--info-line:#2c3854','--info-text:#a9b4d0',
-      '--raw-field:#241f16','--final-field:#15251d','--combo-cell:#1a2333','--combo-line:#2c3854',
-      '--pill-bg:#232c3b','--pill-line:#323d52',
+      '--info-bg:#1d2431','--info-line:#323d52','--info-text:#a9b4d0',
+      '--raw-field:#241f16','--final-field:#15251d','--combo-cell:#1d2431','--combo-line:#323d52',
+      '--pill-bg:#1d2431','--pill-line:#323d52',
       '--hero-bg:linear-gradient(145deg,rgba(30,38,54,.96),rgba(23,30,43,.94))',
       '--promo-bg:linear-gradient(135deg,#181f2b,#141a24)','--promo-line:#394561',
       '--nav-shadow:0 12px 40px rgba(0,0,0,.5)',
@@ -249,39 +253,7 @@
     }
   }
 
-  /* ---- 顶栏深色快捷开关 ---- */
-  function lastLightV29(){
-    try{return localStorage.getItem('st_theme_light')||'sunny';}catch(e){return 'sunny';}
-  }
-  function syncToggleIconV29(){
-    var btn=document.getElementById('themeToggleV29');
-    if(!btn)return;
-    var night=currentThemeV29()==='night';
-    btn.textContent=night?'☀️':'🌙';
-    btn.title=night?'切换到浅色模式':'切换到深色模式';
-  }
-  function ensureToggleV29(){
-    var bar=document.querySelector('.topbar');
-    if(!bar)return;
-    var btn=document.getElementById('themeToggleV29');
-    if(!btn){
-      btn=document.createElement('button');
-      btn.id='themeToggleV29';
-      btn.className='icon-btn theme-toggle-v29';
-      btn.type='button';
-      btn.addEventListener('click',function(){
-        if(currentThemeV29()==='night'){
-          applyThemeV29(lastLightV29());
-        }else{
-          try{localStorage.setItem('st_theme_light',currentThemeV29());}catch(e){}
-          applyThemeV29('night');
-        }
-      });
-      bar.appendChild(btn);
-    }
-    syncToggleIconV29();
-  }
-
+  /* ---- 主题切换后重绘（保持滚动位置），让图表系列色即时跟随 ---- */
   function rerenderPreservingScrollV29(){
     if(typeof render!=='function')return;
     try{
@@ -315,7 +287,6 @@
     document.querySelectorAll('.theme-opt-v29').forEach(function(b){
       b.classList.toggle('on',b.getAttribute('data-theme-opt-v29')===id);
     });
-    syncToggleIconV29();
     if(!silent)rerenderPreservingScrollV29();
   }
   function initThemeV29(){
@@ -348,17 +319,46 @@
     if(el.getAttribute('data-orig-stroke')===null)el.setAttribute('data-orig-stroke',el.getAttribute('stroke')||'');
     el.setAttribute('stroke',c||el.getAttribute('data-orig-stroke')||'');
   }
+  function escV29(s){return String(s).replace(/[&<>"']/g,function(m){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];});}
+
+  /* 单科排名/原始分等模式没有图例 → 自动补一枚可点击的科目图例，让换色能力一致 */
+  function ensureLegendV29(card){
+    if(card.querySelector('.legend,.overview-legend,.rank-legend-v7'))return card.querySelector('.legend,.overview-legend,.rank-legend-v7');
+    var stage=card.querySelector('.chart-wrap');
+    if(!stage)return null;
+    var svg=stage.querySelector('svg');
+    if(!svg)return null;
+    var line=svg.querySelector('path,polyline');
+    if(!line)return null;
+    var existing=document.getElementById('autoLegendV29');
+    if(existing)return existing;
+    var label=(typeof state!=='undefined'&&state&&state.subject)?String(state.subject):'';
+    if(!label)return null;
+    var row=document.createElement('div');
+    row.className='rank-legend-v7';
+    row.id='autoLegendV29';
+    var stroke=line.getAttribute('stroke')||'#18212f';
+    var span=document.createElement('span');
+    var dot=document.createElement('i');
+    dot.setAttribute('style','background:'+escV29(stroke));
+    span.appendChild(dot);
+    span.appendChild(document.createTextNode(label));
+    row.appendChild(span);
+    stage.insertAdjacentElement('afterend',row);
+    return row;
+  }
 
   function applyCustomLineColorsV29(){
-    document.querySelectorAll(LEGEND_CONTAINERS_V29).forEach(function(lg){
-      var card=lg.closest('.card');
-      if(!card)return;
+    document.querySelectorAll('.card').forEach(function(card){
+      if(!card.querySelector('.chart-wrap svg'))return;
+      var lg=ensureLegendV29(card);
+      if(!lg)return;
       var svg=card.querySelector('.chart-wrap svg');
-      if(!svg)return;
       var groups=groupSvgSeriesV29(svg);
       var items=Array.prototype.filter.call(lg.children,function(n){return String(n.tagName||'').toUpperCase()==='SPAN';});
       items.forEach(function(item,idx){
-        var label=(item.textContent||'').replace('✎','').trim();
+        var label=(item.textContent||'').replace('✎','').replace('🎨','').trim();
+        item.title='点击更换颜色';
         var c=CUSTOM_V29[label];
         var i=item.querySelector('i');
         if(c){
@@ -468,11 +468,44 @@
     });
   }
 
+  /* ================= 产品 Logo ================= */
+  var LOGO_SVG_V29='<svg viewBox="0 0 48 48" aria-hidden="true" style="width:58%;height:58%;display:block">'
+    +'<polyline points="8,37 20,26 27,31 41,16" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/>'
+    +'<path d="M30.5 11.5 H42 V23" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/>'
+    +'</svg>';
+  function swapLogosV29(root){
+    root=root||document;
+    ['.logo','.brand-mark'].forEach(function(sel){
+      root.querySelectorAll(sel).forEach(function(el){
+        if((el.textContent||'').trim()==='↗'){
+          el.textContent='';
+          el.insertAdjacentHTML('beforeend',LOGO_SVG_V29);
+        }
+      });
+    });
+  }
+  function injectFaviconV29(){
+    if(document.getElementById('faviconV29'))return;
+    var svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" rx="13" fill="#1f2939"/><polyline points="8,37 20,26 27,31 41,16" fill="none" stroke="#fff" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M30.5 11.5H42V23" fill="none" stroke="#fff" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    var link=document.createElement('link');
+    link.id='faviconV29';
+    link.rel='icon';
+    link.type='image/svg+xml';
+    link.href='data:image/svg+xml,'+encodeURIComponent(svg);
+    (document.head||document.documentElement).appendChild(link);
+  }
+
   /* ================= 渲染后钩子 ================= */
   function afterRenderV29(){
     applyCustomLineColorsV29();
     injectAppearanceCardV29();
-    ensureToggleV29();
+    swapLogosV29();
+    try{
+      if(!localStorage.getItem('st_tip_colors_v29')){
+        localStorage.setItem('st_tip_colors_v29','1');
+        if(typeof toast==='function')toast('小提示：点击图表图例可更换线条颜色');
+      }
+    }catch(e){}
   }
 
   var bindPageBeforeV29=(typeof bindPage==='function')?bindPage:null;
@@ -480,9 +513,19 @@
     if(bindPageBeforeV29)bindPageBeforeV29();
     try{ensurePickerV29();bindPickerV29();afterRenderV29();}catch(e){}
   };
+  /* 登录页不经过 bindPage，单独包一层让 Logo 也生效 */
+  var renderLoginBeforeV29=(typeof renderLogin==='function')?renderLogin:null;
+  if(renderLoginBeforeV29){
+    renderLogin=function renderLoginV29(){
+      var r=renderLoginBeforeV29.apply(this,arguments);
+      try{swapLogosV29();}catch(e){}
+      return r;
+    };
+  }
 
   /* ================= 启动 ================= */
   injectStylesV29();
+  injectFaviconV29();
   buildDarkPalettesV29();
   installThemedPalettesV29();
   initThemeV29();
@@ -497,7 +540,8 @@
     themeMetaColor:themeMetaColorV29,
     groupSvgSeries:groupSvgSeriesV29,
     applyCustomLineColors:applyCustomLineColorsV29,
-    ensureToggle:ensureToggleV29,
+    swapLogos:swapLogosV29,
+    afterRender:afterRenderV29,
     custom:function(){return CUSTOM_V29;},
     setCustom:function(k,v){if(v===null)delete CUSTOM_V29[k];else CUSTOM_V29[k]=v;saveColorsV29();},
     seriesPalette:function(){return window.OVERVIEW_COLORS?{total:window.OVERVIEW_COLORS[0],first:window.OVERVIEW_COLORS[1]}:null;}
