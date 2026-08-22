@@ -123,10 +123,15 @@ function buildTxtV30(exams,scopeLabel){
     });
     var ranks=ex.moduleRanks||{};
     modulesV30().forEach(function(mo){
-      var r=ranks[mo.id];if(!r)return;
-      var seg=['组合「'+mo.name+'」'],yr=rankTextV30(r.yearRank,r.yearParticipants),cr=rankTextV30(r.classRank,r.classParticipants);
-      if(yr)seg.push('年排 '+yr);
-      if(cr)seg.push('班排 '+cr);
+      var r=ranks[mo.id];
+      var cs=comboSumV30(ex,mo);
+      var referenced=r||(ex.moduleIds||[]).some(function(x){return String(x)===String(mo.id);});
+      if(!referenced&&cs.fin===null)return;
+      var seg=['组合「'+mo.name+'」'];
+      if(cs.fin!==null)seg.push('最终 '+cs.fin+(cs.fmax!==null?'/'+cs.fmax:' 分'));
+      if(cs.raw!==null)seg.push('原始 '+cs.raw+(cs.rmax!==null?'/'+cs.rmax:''));
+      var yr=rankTextV30(r&&r.yearRank,r&&r.yearParticipants);if(yr)seg.push('年排 '+yr);
+      var cr=rankTextV30(r&&r.classRank,r&&r.classParticipants);if(cr)seg.push('班排 '+cr);
       if(seg.length>1)out.push('  '+seg.join(' ｜ '));
     });
     var tot=['—— 总分 '+fmtV30(sumTotalV30(ex,'actual')||'—')];
@@ -168,6 +173,23 @@ function pctTextV30(a,m){
   var p=Math.round(av/mv*1000)/10;
   return String(p);
 }
+/* 组合合计：按模块科目求和（最终/满分、原始/原始满分），无数据的科目跳过 */
+function comboSumV30(ex,mo){
+  var fin=null,fmax=null,raw=null,rmax=null;
+  ((mo&&mo.subjects)||[]).forEach(function(s){
+    var r=(ex.scores||{})[s];if(!r)return;
+    var a=numV30(r.actual),mx=numV30(r.max);
+    if(a!==null)fin=(fin===null?a:fin+a);
+    if(mx!==null)fmax=(fmax===null?mx:fmax+mx);
+    var rw=numV30(r.raw);
+    if(rw!==null){
+      raw=(raw===null?rw:raw+rw);
+      var rm=numV30(r.rawMax);if(rm===null)rm=mx;
+      if(rm!==null)rmax=(rmax===null?rm:rmax+rm);
+    }
+  });
+  return {fin:fin,fmax:fmax,raw:raw,rmax:rmax};
+}
 function buildPrintHtmlV30(exams,scopeLabel){
   var account='';try{account=(state.user&&state.user.username)||'';}catch(e){}
   var dates=exams.map(function(e){return e.exam_date||'';}).filter(Boolean).sort();
@@ -201,7 +223,7 @@ function buildPrintHtmlV30(exams,scopeLabel){
       +'<td class="s-name"><b>'+escV30(s)+'</b>'+(r.excludeFromTotal?'<span class="dim">（不计总分）</span>':'')+'</td>'
       +'<td class="num">'+(fmtV30(numV30(r.target))||'—')+(reached!==null?(reached?' <i class="ok">达标</i>':' <i class="miss">差'+fmtV30(numV30(r.target)-a)+'</i>'):'')+'</td>'
       +'<td class="num strong">'+(a!==null?a:'—')+'<span class="dim">'+(m!==null?'/'+m:'')+'</span></td>'
-      +'<td class="rate">'+(p?'<span class="track"><span class="fill" style="width:'+p+'%;background:'+fill+'"></span></span>'+p+'%':'—')+'</td>'
+      +'<td class="rate">'+(p?'<span class="track"><span class="fill" style="width:'+p+'%;background:'+fill+'"></span></span><span class="lab">'+p+'%</span>':'—')+'</td>'
       +'<td class="num">'+(r.raw!=='' && r.raw!=null?escV30(String(r.raw))+(numV30(r.rawMax)!==null?'<span class="dim">/'+r.rawMax+'</span>':''):'—')+'</td>'
       +'<td class="num">'+(escV30(rankTextV30(r.rank,r.participants))||'—')+'</td>'
       +'<td class="num">'+(escV30(rankTextV30(r.classRank,r.classParticipants))||'—')+'</td></tr>';
@@ -212,10 +234,15 @@ function buildPrintHtmlV30(exams,scopeLabel){
     var comboLines='';
     var ranks=ex.moduleRanks||{};
     modulesV30().forEach(function(mo){
-      var r=ranks[mo.id];if(!r)return;
+      var r=ranks[mo.id];
+      var cs=comboSumV30(ex,mo);
+      var referenced=r||(ex.moduleIds||[]).some(function(x){return String(x)===String(mo.id);});
+      if(!referenced&&cs.fin===null)return;
       var seg=[];
-      var yr=rankTextV30(r.yearRank,r.yearParticipants);if(yr)seg.push('年排 '+escV30(yr));
-      var cr=rankTextV30(r.classRank,r.classParticipants);if(cr)seg.push('班排 '+escV30(cr));
+      if(cs.fin!==null)seg.push('最终 '+cs.fin+(cs.fmax!==null?'/'+cs.fmax:' 分'));
+      if(cs.raw!==null)seg.push('原始 '+cs.raw+(cs.rmax!==null?'/'+cs.rmax:''));
+      var yr=rankTextV30(r&&r.yearRank,r&&r.yearParticipants);if(yr)seg.push('年排 '+escV30(yr));
+      var cr=rankTextV30(r&&r.classRank,r&&r.classParticipants);if(cr)seg.push('班排 '+escV30(cr));
       if(seg.length)comboLines+='<div class="combo">组合「'+escV30(mo.name)+'」　'+seg.join('　·　')+'</div>';
     });
     var totBits=[];
@@ -238,6 +265,7 @@ function buildPrintHtmlV30(exams,scopeLabel){
   }).join('');
   return '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>成绩轨迹 · 成绩报告</title><style>'
     +'@page{size:A4;margin:13mm 12mm}'
+    +'*,*::before,*::after{-webkit-print-color-adjust:exact;print-color-adjust:exact}'
     +'body{font:12px/1.55 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#1c2430;margin:0;max-width:186mm}'
     +'.rep-head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #5d72e8;padding-bottom:12px}'
     +'.brand{display:flex;gap:11px;align-items:center}'
@@ -261,6 +289,7 @@ function buildPrintHtmlV30(exams,scopeLabel){
     +'.hid{background:#fdeaea;color:#b3424a;font-size:9px;border-radius:5px;padding:1px 5px;margin-left:5px;vertical-align:1px}'
     +'.pill{display:inline-block;border:1px solid #c9d4f5;color:#4356c9;font-size:9.5px;border-radius:999px;padding:1px 8px}'
     +'.rate{white-space:nowrap;font-size:10px;color:#6d7787}'
+    +'.rate .lab{display:inline-block;min-width:32px;text-align:left;vertical-align:1px}'
     +'.track{display:inline-block;width:52px;height:5px;background:#eef0f4;border-radius:3px;margin-right:5px;vertical-align:1px;overflow:hidden}'
     +'.fill{display:block;height:100%;border-radius:3px}'
     +'i.ok,i.miss{font-style:normal;font-size:9px;border-radius:4px;padding:0 4px;vertical-align:1px}'
