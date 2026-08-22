@@ -101,7 +101,35 @@
     '.theme-opts-v29{display:flex;gap:9px;flex-wrap:wrap;margin-top:12px}',
     '.theme-opt-v29{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--chip-bg);border-radius:999px;padding:7px 13px 7px 8px;font-size:12px;font-weight:650;color:var(--muted)}',
     '.theme-opt-v29.on{border-color:var(--accent);color:var(--text);background:var(--accent-soft)}',
-    '.theme-opt-v29 i{width:16px;height:16px;border-radius:999px;display:inline-block;border:1px solid rgba(0,0,0,.08)}'
+    '.theme-opt-v29 i{width:16px;height:16px;border-radius:999px;display:inline-block;border:1px solid rgba(0,0,0,.08)}',
+    /* ---- 首页两张特殊卡：hero 与 Study Planner 推广卡（此前硬编码浅色渐变） ---- */
+    '.hero-main{background:var(--hero-bg,linear-gradient(145deg,rgba(255,255,255,.94),rgba(247,248,255,.9)))}',
+    '.study-tool-v18{background:var(--promo-bg,linear-gradient(135deg,#fbfcff,#f7f9fc));border-color:var(--line)}',
+    '.study-tool-v18:hover{border-color:var(--promo-line,#cfd7e6)}',
+    '.study-tool-kicker-v18{color:var(--muted)}',
+    '.study-tool-open-v18{color:var(--accent)}',
+    '.study-tool-thumb-v18{border-color:var(--line-soft,#e5e9f0);background:var(--chip-bg,#fff)}',
+    /* ---- 其余零散表面 ---- */
+    '.close-btn{background:var(--cell,#f3f4f7)}',
+    '.score-row.header{background:var(--cell,#f7f8fb)}',
+    '.bottom-nav{box-shadow:var(--nav-shadow,0 10px 35px rgba(27,37,58,.14))}',
+    '.modal-backdrop{background:var(--backdrop,rgba(22,28,39,.42))}',
+    '.toast{border:1px solid var(--toast-line,transparent)}',
+    '::selection{background:var(--sel-bg,#cdd6ff);color:var(--sel-text,#18212f)}',
+    /* ---- 反馈悬浮窗随主题 ---- */
+    'html[data-theme="night"] .st-fb-btn{background:var(--chip-bg);color:var(--text);border-color:var(--line)}',
+    'html[data-theme="night"] .st-fb-modal{background:var(--modal-bg);color:var(--text)}',
+    'html[data-theme="night"] .st-fb-head{border-color:var(--line)}',
+    'html[data-theme="night"] .st-fb-close{background:var(--cell);color:var(--text)}',
+    'html[data-theme="night"] .st-fb-tabs button{background:var(--chip-bg);border-color:var(--line);color:var(--muted)}',
+    'html[data-theme="night"] .st-fb-tabs button.active{background:var(--nav-active);color:var(--text)}',
+    'html[data-theme="night"] .st-fb-field textarea,html[data-theme="night"] .st-fb-field select{background:var(--input-bg);border-color:var(--input-line);color:var(--text)}',
+    'html[data-theme="night"] .st-fb-secondary{background:var(--chip-bg);border-color:var(--line);color:var(--text)}',
+    'html[data-theme="night"] .st-fb-item{border-color:var(--line)}',
+    'html[data-theme="night"] .st-fb-item:hover{background:var(--cell)}',
+    'html[data-theme="night"] .study-tool-thumb-v18 img{filter:saturate(.8) contrast(.95) brightness(.85)}',
+    /* ---- 顶栏深色快捷开关 ---- */
+    '.theme-toggle-v29{width:38px;height:38px;border-radius:12px;font-size:17px;display:grid;place-items:center;padding:0;line-height:1}'
   ].join('\n');
 
   function injectStylesV29(){
@@ -131,7 +159,12 @@
       '--chip-bg:#fffdf8','--cell:#f5efe3','--line-soft:#e6dbc8',
       '--axis:#a3967f','--point-label:#8a7f6c','--grid:#ece3d3','--dotfill:#fffdf8',
       '--info-bg:#f7efe2','--info-line:#eadfc9','--info-text:#6d6046',
-      '--raw-field:#faf3e6','--final-field:#f0f6ee','--combo-cell:#f9f2e6','--combo-line:#e6d8bd'
+      '--raw-field:#faf3e6','--final-field:#f0f6ee','--combo-cell:#f9f2e6','--combo-line:#e6d8bd',
+      '--shadow:0 12px 40px rgba(90,72,44,.10)','--focus:#bc6b3c','--focus-ring:rgba(188,107,60,.15)',
+      '--sel-bg:#f2ddca','--sel-text:#4a3423',
+      '--hero-bg:linear-gradient(145deg,rgba(255,252,244,.97),rgba(250,243,230,.93))',
+      '--promo-bg:linear-gradient(135deg,#fdf8ec,#f8f0dd)','--promo-line:#dcc9a4',
+      '--nav-shadow:0 10px 35px rgba(90,72,44,.14)'
     ],
     mist:[
       '--bg:#eef1f6','--panel:rgba(255,255,255,.93)','--panel-solid:#ffffff','--text:#222c3a','--muted:#76828f',
@@ -141,7 +174,12 @@
       '--chip-bg:#ffffff','--cell:#f3f6fa','--line-soft:#dbe2ec',
       '--axis:#93a0b4','--point-label:#8090a4','--grid:#e4e9f1','--dotfill:#ffffff',
       '--info-bg:#eaf0fd','--info-line:#d8e2fa','--info-text:#4d5c7d',
-      '--raw-field:#fdf6ea','--final-field:#eef7f2','--combo-cell:#f0f5ff','--combo-line:#d5e0f7'
+      '--raw-field:#fdf6ea','--final-field:#eef7f2','--combo-cell:#f0f5ff','--combo-line:#d5e0f7',
+      '--shadow:0 12px 40px rgba(38,52,80,.09)','--focus:#3466e0','--focus-ring:rgba(52,102,224,.14)',
+      '--sel-bg:#c9d9ff','--sel-text:#14243f',
+      '--hero-bg:linear-gradient(145deg,rgba(255,255,255,.96),rgba(243,247,253,.92))',
+      '--promo-bg:linear-gradient(135deg,#f6f9ff,#eef3fb)','--promo-line:#c3d2ee',
+      '--nav-shadow:0 10px 35px rgba(38,52,80,.13)'
     ],
     night:[
       '--bg:#10141b','--panel:rgba(22,28,38,.92)','--panel-solid:#161c26','--text:#e7eaf1','--muted:#97a1b4',
@@ -155,7 +193,11 @@
       '--focus:#8b9dff','--focus-ring:rgba(139,157,255,.18)',
       '--info-bg:#1c2438','--info-line:#2c3854','--info-text:#a9b4d0',
       '--raw-field:#241f16','--final-field:#15251d','--combo-cell:#1a2333','--combo-line:#2c3854',
-      '--pill-bg:#232c3b','--pill-line:#323d52'
+      '--pill-bg:#232c3b','--pill-line:#323d52',
+      '--hero-bg:linear-gradient(145deg,rgba(30,38,54,.96),rgba(23,30,43,.94))',
+      '--promo-bg:linear-gradient(135deg,#181f2b,#141a24)','--promo-line:#394561',
+      '--nav-shadow:0 12px 40px rgba(0,0,0,.5)',
+      '--backdrop:rgba(4,7,12,.62)','--toast-line:#333f55','--sel-bg:#33406b','--sel-text:#e7eaf1'
     ],
     mint:[
       '--bg:#eef3ef','--panel:rgba(255,255,255,.93)','--panel-solid:#ffffff','--text:#24312a','--muted:#7d8a80',
@@ -165,7 +207,12 @@
       '--chip-bg:#ffffff','--cell:#f1f6f2','--line-soft:#d3e2d8',
       '--axis:#90a096','--point-label:#7e8f84','--grid:#e2ebe4','--dotfill:#ffffff',
       '--info-bg:#e9f3ec','--info-line:#d4e6da','--info-text:#48604f',
-      '--raw-field:#faf5ea','--final-field:#ecf6ee','--combo-cell:#ebf5ee','--combo-line:#cfe4d6'
+      '--raw-field:#faf5ea','--final-field:#ecf6ee','--combo-cell:#ebf5ee','--combo-line:#cfe4d6',
+      '--shadow:0 12px 40px rgba(38,72,56,.09)','--focus:#2f8f6b','--focus-ring:rgba(47,143,107,.15)',
+      '--sel-bg:#c4e6d4','--sel-text:#12301f',
+      '--hero-bg:linear-gradient(145deg,rgba(255,255,255,.96),rgba(240,247,241,.92))',
+      '--promo-bg:linear-gradient(135deg,#f2f9f4,#e9f4ec)','--promo-line:#bcd9c6',
+      '--nav-shadow:0 10px 35px rgba(38,72,56,.13)'
     ]
   };
   function currentThemeV29(){
@@ -176,6 +223,74 @@
     var t=THEMES_V29.find(function(x){return x.id===id;});
     return t?t.meta:'#f5f7fb';
   }
+
+  /* ---- 暗色专用图表系列色：折线/数据点在夜里提亮保持对比 ---- */
+  function buildDarkPalettesV29(){
+    function toDark(c){
+      if(typeof c==='string'&&c.indexOf('hsl(')===0)return c.replace(/,\s*62%,\s*46%\)/,',64%,62%)');
+      var map={'#18212f':'#dfe4f5','#5d72e8':'#8b9dff','#32a77a':'#43bd8a','#e59b45':'#f0ae5e','#df5f68':'#ef7078',
+        '#8f62db':'#b39af0','#22a6b3':'#39c9bd','#f06a8b':'#f4849f','#6c87ff':'#93a7ff','#7a8a9a':'#98a5b8'};
+      return map[String(c).toLowerCase()]||c;
+    }
+    if(Array.isArray(window.OVERVIEW_COLORS))window.OVERVIEW_COLORS_DARK=window.OVERVIEW_COLORS.map(toDark);
+    if(Array.isArray(window.OVERVIEW_COLORS_V4))window.OVERVIEW_COLORS_V4_DARK=window.OVERVIEW_COLORS_V4.map(toDark);
+  }
+  function themedPaletteProxyV29(light,dark){
+    return new Proxy(light,{
+      get:function(t,k){var src=(currentThemeV29()==='night'&&dark)?dark:t;return src[k];},
+      has:function(t,k){return k in t;}
+    });
+  }
+  function installThemedPalettesV29(){
+    if(typeof Proxy==='undefined'||!Array.isArray(window.OVERVIEW_COLORS))return;
+    window.OVERVIEW_COLORS=themedPaletteProxyV29(window.OVERVIEW_COLORS,window.OVERVIEW_COLORS_DARK);
+    if(Array.isArray(window.OVERVIEW_COLORS_V4)){
+      window.OVERVIEW_COLORS_V4=themedPaletteProxyV29(window.OVERVIEW_COLORS_V4,window.OVERVIEW_COLORS_V4_DARK);
+    }
+  }
+
+  /* ---- 顶栏深色快捷开关 ---- */
+  function lastLightV29(){
+    try{return localStorage.getItem('st_theme_light')||'sunny';}catch(e){return 'sunny';}
+  }
+  function syncToggleIconV29(){
+    var btn=document.getElementById('themeToggleV29');
+    if(!btn)return;
+    var night=currentThemeV29()==='night';
+    btn.textContent=night?'☀️':'🌙';
+    btn.title=night?'切换到浅色模式':'切换到深色模式';
+  }
+  function ensureToggleV29(){
+    var bar=document.querySelector('.topbar');
+    if(!bar)return;
+    var btn=document.getElementById('themeToggleV29');
+    if(!btn){
+      btn=document.createElement('button');
+      btn.id='themeToggleV29';
+      btn.className='icon-btn theme-toggle-v29';
+      btn.type='button';
+      btn.addEventListener('click',function(){
+        if(currentThemeV29()==='night'){
+          applyThemeV29(lastLightV29());
+        }else{
+          try{localStorage.setItem('st_theme_light',currentThemeV29());}catch(e){}
+          applyThemeV29('night');
+        }
+      });
+      bar.appendChild(btn);
+    }
+    syncToggleIconV29();
+  }
+
+  function rerenderPreservingScrollV29(){
+    if(typeof render!=='function')return;
+    try{
+      var y=window.scrollY||0;
+      render();
+      if(y)try{window.scrollTo(0,y);}catch(e){}
+    }catch(e){}
+  }
+
   function applyThemeV29(id,silent){
     if(!THEME_CSS.hasOwnProperty(id))id='sunny';
     var root=document.documentElement;
@@ -200,6 +315,8 @@
     document.querySelectorAll('.theme-opt-v29').forEach(function(b){
       b.classList.toggle('on',b.getAttribute('data-theme-opt-v29')===id);
     });
+    syncToggleIconV29();
+    if(!silent)rerenderPreservingScrollV29();
   }
   function initThemeV29(){
     var saved='sunny';
@@ -355,6 +472,7 @@
   function afterRenderV29(){
     applyCustomLineColorsV29();
     injectAppearanceCardV29();
+    ensureToggleV29();
   }
 
   var bindPageBeforeV29=(typeof bindPage==='function')?bindPage:null;
@@ -365,6 +483,8 @@
 
   /* ================= 启动 ================= */
   injectStylesV29();
+  buildDarkPalettesV29();
+  installThemedPalettesV29();
   initThemeV29();
   syncVersionV29();
 
@@ -377,7 +497,9 @@
     themeMetaColor:themeMetaColorV29,
     groupSvgSeries:groupSvgSeriesV29,
     applyCustomLineColors:applyCustomLineColorsV29,
+    ensureToggle:ensureToggleV29,
     custom:function(){return CUSTOM_V29;},
-    setCustom:function(k,v){if(v===null)delete CUSTOM_V29[k];else CUSTOM_V29[k]=v;saveColorsV29();}
+    setCustom:function(k,v){if(v===null)delete CUSTOM_V29[k];else CUSTOM_V29[k]=v;saveColorsV29();},
+    seriesPalette:function(){return window.OVERVIEW_COLORS?{total:window.OVERVIEW_COLORS[0],first:window.OVERVIEW_COLORS[1]}:null;}
   };
 })();
