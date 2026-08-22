@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const API = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-api';
-  const APP_VERSION = 'v1.9';
+  const APP_VERSION = (document.querySelector('meta[name="application-version"]') || {}).content || 'unknown';
   const nativeFetch = window.fetch.bind(window);
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
@@ -52,7 +52,21 @@
       const target = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
       if (target.startsWith(API) && args[1]?.body) { body = JSON.parse(String(args[1].body)); action = body?.action || ''; }
     } catch {}
-    const response = await nativeFetch(...args);
+    let response;
+    try {
+      response = await nativeFetch(...args);
+    } catch (err) {
+      // 网络层失败（断网/被插件拦截/DNS 等）此前完全不可观测：这里上报后原样抛出
+      if (action && action !== 'track_event' && !String(action).startsWith('feedback_')) {
+        try {
+          nativeFetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+            body: JSON.stringify({ action: 'track_event', token: localStorage.getItem('st_token') || '', eventType: 'api_fetch_error',
+              context: context(), metadata: { failed_action: action, online: navigator.onLine, error: String((err && err.message) || err).slice(0, 180) } })
+          }).catch(() => {});
+        } catch {}
+      }
+      throw err;
+    }
     if (response.ok && action && action !== 'track_event' && !action.startsWith('feedback_')) {
       const after = async () => {
         let data = {}; try { data = await response.clone().json(); } catch {}
