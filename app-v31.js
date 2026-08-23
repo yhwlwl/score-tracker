@@ -41,6 +41,7 @@ function injectStylesV31(){
     '.tip-banner-v31 .t-ico{font-size:16px;flex:none}',
     '.tip-banner-v31 .t-x{flex:none;border:0;background:var(--cell,#f3f4f7);width:26px;height:26px;border-radius:8px;font-size:14px;color:var(--muted,#667085);cursor:pointer;font-family:inherit}',
     '.lg-hint-v31{font-size:10px;color:var(--muted,#98a1ae);opacity:.75;margin-left:2px;white-space:nowrap;pointer-events:none;-webkit-user-select:none;user-select:none}',
+    '.stat-rank-v31{font-size:11px;color:var(--muted,#98a1ae);margin-top:3px;font-weight:600;font-variant-numeric:tabular-nums}',
     '.update-bar-v31{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom));z-index:96;display:flex;align-items:center;gap:10px;background:var(--panel-solid,#fff);color:var(--text,#18212f);border:1px solid var(--accent,#5d72e8);border-radius:14px;padding:11px 12px 11px 14px;box-shadow:var(--nav-shadow,0 10px 35px rgba(28,39,63,.2));max-width:min(470px,calc(100vw - 24px));font-size:12.5px;animation:v31rise .3s cubic-bezier(.2,.8,.25,1)}',
     '@keyframes v31rise{from{transform:translate(-50%,14px);opacity:0}to{transform:translate(-50%,0);opacity:1}}',
     '.update-bar-v31 .u-x{border:0;background:transparent;color:var(--muted,#98a1ae);font-size:15px;cursor:pointer;padding:2px 4px;font-family:inherit;flex:none}'
@@ -162,6 +163,44 @@ function installTrackingV31(){
   }catch(e){}
 }
 
+/* ================= 最近一次成绩卡：补排名 ================= */
+function fmtRankV31(v,p){
+  if(v===null||v===undefined||v==='')return null;
+  var n=Number(v);
+  if(isNaN(n))return null;
+  return p?n+'/'+p:String(n);
+}
+function rankLineV31(exam,subject){
+  var parts=[];
+  if(subject){
+    var r=((exam&&exam.scores)||{})[subject]||{};
+    var cr=fmtRankV31(r.classRank,r.classParticipants),yr=fmtRankV31(r.rank,r.participants);
+    if(cr)parts.push('班 '+cr);
+    if(yr)parts.push('年 '+yr);
+  }else{
+    var cr2=fmtRankV31(exam.total_class_rank,exam.total_class_participants),yr2=fmtRankV31(exam.total_rank,exam.total_participants);
+    if(cr2)parts.push('班 '+cr2);
+    if(yr2)parts.push('年 '+yr2);
+  }
+  return parts.join(' · ');
+}
+var patchHeroV20Base=(typeof patchLatestHeroV20==='function')?patchLatestHeroV20:null;
+patchLatestHeroV20=function(){
+  if(state.page!=='home'||!document.querySelector('.hero-stat')){if(patchHeroV20Base)patchHeroV20Base();return;}
+  var card=document.querySelector('.hero-stat');
+  var metric=(typeof latestMetricV20==='function')?latestMetricV20():null;
+  if(!metric){if(patchHeroV20Base)patchHeroV20Base();return;}
+  var subjects=(typeof effectiveScoreSubjectsV20==='function')?effectiveScoreSubjectsV20(metric.exam):[];
+  var rank=subjects.length===1?rankLineV31(metric.exam,subjects[0]):rankLineV31(metric.exam,null);
+  var delta=metric.delta;
+  card.innerHTML='<div><div class="stat-label">'+escapeHtml(metric.label)+'</div>'
+    +'<div class="stat-value">'+formatScore(metric.value)+'</div>'
+    +'<div class="stat-sub">'+escapeHtml(metric.exam.name)+' · '+fmtDate(metric.exam.exam_date)+'</div>'
+    +(rank?'<div class="stat-rank-v31">🏆 '+escV31(rank)+'</div>':'')
+    +'</div>'
+    +(delta===null?'':'<span class="trend-pill">'+(delta>=0?'↗':'↘')+' '+metric.deltaLabel+' '+(delta>=0?'+':'')+formatScore(delta)+' 分</span>');
+};
+
 /* ================= 渲染钩子 ================= */
 var bindPageBeforeV31=(typeof bindPage==='function')?bindPage:null;
 bindPage=function bindPageV31(){
@@ -187,6 +226,7 @@ window.__v31={
   injectLegendHints:injectLegendHintsV31,
   checkUpdate:checkUpdateV31,
   releaseNotes:RELEASE_NOTES_V31,
+  rankLine:rankLineV31,
   track:window.__stTrack
 };
 })();
