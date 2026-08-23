@@ -20,14 +20,14 @@ const CLIENT_PATCH_V13 = `<script id="mg-client-v13">
     zone.querySelectorAll('.t tbody tr').forEach(function(tr){
       var tds=tr.querySelectorAll('td');if(!tds.length)return;
       var userTd=null;
-      tds.forEach(function(td){var lb=td.getAttribute('data-label')||'';if(!userTd&&(lb.indexOf('用户')>-1||(!lb&&td===tds[1])))userTd=td;});
-      if(!userTd)userTd=tds[1]||tds[0];
+      tds.forEach(function(td){var lb=td.getAttribute('data-label')||'';if(!userTd&&lb.indexOf('用户')>-1)userTd=td;});
+      if(!userTd)userTd=tds[3]||tds[0];
       var uname=(userTd.textContent||'').trim();
-      if(uname==='游客'||uname===''){tr.style.display='none';return;}
+      /* 游客行保持可见(只留空深度分)——此前隐藏游客导致"63/63 条却显示不完" */
       var cell=tr.querySelector('.fb-depth-v13');
-      if(cell){cell.textContent=depthOf13(uname)||'-';return;}
-      var ntd=document.createElement('td');ntd.className='fb-depth-v13';ntd.setAttribute('data-label','深度分');ntd.textContent=depthOf13(uname)||'-';
-      (userTd.nextElementSibling||userTd).insertAdjacentElement('afterend',ntd);
+      if(cell){cell.textContent=uname?(depthOf13(uname)||'-'):'-';return;}
+      var ntd=document.createElement('td');ntd.className='fb-depth-v13';ntd.setAttribute('data-label','深度分');ntd.textContent=uname?(depthOf13(uname)||'-'):'-';
+      userTd.insertAdjacentElement('afterend',ntd);
     });
   }
   if(typeof rf==='function'&&!(rfBase13)){var rfBase13=rf;rf=function(){
