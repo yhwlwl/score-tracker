@@ -508,12 +508,12 @@ function printReportV30(html){
 
 /* ================= 导出面板 ================= */
 var FORMATS_V30=[
+  {id:'pdf', icon:'🖨️', name:'打印报告 PDF', sub:'A4 排版报告，浏览器打印对话框里存 PDF', who:'推荐 · 正式材料', ext:'pdf', mime:'', rec:true},
   {id:'csv', icon:'📄', name:'Excel 可开的表格', sub:'CSV 成绩宽表，双击即开不乱码', who:'表格', ext:'csv', mime:'text/csv;charset=utf-8'},
   {id:'txt', icon:'📃', name:'纯文本成绩单', sub:'逐考试分块，能直接粘贴进微信', who:'万能打开', ext:'txt', mime:'text/plain;charset=utf-8'},
-  {id:'json',icon:'💾', name:'完整备份', sub:'全量保真，换机/存档，将来可导入恢复', who:'技术', ext:'json', mime:'application/json;charset=utf-8'},
-  {id:'pdf', icon:'🖨️', name:'打印报告', sub:'A4 版式，浏览器打印对话框里存 PDF', who:'正式材料', ext:'pdf', mime:''}
+  {id:'json',icon:'💾', name:'完整备份', sub:'全量保真，换机/存档，将来可导入恢复', who:'技术', ext:'json', mime:'application/json;charset=utf-8'}
 ];
-var sheetStateV30={scope:'__all__',format:'csv',el:null};
+var sheetStateV30={scope:'__all__',format:'pdf',el:null};
 
 function scopeOptionsV30(){
   var opts=[{v:'__all__',label:'全部'}];
@@ -532,7 +532,9 @@ function renderSheetV30(){
     b.classList.toggle('on',b.getAttribute('data-scope-v30')===sheetStateV30.scope);
   });
   el.querySelectorAll('[data-fmt-v30]').forEach(function(b){
-    b.classList.toggle('on',b.getAttribute('data-fmt-v30')===sheetStateV30.format);
+    var f=FORMATS_V30.filter(function(x){return x.id===b.getAttribute('data-fmt-v30');})[0];
+    b.classList.toggle('on',f&&f.id===sheetStateV30.format);
+    b.classList.toggle('rec',!!(f&&f.rec));
   });
   var f=FORMATS_V30.filter(function(x){return x.id===sheetStateV30.format;})[0]||FORMATS_V30[0];
   var note=el.querySelector('#exportNoteV30');
@@ -549,15 +551,18 @@ function doExportV30(){
   if(!exams.length&&typeof toast==='function'){toast('该范围内还没有考试');return;}
   if(f.id==='pdf'){
     printReportV30(buildPrintHtmlV30(exams,label));
+    if(window.__stTrack)window.__stTrack('export_done',{format:'pdf',scope:label,examCount:exams.length});
   }else{
     var content=f.id==='csv'?buildCsvV30(exams,label):f.id==='txt'?buildTxtV30(exams,label):buildJsonV30(exams,label);
     downloadV30(filenameV30(label,f.ext),content,f.mime);
+    if(window.__stTrack)window.__stTrack('export_done',{format:f.id,scope:label,examCount:exams.length});
   }
   if(typeof toast==='function')toast(f.id==='pdf'?'已打开打印窗口，可选「另存为 PDF」':'已导出 '+filenameV30(label,f.ext));
 }
 
 function openExportSheetV30(){
   if(document.getElementById('exportOverlayV30'))return;
+  if(window.__stTrack)window.__stTrack('export_open',{});
   var ov=document.createElement('div');
   ov.className='export-overlay-v30';ov.id='exportOverlayV30';
   var chips=scopeOptionsV30().map(function(o){
@@ -633,7 +638,8 @@ function injectStylesV30(){
     '@media(max-width:380px){.export-fmts-v30{grid-template-columns:1fr}}',
     '.export-fmt-v30{display:flex;gap:10px;align-items:flex-start;text-align:left;border:1.5px solid var(--line,#e6e9ef);background:var(--chip-bg,#fff);border-radius:13px;padding:11px 12px;cursor:pointer;font-family:inherit;color:var(--text,#18212f)}',
     '.export-fmt-v30.on{border-color:var(--accent,#5d72e8);background:var(--accent-soft,#f6f7ff)}',
-    '.xf-ico-v30{font-size:17px;line-height:1.3}',
+    '.export-fmt-v30.rec{border-color:var(--accent,#5d72e8);box-shadow:inset 0 0 0 1px var(--accent,#5d72e8)}',
+    '.export-fmt-v30 .xf-ico-v30{font-size:17px;line-height:1.3}',
     '.xf-body-v30{min-width:0}',
     '.xf-body-v30 b{display:block;font-size:12.5px;margin-bottom:1px}',
     '.xf-body-v30 small{display:block;font-size:10.5px;color:var(--muted,#88919f);line-height:1.45}',

@@ -1,5 +1,87 @@
 const UPSTREAM = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-admin';
 const METRICS_UPSTREAM = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-admin-metrics';
+const CLIENT_PATCH_V13 = `<script id="mg-client-v13">
+(function(){
+  if(window.__mgV13)return;window.__mgV13=1;
+  var DEPTH13={};
+  function loadDepth13(){
+    var call=(typeof api==='function')?api('users'):Promise.resolve({rows:[]});
+    return call.then(function(u){DEPTH13={};(u.rows||[]).forEach(function(r){if(r.username)DEPTH13[r.username]=r;});}).catch(function(){});
+  }
+  function depthOf13(name){var r=DEPTH13[name];if(!r)return '';return String(r.depth_score!=null?r.depth_score:'');}
+  function enhanceFeedback13(){
+    var zone=document.querySelector('#v-feedback');if(!zone)return;
+    var thead=zone.querySelector('.t thead');
+    if(thead&&!thead.querySelector('th.fb-depth-v13')){
+      var userTh=null;
+      thead.querySelectorAll('th').forEach(function(th){if(!userTh&&(th.textContent||'').indexOf('用户')>-1)userTh=th;});
+      if(userTh){var dth=document.createElement('th');dth.className='fb-depth-v13';dth.textContent='深度分';userTh.insertAdjacentElement('afterend',dth);}
+    }
+    zone.querySelectorAll('.t tbody tr').forEach(function(tr){
+      var tds=tr.querySelectorAll('td');if(!tds.length)return;
+      var userTd=null;
+      tds.forEach(function(td){var lb=td.getAttribute('data-label')||'';if(!userTd&&(lb.indexOf('用户')>-1||(!lb&&td===tds[1])))userTd=td;});
+      if(!userTd)userTd=tds[1]||tds[0];
+      var uname=(userTd.textContent||'').trim();
+      if(uname==='游客'||uname===''){tr.style.display='none';return;}
+      var cell=tr.querySelector('.fb-depth-v13');
+      if(cell){cell.textContent=depthOf13(uname)||'-';return;}
+      var ntd=document.createElement('td');ntd.className='fb-depth-v13';ntd.setAttribute('data-label','深度分');ntd.textContent=depthOf13(uname)||'-';
+      (userTd.nextElementSibling||userTd).insertAdjacentElement('afterend',ntd);
+    });
+  }
+  if(typeof rf==='function'&&!(rfBase13)){var rfBase13=rf;rf=function(){
+    var args=arguments;
+    return loadDepth13().then(function(){return rfBase13.apply(this,args);}).then(function(p){try{enhanceFeedback13();}catch(e){}return p;});
+  };}
+  var fbObs=null;
+  function watchFeedback13(){
+    var zone=document.querySelector('#v-feedback');if(!zone)return;
+    if(fbObs)fbObs.disconnect();
+    fbObs=new MutationObserver(function(){clearTimeout(window.__fbT13);window.__fbT13=setTimeout(function(){try{enhanceFeedback13();}catch(e){}},60);});
+    fbObs.observe(zone,{childList:true,subtree:true});
+    try{enhanceFeedback13();}catch(e){}
+  }
+  var USER13={q:'',sort:'default'};
+  function colIndex13(thead,re){var i=-1;thead.querySelectorAll('th').forEach(function(th,j){if(i<0&&re.test(th.textContent||''))i=j;});return i;}
+  function num13(tr,i){var c=tr.children[i];var m=(c?c.textContent:'').match(/\d+(\.\d+)?/);return m?parseFloat(m[0]):0;}
+  function ts13(tr,i){var c=tr.children[i];var t=c?c.textContent.trim():'';var p=Date.parse(t.replace(/年|月/g,'-').replace(/日/g,' '));return isNaN(p)?0:p;}
+  function applyUsers13(){
+    var z=document.querySelector('#v-users');if(!z)return;
+    var tb=z.querySelector('.t tbody'),thead=z.querySelector('.t thead');if(!tb||!thead)return;
+    var nameI=colIndex13(thead,/用户|昵称/),depI=colIndex13(thead,/深度/),seenI=colIndex13(thead,/上线|last/i);
+    var trs=[].slice.call(tb.querySelectorAll('tr'));
+    if(USER13.sort==='depth'&&depI>-1)trs.sort(function(a,b){return num13(b,depI)-num13(a,depI);});
+    else if(USER13.sort==='seen'&&seenI>-1)trs.sort(function(a,b){return ts13(b,seenI)-ts13(a,seenI);});
+    trs.forEach(function(tr){tb.appendChild(tr);});
+    trs.forEach(function(tr){
+      var show=true;
+      if(USER13.q){var nc=tr.children[nameI>-1?nameI:0];show=((nc?nc.textContent:'')+tr.textContent).toLowerCase().indexOf(USER13.q.toLowerCase())>-1;}
+      tr.style.display=show?'':'none';
+    });
+  }
+  function enhanceUsers13(){
+    var z=document.querySelector('#v-users');if(!z||z.querySelector('.u-toolbar-v13'))return;
+    var bar=document.createElement('div');bar.className='mg-filter-v12 u-toolbar-v13';
+    bar.innerHTML='<input class="u-search-v13" placeholder="查找用户…" style="min-width:150px;padding:8px 9px">'
+      +'<select class="u-sort-v13" style="padding:8px 9px"><option value="default">默认顺序</option><option value="depth">按深度分</option><option value="seen">最近上线</option></select>';
+    var t=z.querySelector('.t');
+    if(t)t.insertAdjacentElement('beforebegin',bar);else z.insertBefore(bar,z.firstChild);
+    bar.querySelector('.u-search-v13').addEventListener('input',function(e){USER13.q=e.target.value.trim();applyUsers13();});
+    bar.querySelector('.u-sort-v13').addEventListener('change',function(e){USER13.sort=e.target.value;applyUsers13();});
+    USER13.q='';USER13.sort='default';
+  }
+  if(typeof ru==='function'&&!window.__ruBase13){window.__ruBase13=ru;ru=function(){
+    var args=arguments;
+    return window.__ruBase13.apply(this,args).then(function(p){try{enhanceUsers13();applyUsers13();}catch(e){}return p;});
+  };}
+  document.addEventListener('click',function(e){
+    if(e.target.closest('.nav button'))setTimeout(watchFeedback13,400);
+  },true);
+  setTimeout(function(){try{watchFeedback13();}catch(e){}},1200);
+})();
+</script>`;
+
 const REPLY_UPSTREAM = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-admin-reply';
 
 const MOBILE_PATCH = `<style id="mg-mobile-v12">
@@ -87,7 +169,7 @@ export default async function handler(req, res) {
     if (isHtml) {
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.supabase.co; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
-      let html = await upstream.text();html = html.replace('</head>', MOBILE_PATCH + '</head>').replace('</body>', CLIENT_PATCH + '</body>');return res.send(html);
+      let html = await upstream.text();html = html.replace('</head>', MOBILE_PATCH + '</head>').replace('</body>', CLIENT_PATCH + CLIENT_PATCH_V13 + '</body>');return res.send(html);
     }
     res.setHeader('Content-Type', 'application/json; charset=utf-8');return res.send(Buffer.from(await upstream.arrayBuffer()));
   } catch (error) {
