@@ -3,10 +3,11 @@
   var PRODUCT_VERSION_V24='v2.0';
 
   function syncVersionV24(){
+    /* 版本唯一来源是 index.html 的 meta;此处只读不写(旧逻辑会把 meta 覆写成 v2.0) */
     var meta=document.querySelector('meta[name="application-version"]');
-    if(meta)meta.setAttribute('content',PRODUCT_VERSION_V24);
+    var v=(meta&&meta.getAttribute('content'))||'';
     var footer=document.getElementById('app-version-v17');
-    if(footer)footer.textContent='Score Tracker · '+PRODUCT_VERSION_V24;
+    if(footer)footer.textContent='Score Tracker · '+v;
   }
   syncVersionV24();
 

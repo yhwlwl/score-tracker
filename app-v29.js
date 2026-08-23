@@ -11,10 +11,11 @@
 
   /* ================= 版本号 ================= */
   function syncVersionV29(){
+    /* 只读 meta(版本唯一来源是 index.html),不再覆写;theme-color 仍由主题引擎管理 */
     var meta=document.querySelector('meta[name="application-version"]');
-    if(meta)meta.setAttribute('content',PRODUCT_VERSION_V29);
+    var v=(meta&&meta.getAttribute('content'))||'';
     var footer=document.getElementById('app-version-v17');
-    if(footer)footer.textContent='Score Tracker · '+PRODUCT_VERSION_V29;
+    if(footer)footer.textContent='Score Tracker · '+v;
     var tc=document.querySelector('meta[name="theme-color"]');
     if(tc)tc.setAttribute('content',themeMetaColorV29(currentThemeV29()));
   }
@@ -544,12 +545,8 @@
     pruneComboFromSubjectRowV29();
     injectAppearanceCardV29();
     swapLogosV29();
-    try{
-      if(!localStorage.getItem('st_tip_colors_v29')){
-        localStorage.setItem('st_tip_colors_v29','1');
-        if(typeof toast==='function')toast('小提示：点击图表图例可更换线条颜色');
-      }
-    }catch(e){}
+    /* 旧的图例一次性 toast 已移除:v31 的可关闭提示条(带 ×)是唯一图例提示,
+       避免新用户首日同时看到两条提示 */
   }
 
   var bindPageBeforeV29=(typeof bindPage==='function')?bindPage:null;

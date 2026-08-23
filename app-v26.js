@@ -6,10 +6,11 @@
 (function(){
   var PRODUCT_VERSION_V26='v3.0';
   function syncVersionV26(){
+    /* 只读 meta(版本唯一来源是 index.html),不再覆写 */
     var meta=document.querySelector('meta[name="application-version"]');
-    if(meta)meta.setAttribute('content',PRODUCT_VERSION_V26);
+    var v=(meta&&meta.getAttribute('content'))||'';
     var footer=document.getElementById('app-version-v17');
-    if(footer)footer.textContent='Score Tracker · '+PRODUCT_VERSION_V26;
+    if(footer)footer.textContent='Score Tracker · '+v;
   }
 
   // ---------- styles ----------

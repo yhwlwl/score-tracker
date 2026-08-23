@@ -1,7 +1,12 @@
 // v24: small client request budget. Loaded before telemetry so background polling can be coalesced.
 (function(){
   var API='https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-api';
-  var PRODUCT_VERSION='v2.4';
+  /* 版本唯一来源:index.html 的 <meta name="application-version">。
+     此前这里硬编码 'v2.4',把 telemetry 读到的真实版本在发送前覆盖掉了。 */
+  function currentVersion(){
+    var m=document.querySelector('meta[name="application-version"]');
+    return (m&&m.getAttribute('content'))||'unknown';
+  }
   var nativeFetch=window.fetch.bind(window);
   var lastHeartbeatAt=0;
   var unreadCache=null;
@@ -19,7 +24,7 @@
     try{body=JSON.parse(String(init.body));}catch(e){return nativeFetch(input,init);}
 
     // Keep version metadata current without making the feedback/telemetry bundle itself a deployment dependency.
-    if(body&&body.context&&typeof body.context==='object')body.context.appVersion=PRODUCT_VERSION;
+    if(body&&body.context&&typeof body.context==='object')body.context.appVersion=currentVersion();
 
     if(body?.action==='track_event'&&body?.eventType==='heartbeat'){
       var now=Date.now();

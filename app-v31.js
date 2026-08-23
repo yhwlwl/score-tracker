@@ -14,7 +14,11 @@ function currentPageV31(){
   }catch(e){}
   return 'unknown';
 }
+/* 委托优先:telemetry-feedback 已提供富上下文追踪器(visitor/utm/屏幕等),直接复用;
+   仅当其不存在时才用这里的精简兜底。此前本文件直接覆盖 __stTrack,导致埋点上下文变瘦 */
+var __stTrackPrevV31=(typeof window.__stTrack==='function')?window.__stTrack:null;
 window.__stTrack=function stTrackV31(eventType,metadata){
+  if(__stTrackPrevV31){try{return __stTrackPrevV31(eventType,metadata);}catch(e){}}
   try{
     var API='https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-api';
     var c={
@@ -82,7 +86,8 @@ function injectLegendHintsV31(){
 
 /* ================= 版本检测 ================= */
 var RELEASE_NOTES_V31={
-  'v4.1':'新增数据导出：Excel 表格 / TXT 成绩单 / JSON 备份 / PDF 打印报告'
+  'v4.1':'新增数据导出：Excel 表格 / TXT 成绩单 / JSON 备份 / PDF 打印报告',
+  'v5.0':'全新「统计分析」页：排名走势、强弱科定位、个人最佳殿堂、目标校准与试卷难度信号'
 };
 function dismissKeyV31(v){return 'st_update_dismissed_'+v;}
 function showUpdateBarV31(latest){
@@ -206,8 +211,6 @@ var bindPageBeforeV31=(typeof bindPage==='function')?bindPage:null;
 bindPage=function bindPageV31(){
   if(bindPageBeforeV31)bindPageBeforeV31();
   try{
-    /* 静默旧的一次性 toast，改由本层提示条负责 */
-    try{localStorage.setItem('st_tip_colors_v29','1');}catch(e){}
     injectLegendHintsV31();
     installTrackingV31();
     if(!localStorage.getItem('st_tip_colors_v31'))showColorTipBannerV31();

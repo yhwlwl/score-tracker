@@ -3,10 +3,11 @@
   var PRODUCT_VERSION_V23='v1.9';
 
   function syncVersionV23(){
+    /* 只读 meta(版本唯一来源是 index.html),不再覆写 */
     var meta=document.querySelector('meta[name="application-version"]');
-    if(meta)meta.setAttribute('content',PRODUCT_VERSION_V23);
+    var v=(meta&&meta.getAttribute('content'))||'';
     var footer=document.getElementById('app-version-v17');
-    if(footer)footer.textContent='Score Tracker · '+PRODUCT_VERSION_V23;
+    if(footer)footer.textContent='Score Tracker · '+v;
   }
   syncVersionV23();
 
