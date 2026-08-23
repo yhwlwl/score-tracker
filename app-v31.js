@@ -40,7 +40,7 @@ function injectStylesV31(){
     '@keyframes v31drop{from{transform:translate(-50%,-14px);opacity:0}to{transform:translate(-50%,0);opacity:1}}',
     '.tip-banner-v31 .t-ico{font-size:16px;flex:none}',
     '.tip-banner-v31 .t-x{flex:none;border:0;background:var(--cell,#f3f4f7);width:26px;height:26px;border-radius:8px;font-size:14px;color:var(--muted,#667085);cursor:pointer;font-family:inherit}',
-    '.lg-hint-v31{font-size:10px;color:var(--muted,#98a1ae);opacity:.75;margin-left:2px;white-space:nowrap}',
+    '.lg-hint-v31{font-size:10px;color:var(--muted,#98a1ae);opacity:.75;margin-left:2px;white-space:nowrap;pointer-events:none;-webkit-user-select:none;user-select:none}',
     '.update-bar-v31{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom));z-index:96;display:flex;align-items:center;gap:10px;background:var(--panel-solid,#fff);color:var(--text,#18212f);border:1px solid var(--accent,#5d72e8);border-radius:14px;padding:11px 12px 11px 14px;box-shadow:var(--nav-shadow,0 10px 35px rgba(28,39,63,.2));max-width:min(470px,calc(100vw - 24px));font-size:12.5px;animation:v31rise .3s cubic-bezier(.2,.8,.25,1)}',
     '@keyframes v31rise{from{transform:translate(-50%,14px);opacity:0}to{transform:translate(-50%,0);opacity:1}}',
     '.update-bar-v31 .u-x{border:0;background:transparent;color:var(--muted,#98a1ae);font-size:15px;cursor:pointer;padding:2px 4px;font-family:inherit;flex:none}'
