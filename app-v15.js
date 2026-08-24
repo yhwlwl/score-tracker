@@ -23,7 +23,7 @@ async function changePasswordApiV15(newPassword){
 var accountHtmlBeforeV15=accountHtml;
 accountHtml=function accountHtmlV15(){
   var html=accountHtmlBeforeV15();
-  return html+`<div class="card password-card-v15"><div><h3 class="card-title">修改密码</h3><p class="card-sub">已登录时可直接设置一个更好记的新密码。</p></div><div class="password-grid-v15"><div class="field"><label>新密码</label><input id="newPasswordV15" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="new-password" placeholder="6～20位数字"></div><div class="field"><label>再次输入</label><input id="confirmPasswordV15" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="new-password" placeholder="再次输入新密码"></div><button class="primary" id="changePasswordV15">保存新密码</button></div><div class="password-note-v15">修改成功后当前设备不会退出，以后重新登录请使用新密码。建议改成自己容易记住、但别人不容易猜到的数字组合。</div></div>`;
+  return html+`<div class="card password-card-v15"><div><h3 class="card-title">修改密码</h3><p class="card-sub">已登录时可直接设置一个更好记的新密码。</p></div><div class="password-grid-v15"><div class="field"><label>新密码</label><input id="newPasswordV15" type="password" autocomplete="new-password" placeholder="6～20位，可含字母数字符号"></div><div class="field"><label>再次输入</label><input id="confirmPasswordV15" type="password" autocomplete="new-password" placeholder="再次输入新密码"></div><button class="primary" id="changePasswordV15">保存新密码</button></div><div class="password-note-v15">修改成功后当前设备不会退出，以后重新登录请使用新密码。建议设置 6～20 位，可使用大小写字母、数字和符号。</div></div>`;
 };
 
 var bindPageBeforeV15=bindPage;
