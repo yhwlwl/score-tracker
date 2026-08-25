@@ -51,6 +51,51 @@
   <script src="./app-v30.js" defer></script>
   <script src="./app-v31.js" defer></script>
   <script src="./app-v32.js" defer></script>
+  <style id="app-v33-style">
+.goal-hero-v33{display:flex;gap:18px;background:linear-gradient(145deg,var(--panel-solid,#fff),var(--accent-soft,#eef1ff));border:1px solid var(--line,#e8ebf0);border-radius:20px;box-shadow:0 10px 35px rgba(27,37,58,.08);padding:16px 18px;margin:14px 0;cursor:pointer}
+.goal-hero-v33:active{transform:translateY(1px)}
+.gh-main-v33{flex:1;min-width:0}.gh-title-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.gh-title{font-size:13.5px;font-weight:750}.gh-hint{font-size:11px;color:var(--muted,#788392)}
+.gh-chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}.gh-chips::-webkit-scrollbar{display:none}
+.gh-chip{flex:0 0 auto;border:1px solid var(--line,#e8ebf0);background:var(--panel-solid,#fff);border-radius:13px;padding:8px 11px;min-width:84px;cursor:pointer}
+.gh-chip small{display:block;font-size:10.5px;color:var(--muted,#788392)}.gh-chip b{font-size:15px;font-variant-numeric:tabular-nums}.gh-chip em{display:block;font-style:normal;font-size:10.5px;margin-top:1px}
+.gh-chip.ok em{color:var(--green,#32a77a)}.gh-chip.no em{color:var(--danger,#d9534f)}.gh-chip.na{opacity:.55}.gh-chip.na em{color:var(--muted,#788392)}
+.gh-total{margin-top:10px;display:flex;align-items:baseline;gap:8px;font-variant-numeric:tabular-nums}.gh-total b{font-size:23px;letter-spacing:-.5px}.gh-total span{font-size:11.5px;color:var(--muted,#788392)}
+.gh-side{flex:0 0 168px;display:flex;flex-direction:column;gap:10px;justify-content:center}
+.gh-cd{background:var(--accent,#5d72e8);color:#fff;border-radius:16px;padding:13px;text-align:center}.gh-cd small{display:block;font-size:11px;opacity:.85}.gh-cd b{display:block;font-size:29px;font-variant-numeric:tabular-nums;line-height:1.15}
+.gh-cd.expired{background:var(--warn,#b97f24)}
+.gh-school{border:1px solid var(--line,#e8ebf0);background:var(--panel-solid,#fff);border-radius:14px;padding:9px 12px;font-size:12px;color:var(--muted,#788392)}.gh-school b{display:block;color:var(--text,#18212f);font-size:14px;margin-top:2px}
+.goal-bar-v33{border:1.5px dashed var(--line,#e8ebf0);border-radius:16px;padding:12px 14px;font-size:12.5px;color:var(--muted,#788392);cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;margin:14px 0;background:transparent;width:100%;text-align:left}
+.goal-bar-v33 b{color:var(--accent,#5d72e8)}
+.bar-x-v33{border:0;background:transparent;color:var(--muted,#788392);font-size:16px;padding:4px 7px;border-radius:8px;cursor:pointer;flex:0 0 auto}
+.gmodal-backdrop{position:fixed;inset:0;background:rgba(22,28,39,.42);backdrop-filter:blur(6px);display:none;place-items:center;padding:18px;z-index:120}
+.gmodal-backdrop.open{display:grid}
+.gmodal{width:min(600px,100%);max-height:min(88vh,840px);overflow:auto;background:var(--panel-solid,#fff);border-radius:22px;box-shadow:0 30px 90px rgba(15,20,35,.3);color:var(--text,#18212f)}
+.gm-head{position:sticky;top:0;background:var(--panel-solid,#fff);display:flex;justify-content:space-between;align-items:center;padding:17px 20px 11px;border-bottom:1px solid var(--line,#e8ebf0)}
+.gm-head h3{margin:0;font-size:16px}.gm-head small{display:block;font-weight:400;color:var(--muted,#788392);font-size:11.5px;margin-top:3px}
+.gm-x{border:0;background:var(--line,#e8ebf0);width:32px;height:32px;border-radius:10px;font-size:16px;cursor:pointer;color:inherit}
+.gm-body{padding:15px 20px 21px}
+.gm-label{font-size:12px;font-weight:750;margin:15px 0 8px}.gm-label:first-child{margin-top:0}.gm-label span{font-weight:400;color:var(--muted,#788392);font-size:11.5px;margin-left:6px}
+.gm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.gm-sf{border:1px solid var(--line,#e8ebf0);border-radius:13px;padding:7px 10px;background:var(--panel-solid,#fff)}
+.gm-sf label{display:block;font-size:10.5px;color:var(--muted,#788392);margin-bottom:3px}
+.gm-sf input{width:100%;border:0;outline:0;background:transparent;font:inherit;font-size:15px;font-weight:700;color:var(--text,#18212f);font-variant-numeric:tabular-nums}
+.gm-input{width:100%;border:1px solid var(--line,#e8ebf0);border-radius:12px;padding:10px 12px;background:var(--panel-solid,#fff);color:var(--text,#18212f);font:inherit;outline:0}
+.gm-total{display:flex;align-items:center;gap:10px;border:1px solid var(--line,#e8ebf0);border-radius:13px;padding:9px 12px;background:var(--accent-soft,#eef1ff);margin-bottom:6px}
+.gm-total b{font-size:19px;font-variant-numeric:tabular-nums}.gm-total .an{font-size:11px;color:var(--muted,#788392);margin-left:auto}
+.gm-mini{border:1px solid var(--line,#e8ebf0);background:var(--panel-solid,#fff);color:var(--muted,#788392);border-radius:10px;padding:7px 11px;font-size:11.5px;cursor:pointer}
+.gm-mini.on{border-color:var(--accent,#5d72e8);color:var(--accent,#5d72e8);font-weight:700}
+.gm-foot{display:flex;justify-content:space-between;gap:10px;margin-top:18px}
+.gm-save{border:0;background:var(--text,#18212f);color:#fff;border-radius:12px;padding:11px 18px;font-weight:700;cursor:pointer}
+.gm-clear{border:1px solid var(--line,#e8ebf0);background:transparent;color:var(--danger,#d9534f);border-radius:12px;padding:11px 14px;cursor:pointer;font-size:12.5px}
+.gm-hint{font-size:11px;color:var(--warn,#b97f24);margin:6px 2px 0;min-height:14px}
+.v33-goal-line{border-top:1px dashed var(--line,#e8ebf0);margin-top:10px;padding-top:9px;font-size:12.5px;line-height:1.75}
+.tag-ok-v33{font-size:10.5px;font-weight:800;border-radius:999px;padding:3px 8px;background:var(--green-soft,#e9f8f2);color:var(--green,#32a77a);margin-left:6px;white-space:nowrap}
+.v33-entry{font-size:11.5px;color:var(--muted,#788392)}.v33-entry button{color:var(--accent,#5d72e8);background:none;border:0;padding:0;font-size:11.5px;cursor:pointer}
+#v33cityBox details{border-top:1px solid var(--line,#e8ebf0)}#v33cityBox summary{list-style:none;cursor:pointer;padding:10px 2px;font-size:12.5px;color:var(--muted,#788392);display:flex;justify-content:space-between}#v33cityBox summary::-webkit-details-marker{display:none}
+.v33-citygrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding-bottom:4px}
+@media(max-width:760px){.goal-hero-v33{flex-direction:column}.gh-side{flex-direction:row}.gh-side>*{flex:1}}
+  </style>
   <script src="./app-v33.js" defer></script>
 </body>
 </html>

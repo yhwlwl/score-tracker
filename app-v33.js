@@ -78,6 +78,7 @@ function persistGoal(){
 
 /* ================= 样式 ================= */
 (function css(){
+  if(document.getElementById("app-v33-style"))return; /* index.html 已静态内置 */
   var st=document.createElement("style");st.id="app-v33-style";
   st.textContent=
   ".goal-hero-v33{display:flex;gap:18px;background:linear-gradient(145deg,var(--panel-solid,#fff),var(--accent-soft,#eef1ff));border:1px solid var(--line,#e8ebf0);border-radius:20px;box-shadow:var(--shadow,0 10px 35px rgba(27,37,58,.08));padding:16px 18px;margin:14px 0;cursor:pointer}"
