@@ -83,6 +83,8 @@ function loadGoal(){
       dateName:g.dateName||g.date_name||""
     }:{subjects:{},totalGoal:null,school:"",date:"",dateName:""};
     G.loaded=true;refreshGoalUI();
+    setTimeout(function(){try{refreshGoalUI()}catch(e){}},1200);
+    setTimeout(function(){try{refreshGoalUI()}catch(e){}},3000);
   }).catch(function(){G.loaded=true;});
 }
 function persistGoal(){
@@ -498,6 +500,11 @@ window.__v33={
   open:function(){openEditor("demo")},
   refresh:refreshGoalUI,
   state:function(){return {loaded:G.loaded,data:G.data,dismissed:localStorage.getItem(LS_DISMISS)}},
+  debug:function(){
+    var ex=(window.state&&Array.isArray(state.exams))?state.exams:[];
+    return {exams:ex.length,sampleKeys:ex[0]?Object.keys(ex[0]):[],subs:activeSubjects().map(function(s){return s.name}),
+      rec:SUB_TOTALS(),latest:ex[0]?latestScore(activeSubjects()[0]?activeSubjects()[0].name:"")||"null":null};
+  },
   reload:loadGoal
 };
 })();
