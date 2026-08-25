@@ -22,9 +22,12 @@ function hasGoal(){
   return !!(n>0||d.totalGoal!=null||d.school||d.date);
 }
 function goalSubjects(){return G.data&&G.data.subjects?G.data.subjects:{}}
+/* 顶层 const state 不会挂到 window 上,必须经词法作用域安全取用 */
+function ST(){try{return state}catch(e){return null}}
 function examSource(){
-  var a=window.state&&Array.isArray(state.allExams)?state.allExams:null;
-  var b=window.state&&Array.isArray(state.exams)?state.exams:null;
+  var s=ST();
+  var a=s&&Array.isArray(s.allExams)?s.allExams:null;
+  var b=s&&Array.isArray(s.exams)?s.exams:null;
   return (a&&a.length?a:b)||[];
 }
 function scoreOf(sc){
@@ -41,7 +44,8 @@ function activeSubjects(){
     if(typeof s==="string")push(s);else push(s&&s.name,s&&(s.defaultMax||s.max));
   });
   (Array.isArray(window.SUBJECTS)?window.SUBJECTS:[]).forEach(function(n){push(typeof n==="string"?n:n&&n.name)});
-  ((window.state&&Array.isArray(state.exams))?state.exams:[]).forEach(function(e){
+  var st=ST();
+  ((st&&Array.isArray(st.exams))?st.exams:[]).forEach(function(e){
     ["scores","subjects"].forEach(function(k){
       var o=e[k];if(!o||typeof o!=="object")return;
       Object.keys(o).forEach(function(n){
@@ -454,15 +458,16 @@ if(apiBeforeV33){
 function fmtPct(v){return Math.round(v*10)/10+"%"}
 function annotateTrendV33(html){
   if(!hasGoal()||html.indexOf('<svg viewBox="0 0 760 300"')<0||html.indexOf('stroke-dasharray="7 7"')<0)return html;
-  if(!window.state||!state.subject||state.subject==="总览"||state.subject==="总分")return html;
-  var goal=goalSubjects()[state.subject];
+  var s33=ST();
+  if(!s33||!s33.subject||s33.subject==="总览"||s33.subject==="总分")return html;
+  var goal=goalSubjects()[s33.subject];
   if(goal==null)return html;
-  var max=100,cfg=Array.isArray(state.subjectConfigs)?state.subjectConfigs:[];
-  for(var i=0;i<cfg.length;i++){var c=cfg[i],n=typeof c==="string"?c:c.name;if(n===state.subject){max=(typeof c==="string")?100:(c.defaultMax||c.max||100);break}}
-  var exams=(state.exams||[]).filter(function(e){return !e.is_hidden});
+  var max=100,cfg=Array.isArray(s33.subjectConfigs)?s33.subjectConfigs:[];
+  for(var i=0;i<cfg.length;i++){var c=cfg[i],n=typeof c==="string"?c:c.name;if(n===s33.subject){max=(typeof c==="string")?100:(c.defaultMax||c.max||100);break}}
+  var exams=(s33.exams||[]).filter(function(e){return !e.is_hidden});
   var vals=[],any=false;
   exams.forEach(function(e){
-    var sc=e.scores&&e.scores[state.subject];if(!sc)return;
+    var sc=e.scores&&e.scores[s33.subject];if(!sc)return;
     if(sc.actual!=null){vals.push(sc.actual/max*100);any=true}
     if(sc.target!=null)vals.push(sc.target/max*100);
   });
@@ -517,7 +522,8 @@ window.__v33={
   refresh:refreshGoalUI,
   state:function(){return {loaded:G.loaded,data:G.data,dismissed:localStorage.getItem(LS_DISMISS)}},
   debug:function(){
-    var ex=(window.state&&Array.isArray(state.exams))?state.exams:[];
+    var sd=ST();
+    var ex=(sd&&Array.isArray(sd.exams))?sd.exams:[];
     return {exams:ex.length,sampleKeys:ex[0]?Object.keys(ex[0]):[],subs:activeSubjects().map(function(s){return s.name}),
       rec:SUB_TOTALS(),latest:ex[0]?latestScore(activeSubjects()[0]?activeSubjects()[0].name:"")||"null":null};
   },
