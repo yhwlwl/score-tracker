@@ -22,14 +22,30 @@ function hasGoal(){
   return !!(n>0||d.totalGoal!=null||d.school||d.date);
 }
 function goalSubjects(){return G.data&&G.data.subjects?G.data.subjects:{}}
+function scoreOf(sc){
+  if(sc==null)return null;
+  if(typeof sc==="number")return sc;
+  var v=sc.actual!=null?sc.actual:(sc.final!=null?sc.final:(sc.score!=null?sc.score:null));
+  return v==null?null:Number(v);
+}
+function maxOf(sc,dft){return sc&&sc.max!=null?Number(sc.max):(dft||0)}
 function activeSubjects(){
-  var names=[],seen={};
-  (window.state&&Array.isArray(state.subjectConfigs)?state.subjectConfigs:[]).forEach(function(s){
-    var n=(typeof s==="string"?s:s&&s.name)||"";if(n&&!seen[n]){seen[n]=1;names.push({name:n,max:(s.defaultMax||s.max||100)})}
+  var seen={},out=[];
+  function push(n,max){if(n&&!seen[n]){seen[n]=1;out.push({name:n,max:max||0})}}
+  (Array.isArray(state.subjectConfigs)?state.subjectConfigs:[]).forEach(function(s){
+    if(typeof s==="string")push(s);else push(s&&s.name,s&&(s.defaultMax||s.max));
   });
-  var ex=window.state&&Array.isArray(state.exams)?state.exams:[];
-  ex.forEach(function(e){Object.keys(e.scores||{}).forEach(function(n){if(!seen[n]){seen[n]=1;names.push({name:n,max:(e.scores[n]&&e.scores[n].max)||100})}})});
-  return names;
+  (Array.isArray(window.SUBJECTS)?window.SUBJECTS:[]).forEach(function(n){push(typeof n==="string"?n:n&&n.name)});
+  ((window.state&&Array.isArray(state.exams))?state.exams:[]).forEach(function(e){
+    ["scores","subjects"].forEach(function(k){
+      var o=e[k];if(!o||typeof o!=="object")return;
+      Object.keys(o).forEach(function(n){
+        var sc=o[n],m=typeof sc==="object"&&sc?(sc.max||(sc.defaultMax||0)):0;
+        push(n,m);
+      });
+    });
+  });
+  return out;
 }
 function latestScore(name){
   var ex=(window.state&&Array.isArray(state.exams)?state.exams:[]).slice().sort(function(a,b){
@@ -37,8 +53,9 @@ function latestScore(name){
   });
   for(var i=0;i<ex.length;i++){
     if(ex[i].is_hidden)continue;
-    var sc=ex[i].scores&&ex[i].scores[name];
-    if(sc&&sc.actual!=null)return {v:Number(sc.actual),exam:ex[i]};
+    var sc=(ex[i].scores&&ex[i].scores[name])||(ex[i].subjects&&ex[i].subjects[name]);
+    var v=scoreOf(sc);
+    if(v!=null)return {v:v,max:maxOf(sc,0),exam:ex[i]};
   }
   return null;
 }
@@ -131,8 +148,8 @@ function persistGoal(){
 
 /* ================= 首页通栏卡 ================= */
 function daysLeft(){
-  if(!G.data||!G.date)return null;
-  var d=Math.ceil((new Date(G.date+"T00:00:00")-new Date())/86400000);
+  if(!G.data||!G.data.date)return null;
+  var d=Math.ceil((new Date(G.data.date+"T00:00:00")-new Date())/86400000);
   return isNaN(d)?null:d;
 }
 function chipHtml(s){
@@ -204,9 +221,10 @@ function openEditor(via){
   var d=G.data=G.data||{subjects:{},totalGoal:null,school:"",date:"",dateName:""};
   var grid=activeSubjects().map(function(s){
     var g=d.subjects[s.name];var best=bestOf(s.name);
-    return '<div class="gm-sf"><label>'+esc(s.name)+" · 满分 "+s.max+" · 最佳 "+(best==null?"—":best)
+    return '<div class="gm-sf"><label>'+esc(s.name)+(s.max?" · 满分 "+s.max:"")+" · 最佳 "+(best==null?"—":best)
       +'</label><input inputmode="decimal" data-gsubject="'+esc(s.name)+'" value="'+(g==null?"":g)+'"/></div>';
   }).join("");
+  if(!grid)grid='<p class="gm-hint" style="color:var(--muted,#788392)">还没有科目数据——先去添加一次考试,或检查科目设置。</p>';
   var dateOpts=["高考","中考","期末考试","自定义…"].map(function(o){
     return '<option'+((o===d.dateName)||(o==="自定义…"&&!d.dateName)?' selected':"")+">"+o+"</option>";
   }).join("");
