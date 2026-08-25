@@ -154,7 +154,7 @@ function persistGoal(){
   /* 市/区排名 */
   "#v33cityBox details{border-top:1px solid var(--line,#e8ebf0)}#v33cityBox summary{list-style:none;cursor:pointer;padding:10px 2px;font-size:12.5px;color:var(--muted,#788392);display:flex;justify-content:space-between}#v33cityBox summary::-webkit-details-marker{display:none}"
   ".v33-citygrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding-bottom:4px}"
-  "@media(max-width:760px){.goal-hero-v33{flex-direction:column;gap:14px}.gh-side{flex:none;flex-direction:row;width:100%;gap:8px}.gh-side>*{flex:1;min-width:0}.gh-cd{padding:10px 12px}.gh-cd b{font-size:24px}.gh-school{display:flex;flex-direction:column;justify-content:center}}";
+  "@media(max-width:760px){.goal-hero-v33{flex-direction:column;gap:14px}.gh-side{flex:none;flex-direction:row;width:100%;gap:8px}.gh-side>*{flex:1;min-width:0}.gh-cd{padding:10px 12px}.gh-cd b{font-size:24px}.gh-school{display:flex;flex-direction:column;justify-content:center}.gh-title-row{margin-bottom:8px}.gh-total{flex-wrap:wrap;row-gap:3px;margin-top:9px}.gh-total b{white-space:nowrap;font-size:20px;line-height:1.25}.gh-total span{flex:1 1 100%;line-height:1.65}}";
   document.head.appendChild(st);
 })();
 
