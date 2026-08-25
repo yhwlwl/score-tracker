@@ -90,6 +90,7 @@ function loadGoal(){
     G.loaded=true;refreshGoalUI();
     setTimeout(function(){try{refreshGoalUI()}catch(e){}},1200);
     setTimeout(function(){try{refreshGoalUI()}catch(e){}},3000);
+    setTimeout(function(){try{if(!examSource().length)refreshGoalUI()}catch(e){}},6000);
   }).catch(function(){G.loaded=true;});
 }
 function persistGoal(){
@@ -149,7 +150,7 @@ function persistGoal(){
   /* 市/区排名 */
   "#v33cityBox details{border-top:1px solid var(--line,#e8ebf0)}#v33cityBox summary{list-style:none;cursor:pointer;padding:10px 2px;font-size:12.5px;color:var(--muted,#788392);display:flex;justify-content:space-between}#v33cityBox summary::-webkit-details-marker{display:none}"
   ".v33-citygrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding-bottom:4px}"
-  "@media(max-width:760px){.goal-hero-v33{flex-direction:column}.gh-side{flex-direction:row}.gh-side>*{flex:1}}";
+  "@media(max-width:760px){.goal-hero-v33{flex-direction:column;gap:14px}.gh-side{flex:none;flex-direction:row;width:100%;gap:8px}.gh-side>*{flex:1;min-width:0}.gh-cd{padding:10px 12px}.gh-cd b{font-size:24px}.gh-school{display:flex;flex-direction:column;justify-content:center}}";
   document.head.appendChild(st);
 })();
 
@@ -167,6 +168,7 @@ function chipHtml(s){
   if(goal==null){cls="na";tail="未设目标"}
   else if(diff==null){cls="na";tail="待考试"}
   else{cls=diff>=0?"ok":"no";tail=diff>=0?"已超 "+diff:"还差 "+(-diff)}
+  if(goal!=null&&v==null&&!examSource().length)tail="成绩读取中…";
   return '<span class="gh-chip '+cls+'" data-subject="'+esc(s.name)+'" onclick="event.stopPropagation();__v33.jump(\''+esc(s.name).replace(/'/g,"")+'\')" title="查看统计分析">'
     +"<small>"+esc(s.name)+" · "+(goal==null?"—":"目标 "+goal)+"</small><b>"+(v==null?"—":v)+"</b><em>"+tail+"</em></span>";
 }
@@ -483,6 +485,15 @@ if(chartHtmlBeforeV33){
 }
 
 /* ================= 启动 ================= */
+/* 考试数据晚到:loadExams 完成后立即重绘目标卡,消除「待考试/读取中」竞态 */
+var leBeforeV33=(typeof loadExams==="function")?window.loadExams:null;
+if(leBeforeV33){
+  window.loadExams=function(){
+    var p=leBeforeV33.apply(this,arguments);
+    try{Promise.resolve(p).then(function(){setTimeout(function(){try{refreshGoalUI()}catch(e){}},60)},function(){})}catch(e){}
+    return p;
+  };
+}
 var bindPageBeforeV33=(typeof bindPage==="function")?bindPage:null;
 if(bindPageBeforeV33){
   bindPage=function(){
