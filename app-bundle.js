@@ -8842,18 +8842,23 @@ var cityObs=null;
 function watchExamModal(){
   if(cityObs||typeof MutationObserver!=="function")return;
   cityObs=new MutationObserver(function(){
-    var backdrop=$(".modal-backdrop");if(!backdrop)return;
-    /* 只认「记录/编辑考试」弹窗:名称+日期+总排名表三要素齐备才注入,其余弹窗一律不碰 */
-    if(!$("#examName",backdrop)||!$("#examDate",backdrop)||!$(".rank-table-v7",backdrop))return;
-    if(backdrop.querySelector("#v33cityBox"))return;
-    var host=document.createElement("div");host.id="v33cityBox";
+    /* 遍历全部 backdrop(防残留弹窗挡道);只认「记录/编辑考试」弹窗 */
+    var backs=$all(".modal-backdrop");
+    for(var i=0;i<backs.length;i++){
+      var b=backs[i];
+      if(!$("#examName",b)||!$("#examDate",b))continue;
+      /* v16+ 排名区是 .total-ranks-v16(年级/班级卡);老版本兜底 .rank-table-v7 */
+      var anchor=$(".total-ranks-v16",b)||$(".rank-table-v7",b);
+      if(!anchor||b.querySelector("#v33cityBox"))continue;
+      var host=document.createElement("div");host.id="v33cityBox";
     host.innerHTML='<details><summary>市 / 区排名（选填，仅总分层面）<span>展开</span></summary>'
       +'<div class="v33-citygrid">'
       +'<div><label style="display:block;font-size:11px;color:var(--muted)">市名次 / 市人数</label><div style="display:flex;gap:6px"><input id="v33CityR" inputmode="numeric" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff"/><input id="v33CityN" inputmode="numeric" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff"/></div></div>'
       +'<div><label style="display:block;font-size:11px;color:var(--muted)">区名次 / 区人数</label><div style="display:flex;gap:6px"><input id="v33DistR" inputmode="numeric" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff"/><input id="v33DistN" inputmode="numeric" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff"/></div></div>'
       +'<label style="display:flex;gap:7px;align-items:center;font-size:11.5px;color:var(--muted)"><input type="checkbox" id="v33ApplyCity"/> 保存时应用以上市/区排名（勾选才会写入；编辑旧考试时不勾选则保持原值）</label>'
       +"</div></details>";
-    $(".rank-table-v7",backdrop).insertAdjacentElement("afterend",host);
+      anchor.insertAdjacentElement("afterend",host);
+    }
   });
   cityObs.observe(document.body,{childList:true,subtree:true});
 }
