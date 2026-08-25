@@ -88,7 +88,7 @@ function injectLegendHintsV31(){
 var RELEASE_NOTES_V31={
   'v4.1':'新增数据导出：Excel 表格 / TXT 成绩单 / JSON 备份 / PDF 打印报告',
   'v5.0':'全新「统计分析」页：排名走势、强弱科定位、个人最佳殿堂、目标校准与试卷难度信号',
-  'v5.1':'长期目标系统：各科目标分数、理想学校与考试倒计时；首页逐科差距卡、趋势图目标线与统计页联动；另新增市/区排名（总分层面，选填）'
+  'v5.1':'长期目标系统：各科目标分数、理想学校与考试倒计时；首页逐科差距卡、趋势图目标线与统计页联动；新增市/区排名（总分层面，选填）；修复成绩加载与移动端排版问题；全部脚本合并单文件，打开更快更省流量'
 };
 function dismissKeyV31(v){return 'st_update_dismissed_'+v;}
 function showUpdateBarV31(latest){
