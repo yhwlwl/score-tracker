@@ -152,8 +152,9 @@ function persistGoal(){
   ".tag-ok-v33{font-size:10.5px;font-weight:800;border-radius:999px;padding:3px 8px;background:var(--green-soft,#e9f8f2);color:var(--green,#32a77a);margin-left:6px;white-space:nowrap}"
   ".v33-entry{font-size:11.5px;color:var(--muted,#788392)}.v33-entry a,.v33-entry button{color:var(--accent,#5d72e8);background:none;border:0;padding:0;font-size:11.5px;cursor:pointer}"
   /* 市/区排名 */
-  "#v33cityBox details{border-top:1px solid var(--line,#e8ebf0)}#v33cityBox summary{list-style:none;cursor:pointer;padding:10px 2px;font-size:12.5px;color:var(--muted,#788392);display:flex;justify-content:space-between}#v33cityBox summary::-webkit-details-marker{display:none}"
-  ".v33-citygrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding-bottom:4px}"
+  "#v33cityBox{max-width:100%;overflow:hidden}#v33cityBox details{border-top:1px solid var(--line,#e8ebf0)}#v33cityBox summary{list-style:none;cursor:pointer;padding:10px 2px;font-size:12.5px;color:var(--muted,#788392);display:flex;justify-content:space-between}#v33cityBox summary::-webkit-details-marker{display:none}"
+  ".v33-citygrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:2px 0 6px}.v33-citygrid>div{min-width:0}.v33-lab{display:block;font-size:11px;color:var(--muted,#788392);margin-bottom:4px}.v33-pair{display:flex;gap:6px}.v33-pair input{flex:1;width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--line,#e8ebf0);border-radius:10px;padding:8px;background:var(--panel-solid,#fff);font:inherit;color:var(--text,#18212f)}"
+  "@media(max-width:520px){.v33-citygrid{grid-template-columns:1fr}}"
   "@media(max-width:760px){.goal-hero-v33{flex-direction:column;gap:14px}.gh-side{flex:none;flex-direction:row;width:100%;gap:8px}.gh-side>*{flex:1;min-width:0}.gh-cd{padding:10px 12px}.gh-cd b{font-size:24px}.gh-school{display:flex;flex-direction:column;justify-content:center}.gh-title-row{margin-bottom:8px}.gh-total{flex-wrap:wrap;row-gap:3px;margin-top:9px}.gh-total b{white-space:nowrap;font-size:20px;line-height:1.25}.gh-total span{flex:1 1 100%;line-height:1.65}}";
   document.head.appendChild(st);
 })();
@@ -434,9 +435,9 @@ function watchExamModal(){
       var host=document.createElement("div");host.id="v33cityBox";
     host.innerHTML='<details><summary>市 / 区排名（选填，仅总分层面）<span>展开</span></summary>'
       +'<div class="v33-citygrid">'
-      +'<div><label style="display:block;font-size:11px;color:var(--muted)">市名次 / 市人数</label><div style="display:flex;gap:6px"><input id="v33CityR" inputmode="numeric" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff"/><input id="v33CityN" inputmode="numeric" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff"/></div></div>'
-      +'<div><label style="display:block;font-size:11px;color:var(--muted)">区名次 / 区人数</label><div style="display:flex;gap:6px"><input id="v33DistR" inputmode="numeric" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff"/><input id="v33DistN" inputmode="numeric" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff"/></div></div>'
-      +'<label style="display:flex;gap:7px;align-items:center;font-size:11.5px;color:var(--muted)"><input type="checkbox" id="v33ApplyCity"/> 保存时应用以上市/区排名（勾选才会写入；编辑旧考试时不勾选则保持原值）</label>'
+      +'<div><label class="v33-lab">市名次 / 市人数</label><div class="v33-pair"><input id="v33CityR" inputmode="numeric" placeholder="名次"/><input id="v33CityN" inputmode="numeric" placeholder="人数"/></div></div>'
+      +'<div><label class="v33-lab">区名次 / 区人数</label><div class="v33-pair"><input id="v33DistR" inputmode="numeric" placeholder="名次"/><input id="v33DistN" inputmode="numeric" placeholder="人数"/></div></div>'
+      +'<label style="display:flex;gap:7px;align-items:center;font-size:11.5px;color:var(--muted,#788392)"><input type="checkbox" id="v33ApplyCity"/> 保存时应用以上市/区排名（勾选才会写入；编辑旧考试时不勾选则保持原值）</label>'
       +"</div></details>";
       anchor.insertAdjacentElement("afterend",host);
     }
