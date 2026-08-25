@@ -176,7 +176,7 @@ async function list(user: any) {
   const er = await db
     .from("score_tracker_exams")
     .select(
-      "id,name,exam_date,total_rank,total_participants,total_class_rank,total_class_participants,total_year_position_percent,total_class_position_percent,total_actual_score,total_raw_score,is_hidden,grade_level,created_at,updated_at"
+      "id,name,exam_date,total_rank,total_participants,total_class_rank,total_class_participants,total_year_position_percent,total_class_position_percent,total_actual_score,total_raw_score,is_hidden,grade_level,created_at,updated_at,city_rank,city_participants,district_rank,district_participants"
     )
     .eq("user_id", user.id)
     .order("exam_date")
@@ -247,6 +247,10 @@ async function list(user: any) {
       total_class_position_percent: e.total_class_position_percent === null ? null : Number(e.total_class_position_percent),
       total_actual_score: e.total_actual_score === null ? null : Number(e.total_actual_score),
       total_raw_score: e.total_raw_score === null ? null : Number(e.total_raw_score),
+      cityRank: e.city_rank === null || e.city_rank === undefined ? null : Number(e.city_rank),
+      cityParticipants: e.city_participants === null || e.city_participants === undefined ? null : Number(e.city_participants),
+      districtRank: e.district_rank === null || e.district_rank === undefined ? null : Number(e.district_rank),
+      districtParticipants: e.district_participants === null || e.district_participants === undefined ? null : Number(e.district_participants),
       moduleIds,
       moduleRanks,
       scores,
@@ -346,6 +350,18 @@ async function saveExam(uid: string, exam: any) {
     cp = pct(exam?.total_class_position_percent),
     ta = score(exam?.total_actual_score),
     tr = score(exam?.total_raw_score);
+  const cityR = pint(exam?.city_rank),
+    cityN = pint(exam?.city_participants),
+    distR = pint(exam?.district_rank),
+    distN = pint(exam?.district_participants);
+  if (exam?.city_rank !== "" && exam?.city_rank != null && cityR === null) return { error: "市排名请输入正整数", status: 400 };
+  if (exam?.city_participants !== "" && exam?.city_participants != null && cityN === null) return { error: "市参考人数请输入正整数", status: 400 };
+  if (exam?.district_rank !== "" && exam?.district_rank != null && distR === null) return { error: "区排名请输入正整数", status: 400 };
+  if (exam?.district_participants !== "" && exam?.district_participants != null && distN === null) return { error: "区参考人数请输入正整数", status: 400 };
+  const e0a = rankErr(cityR, cityN, "市排名"),
+    e0b = rankErr(distR, distN, "区排名");
+  if (e0a) return { error: e0a, status: 400 };
+  if (e0b) return { error: e0b, status: 400 };
   if (exam?.total_rank !== "" && exam?.total_rank != null && yr === null) return { error: "年级总排名请输入正整数", status: 400 };
   if (exam?.total_participants !== "" && exam?.total_participants != null && yn === null) return { error: "年级参考人数请输入正整数", status: 400 };
   if (exam?.total_class_rank !== "" && exam?.total_class_rank != null && cr === null) return { error: "班级总排名请输入正整数", status: 400 };
@@ -427,6 +443,10 @@ async function saveExam(uid: string, exam: any) {
     total_class_position_percent: cp,
     total_actual_score: ta,
     total_raw_score: tr,
+    city_rank: cityR,
+    city_participants: cityN,
+    district_rank: distR,
+    district_participants: distN,
     is_hidden: !!exam?.is_hidden,
     updated_at: now,
   };
@@ -508,6 +528,56 @@ async function loginV2(body: any) {
   if (ur.error) throw ur.error;
   return { token, user: { id: u.id, username: u.username, is_admin: !!u.is_admin } };
 }
+async function getGoal(uid: string) {
+  const r = await db
+    .from("score_tracker_user_goals")
+    .select("subject_goals,total_goal,dream_school,exam_date,date_name,updated_at")
+    .eq("user_id", uid)
+    .maybeSingle();
+  if (r.error) throw r.error;
+  const g: any = r.data;
+  if (!g) return { goal: null };
+  return {
+    goal: {
+      subjects: g.subject_goals ?? {},
+      totalGoal: g.total_goal === null || g.total_goal === undefined ? null : Number(g.total_goal),
+      school: g.dream_school ?? "",
+      date: g.exam_date ?? "",
+      dateName: g.date_name ?? "",
+      updatedAt: g.updated_at,
+    },
+  };
+}
+async function saveGoal(uid: string, raw: any) {
+  const subjects: Record<string, number> = {};
+  if (raw?.subjects && typeof raw.subjects === "object" && !Array.isArray(raw.subjects)) {
+    const keys = Object.keys(raw.subjects);
+    if (keys.length > 30) return { error: "科目目标数量异常", status: 400 };
+    for (const k of keys) {
+      const name = text(k, 40),
+        v = score(raw.subjects[k]);
+      if (!name || v === null || v > 1000) continue;
+      subjects[name] = v;
+    }
+  }
+  const total = score(raw?.totalGoal);
+  const school = text(raw?.school, 40);
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(raw?.date ?? "")) ? String(raw.date) : null;
+  const dateName = text(raw?.dateName, 20);
+  const hasAny = Object.keys(subjects).length > 0 || total !== null || !!school || !!date;
+  const now = new Date().toISOString();
+  if (!hasAny) {
+    const del = await db.from("score_tracker_user_goals").delete().eq("user_id", uid);
+    if (del.error) throw del.error;
+    return { ok: true, cleared: true };
+  }
+  const r = await db.from("score_tracker_user_goals").upsert(
+    { user_id: uid, subject_goals: subjects, total_goal: total, dream_school: school, exam_date: date, date_name: dateName, updated_at: now },
+    { onConflict: "user_id" }
+  );
+  if (r.error) throw r.error;
+  return { ok: true };
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -540,6 +610,11 @@ Deno.serve(async (req: Request) => {
     }
     if (action === "change_password") {
       const r = await changePassword(user.id, body.newPassword);
+      return r.error ? out({ error: r.error }, r.status) : out(r);
+    }
+    if (action === "get_goal") return out(await getGoal(user.id));
+    if (action === "save_goal") {
+      const r = await saveGoal(user.id, body.goal ?? {});
       return r.error ? out({ error: r.error }, r.status) : out(r);
     }
     if (action === "toggle_exam_hidden") {
