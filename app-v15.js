@@ -7,13 +7,13 @@
   document.head.appendChild(style);
 })();
 
-var PASSWORD_API_V15='https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-password-api';
+var PASSWORD_API_V15='https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-data-api';
 
 async function changePasswordApiV15(newPassword){
   var response=await fetch(PASSWORD_API_V15,{
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({token:state.token,newPassword:newPassword})
+    body:JSON.stringify({action:'change_password',token:state.token,newPassword:newPassword})
   });
   var data=await response.json().catch(function(){return {error:'网络响应异常'};});
   if(!response.ok) throw new Error(data.error||'密码修改失败');
@@ -34,7 +34,7 @@ bindPage=function bindPageV15(){
     button.onclick=async function(){
       var first=(document.getElementById('newPasswordV15')||{}).value||'';
       var second=(document.getElementById('confirmPasswordV15')||{}).value||'';
-      if(!/^\d{6,20}$/.test(first)) return toast('新密码请设置为 6～20 位数字');
+      if(!/^[\x21-\x7E]{6,20}$/.test(first)) return toast('新密码请设置 6～20 位，可使用大小写字母、数字和符号');
       if(first!==second) return toast('两次输入的密码不一致');
       button.disabled=true;
       button.textContent='保存中…';

@@ -35,6 +35,38 @@ async function sha(v: string) {
   const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(v));
   return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+const PW_V2_ITERS = 100000;
+async function pbkdf2Bits(pw: string, salt: Uint8Array, iters: number) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveBits"]);
+  return new Uint8Array(
+    await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: salt as BufferSource, iterations: iters }, key, 256)
+  );
+}
+async function hashPasswordV2(pw: string) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const got = await pbkdf2Bits(pw, salt, PW_V2_ITERS);
+  const b64 = (b: Uint8Array) => btoa(String.fromCharCode(...b));
+  return `v2$${PW_V2_ITERS}$${b64(salt)}$${b64(got)}`;
+}
+async function verifyPasswordV2(storedHash: string, pw: string) {
+  try {
+    const parts = storedHash.split("$");
+    if (parts[0] !== "v2" || parts.length !== 4) return false;
+    const iters = Number(parts[1]);
+    if (!Number.isInteger(iters) || iters < 1 || iters > 1000000) return false;
+    const salt = Uint8Array.from(atob(parts[2]), (c) => c.charCodeAt(0));
+    const want = Uint8Array.from(atob(parts[3]), (c) => c.charCodeAt(0));
+    const got = await pbkdf2Bits(pw, salt, iters);
+    if (got.length !== want.length) return false;
+    let diff = 0;
+    for (let i = 0; i < got.length; i++) diff |= got[i] ^ want[i];
+    return diff === 0;
+  } catch {
+    return false;
+  }
+}
+const newPasswordOk = (v: unknown): string | null =>
+  typeof v === "string" && /^[\x21-\x7E]{6,20}$/.test(v) ? v : null;
 async function auth(token: string) {
   if (!token) return null;
   const r = await db
@@ -439,12 +471,54 @@ async function saveExam(uid: string, exam: any) {
   return { ok: true, id, created };
 }
 
+async function changePassword(uid: string, rawPw: unknown) {
+  const pw = newPasswordOk(rawPw);
+  if (!pw) return { error: "新密码请设置 6～20 位，可使用大小写字母、数字和符号", status: 400 };
+  const now = new Date().toISOString();
+  const r = await db
+    .from("score_tracker_users")
+    .update({ password_hash: await hashPasswordV2(pw), updated_at: now })
+    .eq("id", uid);
+  if (r.error) throw r.error;
+  return { ok: true };
+}
+async function loginV2(body: any) {
+  const username = text(body.username, 40);
+  const pw = typeof body.password === "string" ? body.password : "";
+  if (!username || !pw) return { error: "请输入用户名和密码", status: 400 };
+  const cols = "id,username,original_username,is_admin,password_hash";
+  let r = await db.from("score_tracker_users").select(cols).eq("username", username).maybeSingle();
+  if (r.error) throw r.error;
+  if (!r.data) {
+    r = await db.from("score_tracker_users").select(cols).eq("original_username", username).maybeSingle();
+    if (r.error) throw r.error;
+  }
+  const u = r.data;
+  if (!u || typeof u.password_hash !== "string" || !u.password_hash.startsWith("v2$")) {
+    return { error: "用户名或密码不正确", legacy: true, status: 401 };
+  }
+  if (!(await verifyPasswordV2(u.password_hash, pw))) return { error: "用户名或密码不正确", status: 401 };
+  const raw = crypto.getRandomValues(new Uint8Array(32));
+  const token = btoa(String.fromCharCode(...raw)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const exp = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString();
+  const ur = await db
+    .from("score_tracker_users")
+    .update({ session_token_hash: await sha(token), session_expires_at: exp })
+    .eq("id", u.id);
+  if (ur.error) throw ur.error;
+  return { token, user: { id: u.id, username: u.username, is_admin: !!u.is_admin } };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return out({ error: "Method not allowed" }, 405);
   try {
-    const body = await req.json().catch(() => ({})),
-      user = await auth(String(body.token ?? ""));
+    const body = await req.json().catch(() => ({}));
+    if (String(body.action ?? "") === "login_v2") {
+      const r = await loginV2(body);
+      return r.error ? out({ error: r.error }, r.status ?? 401) : out(r);
+    }
+    const user = await auth(String(body.token ?? ""));
     if (!user) return out({ error: "登录已失效，请重新登录", code: "UNAUTHORIZED" }, 401);
     const action = String(body.action ?? "");
     if (action === "list_exams" || action === "bootstrap") return out(await list(user));
@@ -462,6 +536,10 @@ Deno.serve(async (req: Request) => {
     }
     if (action === "save_exam") {
       const r = await saveExam(user.id, body.exam ?? {});
+      return r.error ? out({ error: r.error }, r.status) : out(r);
+    }
+    if (action === "change_password") {
+      const r = await changePassword(user.id, body.newPassword);
       return r.error ? out({ error: r.error }, r.status) : out(r);
     }
     if (action === "toggle_exam_hidden") {

@@ -615,6 +615,25 @@ async function login() {
     state.page = 'home';
     render();
   } catch (e) {
+    // v2 自定义密码登录回退：旧密码体系查不到时，尝试 data-api 的 v2 口令
+    try {
+      const v2res = await fetch('https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-data-api', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'login_v2', username: $('#loginUser').value.trim(), password: $('#loginPass').value })
+      });
+      const v2 = await v2res.json().catch(() => null);
+      if (v2res.ok && v2 && v2.token) {
+        state.token = v2.token;
+        state.user = v2.user;
+        localStorage.setItem('st_token', v2.token);
+        localStorage.setItem('st_known_user', '1');
+        await loadExams();
+        state.page = 'home';
+        render();
+        return;
+      }
+    } catch (_) {}
     toast(e.message);
     btn.disabled = false;
     btn.textContent = '登录';
