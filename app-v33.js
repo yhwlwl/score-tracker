@@ -1,7 +1,7 @@
-/* app-v33.js · v5.1 长期目标系统 + �?区排�?总分层面)
-   蓝本:design/goal-system.html(四场�?+ 统计页联�?+ 六项科学加固)
-   铁律:①一种目标一个名�?②没有数据就没有界面 ③每屏一个主动作
-        ④分析页位比主轴不动 ⑤口径写�?⑥埋点只记行为不记内�?*/
+/* app-v33.js · v5.1 长期目标系统 + 市/区排名(总分层面)
+   蓝本:design/goal-system.html(四场景 + 统计页联动 + 六项科学加固)
+   铁律:①一种目标一个名字 ②没有数据就没有界面 ③每屏一个主动作
+        ④分析页位比主轴不动 ⑤口径写明 ⑥埋点只记行为不记内容 */
 (function(){
 "use strict";
 if(window.__v33)return;
@@ -102,7 +102,7 @@ function persistGoal(){
 
 /* ================= 样式 ================= */
 (function css(){
-  if(document.getElementById("app-v33-style"))return; /* index.html 已静态内�?*/
+  if(document.getElementById("app-v33-style"))return; /* index.html 已静态内置 */
   var st=document.createElement("style");st.id="app-v33-style";
   st.textContent=
   ".goal-hero-v33{display:flex;gap:18px;background:linear-gradient(145deg,var(--panel-solid,#fff),var(--accent-soft,#eef1ff));border:1px solid var(--line,#e8ebf0);border-radius:20px;box-shadow:var(--shadow,0 10px 35px rgba(27,37,58,.08));padding:16px 18px;margin:14px 0;cursor:pointer}"
@@ -142,18 +142,18 @@ function persistGoal(){
   ".gm-save{border:0;background:var(--text,#18212f);color:#fff;border-radius:12px;padding:11px 18px;font-weight:700;cursor:pointer}"
   ".gm-clear{border:1px solid var(--line,#e8ebf0);background:transparent;color:var(--danger,#d9534f);border-radius:12px;padding:11px 14px;cursor:pointer;font-size:12.5px}"
   ".gm-hint{font-size:11px;color:var(--warn,#b97f24);margin:6px 2px 0;min-height:14px}"
-  /* 统计页联�?*/
+  /* 统计页联动 */
   ".v33-goal-line{border-top:1px dashed var(--line,#e8ebf0);margin-top:10px;padding-top:9px;font-size:12.5px;line-height:1.75}"
   ".tag-ok-v33{font-size:10.5px;font-weight:800;border-radius:999px;padding:3px 8px;background:var(--green-soft,#e9f8f2);color:var(--green,#32a77a);margin-left:6px;white-space:nowrap}"
   ".v33-entry{font-size:11.5px;color:var(--muted,#788392)}.v33-entry a,.v33-entry button{color:var(--accent,#5d72e8);background:none;border:0;padding:0;font-size:11.5px;cursor:pointer}"
-  /* �?区排�?*/
+  /* 市/区排名 */
   "#v33cityBox details{border-top:1px solid var(--line,#e8ebf0)}#v33cityBox summary{list-style:none;cursor:pointer;padding:10px 2px;font-size:12.5px;color:var(--muted,#788392);display:flex;justify-content:space-between}#v33cityBox summary::-webkit-details-marker{display:none}"
   ".v33-citygrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding-bottom:4px}"
   "@media(max-width:760px){.goal-hero-v33{flex-direction:column}.gh-side{flex-direction:row}.gh-side>*{flex:1}}";
   document.head.appendChild(st);
 })();
 
-/* ================= 首页通栏�?================= */
+/* ================= 首页通栏卡 ================= */
 function daysLeft(){
   if(!G.data||!G.data.date)return null;
   var d=Math.ceil((new Date(G.data.date+"T00:00:00")-new Date())/86400000);
@@ -168,7 +168,7 @@ function chipHtml(s){
   else if(diff==null){cls="na";tail="待考试"}
   else{cls=diff>=0?"ok":"no";tail=diff>=0?"已超 "+diff:"还差 "+(-diff)}
   return '<span class="gh-chip '+cls+'" data-subject="'+esc(s.name)+'" onclick="event.stopPropagation();__v33.jump(\''+esc(s.name).replace(/'/g,"")+'\')" title="查看统计分析">'
-    +"<small>"+esc(s.name)+" · "+(goal==null?"�?:"目标 "+goal)+"</small><b>"+(v==null?"�?:v)+"</b><em>"+tail+"</em></span>";
+    +"<small>"+esc(s.name)+" · "+(goal==null?"—":"目标 "+goal)+"</small><b>"+(v==null?"—":v)+"</b><em>"+tail+"</em></span>";
 }
 function renderHomeCard(mount){
   var hero=heroAnchor();if(!hero)return;
@@ -177,7 +177,7 @@ function renderHomeCard(mount){
   if(!hasGoal()){
     if(localStorage.getItem(LS_DISMISS)==="1"){return;}
     var b=document.createElement("div");b.id="goalBarV33";b.className="goal-bar-v33";
-    b.innerHTML='<span>为这一学年设一�?b>长期目标</b> —�?各科分数、理想学校、倒计时（选填，不影响任何现有功能�?/span>'
+    b.innerHTML='<span>为这一学年设一个<b>长期目标</b> —— 各科分数、理想学校、倒计时（选填，不影响任何现有功能）</span>'
       +'<button class="bar-x-v33" aria-label="不再显示" onclick="event.stopPropagation();__v33.dismiss()">×</button>';
     b.onclick=function(){openEditor("prompt_bar")};
     hero.insertAdjacentElement("afterend",b);
@@ -193,17 +193,17 @@ function renderHomeCard(mount){
   var dl=daysLeft();
   if(dl!=null){
     side+=dl<0
-      ?'<div class="gh-cd expired"><small>'+esc(G.data.dateName||"目标")+'已到�?/small><b>更新日期</b></div>'
-      :'<div class="gh-cd"><small>'+esc(G.data.dateName||"目标")+"倒计�?/small><b>"+dl+" �?/b></div>";
+      ?'<div class="gh-cd expired"><small>'+esc(G.data.dateName||"目标")+'已到期</small><b>更新日期</b></div>'
+      :'<div class="gh-cd"><small>'+esc(G.data.dateName||"目标")+"倒计时</small><b>"+dl+" 天</b></div>";
   }
   if(G.data.school)side+='<div class="gh-school">理想学校<b>'+esc(G.data.school)+"</b></div>";
   var card=document.createElement("div");card.id="goalHeroV33";card.className="goal-hero-v33";
   card.onclick=function(){openEditor("card")};
-  card.innerHTML='<div class="gh-main-v33"><div class="gh-title-row"><span class="gh-title">我的目标 · '+esc(G.data.name||"本学�?)
+  card.innerHTML='<div class="gh-main-v33"><div class="gh-title-row"><span class="gh-title">我的目标 · '+esc(G.data.name||"本学期")
     +'</span><span class="gh-hint">点击编辑</span></div>'
     +'<div class="gh-chips">'+chips+'</div>'
-    +'<div class="gh-total"><b>'+(tDiff==null||!recent.has?"�?:(tDiff>=0?"�?":"�?")+Math.abs(tDiff)+" �?)+"</b><span>"
-    +(recent.has?("最近总分 "+recent.sum+(tg!=null?" / 目标 "+tg:"")+" · 取各科最近成绩合计（缺考科目不计）"):"尚未有出分记�?)+"</span></div></div>"
+    +'<div class="gh-total"><b>'+(tDiff==null||!recent.has?"—":(tDiff>=0?"超 ":"差 ")+Math.abs(tDiff)+" 分")+"</b><span>"
+    +(recent.has?("最近总分 "+recent.sum+(tg!=null?" / 目标 "+tg:"")+" · 取各科最近成绩合计（缺考科目不计）"):"尚未有出分记录")+"</span></div></div>"
     +(side?'<div class="gh-side">'+side+"</div>":"");
   hero.insertAdjacentElement("afterend",card);
 }
@@ -220,7 +220,7 @@ function openEditor(via){
   var bk=$("#goalBkV33");
   if(!bk){
     bk=document.createElement("div");bk.id="goalBkV33";bk.className="gmodal-backdrop";
-    bk.innerHTML='<div class="gmodal" role="dialog" aria-modal="true"><div class="gm-head"><h3>编辑长期目标<small>改动即时生效；随时可以回来修�?/small></h3><button class="gm-x" aria-label="关闭">×</button></div><div class="gm-body"></div></div>';
+    bk.innerHTML='<div class="gmodal" role="dialog" aria-modal="true"><div class="gm-head"><h3>编辑长期目标<small>改动即时生效；随时可以回来修改</small></h3><button class="gm-x" aria-label="关闭">×</button></div><div class="gm-body"></div></div>';
     document.body.appendChild(bk);
     bk.addEventListener("click",function(e){if(e.target===bk)closeEditor()});
     $(".gm-x",bk).onclick=closeEditor;
@@ -228,25 +228,25 @@ function openEditor(via){
   var d=G.data=G.data||{subjects:{},totalGoal:null,school:"",date:"",dateName:""};
   var grid=activeSubjects().map(function(s){
     var g=d.subjects[s.name];var best=bestOf(s.name);
-    return '<div class="gm-sf"><label>'+esc(s.name)+(s.max?" · 满分 "+s.max:"")+" · 最�?"+(best==null?"�?:best)
+    return '<div class="gm-sf"><label>'+esc(s.name)+(s.max?" · 满分 "+s.max:"")+" · 最佳 "+(best==null?"—":best)
       +'</label><input inputmode="decimal" data-gsubject="'+esc(s.name)+'" value="'+(g==null?"":g)+'"/></div>';
   }).join("");
-  if(!grid)grid='<p class="gm-hint" style="color:var(--muted,#788392)">还没有科目数据——先去添加一次考试,或检查科目设置�?/p>';
-  var dateOpts=["高�?,"中�?,"期末考试","自定义�?].map(function(o){
-    return '<option'+((o===d.dateName)||(o==="自定义�?&&!d.dateName)?' selected':"")+">"+o+"</option>";
+  if(!grid)grid='<p class="gm-hint" style="color:var(--muted,#788392)">还没有科目数据——先去添加一次考试,或检查科目设置。</p>';
+  var dateOpts=["高考","中考","期末考试","自定义…"].map(function(o){
+    return '<option'+((o===d.dateName)||(o==="自定义…"&&!d.dateName)?' selected':"")+">"+o+"</option>";
   }).join("");
   $(".gm-body",bk).innerHTML=
-    '<div class="gm-label">�?各科目标分数 <span>按正式（最�?/ 赋分）成绩填�?· 留空表示暂不�?/span></div>'
+    '<div class="gm-label">① 各科目标分数 <span>按正式（最终 / 赋分）成绩填写 · 留空表示暂不定</span></div>'
     +'<div class="gm-grid">'+grid+'</div>'
-    +'<div class="gm-label">�?总分与理想学�?/div>'
-    +'<div class="gm-total"><span style="font-size:12px;color:var(--muted,#788392)">总分目标</span><b id="gv33Total">�?/b><span class="an" id="gv33ModeTxt"></span></div>'
+    +'<div class="gm-label">② 总分与理想学校</div>'
+    +'<div class="gm-total"><span style="font-size:12px;color:var(--muted,#788392)">总分目标</span><b id="gv33Total">—</b><span class="an" id="gv33ModeTxt"></span></div>'
     +'<p class="gm-hint" id="gv33Hint"></p>'
     +'<div style="display:flex;gap:8px;margin-bottom:10px"><button class="gm-mini" id="gv33Auto">自动求和</button><button class="gm-mini" id="gv33Manu">手动指定</button>'
-    +'<input class="gm-input" id="gv33Manual" style="display:none;max-width:140px" inputmode="decimal" placeholder="�?675"/></div>'
+    +'<input class="gm-input" id="gv33Manual" style="display:none;max-width:140px" inputmode="decimal" placeholder="如 675"/></div>'
     +'<input class="gm-input" id="gv33School" style="width:100%" maxlength="40" placeholder="理想学校（选填），例如 浙江大学"/>'
-    +'<div class="gm-label">�?目标日期 <span>用于首页倒计时，可不�?/span></div>'
+    +'<div class="gm-label">③ 目标日期 <span>用于首页倒计时，可不填</span></div>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap"><select class="gm-input" id="gv33DateName" style="max-width:150px">'+dateOpts+'</select>'
-    +'<input class="gm-input" id="gv33Custom" style="display:none;max-width:150px" maxlength="20" placeholder="名称，如 一�?/>'
+    +'<input class="gm-input" id="gv33Custom" style="display:none;max-width:150px" maxlength="20" placeholder="名称，如 一模"/>'
     +'<input class="gm-input" id="gv33Date" type="date" style="max-width:190px"/></div>'
     +'<div class="gm-foot"><button class="gm-clear" id="gv33Clear">清除全部目标</button><button class="gm-save" id="gv33Save">保存</button></div>';
   $("#gv33School").value=d.school||"";
@@ -258,10 +258,10 @@ function openEditor(via){
   $("#gv33Manu").onclick=function(){EDIT.mode="manu";syncModeUI();refreshTotalPreview()};
   $("#gv33Manual").oninput=refreshTotalPreview;
   $all(".gm-grid input",bk).forEach(function(inp){inp.oninput=refreshTotalPreview});
-  $("#gv33DateName").onchange=function(){$("#gv33Custom").style.display=this.value==="自定义�??"":"none"};
-  var dnFixed=["高�?,"中�?,"期末考试","自定义�?];
-  if(d.dateName&&dnFixed.indexOf(d.dateName)<0){$("#gv33DateName").value="自定义�?;$("#gv33Custom").style.display="";$("#gv33Custom").value=d.dateName;}
-  else{$("#gv33DateName").value=d.dateName||"高�?;if(d.dateName==="自定义�?){$("#gv33Custom").style.display="";}}
+  $("#gv33DateName").onchange=function(){$("#gv33Custom").style.display=this.value==="自定义…"?"":"none"};
+  var dnFixed=["高考","中考","期末考试","自定义…"];
+  if(d.dateName&&dnFixed.indexOf(d.dateName)<0){$("#gv33DateName").value="自定义…";$("#gv33Custom").style.display="";$("#gv33Custom").value=d.dateName;}
+  else{$("#gv33DateName").value=d.dateName||"高考";if(d.dateName==="自定义…"){$("#gv33Custom").style.display="";}}
   $("#gv33Save").onclick=saveEditor;
   $("#gv33Clear").onclick=clearEditor;
   bk.classList.add("open");
@@ -283,16 +283,16 @@ function refreshTotalPreview(){
   if(EDIT.mode==="auto"){
     t=0;var has=false,g=collectInputs();
     for(var k in g){t+=+g[k];has=true}
-    $("#gv33Total").textContent=has?t:"�?;
-    $("#gv33ModeTxt").textContent="= 各科之和（可手动指定�?;
+    $("#gv33Total").textContent=has?t:"—";
+    $("#gv33ModeTxt").textContent="= 各科之和（可手动指定）";
     $("#gv33Hint").textContent="";
   }else{
     t=parseInt($("#gv33Manual").value,10);
-    $("#gv33Total").textContent=$("#gv33Manual").value||"�?;
+    $("#gv33Total").textContent=$("#gv33Manual").value||"—";
     $("#gv33ModeTxt").textContent="手动指定";
     var sum=0,has=false,g=collectInputs();
     for(var k in g){sum+=+g[k];has=true}
-    if(has&&t&&t!==sum){$("#gv33Hint").textContent="注意：手动总分 "+t+" 与各科目标之�?"+sum+" 相差 "+Math.abs(t-sum)+" 分（各科差距仍按单科目标计算�?;}
+    if(has&&t&&t!==sum){$("#gv33Hint").textContent="注意：手动总分 "+t+" 与各科目标之和 "+sum+" 相差 "+Math.abs(t-sum)+" 分（各科差距仍按单科目标计算）";}
     else $("#gv33Hint").textContent="";
   }
 }
@@ -308,7 +308,7 @@ function saveEditor(){
   var school=$("#gv33School").value.trim();
   var date=$("#gv33Date").value||"";
   var dn=$("#gv33DateName").value;
-  d.dateName=dn==="自定义�??(($("#gv33Custom").value.trim())||"目标"):dn;
+  d.dateName=dn==="自定义…"?(($("#gv33Custom").value.trim())||"目标"):dn;
   d.school=school;d.date=date;
   if(EDIT.mode==="manu"){var m=parseInt($("#gv33Manual").value,10);d.totalGoal=isNaN(m)?null:m;}
   else{var s=0,h=false;for(var k in d.subjects){s+=+d.subjects[k];h=true}d.totalGoal=h?s:null;}
@@ -341,19 +341,19 @@ function refreshGoalUI(){
   try{injectStatsLinkage()}catch(e){window.__v33LastErr=(e&&(e.message||String(e)))||"linkage-error"}
 }
 
-/* ================= 账号页入�?================= */
+/* ================= 账号页入口 ================= */
 function injectAccountEntry(){
   if(currentPage()!=="account")return;
   var grid=accountGrid();if(!grid)return;
   var old=$("#v33AccountCard");if(old)old.remove();
-  if(hasGoal())return; /* 已设目标:账号页不需要入�?*/
+  if(hasGoal())return; /* 已设目标:账号页不需要入口 */
   var c=document.createElement("div");c.id="v33AccountCard";c.className="card";c.style.padding="16px 18px";
-  c.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><h3 class="card-title" style="margin:0;font-size:15px">长期目标</h3><p class="card-sub" style="margin:3px 0 0">各科分数、理想学校、倒计时；首页会显示与目标的差�?/p></div><button class="secondary" style="flex:none">'+(localStorage.getItem(LS_DISMISS)==="1"||G.loaded?"设置 �?:"设置 �?)+"</button></div>";
+  c.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><h3 class="card-title" style="margin:0;font-size:15px">长期目标</h3><p class="card-sub" style="margin:3px 0 0">各科分数、理想学校、倒计时；首页会显示与目标的差距</p></div><button class="secondary" style="flex:none">'+(localStorage.getItem(LS_DISMISS)==="1"||G.loaded?"设置 ›":"设置 ›")+"</button></div>";
   $("button",c).onclick=function(){openEditor("account")};
   grid.appendChild(c);
 }
 
-/* ================= 统计页联�?================= */
+/* ================= 统计页联动 ================= */
 function findStatCard(kw){
   var cards=$all("#content .card");
   for(var i=0;i<cards.length;i++){var h=$("h3.card-title",cards[i]);if(h&&(h.textContent||"").indexOf(kw)>-1)return cards[i]}
@@ -361,15 +361,15 @@ function findStatCard(kw){
 }
 function injectStatsLinkage(){
   if(currentPage()!=="stats")return;
-  /* �?目标校准:追加长期目标进度�?稳健口径说明见方法论) */
+  /* ⑥ 目标校准:追加长期目标进度行(稳健口径说明见方法论) */
   var cal=findStatCard("目标校准");
   if(cal&&!$("#v33CalibRow",cal)){
     var row=document.createElement("div");row.id="v33CalibRow";row.className="v33-goal-line";
     cal.appendChild(row);
     fillCalib(row);
   }else if(cal&&$("#v33CalibRow",cal)){fillCalib($("#v33CalibRow",cal));}
-  /* �?个人最佳殿�?达标徽记 + 汇�?*/
-  var hall=findStatCard("个人最佳殿�?);
+  /* ⑤ 个人最佳殿堂:达标徽记 + 汇总 */
+  var hall=findStatCard("个人最佳殿堂");
   if(hall)$all(".tag-ok-v33",hall).forEach(function(x){x.remove()});
   var sumEl=$("#v33HallSum");if(sumEl)sumEl.remove();
   if(hall&&hasGoal()){
@@ -388,15 +388,15 @@ function injectStatsLinkage(){
     });
     if(tried){
       var sm=document.createElement("p");sm.id="v33HallSum";sm.className="card-sub";sm.style.margin="8px 2px 0";
-      sm.innerHTML="长期目标进度：最佳成绩已�?<b>"+hit+" / "+tried+"</b> 科达到目标。「最佳已达标」只陈述峰值触达�?;
+      sm.innerHTML="长期目标进度：最佳成绩已有 <b>"+hit+" / "+tried+"</b> 科达到目标。「最佳已达标」只陈述峰值触达。";
       hall.appendChild(sm);
     }
   }
-  /* 未设目标�?校准模块给一行小字入�?统计页唯一曝光�? */
+  /* 未设目标时:校准模块给一行小字入口(统计页唯一曝光点) */
   if(cal&&!hasGoal()){
     var en=$("#v33CalibEntry",cal);
     if(!en){en=document.createElement("div");en.id="v33CalibEntry";en.className="v33-goal-line v33-entry";
-      en.innerHTML='设定长期目标后，此处会显示进度与逐科差距 · <button type="button">去设�?/button>';
+      en.innerHTML='设定长期目标后，此处会显示进度与逐科差距 · <button type="button">去设定</button>';
       $("button",en).onclick=function(){openEditor("stats_module")};
       cal.appendChild(en);}
   }else if(cal){var e2=$("#v33CalibEntry",cal);if(e2)e2.remove();}
@@ -407,12 +407,12 @@ function fillCalib(row){
   if(tg==null){row.innerHTML="";return;}
   var diff=rec.has?rec.sum-tg:null;
   row.innerHTML='<div style="color:var(--muted,#788392)">长期目标进度（口径：最近一次合计）</div>'
-    +"中位参考见首页 · 最近总分 <b>"+(rec.has?rec.sum:"�?)+"</b> / 目标 "+tg
-    +" · "+(diff==null?"等待出分":(diff>=0?'<b style="color:var(--green,#32a77a)">已超 '+diff+"</b> �?:'还差 <b style="color:var(--danger,#d9534f)">'+(-diff)+"</b> �?))
+    +"中位参考见首页 · 最近总分 <b>"+(rec.has?rec.sum:"—")+"</b> / 目标 "+tg
+    +" · "+(diff==null?"等待出分":(diff>=0?'<b style="color:var(--green,#32a77a)">已超 '+diff+"</b> 分":'还差 <b style="color:var(--danger,#d9534f)">'+(-diff)+"</b> 分"))
     +'　<button type="button" style="color:var(--accent,#5d72e8);background:none;border:0;padding:0;font-size:12px;cursor:pointer" onclick="__v33.editFromStats()">回首页看逐科差距</button>';
 }
 
-/* ================= �?区排名录�?仅新�?编辑弹窗,显式应用防覆�? ================= */
+/* ================= 市/区排名录入(仅新增/编辑弹窗,显式应用防覆盖) ================= */
 var cityObs=null;
 function watchExamModal(){
   if(cityObs||typeof MutationObserver!=="function")return;
@@ -421,10 +421,10 @@ function watchExamModal(){
     var anchor=$(".modal-backdrop .rank-table-v7")||$(".modal-backdrop #totalRankV14")?.closest(".rank-table-v7")||($(".modal-backdrop")?$(".modal-backdrop .modal-body"):null);
     if(!anchor)return;
     var host=document.createElement("div");host.id="v33cityBox";
-    host.innerHTML='<details><summary>�?/ 区排名（选填，仅总分层面�?span>展开</span></summary>'
+    host.innerHTML='<details><summary>市 / 区排名（选填，仅总分层面）<span>展开</span></summary>'
       +'<div class="v33-citygrid">'
-      +'<div><label style="display:block;font-size:11px;color:var(--muted)">市名�?/ 市人�?/label><div style="display:flex;gap:6px"><input id="v33CityR" inputmode="numeric" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff"/><input id="v33CityN" inputmode="numeric" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff"/></div></div>'
-      +'<div><label style="display:block;font-size:11px;color:var(--muted)">区名�?/ 区人�?/label><div style="display:flex;gap:6px"><input id="v33DistR" inputmode="numeric" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff"/><input id="v33DistN" inputmode="numeric" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff"/></div></div>'
+      +'<div><label style="display:block;font-size:11px;color:var(--muted)">市名次 / 市人数</label><div style="display:flex;gap:6px"><input id="v33CityR" inputmode="numeric" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff"/><input id="v33CityN" inputmode="numeric" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff"/></div></div>'
+      +'<div><label style="display:block;font-size:11px;color:var(--muted)">区名次 / 区人数</label><div style="display:flex;gap:6px"><input id="v33DistR" inputmode="numeric" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff"/><input id="v33DistN" inputmode="numeric" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff"/></div></div>'
       +'<label style="display:flex;gap:7px;align-items:center;font-size:11.5px;color:var(--muted)"><input type="checkbox" id="v33ApplyCity"/> 保存时应用以上市/区排名（勾选才会写入；编辑旧考试时不勾选则保持原值）</label>'
       +"</div></details>";
     if(anchor.classList&&anchor.classList.contains("modal-body"))anchor.insertBefore(host,anchor.firstChild);
@@ -448,7 +448,7 @@ if(apiBeforeV33){
   };
 }
 
-/* ================= 折线目标横线(得分率单科趋�?v25 几何复刻) ================= */
+/* ================= 折线目标横线(得分率单科趋势,v25 几何复刻) ================= */
 function fmtPct(v){return Math.round(v*10)/10+"%"}
 function annotateTrendV33(html){
   if(!hasGoal()||html.indexOf('<svg viewBox="0 0 760 300"')<0||html.indexOf('stroke-dasharray="7 7"')<0)return html;
