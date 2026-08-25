@@ -422,6 +422,40 @@ if(apiBeforeV33){
   };
 }
 
+/* ================= 折线目标横线(得分率单科趋势,v25 几何复刻) ================= */
+function fmtPct(v){return Math.round(v*10)/10+"%"}
+function annotateTrendV33(html){
+  if(!hasGoal()||html.indexOf('<svg viewBox="0 0 760 300"')<0||html.indexOf('stroke-dasharray="7 7"')<0)return html;
+  if(!window.state||!state.subject||state.subject==="总览"||state.subject==="总分")return html;
+  var goal=goalSubjects()[state.subject];
+  if(goal==null)return html;
+  var max=100,cfg=Array.isArray(state.subjectConfigs)?state.subjectConfigs:[];
+  for(var i=0;i<cfg.length;i++){var c=cfg[i],n=typeof c==="string"?c:c.name;if(n===state.subject){max=(typeof c==="string")?100:(c.defaultMax||c.max||100);break}}
+  var exams=(state.exams||[]).filter(function(e){return !e.is_hidden});
+  var vals=[],any=false;
+  exams.forEach(function(e){
+    var sc=e.scores&&e.scores[state.subject];if(!sc)return;
+    if(sc.actual!=null){vals.push(sc.actual/max*100);any=true}
+    if(sc.target!=null)vals.push(sc.target/max*100);
+  });
+  if(!any)return html;
+  var gr=goal/max*100;vals.push(gr);
+  var axis=(typeof fullTrendAxisV25==="function")?fullTrendAxisV25(vals,"scoreFinal"):{min:0,max:100,ticks:5};
+  if(!axis||axis.max<=axis.min)return html;
+  var T=20,B=46,ch=H0-T-B,y=T+(axis.max-gr)/(axis.max-axis.min)*ch;
+  if(y<T-2||y>T+ch+2)return html;
+  var L=46,R=18,cw=760-L-R,n=exams.length;
+  var x1=n===1?L+cw/2:L,x2=n===1?L+cw/2:760-R;
+  var tag='<line x1="'+x1+'" y1="'+y.toFixed(1)+'" x2="'+x2+'" y2="'+y.toFixed(1)+'" stroke="#16a085" stroke-width="2" stroke-dasharray="3 4"/>'
+    +'<text x="'+(760-R)+'" y="'+(y-6).toFixed(1)+'" text-anchor="end" style="font-size:11px;fill:#16a085">长期目标 '+fmtPct(gr)+"</text>";
+  return html.replace("</svg>",tag+"</svg>");
+}
+var H0=300;
+var chartHtmlBeforeV33=(typeof chartHtml==="function")?chartHtml:null;
+if(chartHtmlBeforeV33){
+  chartHtml=function(){try{return annotateTrendV33(chartHtmlBeforeV33.apply(this,arguments))}catch(e){return chartHtmlBeforeV33.apply(this,arguments)}};
+}
+
 /* ================= 启动 ================= */
 var bindPageBeforeV33=(typeof bindPage==="function")?bindPage:null;
 if(bindPageBeforeV33){
