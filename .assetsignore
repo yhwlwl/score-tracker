@@ -1,0 +1,11 @@
+# Cloudflare Workers 静态资产:这些路径不作为静态资源对外服务
+# (worker.js 是 main 入口被自动排除,列出仅为双保险)
+_worker.js
+worker.js
+wrangler.jsonc
+supabase/
+design/
+tools/
+api/
+functions/
+.dsh/

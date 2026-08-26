@@ -1,21 +1,12 @@
 {
-  // Cloudflare Workers 静态资产模式:仓库根作为站点根,_worker.js 为入口
+  // Cloudflare Workers 静态资产模式:仓库根作为站点根,worker.js 为入口
   // name 必须与 Dashboard/workers.dev 里该 Worker 的名字一致
   "name": "score-tracker",
-  "main": "_worker.js",
+  "main": "worker.js",
   "compatibility_date": "2025-08-01",
   "assets": {
     "directory": "./",
-    "not_found_handling": "none",
-    // 以下目录/文件不对外服务(仍可被 _worker.js import,仅不当作静态资源)
-    "exclude_patterns": [
-      "supabase/**",
-      "design/**",
-      "tools/**",
-      "api/**",
-      "functions/**",
-      "wrangler.jsonc",
-      "_worker.js"
-    ]
+    "not_found_handling": "none"
   }
+  // 静态排除走根目录 .assetsignore(assets 配置不支持 include/exclude 字段)
 }
