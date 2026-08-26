@@ -157,13 +157,14 @@ export default async function handler(req, res) {
   const headers = adminHeaders(req, isHtml);
   try {
     if (action === 'overview' && req.method === 'GET') {
-      const r = await fetch(METRICS_UPSTREAM, { method: 'GET', headers: { 'x-score-token': String(req.headers['x-score-token'] || '') }, signal: AbortSignal.timeout(12000) });
+      /* 7451 用户/几十万日志规模下 admin-metrics 的精确计数聚合较慢(-metrics 函数在 Supabase 侧执行),超时放宽避免 502 */
+      const r = await fetch(METRICS_UPSTREAM, { method: 'GET', headers: { 'x-score-token': String(req.headers['x-score-token'] || '') }, signal: AbortSignal.timeout(25000) });
       const data = await r.json().catch(() => ({ error: 'metrics_unavailable' }));
       res.status(r.status).setHeader('Content-Type', 'application/json; charset=utf-8').setHeader('Cache-Control', 'private, no-store, max-age=0');
       return res.send(JSON.stringify(r.ok ? overviewFromMetrics(data) : data));
     }
     const target = action === 'feedback_reply' && req.method === 'POST' ? REPLY_UPSTREAM : UPSTREAM + query;
-    const upstream = await fetch(target, { method: req.method, headers, body: req.method === 'POST' ? JSON.stringify(req.body || {}) : undefined, signal: AbortSignal.timeout(20000) });
+    const upstream = await fetch(target, { method: req.method, headers, body: req.method === 'POST' ? JSON.stringify(req.body || {}) : undefined, signal: AbortSignal.timeout(30000) });
     res.status(upstream.status);
     res.setHeader('Cache-Control', 'private, no-store, max-age=0');res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');res.setHeader('X-Content-Type-Options', 'nosniff');res.setHeader('Referrer-Policy', 'same-origin');
     if (isHtml) {
