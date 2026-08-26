@@ -683,7 +683,8 @@ function chartHtml() {
     return `<path d="${d}" fill="none" stroke="${color}" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" ${dash ? `stroke-dasharray="${dash}"` : ''}/>${circles}`;
   };
   const labels = points.map((p, i) => `<text x="${x(i)}" y="${H - 17}" text-anchor="middle" class="axis-label">${fmtDate(p.date)}</text>`).join('');
-  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${grid}${line('target', '#32a77a', '7 7')}${line('actual', '#5d72e8')}${labels}</svg><div class="tooltip-card" id="chartTip"></div>`;
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${grid}${/* 线序与图例一致:真实(蓝)在前,目标(绿虚线)在后——v29 图例换色按位置配对,顺序相反会把颜色套到错误的线上 */
+  line('actual', '#5d72e8')}${line('target', '#32a77a', '7 7')}${labels}</svg><div class="tooltip-card" id="chartTip"></div>`;
 }
 
 function radarCardHtml() {
