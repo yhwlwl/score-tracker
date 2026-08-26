@@ -1,6 +1,6 @@
 // Cloudflare Pages Function 适配层：/mg 管理后台
-// 业务逻辑复用仓库原 api/mg.js（这里以 ESM 形式复制为 ../api/mg.mjs）
-import handler from "../api/mg.mjs";
+// 业务逻辑与 Vercel 版共用同一文件 api/mg.js（导入语法由云端构建按 ESM 处理）
+import handler from "../api/mg.js";
 
 // Workers 运行时没有 Buffer；原 handler 用 Buffer.from(ArrayBuffer) 中转，这里给最小 polyfill
 if (typeof globalThis.Buffer === "undefined") {

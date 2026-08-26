@@ -1,5 +1,6 @@
 // 构建 Cloudflare Pages 部署目录 deploy/
-// 先运行 node design/build-bundles.js（确保 app-bundle.js 最新），再运行本脚本
+// 先运行 node design/build-bundles.js
+// api/mg.js 为 Vercel 与 Cloudflare 共用;勿在 api/ 下新增同名异后缀文件(如 mg.mjs)——Vercel 函数路由会报路径冲突（确保 app-bundle.js 最新），再运行本脚本
 const fs = require("fs");
 const path = require("path");
 
@@ -29,6 +30,6 @@ fs.mkdirSync(path.join(OUT, "api"), { recursive: true });
 
 for (const f of FILES) fs.copyFileSync(path.join(ROOT, f), path.join(OUT, f));
 fs.copyFileSync(path.join(ROOT, "functions/mg.js"), path.join(OUT, "functions/mg.js"));
-fs.copyFileSync(path.join(ROOT, "api/mg.mjs"), path.join(OUT, "api/mg.mjs"));
+fs.copyFileSync(path.join(ROOT, "api/mg.js"), path.join(OUT, "api/mg.js"));
 
-console.log("deploy/ 已生成：" + FILES.length + " 个静态文件 + functions/mg.js + api/mg.mjs");
+console.log("deploy/ 已生成：" + FILES.length + " 个静态文件 + functions/mg.js(共用 api/mg.js)");
