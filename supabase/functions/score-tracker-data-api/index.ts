@@ -172,15 +172,18 @@ async function ensureModules(uid: string, configured: any[]) {
 }
 
 async function list(user: any) {
-  const configured = await subjects(user.id);
-  const er = await db
-    .from("score_tracker_exams")
-    .select(
-      "id,name,exam_date,total_rank,total_participants,total_class_rank,total_class_participants,total_year_position_percent,total_class_position_percent,total_actual_score,total_raw_score,is_hidden,grade_level,created_at,updated_at,city_rank,city_participants,district_rank,district_participants"
-    )
-    .eq("user_id", user.id)
-    .order("exam_date")
-    .order("created_at");
+  const [configured, er, goalRes] = await Promise.all([
+    subjects(user.id),
+    db
+      .from("score_tracker_exams")
+      .select(
+        "id,name,exam_date,total_rank,total_participants,total_class_rank,total_class_participants,total_year_position_percent,total_class_position_percent,total_actual_score,total_raw_score,is_hidden,grade_level,created_at,updated_at,city_rank,city_participants,district_rank,district_participants"
+      )
+      .eq("user_id", user.id)
+      .order("exam_date")
+      .order("created_at"),
+    getGoal(user.id).catch(() => ({ goal: null })),
+  ]);
   if (er.error) throw er.error;
   const ids = (er.data ?? []).map((e: any) => e.id);
   let rows: any[] = [],
@@ -262,6 +265,7 @@ async function list(user: any) {
     classification: classification(user),
     modules,
     exams,
+    goal: goalRes && goalRes.goal ? goalRes.goal : null,
   };
 }
 

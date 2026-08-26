@@ -8581,8 +8581,24 @@ function totalGoalValue(){
 
 /* ================= 数据读写 ================= */
 function apiCall(action,payload){
+  /* list/bootstrap 已顺路携带 goal:优先消费缓存,省一次边缘调用 */
+  if(action==="get_goal"&&window.__v33GoalCache){
+    var c=window.__v33GoalCache;window.__v33GoalCache=null;
+    return Promise.resolve(c);
+  }
   if(typeof dataApiV7==="function")return dataApiV7(action,payload);
   return Promise.reject(new Error("dataApiV7 缺失"));
+}
+/* 拦截 list/bootstrap 响应,把顺路的 goal 存入缓存 */
+var dApiBeforeV33=(typeof dataApiV7==="function")?dataApiV7:null;
+if(dApiBeforeV33){
+  dataApiV7=function(action,payload){
+    var p=dApiBeforeV33.apply(this,arguments);
+    if(action==="bootstrap"||action==="list_exams"){
+      try{Promise.resolve(p).then(function(r){try{if(r&&r.goal!==undefined)window.__v33GoalCache=r}catch(e){}},function(){})}catch(e){}
+    }
+    return p;
+  };
 }
 function loadGoal(){
   return apiCall("get_goal",{}).then(function(r){
