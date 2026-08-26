@@ -1,0 +1,20 @@
+# Cloudflare Pages 缓存与安全头（第一条匹配生效）
+#
+# app-bundle.js 带 ?v= hash：内容变 → hash 变 → 新 URL → 可安全一年长缓存（与 vercel.json 对齐）
+/app-bundle.js
+  Cache-Control: public, max-age=31536000, immutable
+# HTML 入口不缓存，保证发版立即可见
+/index.html
+  Cache-Control: public, no-cache
+/
+  Cache-Control: public, no-cache
+/mg
+  Cache-Control: private, no-store, max-age=0
+  X-Robots-Tag: noindex, nofollow, noarchive
+/*.css
+  Cache-Control: public, max-age=3600, s-maxage=86400
+/*.{png,jpg,jpeg,webp,gif,svg,ico,woff,woff2,ttf}
+  Cache-Control: public, max-age=86400, s-maxage=604800
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin

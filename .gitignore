@@ -1,0 +1,19 @@
+# 构建产物（Cloudflare 云端构建时重新生成，不入库）
+deploy/
+
+# 本地工具与临时文件
+node_modules/
+*.log
+
+# Supabase 本地状态（可能含连接信息，勿公开）
+supabase/.temp/
+.temp/
+
+# DB 迁移备份
+migration-backup/
+
+# 编辑器/系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

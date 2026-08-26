@@ -32,6 +32,12 @@ function subjectListV32(exams){
   return out;
 }
 function rowV32(e,s){return (e&&e.scores&&e.scores[s])||{};}
+/* 个人最佳状态标签:ok=在最好附近;warn=连续偏离待找回;acc 再按差距细分(≤5≈接近,>5=刚偏离) */
+function pbLabelV32(st,gap){
+  if(st==="ok")return "正处最好状态";
+  if(st==="warn")return "待找回";
+  return gap>5?"刚偏离":"接近最好";
+}
 /* 排名位置:显式位比字段优先,否则由 名次÷人数 现算;科目人数留空时回退总排名人数(v16 口径) */
 function effYearN32(e,row){var n=n32(row.participants);return n!==null?n:n32(e.total_participants);}
 function effClsN32(e,row){var n=n32(row.classParticipants);return n!==null?n:n32(e.total_class_participants);}
@@ -95,7 +101,7 @@ function buildFeaturesV32(exams){
     return {i:i,e:e,name:e.name||("第"+(i+1)+"次"),date:e.exam_date||"",
       totalPos:totalPosYear32(e),totalCls:totalPosClass32(e),score:totalActualV32(e)};
   });
-  var series={},valid={},mom={},stab={},pb={},streaks={},tgt={},latestN={};
+  var series={},valid={},mom={},stab={},pb={},streaks={},tgt={},latestN={},cohSub={};
   subjects.forEach(function(s){
     var ser=[];
     exams.forEach(function(e,i){
@@ -112,12 +118,18 @@ function buildFeaturesV32(exams){
     latestN[s]=vp.length?vp[vp.length-1].N:null;
     /* 动量:最近最多5个相邻差的中位数(奇数窗口);|中位数| < 0.8×1.4826×MAD 时判为"起伏持平"
        —— 震荡型数据硬给方向会误导,宁缺毋滥。正=前进(pp/场);至少3个有效点才出结论 */
-    var diffs=[];for(var j=1;j<vp.length;j++)diffs.push(vp[j].pos-vp[j-1].pos);
+    var diffs=[],coh=[];
+    for(var j=1;j<vp.length;j++){
+      diffs.push(vp[j].pos-vp[j-1].pos);
+      var N1=vp[j-1].N,N2=vp[j].N;
+      /* 口径变化:参考人数变化≥30%且≥100人——跨场位比跳变可能只是范围变了,不是真实进退 */
+      coh.push(!!(N1&&N2&&Math.abs(N2-N1)/Math.max(N1,N2)>=0.3&&Math.abs(N2-N1)>=100));
+    }
     var recent=diffs.slice(-5);
     if(recent.length>=2){
       var med=median32(recent);
       var devs=recent.map(function(d){return Math.abs(d-med);});
-      var sigm=recent.length>=4?1.4826*median32(devs):0;
+      var sigm=diffs.length>=3?1.4826*median32(devs):0; /* 3 个相邻差(4 场)即启用 MAD 波动保护 */
       var pp=r32(-med);
       var flat=Math.abs(pp)<0.3||(sigm>0&&Math.abs(med)<sigm*.8);
       mom[s]={pp:pp,names:(latestN[s]?r32(Math.abs(pp)*latestN[s]/100):null),diffs:recent,flat:flat};
@@ -139,12 +151,13 @@ function buildFeaturesV32(exams){
       }
       pb[s]={pos:best.pos,i:best.i,gap:gap,st:st,bestEntry:best};
     }else pb[s]=null;
-    /* 连续前进/后退(尾部的连续计数) */
-    var up=0,dn=0,k3=diffs.length-1;
-    while(k3>=0&&diffs[k3]<0){up++;k3--;}
+    /* 连续前进/后退(尾部的连续计数 + 连续段累计幅度;口径变化的相邻对视为断点,不跨口径累计) */
+    var up=0,dn=0,k3=diffs.length-1,upSum=0,dnSum=0;
+    while(k3>=0&&!coh[k3]&&diffs[k3]<0){up++;upSum+=diffs[k3];k3--;}
     k3=diffs.length-1;
-    while(k3>=0&&diffs[k3]>0){dn++;k3--;}
-    streaks[s]={up:up,down:dn,cum:recent.reduce(function(a,b){return a+b;},0)};
+    while(k3>=0&&!coh[k3]&&diffs[k3]>0){dn++;dnSum+=diffs[k3];k3--;}
+    streaks[s]={up:up,down:dn,cum:recent.reduce(function(a,b){return a+b;},0),upSum:upSum,dnSum:dnSum};
+    cohSub[s]=coh;
     /* 目标连胜负(同卷口径) */
     var mets=[];ser.forEach(function(x){if(x.target!==null&&x.actual!==null)mets.push(x.actual>=x.target);});
     var tm=0,tn=0,j2=mets.length-1;
@@ -189,7 +202,15 @@ function buildFeaturesV32(exams){
     });
   });
   var totalSeries=metas.filter(function(m){return m.totalPos!==null;})
-    .map(function(m){return {i:m.i,pos:m.totalPos,cls:m.totalCls,score:m.score,name:m.name};});
+    .map(function(m){return {i:m.i,pos:m.totalPos,cls:m.totalCls,score:m.score,name:m.name,N:n32(m.e.total_participants)};});
+  var cohTotal=[];
+  for(var jt=1;jt<totalSeries.length;jt++){
+    var TN1=totalSeries[jt-1].N,TN2=totalSeries[jt].N;
+    cohTotal.push(!!(TN1&&TN2&&Math.abs(TN2-TN1)/Math.max(TN1,TN2)>=0.3&&Math.abs(TN2-TN1)>=100));
+  }
+  var cohortChange=0;
+  Object.keys(cohSub).forEach(function(s){cohSub[s].forEach(function(b){if(b)cohortChange++;});});
+  cohTotal.forEach(function(b){if(b)cohortChange++;});
   var scoredExams=exams.filter(function(e){return totalActualV32(e)!==null;}).length;
   /* 数据质量项 */
   var pending=exams.filter(function(e){return totalTargetV32(e)!==null&&totalActualV32(e)===null;});
@@ -227,13 +248,14 @@ function buildFeaturesV32(exams){
   return {exams:exams,subjects:subjects,metas:metas,series:series,valid:valid,latestN:latestN,
     mom:mom,stab:stab,pb:pb,streaks:streaks,tgt:tgt,flags:flags,events:events,flTheta:flTheta,
     totalSeries:totalSeries,scoreSeries:scoreSeries,posCount:posCount,rateCount:rateCount,
+    cohSub:cohSub,cohTotal:cohTotal,cohortChange:cohortChange,
     scoredExams:scoredExams,
     overallLatest:totalSeries.length?totalSeries[totalSeries.length-1].pos:null,
     overallMedian3:last3.length?median32(last3):null,
     prevBestTotal:prevBest,
     latestScore:metas.length?metas[metas.length-1].score:null,
     prevScore:(metas.length>1?metas[metas.length-2].score:null),
-    quality:{pending:pending,missCls:missCls,smallSubs:smallSubs,zeroRankSubs:zeroRankSubs,smallCohort:smallCohort}};
+    quality:{pending:pending,missCls:missCls,smallSubs:smallSubs,zeroRankSubs:zeroRankSubs,smallCohort:smallCohort,cohortChange:cohortChange}};
 }
 
 /* ================= 规则引擎 ================= */
@@ -269,10 +291,34 @@ function buildInsightsV32(f){
     if(ev.i<last-1)return;
     var m=f.metas[ev.i],prev=f.metas[ev.i-1];
     var rp=rowV32(prev.e,ev.subj),rc=rowV32(m.e,ev.subj);
+    var pp0=posYearOf32(prev.e,rp),pc0=posYearOf32(m.e,rc);
+    var dp0=(pp0!==null&&pc0!==null)?pc0-pp0:null;
+    var dr0=(rp.max&&rc.max)?Math.round(n32(rc.actual)/rc.max*100)-Math.round(n32(rp.actual)/rp.max*100):null;
+    /* 文案必须与数据方向一致:分数是否真降 × 名次是否真坚挺/真退,共四类 */
+    var rateTxt=(rp.max?Math.round(n32(rp.actual)/rp.max*100):"?")+"%→"+Math.round(n32(rc.actual)/rc.max*100)+"%";
+    var posTxt=(pp0===null?"?":fmtPos32(pp0))+" → "+(pc0===null?"?":fmtPos32(pc0));
+    var fall=(dr0!==null&&dr0<0)
+      ? (dp0===null?"scoreDown":(dp0<-1?"scoreDownRankUp":(dp0>5?"scoreDownRankDown":"scoreDownRankFlat")))
+      : "scoreNotDown";
+    var title,body;
+    if(fall==="scoreDownRankUp"){
+      title="那场"+esc32(ev.subj)+":分数降了,排名反而升了?";
+      body=shortName32(prev.name)+"→"+shortName32(m.name)+" 得分率 "+rateTxt+",排名从"+posTxt+"——更像这科卷子偏难,不是你退步。同场其他科目正常与否见热力表圆点。";
+    }else if(fall==="scoreDownRankFlat"){
+      title="那场"+esc32(ev.subj)+":分数降了,排名基本没动";
+      body=shortName32(prev.name)+"→"+shortName32(m.name)+" 得分率 "+rateTxt+",名次只小幅波动("+posTxt+")——更像这科卷面偏难,整场都在压分。";
+    }else if(fall==="scoreDownRankDown"){
+      title="那场"+esc32(ev.subj)+":分数下滑的同时,排名也在退";
+      body=shortName32(prev.name)+"→"+shortName32(m.name)+" 得分率 "+rateTxt+",排名从"+posTxt+"——卷子整体偏难,但你的位次确实掉了,先盯失分点,别只归因运气。";
+    }else if(fall==="scoreNotDown"){
+      title="那场"+esc32(ev.subj)+":分数在涨,排名却没跟上预判";
+      body=shortName32(prev.name)+"→"+shortName32(m.name)+" 得分率 "+rateTxt+",名次"+posTxt+"——按你历史的分-位弹性,这分数本应带来更好的名次,而这科的压分点就是拉分空间。";
+    }else{
+      title="那场"+esc32(ev.subj)+":这科的分数和名次对不上";
+      body=shortName32(prev.name)+"→"+shortName32(m.name)+" 得分率 "+rateTxt+",名次"+posTxt+"——更像这科卷子偏难,不是你退步。";
+    }
     add({sev:ev.strong?1:2,type:"hard",subj:ev.subj+(ev.i),icon:"search",
-      title:"那场"+esc32(ev.subj)+":分数降了,排名反而升了?",
-      body:shortName32(prev.name)+"→"+shortName32(m.name)+" 得分率"+(rp.max?Math.round(n32(rp.actual)/rp.max*100):"?")+"%→"+
-        Math.round(n32(rc.actual)/rc.max*100)+"%,排名却更靠前——更像这科卷子偏难,不是你退步。同场其他科目正常与否见热力表圆点。",
+      title:title,body:body,
       ev:"口径:排名对难度免疫,分数不是;残差 "+ev.e+" 个百分点。"});
   });
   /* 连续后退预警 / 连续进步 */
@@ -280,16 +326,20 @@ function buildInsightsV32(f){
     var st=f.streaks[s];if(!st)return;
     var sp=speedTextV32(f,s);
     if(st.down>=2&&sp&&!sp.up){
+      var dropPts=st.dnSum!==undefined?Math.abs(Math.round(st.dnSum)):null;
+      var tip=dropPts!==null&&dropPts>10
+        ? "这一轮已经累计退了"+dropPts+"个百分点,幅度不小了——抽空重点复盘这科的失分点。"
+        : "幅度还小的话注意即可,再退一场要重点找原因。";
       add({sev:2,type:"decline",subj:s,icon:"warn",
-        title:esc32(s)+"连续"+st.down+"场小退步",
-        body:"已从"+fmtPos32((f.valid[s][f.valid[s].length-1-st.down]||{}).pos)+"退到当前"+fmtPos32(f.valid[s][f.valid[s].length-1].pos)+"。幅度还小的话注意即可,再退一场要重点找原因。",
-        ev:"依据:最近"+st.down+"个相邻场次排名连续变大。"});
+        title:esc32(s)+"连续"+st.down+"场退步",
+        body:"已从"+fmtPos32((f.valid[s][f.valid[s].length-st.down]||{}).pos)+"退到当前"+fmtPos32(f.valid[s][f.valid[s].length-1].pos)+"。"+tip,
+        ev:"依据:最近"+st.down+"个相邻场次排名连续变大"+(dropPts!==null?"(累计约"+dropPts+"个百分点)":"")+"。"});
     }
-    if(st.up>=3&&st.cum<=-6){
+    if(st.up>=3&&st.upSum<=-6){
       add({sev:4,type:"progress",subj:s,icon:"up",
         title:esc32(s)+"连续"+st.up+"场前进",
-        body:"累计前进约"+r32(Math.abs(st.cum))+"个百分点"+(f.latestN[s]?",折合约"+Math.max(1,Math.round(Math.abs(st.cum)*f.latestN[s]/100))+"名":"")+",势头很好。",
-        ev:"依据:动量=最近相邻场差的中位数。"});
+        body:"累计前进约"+r32(Math.abs(st.upSum))+"个百分点"+(f.latestN[s]?",折合约"+Math.max(1,Math.round(Math.abs(st.upSum)*f.latestN[s]/100))+"名":"")+",势头很好。",
+        ev:"依据:连续"+st.up+"场的累计位比变化。"});
     }
   });
   /* 目标校准 */
@@ -335,6 +385,66 @@ function buildInsightsV32(f){
     add({sev:5,type:"reg",icon:"loop",title:"上次考得太好,下次回落属正常",
       body:"刚创个人最佳后,下一次略有下滑是普遍规律,不用慌;跌破"+fmtPos32(line)+"才需要认真找原因。",
       ev:"统计常识:极端表现后向个人常态回归。"});
+  }
+  /* 单场大跌:最近一对位比退≥15pp 且同口径;该场已有偏难卡(hard)或连续退步卡(decline)时不重复 */
+  f.subjects.forEach(function(s){
+    var vp2=f.valid[s];if(!vp2||vp2.length<2)return;
+    var A=vp2[vp2.length-2],B=vp2[vp2.length-1];
+    var drop=r32(B.pos-A.pos);if(drop<15)return; /* 正=位比变大=退;前进方向由 progress 类覆盖 */
+    var cArr=f.cohSub&&f.cohSub[s];
+    if(cArr&&cArr[cArr.length-1])return; /* 参考人数口径变了:跳变不可直接比 */
+    if(f.streaks[s]&&f.streaks[s].down>=2)return; /* decline 卡已覆盖本段 */
+    if(f.flags[B.i+"|"+s]&&f.flags[B.i+"|"+s].lvl>0)return; /* hard 卡已覆盖 */
+    add({sev:2,type:"bigdrop",subj:s,icon:"warn",
+      title:esc32(s)+"单场跌了近"+Math.round(drop)+"个百分点",
+      body:shortName32(f.metas[A.i].name)+"→"+shortName32(f.metas[B.i].name)+" 位比从"+fmtPos32(A.pos)+"退到"+fmtPos32(B.pos)
+        +(A.rate!==null&&B.rate!==null?"(得分率 "+Math.round(A.rate)+"%→"+Math.round(B.rate)+"%)":"")+"——先看这场哪里失分,再判断是发挥还是题型变化。",
+      ev:"依据:相邻场位比 "+A.pos+"→"+B.pos+",单场跌幅≥15个百分点,两场参考人数口径一致。"});
+  });
+  /* 总分级连续进退(≥2场、累计≥8pp、同口径段) */
+  if(ts.length>=3){
+    var tDiffs=[],tCoh=f.cohTotal||[];
+    for(var t1=1;t1<ts.length;t1++)tDiffs.push(ts[t1].pos-ts[t1-1].pos);
+    var run3=0,sum3=0,start3=-1;
+    for(var t2=tDiffs.length-1;t2>=0;t2--){
+      if(!tCoh[t2]&&tDiffs[t2]>0){if(run3===0)start3=t2;run3++;sum3+=tDiffs[t2];}
+      else break;
+    }
+    if(run3>=2&&sum3>=8&&start3>=0){
+      add({sev:2,type:"tdecl",icon:"warn",
+        title:"总分连续"+run3+"场退步",
+        body:"总分位置从"+fmtPos32(ts[start3].pos)+"退到当前"+fmtPos32(ts[ts.length-1].pos)+",累计约"+Math.round(sum3)+"个百分点——看看是哪科拖了后腿(可回「学科结构」对比)。",
+        ev:"依据:总分位比相邻场变化,连续"+run3+"场变大(累计约"+Math.round(sum3)+"pp),参考人数口径一致。"});
+    }
+    run3=0;sum3=0;start3=-1;
+    for(var t3=tDiffs.length-1;t3>=0;t3--){
+      if(!tCoh[t3]&&tDiffs[t3]<0){if(run3===0)start3=t3;run3++;sum3+=tDiffs[t3];}
+      else break;
+    }
+    if(run3>=2&&sum3<=-8&&start3>=0){
+      add({sev:4,type:"tprog",icon:"up",
+        title:"总分连续"+run3+"场前进",
+        body:"总分位置从"+fmtPos32(ts[start3].pos)+"进到当前"+fmtPos32(ts[ts.length-1].pos)+",累计约"+Math.round(Math.abs(sum3))+"个百分点,势头不错。",
+        ev:"依据:总分位比相邻场变化,连续"+run3+"场变小(累计约"+Math.round(Math.abs(sum3))+"pp),参考人数口径一致。"});
+    }
+  }
+  /* 口径变化提醒:最近一次考试与上一场之间,参考人数变化≥30%且≥100人 */
+  var cohortMsg="";
+  f.subjects.forEach(function(s){
+    var cA=f.cohSub&&f.cohSub[s];
+    if(!cA||!cA.length||!cA[cA.length-1])return;
+    var vp3=f.valid[s],N1=vp3[vp3.length-2].N,N2=vp3[vp3.length-1].N;
+    cohortMsg+=(cohortMsg?"、":"")+esc32(s)+"("+(N1||"?")+"→"+(N2||"?")+"人)";
+  });
+  if(ts.length>=2&&tCoh&&tCoh.length&&tCoh[tCoh.length-1]){
+    var TN1=ts[ts.length-2].N,TN2=ts[ts.length-1].N;
+    cohortMsg+=(cohortMsg?"、":"")+"总分("+(TN1||"?")+"→"+(TN2||"?")+"人)";
+  }
+  if(cohortMsg){
+    add({sev:5,type:"cohort",icon:"search",
+      title:"最近这场参考人数口径变了",
+      body:cohortMsg+"——人数不同时,名次百分比不能直接和上次比,这场的跳变先别急着下结论。",
+      ev:"依据:相邻场参考人数变化≥30%且≥100人时,位比跳变不可跨场直接比较。"});
   }
   /* 纯分数账号:引导补录名次 */
   if(f.posCount===0&&f.rateCount>=2){
@@ -528,10 +638,11 @@ function kpiHtmlV32(f,mode){
   var latestCls=null;for(var i=ts.length-1;i>=0;i--){if(ts[i].cls!==null){latestCls=ts[i].cls;break;}}
   var pbTotal=null,pbIsLast=false;
   if(ts.length){pbTotal=Math.min.apply(null,ts.map(function(x){return x.pos;}));pbIsLast=(ts[ts.length-1].pos<=pbTotal);}
+  var stRankDelta=ts.length>=2?(pbIsLast?"个人历史最好":"较历史最好差 "+r32(Math.abs(ts[ts.length-1].pos-pbTotal))+" 个百分点"):"";
   var met=0,tot=0;
   f.exams.forEach(function(e){var t=totalTargetV32(e),a=totalActualV32(e);if(t!==null&&a!==null){tot++;if(a>=t)met++;}});
   var d=f.latestScore!==null&&f.prevScore!==null?f.latestScore-f.prevScore:null;
-  var stRankLatest=stat("年级排名 · 最近一次",fmtPos32(f.overallLatest),ts.length>=2?"个人历史最好":"",pbIsLast?"up":"info");
+  var stRankLatest=stat("年级排名 · 最近一次",fmtPos32(f.overallLatest),stRankDelta,pbIsLast?"up":"info");
   var stMedian=stat("年级排名 · 最近3次典型水平",f.overallMedian3===null?"—":fmtPos32(f.overallMedian3),"","");
   var stCls=latestCls!==null?stat("班级排名 · 最近一次",fmtPos32(latestCls),"",""):"";
   var stGoal=stat("目标完成情况",(tot?met+"<small> / "+tot+" 次</small>":"—"),"按每张卷子各自算","flat");
@@ -568,7 +679,7 @@ function trendHtmlV32(f,mode){
   if(ts.length>=2){
     var labels=ts.map(function(x){return shortName32(x.name);});
     var lines=[{vals:ts.map(function(x){return 100-x.pos;}),color:"var(--accent,#5d72e8)"}];
-    if(ts.some(function(x){return x.cls!==null;}))lines.push({vals:ts.map(function(x){return x.cls===null?null:x.cls;}),color:"var(--green,#32a77a)",dash:true});
+    if(ts.some(function(x){return x.cls!==null;}))lines.push({vals:ts.map(function(x){return x.cls===null?null:100-x.cls;}),color:"var(--green,#32a77a)",dash:true});
     paneRank=lineSvgV32(lines,labels,{tickLabel:function(v){return "前"+clamp32(Math.round(100-v),0,99)+"%";}});
     var sc=ts.filter(function(x){return x.score!==null;});
     if(sc.length>=2){
@@ -634,7 +745,7 @@ function structureHtmlV32(f,mode){
   /* 第一遍:收集各科当前位比 → 基准=六科中位数(比"和总分比"更公平:总分会被强科抬高/拉低) */
   var tmp=[];
   f.subjects.forEach(function(s){
-    var vp=f.valid[s];if(vp.length<2)return;
+    var vp=f.valid[s];if(vp.length<3)return; /* 与 ⑨「不足 3 次不给趋势判断」一致:2 场定不了强弱 */
     var cur=vp[vp.length-1].pos,m=f.mom[s];
     tmp.push({s:s,cur:cur,sp:(m&&!m.flat)?m.pp:null});
   });
@@ -653,7 +764,7 @@ function structureHtmlV32(f,mode){
     if(isTrump){sig="相对强项";sigCls="acc";}
     else if(cur>=50||(adv!==null&&adv<=-8)||(diff!==null&&diff<=-25)){sig="第一优先补";sigCls="bad";}
     else if(stUp&&Math.abs(f.streaks[s].cum)>=6){sig="进步最快";sigCls="acc";}
-    else if(sp!==null&&Math.abs(sp)<1){sig="与整体同步";sigCls="ok";}
+    else if(sp!==null&&Math.abs(sp)<1){sig="基本持平";sigCls="ok";}
     else{sig="稳步跟上";sigCls="flat";}
     rows.push({s:s,pos:cur,namesTxt:namesTxt,up:sp!==null&&sp>0,diff:diff,adv:adv,sig:sig,sigCls:sigCls});
     var reg=cur<=(ov===null?999:ov)?(sp!==null&&sp<0?"tl":"tr"):(sp!==null&&sp<0?"bl":"br");
@@ -707,9 +818,13 @@ function hallHtmlV32(f,mode){
     var lastP=f.totalSeries[f.totalSeries.length-1].pos,gap=r32(lastP-best);
     var bestEntry=f.totalSeries.filter(function(x){return x.pos===best;})[0];
     var st=gap<=1?"ok":"acc";
-    push("总分",f.totalSeries.map(function(x){return x.pos;}),fmtPos32(best),f.exams[bestEntry.i].name,
+    if(gap>5){
+      var ncT=0;for(var kT=f.totalSeries.length-1;kT>0;kT--){if(f.totalSeries[kT].pos-best>5)ncT++;else break;}
+      if(ncT>=2)st="warn";
+    }
+    push("总分",f.totalSeries.map(function(x){return 100-x.pos;}),fmtPos32(best),f.exams[bestEntry.i].name,
       gap<=0.05?"0":r32(Math.abs(gap))+"个百分点",
-      st==="ok"?'<span class="pill ok">正处最好状态</span>':'<span class="pill acc">就差一点</span>');
+      '<span class="pill '+(st==="ok"?"ok":(st==="warn"?"warn":"acc"))+'" title="依据:距个人最佳 '+r32(Math.abs(gap))+' 个百分点">'+pbLabelV32(st,gap)+"</span>");
   }else if(f.scoreSeries&&f.scoreSeries.length>=1){
     var bS=f.scoreSeries[0];f.scoreSeries.forEach(function(x){if(x.score>bS.score)bS=x;});
     fallback=true;
@@ -720,11 +835,10 @@ function hallHtmlV32(f,mode){
     var vp=f.valid[s];
     if(vp.length){
       var p=f.pb[s],lastP=vp[vp.length-1].pos;
-      var st=p.st==="ok"?"正处最好状态":(p.st==="warn"?"待找回":"就差一点");
       var cls=p.st==="ok"?"ok":(p.st==="warn"?"warn":"acc");
-      push(s,vp.map(function(x){return x.pos;}),fmtPos32(p.pos),f.exams[p.i].name,
+      push(s,vp.map(function(x){return 100-x.pos;}),fmtPos32(p.pos),f.exams[p.i].name,
         p.gap<=0.05?"0":r32(Math.abs(p.gap))+"个百分点",
-        '<span class="pill '+cls+'">'+st+"</span>");
+        '<span class="pill '+cls+'" title="依据:距个人最佳 '+r32(Math.abs(p.gap))+' 个百分点">'+pbLabelV32(p.st,p.gap)+"</span>");
     }else{
       var rr=f.series[s].filter(function(x){return x.rate!==null;});
       if(rr.length>=2){
@@ -800,18 +914,19 @@ function compHtmlV32(f,mode){
   var lastCls=null;for(var i=ts.length-1;i>=0;i--){if(ts[i].cls!==null){lastCls=ts[i].cls;break;}}
   var diffStat="",diffCard="";
   if(lastCls!==null&&f.overallLatest!==null){
-    var d=r32(f.overallLatest-lastCls);
-    diffStat='<span style="margin-left:auto;font-weight:700;color:var(--text,#18212f)">班里比年级靠前 '+d+" 个百分点</span>";
+    var d=r32(f.overallLatest-lastCls),dAbs=Math.abs(d);
+    diffStat='<span style="margin-left:auto;font-weight:700;color:var(--text,#18212f)">班里比年级'+(d>=0?"靠前":"靠后")+" "+dAbs+" 个百分点</span>";
     diffCard=d>2?'<div class="sv31-insight i-info"><div class="ico">'+ICON32.shield+"</div><div><b>你的主要对手在外班</b><p>班里的名次一直比全年级更靠前——班内你已是头部,真正拉开差距的是外班同学。</p></div></div>"
-      :'<div class="sv31-insight i-info"><div class="ico">'+ICON32.search+'</div><div><b>班里家外基本同步</b><p>班级与年级的相对位置接近,说明班级整体水平与年级差距不大。</p></div></div>';
+      :(d<-2?'<div class="sv31-insight i-warn"><div class="ico">'+ICON32.shield+'</div><div><b>班内竞争更激烈</b><p>全年级里你的位置比班里更靠前——同班同学整体更强。先把班内名次提上来,年级位次自然会跟着走。</p></div></div>'
+      :'<div class="sv31-insight i-info"><div class="ico">'+ICON32.search+'</div><div><b>班里家外基本同步</b><p>班级与年级的相对位置接近,说明班级整体水平与年级差距不大。</p></div></div>');
   }
   /* 哪科最能打:基准=各科最新位比的中位数(总分会被强科拉偏,内部结构更公平) */
   var curs=[];
-  f.subjects.forEach(function(s){var vp=f.valid[s];if(vp.length)curs.push(vp[vp.length-1].pos);});
+  f.subjects.forEach(function(s){var vp=f.valid[s];if(vp.length>=3)curs.push(vp[vp.length-1].pos);});
   var medAll=curs.length>=3?median32(curs):null;
   var chips=[];
   f.subjects.forEach(function(s){
-    var vp=f.valid[s];if(!vp.length)return;
+    var vp=f.valid[s];if(vp.length<3)return; /* 与 ⑨「不足 3 次不给趋势判断」一致 */
     var cur=vp[vp.length-1].pos;
     var adv=medAll===null?(f.overallLatest===null?null:r32(f.overallLatest-cur)):r32(medAll-cur);
     chips.push({s:s,adv:adv});
@@ -858,7 +973,7 @@ function matrixSectionHtmlV32(f,mode){
     var tp=totalPosYear32(e);
     var totCell=tp===null?"<td class='sv31-tot'>—</td>"
       :mode==="rank"?'<td class="sv31-tot" style="background:'+rgba32(rgb,clamp32(0.82-(tp-8)/46*0.62,0.14,0.85))+';color:#fff">'+r32(tp)+"</td>"
-      :'<td class="sv31-tot"><b>'+Math.round(totalActualV32(e)/7.5)+"%</b></td>";
+      :'<td class="sv31-tot"><b>'+(examRateV32(e)===null?"—":Math.round(examRateV32(e))+"%")+"</b></td>";
     rowsHtml+="<tr><td>"+esc32(shortName32(e.name))+"</td>"+cells+totCell+"</tr>";
   });
   var head="<tr><th>考试</th>"+subs.map(function(s){return "<th>"+esc32(s)+"</th>";}).join("")+"<th>总分</th></tr>";
@@ -882,14 +997,14 @@ function matrixSectionHtmlV32(f,mode){
   /* 个人纪录 */
   var recs=[];
   var diffs=[];for(var j=1;j<f.totalSeries.length;j++)diffs.push(f.totalSeries[j].pos-f.totalSeries[j-1].pos);
-  var bestRun=0,run=0;
-  diffs.forEach(function(d){run=d<0?run+1:0;if(run>bestRun)bestRun=run;});
-  if(bestRun>0)recs.push({t:"连续进步",v:bestRun+" 场",s:"总分排名一次都没回过头"});
+  var bestRun=0,bestSum=0,run=0,sum=0;
+  diffs.forEach(function(d){if(d<0){run++;sum+=d;}else{run=0;sum=0;}if(run>bestRun||(run===bestRun&&sum<bestSum)){bestRun=run;bestSum=sum;}});
+  if(bestRun>=2&&bestSum<=-3)recs.push({t:"连续进步",v:bestRun+" 场 · 累计前进"+r32(Math.abs(bestSum))+"个百分点",s:"总分排名一段时间内没回过头的连续段"});
   var jump=null;
   f.subjects.forEach(function(s){
     var vp=f.valid[s];
     for(var k=1;k<vp.length;k++){
-      var imp=vp[k-1].pos-vp[k].pos,namesN=f.latestN[s]?imp*f.latestN[s]/100:null;
+      var imp=vp[k-1].pos-vp[k].pos,namesN=vp[k].N?imp*vp[k].N/100:null;
       if(!jump||imp>jump.imp)jump={s:s,imp:imp,names:namesN,from:vp[k-1],to:vp[k]};
     }
   });
@@ -905,10 +1020,10 @@ function matrixSectionHtmlV32(f,mode){
     var vp=f.valid[s];
     for(var k=1;k<vp.length;k++){
       var dp2=vp[k].pos-vp[k-1].pos;
-      if(!drop||dp2>drop.d)drop={d:dp2,s:s,to:vp[k]};
+      if(!drop||dp2>drop.d)drop={d:dp2,s:s,to:vp[k],N:vp[k].N};
     }
   });
-  if(drop&&drop.d>2)recs.push({t:"单场最大退步",v:esc32(drop.s)+" · 后退"+(f.latestN[drop.s]?Math.round(drop.d*f.latestN[drop.s]/100)+"名":r32(drop.d)+"个百分点"),
+  if(drop&&drop.d>2)recs.push({t:"单场最大退步",v:esc32(drop.s)+" · 后退"+(drop.N?Math.round(drop.d*drop.N/100)+"名":r32(drop.d)+"个百分点"),
     s:shortName32(f.exams[drop.to.i].name)+(f.flags[drop.to.i+"|"+drop.s]&&f.flags[drop.to.i+"|"+drop.s].lvl>0?" · 那场这科偏难":"")});
   var extHtml=recs.map(function(r){
     return '<div class="sv31-ext"><div class="t">'+r.t+'</div><div class="v">'+r.v+'</div><div class="s">'+r.s+"</div></div>";
@@ -940,6 +1055,7 @@ function qualityHtmlV32(f){
   if(q.zeroRankSubs.length)items.push("<li>"+esc32(q.zeroRankSubs.join("、"))+" 还没录过排名:排名类分析暂缺这一科</li>");
   if(q.smallSubs.length)items.push("<li>数据太少不下结论:"+esc32(q.smallSubs.join("、"))+"不足 3 次成绩,不给趋势判断</li>");
   if(q.smallCohort.length)items.push("<li>"+q.smallCohort.length+" 次考试参考人数很少(30人以内):相关说法自动更保守</li>");
+  if(q.cohortChange>0)items.push("<li>"+q.cohortChange+" 处相邻考试的参考人数变化≥30%:跨场名次跳变可能由范围变化引起,相关结论已自动谨慎处理</li>");
   return '<div class="card sv31-quality"><div class="card-title-row"><div><h3 class="card-title">⑨ 数据质量说明</h3>'
     +'<p class="card-sub">缺什么、弱在哪,明明白白告诉你</p></div></div>'
     +(items.length?'<ul style="margin:0;padding-left:18px">'+items.join("")+"</ul>":'<p class="card-sub">当前范围内没有发现缺口,数据很完整。</p>')
@@ -1156,6 +1272,8 @@ window.__v32={
   median:median32,mad:mad32,
   buildFeatures:buildFeaturesV32,buildInsights:buildInsightsV32,
   lineSvg:lineSvgV32,quadSvg:quadSvgV32,donut:donutSvgV32,spark:sparkSvg32,
-  speedText:speedTextV32,rerender:rerenderStatsV32
+  speedText:speedTextV32,rerender:rerenderStatsV32,
+  kpi:kpiHtmlV32,trend:trendHtmlV32,structure:structureHtmlV32,hall:hallHtmlV32,
+  calib:calibHtmlV32,comp:compHtmlV32,matrix:matrixSectionHtmlV32,quality:qualityHtmlV32
 };
 })();

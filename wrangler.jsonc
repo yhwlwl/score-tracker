@@ -1,0 +1,10 @@
+{
+  // Cloudflare Workers 静态资产模式:整个仓库目录作为站点根
+  // name 必须与 Dashboard 里该 Worker 的名字一致,否则会新建一个项目
+  "name": "score-tracker",
+  "compatibility_date": "2025-08-01",
+  "assets": {
+    "directory": "./",
+    "not_found_handling": "none"
+  }
+}
