@@ -60,10 +60,24 @@ set search_path = public
 as $$
 declare n integer;
 begin
+  /* 单遍聚合(不是逐用户子查询),大表下一次扫描,远低于超时窗口 */
+  with agg as (
+    select u.id,
+           coalesce(e.cnt, 0) * 3 + coalesce(d.days, 0) * 2 as depth
+      from public.score_tracker_users u
+      left join (select user_id, count(*) as cnt
+                   from public.score_tracker_exams e2 group by user_id) e
+        on e.user_id::text = u.id::text
+      left join (select user_id, count(distinct (occurred_at at time zone 'Asia/Shanghai')::date) as days
+                   from public.score_tracker_visit_logs v2 group by user_id) d
+        on d.user_id::text = u.id::text
+     where coalesce(u.is_admin, false) = false
+  )
   update public.score_tracker_users u
-     set depth_score = public.score_tracker_depth_score(u.id),
+     set depth_score = a.depth,
          depth_updated_at = now()
-   where coalesce(u.is_admin, false) = false;
+    from agg a
+   where u.id = a.id;
   get diagnostics n = row_count;
   return n;
 end;
