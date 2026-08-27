@@ -48,11 +48,24 @@ const CLIENT_PATCH_V13 = `<script id="mg-client-v13">
   function num13(tr,i){var c=tr.children[i];var m=(c?c.textContent:'').match(/\d+(\.\d+)?/);return m?parseFloat(m[0]):0;}
   function ts13(tr,i){var c=tr.children[i];var t=c?c.textContent.trim():'';var p=Date.parse(t.replace(/年|月/g,'-').replace(/日/g,' '));return isNaN(p)?0:p;}
   function depthVal13(n){var r=DEPTH13[String(n||'').trim()];return (r&&r.depth_score!=null)?Number(r.depth_score)||0:0;}
-  /* 用户表也补「深度分」列(与反馈表同款)——否则按深度分排序找不到列,下拉选了没反应 */
+  /* 用户表「深度分」列:无列则补列;已有列则覆盖数值为同源口径(列表=反馈=同一来源,排序才一致) */
   function enhanceUsersColumns(){
     var z=document.querySelector('#v-users');if(!z)return;
-    var thead=z.querySelector('.t thead');if(!thead)return;
-    if(colIndex13(thead,/深度/)>-1)return; /* 上游已带该列 */
+    var thead=z.querySelector('.t thead'),tb=z.querySelector('.t tbody');if(!thead||!tb)return;
+    var hasDepth=colIndex13(thead,/深度/)>-1;
+    if(hasDepth){
+      var depI=colIndex13(thead,/深度/),nI=colIndex13(thead,/用户|昵称/);
+      [].slice.call(tb.querySelectorAll('tr')).forEach(function(tr){
+        var td=tr.children[depI];if(!td)return;
+        var uname=null;
+        if(nI>-1)uname=(tr.children[nI]?tr.children[nI].textContent:'').trim();
+        if(!uname)tr.querySelectorAll('td').forEach(function(c){var lb=String(c.getAttribute('data-label')||'');if(!uname&&/用户|昵称/.test(lb))uname=(c.textContent||'').trim();});
+        var v=uname?(depthOf13(uname)||'-'):'-';
+        td.title='深度分 = 创建考试数×3 + 活跃天数×2';
+        if(td.textContent!==v)td.textContent=v;
+      });
+      return;
+    }
     var userTh=null;
     thead.querySelectorAll('th').forEach(function(th){if(!userTh&&/用户|昵称/.test(th.textContent||''))userTh=th;});
     if(userTh){var dth=document.createElement('th');dth.className='fb-depth-v13';dth.textContent='深度分';userTh.insertAdjacentElement('afterend',dth);}
