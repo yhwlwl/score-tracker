@@ -852,7 +852,8 @@ var PAL2NS = (window.PAL = window.PAL || {});
  *  2. 噪声模型：σ_total² = σ_binomial²(rate) + σ_personal²
  *     其中 σ_personal 由历史残差的 MAD 一致估计 —— 两类噪声源
  *     正交合成，替代原产品的单一自适应阈值；
- *  3. 判定输出为校准后验概率 P(偏难|数据)，而非硬阈值布尔。
+ *  3. 判定输出为连续 evidence score（证据分数），而非把单学生
+ *     数据包装成“试卷难度概率”。
  * ============================================================ */
 (function (global) {
   'use strict';
@@ -935,6 +936,8 @@ var PAL2NS = (window.PAL = window.PAL || {});
           z: finalZ,
           pHard: pHard,
           pEasy: pEasy,
+          evidenceHard: pHard,
+          evidenceEasy: pEasy,
           verdict: pHard > 0.6 ? 'hard' : (pEasy > 0.6 ? 'easy' : 'normal'),
           mappingN: hist.length,
           shrinkage: map.kappa
@@ -1094,7 +1097,12 @@ var PAL2NS = (window.PAL = window.PAL || {});
     /* 2. 动态层：稳健滤波（第一遍）+ BOCPD + 干预后重滤波
        机制：BOCPD 判定体制切换的场次的下一场，对 DLM 执行协方差膨胀干预，
        使水平估计快速跳到新体制，消除突变后的滞后偏差（West & Harrison 干预分析） */
-    var zObs = zs.map(function (d) { return { z: d.z, se: d.se }; });
+    /* 消融开关仅用于 research 回测：seWeighting=false 时给所有观测
+       相同标准误，检验参考人数带来的异方差权重是否真正有贡献。 */
+    var commonSe = opts.commonSe != null ? opts.commonSe : 0.10;
+    var zObs = zs.map(function (d) {
+      return { z: d.z, se: opts.seWeighting === false ? commonSe : d.se };
+    });
     var filt1 = PAL.dynamics.robustFilter(zObs, opts.filter);
     var cp = PAL.bocpd.run(zs.map(function (d) { return d.z; }), opts.bocpd);
     /* 干预门控：仅当「疑似断点之前存在已确立的体制」（MAP 游程≥5）
@@ -1112,11 +1120,13 @@ var PAL2NS = (window.PAL = window.PAL || {});
       discountMu: opts.filter && opts.filter.discountMu,
       discountBeta: opts.filter && opts.filter.discountBeta,
       df: opts.filter && opts.filter.df,
+      iters: opts.filter && opts.filter.iters,
       interventions: interventions,
       /* 证据门控趋势阻尼：仅当原始 z 序列存在显著趋势（E2 验证的
          Mann–Kendall 检验）时保留外推，否则完全放弃——真实回测显示
          无证据动量在均值回归下反向，φ=0 的 MAE 与方向均最优（§4.5） */
-      damping: mkRaw.valid && mkRaw.significant ? 0.7 : 0
+      damping: opts.trend === false ? 0 :
+        (mkRaw.valid && mkRaw.significant ? 0.7 : 0)
     });
     report.filter = filt;
     report.filterFirstPass = filt1;
@@ -1359,7 +1369,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
   }
 
   /* ---------- 状态 ---------- */
-  var S = { cur: "__total__", goalPct: 20, distBin: 5 };
+  var S = { cur: "__total__", goalPct: 20, distBin: 5, view: "band" };
   var REP = null; /* 当前报告缓存,供交互处理器使用 */
 
   /* ---------- 历史滚动预测回显 ---------- */
@@ -1379,67 +1389,219 @@ var PAL2NS = (window.PAL = window.PAL || {});
     return out;
   }
 
-  /* ---------- 下场位置概率分布(细度可切:2/3/5/10 个百分点一格) ---------- */
+  /* ---------- 下场位置概率分布(视图:名次段 / 发挥标尺 / 累计) ---------- */
+  function dViewChips() {
+    var views = [
+      { k: "band", t: "名次段" }, { k: "zmap", t: "发挥标尺" }, { k: "cum", t: "累计概率" }
+    ];
+    return '<span class="label">视图：</span>' +
+      views.map(function (v) {
+        return '<button type="button" class="' + chipCls(S.view === v.k) +
+          '" data-dsb-view="' + v.k + '">' + v.t + '</button>';
+      }).join('');
+  }
+  function dModeAndGoalMarks(rep, xOf, ihG) {
+    /* 最可能点(中位)与目标的虚线标注 */
+    var md = rep.nextExam ? rep.nextExam.medianPercentile : null;
+    var out = "";
+    if (md != null && md > 0.3 && md < 99.7) {
+      var mx = xOf(md);
+      out += '<line x1="' + mx.toFixed(1) + '" y1="4" x2="' + mx.toFixed(1) +
+        '" y2="' + (20 + ihG) + '" stroke="#4a90d9" stroke-width="1.2" stroke-dasharray="3 3" opacity=".8"/>' +
+        '<text x="' + (mx + 4).toFixed(1) + '" y="23" font-size="9" fill="#4a90d9">最可能 前' +
+        pct1(md) + '%</text>';
+    }
+    var gx = xOf(S.goalPct);
+    out += '<line x1="' + gx.toFixed(1) + '" y1="4" x2="' + gx.toFixed(1) +
+      '" y2="' + (20 + ihG) + '" stroke="#d4574e" stroke-width="1.4" stroke-dasharray="4 3"/>' +
+      '<text x="' + (gx + 4).toFixed(1) + '" y="13" font-size="9.5" fill="#d4574e">目标 前' +
+      S.goalPct + '%</text>';
+    return out;
+  }
   function distBlock(rep) {
     var pred = rep.filter.predictive;
     var W = 720, H = 158, padL = 30, padR = 10, padB = 18;
     var iw = W - padL - padR, ih = H - padB - 14;
+    var view = S.view || "band";
     var bin = S.distBin || 5;
     var B = Math.round(100 / bin), bw = iw / B;
-    var bars = "", labels = "";
-    var maxP = 0, probs = [];
-    for (var j = 0; j < B; j++) {
-      var a = j * bin, b = a + bin;
-      var za = probit(1 - b / 100), zb = probit(1 - a / 100);
-      var p = Math.max(0, C.tCdf((zb - pred.location) / pred.scale, pred.df) -
-        C.tCdf((za - pred.location) / pred.scale, pred.df));
-      probs.push(p); if (p > maxP) maxP = p;
-    }
-    for (j = 0; j < B; j++) {
-      var hgt = ih * (probs[j] / (maxP || 1));
-      var hiBand = (j + 1) * bin <= S.goalPct;
-      var bx = (padL + j * bw + 1).toFixed(1);
-      bars += '<rect x="' + bx + '" y="' + (20 + ih - hgt).toFixed(1) +
-        '" width="' + (bw - 2).toFixed(1) + '" height="' + Math.max(hgt, .5).toFixed(1) +
-        '" rx="2" fill="' + (hiBand ? '#4a90d9' : 'currentColor') +
-        '" opacity="' + (hiBand ? '.65' : '.22') + '"/>';
-      /* 每格概率标签:格子够宽或概率够大才标,避免拥挤 */
-      var pv = probs[j] * 100;
-      if (bw >= 22 || pv >= maxP * 100 * 0.35) {
-        var txt = (pv >= 9.95 ? pv.toFixed(0) : pv.toFixed(1)) + "%";
-        bars += '<text x="' + (padL + j * bw + bw / 2).toFixed(1) + '" y="' +
-          (16 + ih - hgt).toFixed(1) + '" font-size="8.2" text-anchor="middle" ' +
-          'fill="currentColor" opacity=".62">' + txt + "</text>";
-      }
-    }
-    /* 轴标:固定每10个百分点一个,带% */
-    var stepLbl = Math.max(bin, 10);
-    for (j = 0; j <= B; j += stepLbl / bin) {
-      labels += '<text x="' + (padL + j * bw).toFixed(1) + '" y="' + (H - 4) +
-        '" font-size="9" text-anchor="middle" fill="currentColor" opacity=".45">前' +
-        Math.round(j * bin) + '%</text>';
-    }
-    var gx = padL + iw * (S.goalPct / 100);
-    var marker = '<line x1="' + gx.toFixed(1) + '" y1="4" x2="' + gx.toFixed(1) +
-      '" y2="' + (20 + ih) + '" stroke="#d4574e" stroke-width="1.4" stroke-dasharray="4 3"/>' +
-      '<text x="' + (gx + 4).toFixed(1) + '" y="13" font-size="9.5" fill="#d4574e">目标 前' +
-      S.goalPct + '%</text>';
+    var svg = "", caption = "";
     var zT = probit(1 - S.goalPct / 100);
     var pGoal = P2.dynamics.probReach(pred, zT);
-    var binChips = [2, 3, 5, 10].map(function (bn) {
-      var act = bin === bn;
-      return '<button type="button" data-dsb-bin="' + bn + '" style="' +
-        'padding:2px 10px;font-size:11px;border-radius:999px;border:1px solid rgba(127,127,127,.35);' +
-        'background:' + (act ? 'rgba(127,127,127,.18)' : 'transparent') + ';color:inherit;' +
-        'cursor:pointer;opacity:' + (act ? 1 : .6) + '">每格' + bn + '%</button>';
-    }).join('');
-    return '<div style="display:flex;gap:5px;margin-bottom:4px">' + binChips +
-      '<span style="font-size:10.5px;opacity:.5;align-self:center">切换分布细度</span></div>' +
+    var md = rep.nextExam ? rep.nextExam.medianPercentile : null;
+
+    if (view === "zmap") {
+      /* 发挥标尺视图:横轴=标准分标尺,每根柱=相等的一段「发挥距离」,
+         柱高=该发挥段命中概率 → 柱与柱完全可比,峰即最可能点 */
+      var zTop = 4, zBot = -4, zRange = zTop - zBot;
+      var NB = 20, zBin = zRange / NB;
+      var xOfZ = function (z) { return padL + iw * (zTop - z) / zRange; };
+      var xOfP = function (p) {
+        var z = probit(1 - p / 100);
+        return clampX(xOfZ(z));
+      };
+      function clampX(x) { return Math.max(padL, Math.min(padL + iw, x)); }
+      var maxP2 = 0, zbars = [];
+      for (var kz = 0; kz < NB; kz++) {
+        var zA = zTop - kz * zBin, zB = zA - zBin; /* zA(高位) > zB(低位) */
+        var pMass = Math.max(0, C.tCdf((zA - pred.location) / pred.scale, pred.df) -
+          C.tCdf((zB - pred.location) / pred.scale, pred.df));
+        zbars.push({ p: pMass, x0: xOfZ(zA), x1: xOfZ(zB) });
+        if (pMass > maxP2) maxP2 = pMass;
+      }
+      var barsZ = "";
+      var goalZ = probit(1 - S.goalPct / 100);
+      for (kz = 0; kz < NB; kz++) {
+        var hg = ih * (zbars[kz].p / (maxP2 || 1));
+        var isGoal = zbars[kz].x1 >= xOfZ(goalZ) - .5; /* 柱的右侧(更好侧)达到目标线 */
+        barsZ += '<rect x="' + (zbars[kz].x0 + .5).toFixed(1) + '" y="' + (20 + ih - hg).toFixed(1) +
+          '" width="' + Math.max(zbars[kz].x1 - zbars[kz].x0 - 1, .8).toFixed(1) +
+          '" height="' + Math.max(hg, .6).toFixed(1) +
+          '" rx="1.5" fill="' + (isGoal ? '#4a90d9' : 'currentColor') +
+          '" opacity="' + (isGoal ? '.6' : '.22') + '"/>';
+        var pvZ = zbars[kz].p * 100;
+        if (pvZ >= 3.5) barsZ += '<text x="' + ((zbars[kz].x0 + zbars[kz].x1) / 2).toFixed(1) +
+          '" y="' + (16 + ih - hg).toFixed(1) + '" font-size="8" text-anchor="middle" ' +
+          'fill="currentColor" opacity=".6">' + pvZ.toFixed(1) + '%</text>';
+      }
+      /* 名次刻度:按各自在"发挥标尺"上的真实位置标注 */
+      var ticks = [0, 0.5, 1, 2.5, 5, 10, 20, 30, 50, 70, 90, 99.5, 100];
+      var labelsZ = "", prevX = null;
+      ticks.forEach(function (tk) {
+        var px = xOfP(tk);
+        if (px <= padL - .5 || px >= padL + iw + .5) return;
+        if (prevX !== null && px - prevX < 12) { prevX = px; return; }
+        prevX = px;
+        labelsZ += '<text x="' + px.toFixed(1) + '" y="' + (H - 4) +
+          '" font-size="8.2" text-anchor="middle" fill="currentColor" opacity=".45">前' +
+          (tk < 1 ? String(tk) : Math.round(tk)) + '%</text>';
+      });
+      var mdX = md != null ? clampX(xOfP(md)) : null;
+      var marksZ = "";
+      if (mdX !== null) {
+        marksZ += '<line x1="' + mdX.toFixed(1) + '" y1="4" x2="' + mdX.toFixed(1) +
+          '" y2="' + (20 + ih) + '" stroke="#4a90d9" stroke-width="1.2" stroke-dasharray="3 3" opacity=".8"/>' +
+          '<text x="' + Math.min(mdX + 4, W - 90).toFixed(1) + '" y="23" font-size="9" fill="#4a90d9">最可能 前' +
+          pct1(md) + '%</text>';
+      }
+      var gxZ = clampX(xOfP(S.goalPct));
+      marksZ += '<line x1="' + gxZ.toFixed(1) + '" y1="4" x2="' + gxZ.toFixed(1) +
+        '" y2="' + (20 + ih) + '" stroke="#d4574e" stroke-width="1.4" stroke-dasharray="4 3"/>' +
+        '<text x="' + (gxZ + 4).toFixed(1) + '" y="13" font-size="9.5" fill="#d4574e">目标 前' +
+        S.goalPct + '%</text>';
+      svg = barsZ + labelsZ + marksZ;
+      caption = '横轴=「发挥距离」标尺：同样 2 个名次点，越靠前对应的发挥距离越大（名次刻度按真实位置标注）。' +
+        '每根柱宽度 = <b>相等的一段发挥距离</b>，柱高 = 该发挥段的命中概率 —— 柱与柱完全可比，' +
+        '<span style="color:#4a90d9">最高柱=最可能点</span>。蓝色柱=达成目标前' + S.goalPct + '% 的区域';
+    } else if (view === "cum") {
+      /* 累计概率视图:曲线=「落到前X%以内」的总概率,直接读数 */
+      var cumPts = "", cumY = [], midY = null;
+      for (var cp = 0; cp <= 100; cp += 1) {
+        var zC = probit(1 - cp / 100);
+        var cum = 1 - C.tCdf((zC - pred.location) / pred.scale, pred.df);
+        var cyY = 20 + ih - ih * Math.min(Math.max(cum, 0), 1);
+        cumPts += (cp ? " L" : "M") + (padL + iw * cp / 100).toFixed(1) + "," + cyY.toFixed(1);
+        cumY.push(cum);
+      }
+      var cumSvg = '<path d="' + cumPts + '" fill="none" stroke="#4a90d9" stroke-width="1.8" opacity=".9"/>';
+      var gxCum = padL + iw * (S.goalPct / 100);
+      var cumGoal = cumY[S.goalPct];
+      var yGCum = 20 + ih - ih * cumGoal;
+      var gxC = gxCum + 4;
+      var marksCum =
+        '<line x1="' + gxCum.toFixed(1) + '" y1="4" x2="' + gxCum.toFixed(1) +
+        '" y2="' + (20 + ih) + '" stroke="#d4574e" stroke-width="1.3" stroke-dasharray="4 3"/>' +
+        '<line x1="' + gxCum.toFixed(1) + '" y1="' + yGCum.toFixed(1) + '" x2="' + (padL + iw + 30) +
+        '" y2="' + yGCum.toFixed(1) + '" stroke="#d4574e" stroke-width="1" stroke-dasharray="3 3" opacity=".7"/>' +
+        '<text x="' + gxC.toFixed(1) + '" y="13" font-size="9.5" fill="#d4574e">目标 前' + S.goalPct +
+        '% → ' + Math.round(cumGoal * 100) + '%</text>';
+      if (md != null) {
+        var mXC = padL + iw * md / 100;
+        var y50 = 20 + ih - ih * 0.5;
+        marksCum += '<line x1="' + mXC.toFixed(1) + '" y1="' + y50.toFixed(1) + '" x2="' + (padL + iw + 30) +
+          '" y2="' + y50.toFixed(1) + '" stroke="#4a90d9" stroke-width="1" stroke-dasharray="3 3" opacity=".6"/>' +
+          '<line x1="' + mXC.toFixed(1) + '" y1="4" x2="' + mXC.toFixed(1) + '" y2="' + (20 + ih) +
+          '" stroke="#4a90d9" stroke-width="1.1" stroke-dasharray="3 3" opacity=".8"/>' +
+          '<text x="' + (mXC + 4).toFixed(1) + '" y="23" font-size="9" fill="#4a90d9">' +
+          '曲线过半点 = 最可能 前' + pct1(md) + '%</text>';
+      }
+      var labelsCum = "";
+      [0, 10, 20, 25, 50, 75, 90, 100].forEach(function (tk) {
+        labelsCum += '<text x="' + (padL + iw * tk / 100).toFixed(1) + '" y="' + (H - 4) +
+          '" font-size="9" text-anchor="middle" fill="currentColor" opacity=".45">前' + tk + '%</text>';
+      });
+      svg = cumSvg + labelsCum + marksCum;
+      caption = '曲线 = 「落到前X%以内」的累计命中概率：在横轴找目标名次、沿竖线到曲线、再横着读概率（如考进前' + S.goalPct +
+        '% ≈ <b>' + Math.round(cumGoal * 100) + '%</b>）。曲线爬过 50% 横线的点 = 最可能点（' + (md != null ? '前' + pct1(md) + '%' : '—') + '）。';
+    } else {
+      /* 名次段视图(默认):柱=该名次段命中概率,柱高=柱顶数字;蓝色密度曲线峰=最可能点 */
+      var bars = "", labelsB = "", curve = "";
+      var maxP = 0, probs = [], dens = [];
+      for (var j = 0; j < B; j++) {
+        var a = j * bin, b = a + bin;
+        var za = probit(1 - b / 100), zb = probit(1 - a / 100);
+        var zw = Math.max(zb - za, 1e-9);
+        var p = Math.max(0, C.tCdf((zb - pred.location) / pred.scale, pred.df) -
+          C.tCdf((za - pred.location) / pred.scale, pred.df));
+        probs.push(p); dens.push({ d: p / zw, p: p });
+        if (p > maxP) maxP = p;
+      }
+      var cs = 1, maxCd = 0, cys = [];
+      for (var cj = 0; cj < 100 / cs; cj++) {
+        var ca = cj * cs, cb = ca + cs;
+        var cza = probit(1 - cb / 100), czb = probit(1 - ca / 100);
+        var cw = Math.max(czb - cza, 1e-9);
+        var cp2 = Math.max(0, C.tCdf((czb - pred.location) / pred.scale, pred.df) -
+          C.tCdf((cza - pred.location) / pred.scale, pred.df));
+        var cd = cp2 / cw;
+        cys.push(cd);
+        if (cd > maxCd) maxCd = cd;
+      }
+      for (cj = 0; cj < cys.length; cj++) {
+        var cyy = 20 + ih - ih * (cys[cj] / (maxCd || 1));
+        curve += (cj ? " L" : "M") + (padL + iw * ((cj * cs + cs / 2) / 100)).toFixed(1) + "," + cyy.toFixed(1);
+      }
+      var curveSvg = '<path d="' + curve + '" fill="none" stroke="#4a90d9" ' +
+        'stroke-width="1.6" opacity=".85"/>';
+      for (j = 0; j < B; j++) {
+        var hgt = ih * (probs[j] / (maxP || 1));
+        var bx = (padL + j * bw + 1).toFixed(1);
+        bars += '<rect x="' + bx + '" y="' + (20 + ih - hgt).toFixed(1) +
+          '" width="' + (bw - 2).toFixed(1) + '" height="' + Math.max(hgt, .5).toFixed(1) +
+          '" rx="2" fill="currentColor" opacity=".22"/>';
+        var pv = probs[j] * 100;
+        if (bw >= 22 || pv >= maxP * 100 * 0.35) {
+          var txt = (pv >= 9.95 ? pv.toFixed(0) : pv.toFixed(1)) + "%";
+          bars += '<text x="' + (padL + j * bw + bw / 2).toFixed(1) + '" y="' +
+            (16 + ih - hgt).toFixed(1) + '" font-size="8.2" text-anchor="middle" ' +
+            'fill="currentColor" opacity=".62">' + txt + "</text>";
+        }
+      }
+      var stepLbl = Math.max(bin, 10);
+      for (j = 0; j <= B; j += stepLbl / bin) {
+        labelsB += '<text x="' + (padL + j * bw).toFixed(1) + '" y="' + (H - 4) +
+          '" font-size="9" text-anchor="middle" fill="currentColor" opacity=".45">前' +
+          Math.round(j * bin) + '%</text>';
+      }
+      var xOfPct = function (p) { return padL + iw * p / 100; };
+      svg = bars + curveSvg + labelsB + dModeAndGoalMarks(rep, xOfPct, ih);
+      caption = '柱子 = 该名次段的命中概率（柱高=柱顶数字）；<b style="color:#4a90d9">蓝色曲线</b> = 概率密度，峰即<b>最可能点</b>（蓝色虚线处）。' +
+        '命中前' + S.goalPct + '% 的概率 ≈ <b>' + Math.round(pGoal * 100) + '%</b>';
+    }
+    var binChips = view === "band"
+      ? [2, 3, 5, 10].map(function (bn) {
+        return '<button type="button" class="' + chipCls(bin === bn) +
+          '" data-dsb-bin="' + bn + '">每格' + bn + '%</button>';
+      }).join('')
+      : "";
+    return '<div class="combo-chips-v25" style="margin-bottom:8px">' + dViewChips() +
+      (view === "band"
+        ? '<span class="label">细度：</span>' + binChips
+        : '<span class="label" style="opacity:.55">视图间可切换</span>') +
+      '</div>' +
       '<svg viewBox="0 0 ' + W + " " + H + '" style="width:100%;max-width:760px;display:block;color:inherit">' +
-      bars + labels + marker + "</svg>" +
-      '<div style="font-size:11px;opacity:.6;margin-top:2px">下一场落点概率（每格 ' + bin +
-      ' 个百分点）。<span style="color:#4a90d9">蓝色格子</span> = 达成目标的区域；合计考进前' + S.goalPct +
-      '% 的概率 ≈ <b>' + Math.round(pGoal * 100) + '%</b>。</div>';
+      svg + "</svg>" +
+      '<div class="dsb-fig-cap">' + caption + '</div>';
   }
   function renderDistInto() {
     var wrap = $("#dsbDistWrap");
@@ -1601,8 +1763,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
       'border:1px solid rgba(127,127,127,.35);background:transparent;color:inherit;cursor:pointer">算概率</button>' +
       '<span id="dsbGoalOut" style="font-size:15px;font-weight:700"></span></div></div>' +
       '</div>' +
-      '<div style="font-size:12.5px;opacity:.78;margin-top:10px;line-height:1.8">' +
-      '<b>怎么读这张卡：</b>你的稳定水平大约在<b>前 ' + pct1(pc(mu)) + '%</b>；下次考试大概率落在' +
+      '<div class="dsb-tip"><b>怎么读这张卡：</b>你的稳定水平大约在<b>前 ' + pct1(pc(mu)) + '%</b>；下次考试大概率落在' +
       '<span style="color:#4a90d9">前' + pct0(ne.ci95Percentile[0]) + '% ~ 前' +
       pct0(ne.ci95Percentile[1]) + '%</span>之间。下方竖须就是过去每次「当时预测 vs 实际结果」；' +
       '点开「📋 怎么算的？」可查看本页每个数字的计算过程。</div>';
@@ -1670,22 +1831,25 @@ var PAL2NS = (window.PAL = window.PAL || {});
       inlineLbl += '<text x="' + (padL + 4) + '" y="' + (padT + ih - 4) +
         '" font-size="8.6" fill="currentColor" opacity=".45">阴影带=水平估计范围(非预测区间)</text>';
     }
-    /* 预测扇区:按概率密度分档着色(越可能越深),外接95%框 */
+    /* 预测扇区:按概率密度(每格概率÷该格换算宽度)分档着色,越接近最可能点越深 */
     var ne = rep.nextExam;
     var pred = rep.filter.predictive;
     var fx0 = xOf(n - 1), fx1 = xOf(n - 1) + futW, fw = futW - 4;
     var fanBins = 24, fanHtml = "";
     var yLo = Math.max(0.5, ne.ci95Percentile[0] - 8), yHi = Math.min(99.5, ne.ci95Percentile[1] + 8);
-    var spanB = (yHi - yLo) / fanBins, maxPb = 0, probs2 = [];
+    var spanB = (yHi - yLo) / fanBins, maxPb = 0, probs2 = [], zw2 = [];
     for (var fb = 0; fb < fanBins; fb++) {
       var pa = yLo + fb * spanB, pb = pa + spanB;
       var za = probit(1 - pb / 100), zb = probit(1 - pa / 100);
+      var zw = Math.max(zb - za, 1e-9);
       var pp = Math.max(0, C.tCdf((zb - pred.location) / pred.scale, pred.df) -
         C.tCdf((za - pred.location) / pred.scale, pred.df));
-      probs2.push(pp); if (pp > maxPb) maxPb = pp;
+      probs2.push(pp); zw2.push(zw);
+      var dd2 = pp / zw;
+      if (dd2 > maxPb) maxPb = dd2;
     }
     for (fb = 0; fb < fanBins; fb++) {
-      var rel = maxPb > 0 ? probs2[fb] / maxPb : 0;
+      var rel = maxPb > 0 ? (probs2[fb] / zw2[fb]) / maxPb : 0;
       if (rel < 0.04) continue;
       var ya = padT + ih * ((yLo + fb * spanB) / 100);
       var yb = padT + ih * ((yLo + (fb + 1) * spanB) / 100);
@@ -1878,13 +2042,13 @@ var PAL2NS = (window.PAL = window.PAL || {});
     }
     var caliberNote = '';
     if (combo) {
-      caliberNote = '<div style="font-size:11px;opacity:.6;margin:-6px 0 10px">当前口径：组合「<b>' +
-        esc(combo.name) + '</b>」 · 序列=你为组合填写的「组合年排」；未填写时若该场总分=该组合（如六科组合），则沿用总分排名</div>';
+      caliberNote = '<p class="dsb-caliber" style="margin:-4px 0 10px">当前口径：组合「<b>' +
+        esc(combo.name) + '</b>」 · 序列=你为组合填写的「组合年排」；未填写时若该场总分=该组合（如六科组合），则沿用总分排名</p>';
     } else if (S.cur === '__total__' && caliber && caliber.kind === 'combo') {
-      caliberNote = '<div style="font-size:11px;opacity:.6;margin:-6px 0 10px">' +
+      caliberNote = '<p class="dsb-caliber" style="margin:-4px 0 10px">' +
         '⚠ 总分参与人数(' + caliber.totalN + ') ≤ 单科最大池(' + caliber.maxSubN +
         ')——疑似<b>组合内排名</b>而非全年级。组合口径衡量你在同选科群体中的位置，与年级口径含义不同；' +
-        '系统按录入原样分析，解读时注意口径。</div>';
+        '系统按录入原样分析，解读时注意口径。</p>';
     }
 
     var body;
@@ -1911,27 +2075,31 @@ var PAL2NS = (window.PAL = window.PAL || {});
           ? '竖须=过去每场「当时的预测区间」（绿=实际落内、<span style="color:#d4574e">红叉</span>=失手，命中 ' +
             hitN + '/' + hist.length + '）· 竖须上蓝点=当时认为最可能的位置 · '
           : '';
-        body = mainCard(rep, obs.length) +
-          '<div style="margin:12px 0 2px">' + trajectorySvg(rep, obs, hist) +
-          '<div style="font-size:10.5px;opacity:.55;margin-top:2px">灰点=每场实际位比（<span style="color:#2e9e6b">绿圈</span>=落在当时预测区间内） · 蓝线=滤波真实水平 · 阴影带=水平估计的可信范围（<b>不是</b>预测区间，预测区间是更宽的竖须） · 右侧色阶扇区=下场落点概率（越深越可能） · ' +
-          histNote + '</div></div>' +
-          '<div id="dsbDistWrap" style="border-top:1px dashed rgba(127,127,127,.25);margin-top:10px;padding-top:10px">' +
-          distBlock(rep) + '</div>' +
-          '<div style="border-top:1px dashed rgba(127,127,127,.25);margin-top:10px;padding-top:8px">' +
-          '<div style="font-size:12.5px;font-weight:600;margin-bottom:4px">本 期 洞 察</div>' +
-          insightsList(rep, obs.length) + '</div>' +
-          '<div style="margin-top:6px">' +
+        var trajCap = '灰点=每场实际位比（<span style="color:#2e9e6b">绿圈</span>=落在当时预测区间内） · 蓝线=滤波真实水平 · ' +
+          '阴影带=水平估计的可信范围（<b>不是</b>预测区间，预测区间是更宽的竖须） · ' +
+          '右侧色阶扇区=下场落点概率密度（越深越接近最可能点，即蓝色虚线处） · ' + histNote;
+        body = '<div class="dsb-block-title">下一场预测（主结论）</div>' +
+          mainCard(rep, obs.length) +
+          '<div class="dsb-block-title">本 期 洞 察</div>' +
+          insightsList(rep, obs.length) +
+          '<div class="dsb-fig" style="margin-top:14px"><div class="dsb-fig-title">排名轨迹与预测区间</div>' +
+          trajectorySvg(rep, obs, hist) +
+          '<div class="dsb-fig-cap">' + trajCap + '</div></div>' +
+          '<div class="dsb-fig" style="margin-top:12px"><div class="dsb-fig-title">下一场落点分布</div>' +
+          '<div id="dsbDistWrap">' + distBlock(rep) + '</div></div>' +
+          '<div class="dsb-block-title">算法细节（点开查看各自推导）</div>' +
+          '<div class="dsb-grid2">' +
           trendDetails(rep) + signalsDetails(rep) + difficultyDetails(rep) +
           calcDetails(rep, obs) + '</div>';
       }
     }
 
     return '<div id="dsbRoot" class="card" style="padding:16px 18px;margin-top:14px">' +
-      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">' +
+      '<div class="dsb-head">' +
       '<span style="font-size:15px;font-weight:700">⑨ 深度分析</span>' +
       '<sup style="font-size:9.5px;opacity:.55">Beta</sup>' +
-      '<span style="font-size:10.5px;opacity:.5;margin-left:auto">研究版统计算法 · 点开下方条目查看推导</span></div>' +
-      '<div style="margin:2px 0 12px">' +
+      '<span class="dsb-note">研究版统计算法 · 所有数字都可展开看推导 · ⓘ 数据实时在本机计算</span></div>' +
+      '<div style="margin:2px 0 10px">' +
       (comboList().length ? '<div class="combo-chips-v25">' + comboChipsHtml(combo) + '</div>' : '') +
       '<div class="combo-chips-v25"><span class="label">单科：</span>' + chips + '</div>' +
       '</div>' +
@@ -1955,6 +2123,12 @@ var PAL2NS = (window.PAL = window.PAL || {});
     var binChip = t.closest("[data-dsb-bin]");
     if (binChip) {
       S.distBin = parseInt(binChip.getAttribute("data-dsb-bin"), 10) || 5;
+      renderDistInto();
+      return;
+    }
+    var viewChip = t.closest("[data-dsb-view]");
+    if (viewChip) {
+      S.view = viewChip.getAttribute("data-dsb-view") || "band";
       renderDistInto();
       return;
     }
@@ -2006,7 +2180,28 @@ var PAL2NS = (window.PAL = window.PAL || {});
       '#dsbRoot summary:hover{opacity:1}' +
       '#dsbRoot details{border-top:1px dashed rgba(127,127,127,.22)}' +
       '#dsbRoot details[open]>summary:before{content:"▾ "}' +
-      '#dsbRoot summary:before{content:"▸ "}';
+      '#dsbRoot summary:before{content:"▸ "}' +
+      '/* ---- 排版(与统计页卡片体系统一,主题可变) ---- */' +
+      '#dsbRoot .dsb-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}' +
+      '#dsbRoot .dsb-note{margin-left:auto;font-size:10.5px;opacity:.5;text-align:right}' +
+      '#dsbRoot .dsb-block-title{font-size:12.5px;font-weight:700;margin:14px 0 8px;letter-spacing:1px;opacity:.85}' +
+      '#dsbRoot .dsb-grid2{display:grid;gap:12px}' +
+      '@media(min-width:900px){#dsbRoot .dsb-grid2{grid-template-columns:1fr 1fr}}' +
+      '#dsbRoot .dsb-fig{border:1px solid var(--line,#e8ebf0);border-radius:14px;padding:12px 14px;' +
+      'background:var(--panel-solid,#fff);min-width:0}' +
+      '#dsbRoot .dsb-fig-title{font-size:12.5px;font-weight:700;margin-bottom:6px;opacity:.9}' +
+      '#dsbRoot .dsb-fig-cap{font-size:10.5px;opacity:.55;margin-top:4px;line-height:1.65}' +
+      '#dsbRoot .dsb-tip{font-size:12.5px;line-height:1.85;opacity:.78;margin-top:12px;' +
+      'border:1px dashed var(--line,#cfd6e4);border-radius:12px;padding:10px 13px;background:var(--chip-bg,#fbfcfe)}' +
+      '#dsbRoot .combo-chips-v25 .label{font-size:12px;font-weight:700;color:var(--muted,#667085);' +
+      'white-space:nowrap;align-self:center}' +
+      '#dsbRoot .combo-chips-v25 .chip{flex:0 0 auto}' +
+      '#dsbRoot .dsb-caliber{font-size:11px;opacity:.6;margin:-4px 0 10px;line-height:1.7}' +
+      '/* ---- 暗色主题:同款结构提亮,避免颜色过深 ---- */' +
+      'html[data-theme="night"] #dsbRoot .dsb-fig{background:var(--panel-solid,#161c26)}' +
+      'html[data-theme="night"] #dsbRoot .dsb-tip{background:rgba(29,36,49,.5);border-color:rgba(140,150,170,.3)}' +
+      'html[data-theme="night"] #dsbRoot .combo-chips-v25 .label{color:#aab4c8}' +
+      'html[data-theme="night"] #dsbRoot .dsb-fig-cap,html[data-theme="night"] #dsbRoot .dsb-note{opacity:.7}';
     document.head.appendChild(st);
   }
   function pageIsStats() {

@@ -130,7 +130,7 @@ function persistGoal(){
   ".goal-hero-v33:active{transform:translateY(1px)}"
   ".gh-main-v33{flex:1;min-width:0}.gh-title-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}"
   ".gh-title{font-size:13.5px;font-weight:750}.gh-hint{font-size:11px;color:var(--muted,#788392)}"
-  ".gh-chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}.gh-chips::-webkit-scrollbar{display:none}"
+  ".gh-chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;touch-action:pan-x;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;cursor:grab}.gh-chips::-webkit-scrollbar{display:none}"
   ".gh-chip{flex:0 0 auto;border:1px solid var(--line,#e8ebf0);background:var(--panel-solid,#fff);border-radius:13px;padding:8px 11px;min-width:84px;cursor:pointer}"
   ".gh-chip small{display:block;font-size:10.5px;color:var(--muted,#788392)}.gh-chip b{font-size:15px;font-variant-numeric:tabular-nums}.gh-chip em{display:block;font-style:normal;font-size:10.5px;margin-top:1px}"
   ".gh-chip.ok em{color:var(--green,#32a77a)}.gh-chip.no em{color:var(--danger,#d9534f)}.gh-chip.na{opacity:.55}.gh-chip.na em{color:var(--muted,#788392)}"
@@ -229,6 +229,16 @@ function renderHomeCard(mount){
     +(recent.has?("最近总分 "+recent.sum+(tg!=null?" / 目标 "+tg:"")+" · 取各科最近成绩合计（缺考科目不计）"):"尚未有出分记录")+"</span></div></div>"
     +(side?'<div class="gh-side">'+side+"</div>":"");
   hero.insertAdjacentElement("afterend",card);
+  try{
+    /* 手机端:chips 超出即提示可左右滑(并保证横滑不会被整体点击吃掉) */
+    var cw=$(".gh-chips",card);
+    if(cw&&cw.scrollWidth>cw.clientWidth+6){
+      var ht=$(".gh-hint",card);if(ht)ht.textContent="左右滑看各科 · 点卡片编辑";
+      cw.scrollLeft=0;
+    }
+  }catch(e){
+    /* 提示可有可无,不阻塞渲染 */
+  }
 }
 function SUB_TOTALS(){
   var subs=activeSubjects(),sum=0,has=false;
