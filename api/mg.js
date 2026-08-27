@@ -26,7 +26,8 @@ const CLIENT_PATCH_V13 = `<script id="mg-client-v13">
       /* 游客行保持可见(只留空深度分)——此前隐藏游客导致"63/63 条却显示不完" */
       var cell=tr.querySelector('.fb-depth-v13');
       if(cell){cell.textContent=uname?(depthOf13(uname)||'-'):'-';return;}
-      var ntd=document.createElement('td');ntd.className='fb-depth-v13';ntd.setAttribute('data-label','深度分');ntd.textContent=uname?(depthOf13(uname)||'-'):'-';
+      var ntd=document.createElement('td');ntd.className='fb-depth-v13';ntd.setAttribute('data-label','深度分');ntd.title='深度分 = 创建考试数×3 + 活跃天数×2';
+      ntd.textContent=uname?(depthOf13(uname)||'-'):'-';
       userTd.insertAdjacentElement('afterend',ntd);
     });
   }
@@ -46,12 +47,40 @@ const CLIENT_PATCH_V13 = `<script id="mg-client-v13">
   function colIndex13(thead,re){var i=-1;thead.querySelectorAll('th').forEach(function(th,j){if(i<0&&re.test(th.textContent||''))i=j;});return i;}
   function num13(tr,i){var c=tr.children[i];var m=(c?c.textContent:'').match(/\d+(\.\d+)?/);return m?parseFloat(m[0]):0;}
   function ts13(tr,i){var c=tr.children[i];var t=c?c.textContent.trim():'';var p=Date.parse(t.replace(/年|月/g,'-').replace(/日/g,' '));return isNaN(p)?0:p;}
+  function depthVal13(n){var r=DEPTH13[String(n||'').trim()];return (r&&r.depth_score!=null)?Number(r.depth_score)||0:0;}
+  /* 用户表也补「深度分」列(与反馈表同款)——否则按深度分排序找不到列,下拉选了没反应 */
+  function enhanceUsersColumns(){
+    var z=document.querySelector('#v-users');if(!z)return;
+    var thead=z.querySelector('.t thead');if(!thead)return;
+    if(colIndex13(thead,/深度/)>-1)return; /* 上游已带该列 */
+    var userTh=null;
+    thead.querySelectorAll('th').forEach(function(th){if(!userTh&&/用户|昵称/.test(th.textContent||''))userTh=th;});
+    if(userTh){var dth=document.createElement('th');dth.className='fb-depth-v13';dth.textContent='深度分';userTh.insertAdjacentElement('afterend',dth);}
+    z.querySelectorAll('.t tbody tr').forEach(function(tr){
+      var tds=tr.querySelectorAll('td');if(!tds.length)return;
+      var userTd=null;
+      tds.forEach(function(td){var lb=String(td.getAttribute('data-label')||'');if(!userTd&&/用户|昵称/.test(lb))userTd=td;});
+      if(!userTd)tds.forEach(function(td){var nm=String(td.textContent||'').trim();if(!userTd&&DEPTH13[nm])userTd=td;});
+      if(!userTd)userTd=tds[1]||tds[0];
+      if(tr.querySelector('.fb-depth-v13'))return;
+      var uname=(userTd.textContent||'').trim();
+      var ntd=document.createElement('td');ntd.className='fb-depth-v13';ntd.setAttribute('data-label','深度分');ntd.title='深度分 = 创建考试数×3 + 活跃天数×2';
+      ntd.textContent=uname?(depthOf13(uname)||'-'):'-';
+      userTd.insertAdjacentElement('afterend',ntd);
+    });
+  }
   function applyUsers13(){
     var z=document.querySelector('#v-users');if(!z)return;
     var tb=z.querySelector('.t tbody'),thead=z.querySelector('.t thead');if(!tb||!thead)return;
     var nameI=colIndex13(thead,/用户|昵称/),depI=colIndex13(thead,/深度/),seenI=colIndex13(thead,/上线|last/i);
     var trs=[].slice.call(tb.querySelectorAll('tr'));
-    if(USER13.sort==='depth'&&depI>-1)trs.sort(function(a,b){return num13(b,depI)-num13(a,depI);});
+    if(USER13.sort==='depth'){
+      if(depI>-1)trs.sort(function(a,b){return num13(b,depI)-num13(a,depI);});
+      else{ /* 兜底:无深度列时按用户名从映射取深度分 */
+        var nI=nameI>-1?nameI:0;
+        trs.sort(function(a,b){return depthVal13(b.children[nI]?b.children[nI].textContent:'')-depthVal13(a.children[nI]?a.children[nI].textContent:'');});
+      }
+    }
     else if(USER13.sort==='seen'&&seenI>-1)trs.sort(function(a,b){return ts13(b,seenI)-ts13(a,seenI);});
     trs.forEach(function(tr){tb.appendChild(tr);});
     trs.forEach(function(tr){
@@ -61,7 +90,9 @@ const CLIENT_PATCH_V13 = `<script id="mg-client-v13">
     });
   }
   function enhanceUsers13(){
-    var z=document.querySelector('#v-users');if(!z||z.querySelector('.u-toolbar-v13'))return;
+    var z=document.querySelector('#v-users');if(!z)return;
+    try{enhanceUsersColumns();}catch(e){}
+    if(z.querySelector('.u-toolbar-v13'))return;
     var bar=document.createElement('div');bar.className='mg-filter-v12 u-toolbar-v13';
     bar.innerHTML='<input class="u-search-v13" placeholder="查找用户…" style="min-width:150px;padding:8px 9px">'
       +'<select class="u-sort-v13" style="padding:8px 9px"><option value="default">默认顺序</option><option value="depth">按深度分</option><option value="seen">最近上线</option></select>';
