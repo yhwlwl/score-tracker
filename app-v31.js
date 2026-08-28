@@ -56,7 +56,15 @@ function injectStylesV31(){
     '.trend-legend-row-v25 .lg-hint-v31{margin-left:4px}',
     '.overview-legend{display:flex;gap:12px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;touch-action:pan-x;padding-bottom:2px}',
     '.overview-legend::-webkit-scrollbar{display:none}',
-    '.overview-legend .lg-hint-v31{margin-left:2px;flex:none}'
+    '.overview-legend .lg-hint-v31{margin-left:2px;flex:none}',
+    /* 手机端:图表容器统一可横滑(与其它视图一致;覆盖 mobile-fix 的 overflow:hidden) */
+    '@media(max-width:720px){' +
+      '.chart-wrap,.rank-chart-stage-v7,.overview-stage-v5{overflow-x:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x;overscroll-behavior-x:contain}' +
+      '.chart-wrap svg,.rank-chart-stage-v7 svg,.overview-stage-v5 svg{min-width:560px}' +
+      '.rank-legend-v7{display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;padding:0 0 6px;scrollbar-width:none;-webkit-overflow-scrolling:touch;touch-action:pan-x;overscroll-behavior-x:contain}' +
+      '.rank-legend-v7::-webkit-scrollbar{display:none}' +
+      '.rank-legend-v7 .label{margin-left:14px}' +
+    '}'
   ].join('\n');
   var st=document.createElement('style');
   st.id='app-v31-style';

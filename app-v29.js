@@ -145,7 +145,7 @@
     '.module-delete-v18{background:var(--chip-bg,#fff)}',
     '.module-subject-v18{background:var(--chip-bg,#fff);color:var(--muted)}',
     /* ---- 图例可点击的可见暗示 ---- */
-    '.legend span::after,.overview-legend .overview-pill::after,.rank-legend-v7 span::after{content:"🎨";font-size:9px;margin-left:4px;opacity:.45;transition:opacity .15s ease}',
+    '.legend:not(.sv31-nopalette) span::after,.overview-legend:not(.sv31-nopalette) .overview-pill::after,.rank-legend-v7:not(.sv31-nopalette) span::after{content:"🎨";font-size:9px;margin-left:4px;opacity:.45;transition:opacity .15s ease}',
     '.legend span:hover::after,.overview-legend .overview-pill:hover::after,.rank-legend-v7 span:hover::after{opacity:1}',
     '.lg-custom-v29::after{content:"✎";font-size:9px;color:var(--muted);margin-left:2px;opacity:.95}'
   ].join('\n');
