@@ -3,12 +3,27 @@ const METRICS_UPSTREAM = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/
 const CLIENT_PATCH_V13 = `<script id="mg-client-v13">
 (function(){
   if(window.__mgV13)return;window.__mgV13=1;
-  var DEPTH13={};
+  var DEPTH13={},DEPTH13_READY=false; /* READY=true 且映射非空才覆盖显示,避免把旧值顶成「-」 */
   function loadDepth13(){
     var call=(typeof api==='function')?api('users'):Promise.resolve({rows:[]});
-    return call.then(function(u){DEPTH13={};(u.rows||[]).forEach(function(r){if(r.username)DEPTH13[r.username]=r;});}).catch(function(){});
+    return call.then(function(u){
+      DEPTH13={};
+      (u.rows||[]).forEach(function(r){
+        ['username','original_username','name','display_name','nickname','user_name'].forEach(function(k){
+          if(r&&r[k])DEPTH13[String(r[k])]=r;
+        });
+      });
+      DEPTH13_READY=true;
+    }).catch(function(e){console.warn('[mg-v13] users 数据加载失败,深度分保持原值:',e&&e.message||e);});
   }
   function depthOf13(name){var r=DEPTH13[name];if(!r)return '';return String(r.depth_score!=null?r.depth_score:'');}
+  function setDepthTd(td,uname){
+    if(!td||!DEPTH13_READY)return;                 /* 源数据未就绪:不覆盖(保留上游原值)   */
+    var v=uname?depthOf13(uname):'';
+    td.title='深度分 = 创建考试数×3 + 活跃天数×2';
+    if(v)td.textContent=v;
+    else if(td.textContent===''||td.textContent==='—')td.textContent='-';
+  }
   function enhanceFeedback13(){
     var zone=document.querySelector('#v-feedback');if(!zone)return;
     var thead=zone.querySelector('.t thead');
@@ -25,7 +40,8 @@ const CLIENT_PATCH_V13 = `<script id="mg-client-v13">
       var uname=(userTd.textContent||'').trim();
       /* 游客行保持可见(只留空深度分)——此前隐藏游客导致"63/63 条却显示不完" */
       var cell=tr.querySelector('.fb-depth-v13');
-      if(cell){cell.textContent=uname?(depthOf13(uname)||'-'):'-';return;}
+      if(cell){setDepthTd(cell,uname);return;}
+      if(!DEPTH13_READY)return; /* 数据没就绪不补列,避免满屏「-」 */
       var ntd=document.createElement('td');ntd.className='fb-depth-v13';ntd.setAttribute('data-label','深度分');ntd.title='深度分 = 创建考试数×3 + 活跃天数×2';
       ntd.textContent=uname?(depthOf13(uname)||'-'):'-';
       userTd.insertAdjacentElement('afterend',ntd);
@@ -60,9 +76,7 @@ const CLIENT_PATCH_V13 = `<script id="mg-client-v13">
         var uname=null;
         if(nI>-1)uname=(tr.children[nI]?tr.children[nI].textContent:'').trim();
         if(!uname)tr.querySelectorAll('td').forEach(function(c){var lb=String(c.getAttribute('data-label')||'');if(!uname&&/用户|昵称/.test(lb))uname=(c.textContent||'').trim();});
-        var v=uname?(depthOf13(uname)||'-'):'-';
-        td.title='深度分 = 创建考试数×3 + 活跃天数×2';
-        if(td.textContent!==v)td.textContent=v;
+        setDepthTd(td,uname);
       });
       return;
     }
