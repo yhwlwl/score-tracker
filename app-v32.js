@@ -758,18 +758,15 @@ function trendHtmlV32(f,mode){
   var ts=f.totalSeries;
   var sub=mode==="rank"?"试卷难度不同,排名依然公平":"圆点 = 该科这张卷偏难。看分数起伏时请结合圆点。";
   var hasCls=ts.some(function(x){return x.cls!==null;});
-  var tline=(typeof state!=="undefined"&&state.sv31&&state.sv31.tline&&state.sv31.tline.rank)||[true,true];
   var paneRank="",paneScore="";
   if(f.scopeMissing){
     paneRank='<p class="card-sub">该口径没有填写过排名,排名走势线暂不显示 —— 在考试录入弹窗补填「组合年排/班排」或科目排名后出现。</p>';
   }else if(ts.length>=2){
     var labels=ts.map(function(x){return shortName32(x.name);});
     var lines=[];
-    if(tline[0])lines.push({vals:ts.map(function(x){return 100-x.pos;}),color:"var(--accent,#5d72e8)"});
-    if(hasCls&&tline[1])lines.push({vals:ts.map(function(x){return x.cls===null?null:100-x.cls;}),color:"var(--green,#32a77a)",dash:true});
-    paneRank=lines.length
-      ?lineSvgV32(lines,labels,{tickLabel:function(v){return "前"+clamp32(Math.round(100-v),0,99)+"%";}})
-      :'<p class="card-sub">两条线都被隐藏 —— 点击上方图例可恢复显示。</p>';
+    lines.push({vals:ts.map(function(x){return 100-x.pos;}),color:"var(--accent,#5d72e8)"});
+    if(hasCls)lines.push({vals:ts.map(function(x){return x.cls===null?null:100-x.cls;}),color:"var(--green,#32a77a)",dash:true});
+    paneRank=lineSvgV32(lines,labels,{tickLabel:function(v){return "前"+clamp32(Math.round(100-v),0,99)+"%";}});
     var sc=ts.filter(function(x){return x.score!==null;});
     if(sc.length>=2){
       var idxMap={};sc.forEach(function(x,k){idxMap[x.i]=k;});
@@ -797,9 +794,9 @@ function trendHtmlV32(f,mode){
     +'<div class="sv31-seg sv31-tabs"><button class="'+(mode==="rank"?"active":"")+'" data-sv31-tab="rank">排名走势</button>'
     +'<button class="'+(mode==="score"?"active":"")+'" data-sv31-tab="score">分数参考</button></div></div>'
     +'<div class="legend" style="margin-bottom:8px">'
-    +'<span class="sv31-legend-t'+(tline[0]?"":" off")+'" data-sv31-tline="0" title="点击显示/隐藏该线">'
+    +'<span class="sv31-legend-t" title="点击打开:显示/颜色">'
     +'<i style="background:var(--accent,#5d72e8)"></i>年级排名</span>'
-    +(hasCls?'<span class="sv31-legend-t'+(tline[1]?"":" off")+'" data-sv31-tline="1" title="点击显示/隐藏该线">'
+    +(hasCls?'<span class="sv31-legend-t" title="点击打开:显示/颜色">'
       +'<i style="background:var(--green,#32a77a)"></i>班级排名</span>':"")+"</div>"
     +'<div class="sv31-pane'+(mode==="rank"?" on":"")+'" data-pane="rank">'+(paneRank||(f.posCount===0
       ?'<p class="card-sub">这些考试没录名次,排名走势暂时是空的——已自动切到「分数参考」。下次补录「名次 + 总人数」即可解锁。</p>'
@@ -1202,7 +1199,7 @@ function matrixSectionHtmlV32(f,mode){
   return '<div class="card"><div class="card-title-row">'
     +'<div><h3 class="card-title">⑧ 全量统计矩阵</h3><p class="card-sub" id="sv31HeatSub">'
     +(mode==="rank"?"数字越小、颜色越深 = 名次越好":"得分率仅在同一张卷子内可比;圆点 = 这科这次偏难/偏易")
-    +'</p></div><div class="legend"><span><span class="sv31-dot" style="background:#d95c5c"></span>这科这次偏难</span>'
+    +'</p></div><div class="legend sv31-nopalette"><span><span class="sv31-dot" style="background:#d95c5c"></span>这科这次偏难</span>'
     +'<span><span class="sv31-dot" style="background:#e59b45"></span>偏难(关注)</span>'
     +'<span><span class="sv31-dot" style="background:#32a77a"></span>偏易</span></div></div>'
     +(rowsHtml?'<div class="sv31-scroll"><table class="sv31-heat"><thead>'+head+"</thead><tbody>"+rowsHtml+"</tbody></table></div>"
@@ -1352,7 +1349,7 @@ function injectStylesV32(){
     ".sv31-tag{font-size:11px;font-weight:800;color:var(--accent,#5d72e8);background:var(--accent-soft,#eef1ff);border-radius:999px;padding:5px 10px;white-space:nowrap}",
     ".sv31-legend-t{cursor:pointer;user-select:none;padding:2px 7px;border-radius:7px;transition:opacity .15s}",
     ".sv31-legend-t:hover{background:var(--chip-bg,#f1f3f8)}",
-    ".sv31-legend-t.off{opacity:.4;text-decoration:line-through}",
+    ".sv31-legend-t.lg-hide-v29{text-decoration:line-through}",
     ".sv31-evib[hidden],.sv31-evbody[hidden]{display:none!important}",
     ".sv31-g2{display:grid;grid-template-columns:1fr;gap:16px}@media(min-width:900px){.sv31-g2{grid-template-columns:1fr 1fr}}",
     ".sv31-ext-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}@media(min-width:760px){.sv31-ext-grid{grid-template-columns:repeat(4,1fr)}}",
@@ -1524,6 +1521,8 @@ function routeStatsV32(){
   var sy=window.pageYOffset||0;
   c.innerHTML=statsPageV32(f);
   try{bindStatsV32(f,c.firstElementChild);}catch(e){}
+  /* 渲染后让 v29 图例取色/显隐对统计页图表生效(图二/图三换色与勾选显示) */
+  try{if(window.__v29&&window.__v29.afterRender)window.__v29.afterRender();}catch(e){}
   window.scrollTo(0,sy);
 }
 function rerenderStatsV32(){
@@ -1534,15 +1533,6 @@ function bindStatsV32(f,root){
     var t=e.target;
     var sc=t.closest("[data-sv31-scope]");
     if(sc){state.sv31.scope=sc.getAttribute("data-sv31-scope");rerenderStatsV32();return;}
-    var tln=t.closest("[data-sv31-tline]");
-    if(tln){
-      try{
-        state.sv31.tline=state.sv31.tline||{rank:[true,true],score:[true,true]};
-        var li=+tln.getAttribute("data-sv31-tline");
-        if(li>=0&&li<=1)state.sv31.tline.rank[li]=!state.sv31.tline.rank[li];
-      }catch(e){}
-      rerenderStatsV32();return;
-    }
     var evi=t.closest("[data-sv31-evi]");
     if(evi){
       var eb=evi.nextElementSibling;

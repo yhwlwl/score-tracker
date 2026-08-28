@@ -5797,6 +5797,9 @@ saveExam=async function saveExamV21(id,modal){
     '.picker-pop-v29.show{display:block}',
     '.picker-pop-v29 b{display:block;font-size:12px;margin-bottom:9px;color:var(--text)}',
     '.pk-swatches-v29{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-bottom:10px}',
+    '.pk-show-v29{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--muted,#788392);margin:2px 0 10px;padding-top:9px;border-top:1px dashed var(--line,#e6e9ef);cursor:pointer;user-select:none}',
+    '.pk-show-v29 input{width:14px;height:14px;accent-color:var(--accent,#5d72e8)}',
+    '.lg-hide-v29{opacity:.4}',
     '.pk-swatches-v29 button{width:32px;height:32px;border-radius:9px;border:2px solid transparent;padding:0}',
     '.pk-swatches-v29 button.on{border-color:var(--text)}',
     '.pk-row-v29{display:flex;gap:8px;align-items:center;justify-content:space-between}',
@@ -6032,9 +6035,14 @@ saveExam=async function saveExamV21(id,modal){
   var LS_COLORS_V29='st_line_colors_v29';
   var CUSTOM_V29=(function(){try{return JSON.parse(localStorage.getItem(LS_COLORS_V29)||'{}')||{};}catch(e){return{};}})();
   var SWATCHES_V29=['#5d72e8','#2f9d76','#e59b45','#df5f68','#8f62db','#22a6b3','#e0567e','#6c87ff','#b8860b','#18212f'];
-  var LEGEND_CONTAINERS_V29='.legend,.overview-legend,.rank-legend-v7';
+  /* sv31-nopalette(矩阵圆点等固定语义)不进入取色 */
+  var LEGEND_CONTAINERS_V29='.legend:not(.sv31-nopalette),.overview-legend:not(.sv31-nopalette),.rank-legend-v7:not(.sv31-nopalette)';
 
   function saveColorsV29(){try{localStorage.setItem(LS_COLORS_V29,JSON.stringify(CUSTOM_V29));}catch(e){}}
+  /* 显示/隐藏状态(只从取色框的勾选改,不在点击图例时直接切换,避免误触) */
+  var LS_HIDE_V29='st_legend_hidden_v31';
+  var HIDDEN_V29=(function(){try{return JSON.parse(localStorage.getItem(LS_HIDE_V29)||'{}')||{};}catch(e){return{};}})();
+  function saveHiddenV29(){try{localStorage.setItem(LS_HIDE_V29,JSON.stringify(HIDDEN_V29));}catch(e){}}
 
   /* 把一个图表 SVG 的子元素按「path + 其后相邻的 circle」分组，组序与图例序一致 */
   function groupSvgSeriesV29(svg){
@@ -6083,15 +6091,15 @@ saveExam=async function saveExamV21(id,modal){
 
   function applyCustomLineColorsV29(){
     document.querySelectorAll('.card').forEach(function(card){
-      if(!card.querySelector('.chart-wrap svg'))return;
+      var svg=card.querySelector('.chart-wrap svg,.sv31-chart svg');
+      if(!svg)return;
       var lg=ensureLegendV29(card);
       if(!lg)return;
-      var svg=card.querySelector('.chart-wrap svg');
       var groups=groupSvgSeriesV29(svg);
       var items=Array.prototype.filter.call(lg.children,function(n){return String(n.tagName||'').toUpperCase()==='SPAN';});
       items.forEach(function(item,idx){
         var label=(item.textContent||'').replace('✎','').replace('🎨','').trim();
-        item.title='点击更换颜色';
+        item.title='点击更换颜色 / 显示';
         var c=CUSTOM_V29[label];
         var i=item.querySelector('i');
         if(c){
@@ -6115,6 +6123,15 @@ saveExam=async function saveExamV21(id,modal){
             g2.dots.forEach(function(d){setStrokeV29(d,null);});
           }
         }
+        /* 显示/隐藏:只由取色框「在图表中显示这条线」勾选驱动 */
+        var hid=HIDDEN_V29[label]===true;
+        item.classList.toggle('lg-hide-v29',hid);
+        var g3=groups[idx];
+        if(g3){
+          var disp=hid?'none':'';
+          g3.line.style.display=disp;
+          g3.dots.forEach(function(d){d.style.display=disp;});
+        }
       });
     });
   }
@@ -6128,16 +6145,26 @@ saveExam=async function saveExamV21(id,modal){
     popElV29.id='v29ColorPop';
     popElV29.innerHTML='<b></b><div class="pk-swatches-v29">'
       +SWATCHES_V29.map(function(c){return '<button type="button" data-c="'+c+'" style="background:'+c+'"></button>';}).join('')
-      +'</div><div class="pk-row-v29"><input type="color" value="#5d72e8" title="自定义颜色"><button type="button" class="pk-reset-v29">恢复默认</button></div>';
+      +'</div><label class="pk-show-v29"><input type="checkbox"> 在图表中显示这条线</label>'
+      +'<div class="pk-row-v29"><input type="color" value="#5d72e8" title="自定义颜色"><button type="button" class="pk-reset-v29">恢复默认</button></div>';
     document.body.appendChild(popElV29);
     popElV29.addEventListener('click',function(e){
       var sw=e.target.closest('.pk-swatches-v29 button');
-      if(sw&&popLabelV29){pickColorV29(sw.getAttribute('data-c'));return;}
+      if(sw&&popLabelV29){pickColorV29(sw.getAttribute('data-c'));closePickerV29();return;} /* 选色后自动关闭 */
       if(e.target.closest('.pk-reset-v29')&&popLabelV29){
         delete CUSTOM_V29[popLabelV29];saveColorsV29();applyCustomLineColorsV29();closePickerV29();
       }
     });
-    popElV29.querySelector('input[type=color]').addEventListener('input',function(){pickColorV29(this.value);});
+    /* 显示/隐藏勾选(不随选色关闭,由用户点×/外点收起) */
+    popElV29.querySelector('.pk-show-v29 input').addEventListener('change',function(){
+      if(!popLabelV29)return;
+      HIDDEN_V29[popLabelV29]=!this.checked;
+      saveHiddenV29();applyCustomLineColorsV29();
+    });
+    popElV29.querySelector('input[type=color]').addEventListener('change',function(){
+      if(this.value)pickColorV29(this.value);
+      closePickerV29(); /* 自定义取色后自动关闭 */
+    });
     document.addEventListener('click',function(e){
       if(!popElV29.classList.contains('show'))return;
       if(e.target.closest('.picker-pop-v29')||e.target.closest(LEGEND_CONTAINERS_V29+' > *'))return;
@@ -6156,6 +6183,8 @@ saveExam=async function saveExamV21(id,modal){
     ensurePickerV29();
     popLabelV29=label;
     popElV29.querySelector('b').textContent='「'+label+'」的颜色';
+    var sb=popElV29.querySelector('.pk-show-v29 input');
+    if(sb)sb.checked=!(HIDDEN_V29[label]===true);
     var cur=CUSTOM_V29[label]||'#5d72e8';
     popElV29.querySelector('input[type=color]').value=cur.length===7?cur:'#5d72e8';
     popElV29.querySelectorAll('.pk-swatches-v29 button').forEach(function(b){
@@ -7032,7 +7061,15 @@ function injectStylesV31(){
     '.stat-rank-v31{font-size:11px;color:var(--muted,#98a1ae);margin-top:3px;font-weight:600;font-variant-numeric:tabular-nums}',
     '.update-bar-v31{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom));z-index:96;display:flex;align-items:center;gap:10px;background:var(--panel-solid,#fff);color:var(--text,#18212f);border:1px solid var(--accent,#5d72e8);border-radius:14px;padding:11px 12px 11px 14px;box-shadow:var(--nav-shadow,0 10px 35px rgba(28,39,63,.2));max-width:min(470px,calc(100vw - 24px));font-size:12.5px;animation:v31rise .3s cubic-bezier(.2,.8,.25,1)}',
     '@keyframes v31rise{from{transform:translate(-50%,14px);opacity:0}to{transform:translate(-50%,0);opacity:1}}',
-    '.update-bar-v31 .u-x{border:0;background:transparent;color:var(--muted,#98a1ae);font-size:15px;cursor:pointer;padding:2px 4px;font-family:inherit;flex:none}'
+    '.update-bar-v31 .u-x{border:0;background:transparent;color:var(--muted,#98a1ae);font-size:15px;cursor:pointer;padding:2px 4px;font-family:inherit;flex:none}',
+    /* 首页趋势图例行:手机端可左右滑动(含惯性滚动),不改布局不加滚动条 */
+    '.trend-legend-row-v25{display:flex;gap:8px;overflow-x:auto;padding:0 0 6px;scrollbar-width:none;-webkit-overflow-scrolling:touch;touch-action:pan-x;overscroll-behavior-x:contain;cursor:grab}',
+    '.trend-legend-row-v25::-webkit-scrollbar{display:none}',
+    '.trend-legend-row-v25 .legend{flex-wrap:nowrap;white-space:nowrap;margin-top:0}',
+    '.trend-legend-row-v25 .lg-hint-v31{margin-left:4px}',
+    '.overview-legend{display:flex;gap:12px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;touch-action:pan-x;padding-bottom:2px}',
+    '.overview-legend::-webkit-scrollbar{display:none}',
+    '.overview-legend .lg-hint-v31{margin-left:2px;flex:none}'
   ].join('\n');
   var st=document.createElement('style');
   st.id='app-v31-style';
@@ -7057,7 +7094,7 @@ function showColorTipBannerV31(){
 
 /* ================= 图例旁小灰字 ================= */
 function injectLegendHintsV31(){
-  var sel='.legend,.overview-legend,.rank-legend-v7';
+  var sel='.legend:not(.sv31-nopalette),.overview-legend:not(.sv31-nopalette),.rank-legend-v7:not(.sv31-nopalette)';
   document.querySelectorAll(sel+',#autoLegendV29').forEach(function(lg){
     if(lg.querySelector('.lg-hint-v31'))return;
     if(!lg.children.length&&!lg.textContent.trim())return;
@@ -7982,18 +8019,15 @@ function trendHtmlV32(f,mode){
   var ts=f.totalSeries;
   var sub=mode==="rank"?"试卷难度不同,排名依然公平":"圆点 = 该科这张卷偏难。看分数起伏时请结合圆点。";
   var hasCls=ts.some(function(x){return x.cls!==null;});
-  var tline=(typeof state!=="undefined"&&state.sv31&&state.sv31.tline&&state.sv31.tline.rank)||[true,true];
   var paneRank="",paneScore="";
   if(f.scopeMissing){
     paneRank='<p class="card-sub">该口径没有填写过排名,排名走势线暂不显示 —— 在考试录入弹窗补填「组合年排/班排」或科目排名后出现。</p>';
   }else if(ts.length>=2){
     var labels=ts.map(function(x){return shortName32(x.name);});
     var lines=[];
-    if(tline[0])lines.push({vals:ts.map(function(x){return 100-x.pos;}),color:"var(--accent,#5d72e8)"});
-    if(hasCls&&tline[1])lines.push({vals:ts.map(function(x){return x.cls===null?null:100-x.cls;}),color:"var(--green,#32a77a)",dash:true});
-    paneRank=lines.length
-      ?lineSvgV32(lines,labels,{tickLabel:function(v){return "前"+clamp32(Math.round(100-v),0,99)+"%";}})
-      :'<p class="card-sub">两条线都被隐藏 —— 点击上方图例可恢复显示。</p>';
+    lines.push({vals:ts.map(function(x){return 100-x.pos;}),color:"var(--accent,#5d72e8)"});
+    if(hasCls)lines.push({vals:ts.map(function(x){return x.cls===null?null:100-x.cls;}),color:"var(--green,#32a77a)",dash:true});
+    paneRank=lineSvgV32(lines,labels,{tickLabel:function(v){return "前"+clamp32(Math.round(100-v),0,99)+"%";}});
     var sc=ts.filter(function(x){return x.score!==null;});
     if(sc.length>=2){
       var idxMap={};sc.forEach(function(x,k){idxMap[x.i]=k;});
@@ -8021,9 +8055,9 @@ function trendHtmlV32(f,mode){
     +'<div class="sv31-seg sv31-tabs"><button class="'+(mode==="rank"?"active":"")+'" data-sv31-tab="rank">排名走势</button>'
     +'<button class="'+(mode==="score"?"active":"")+'" data-sv31-tab="score">分数参考</button></div></div>'
     +'<div class="legend" style="margin-bottom:8px">'
-    +'<span class="sv31-legend-t'+(tline[0]?"":" off")+'" data-sv31-tline="0" title="点击显示/隐藏该线">'
+    +'<span class="sv31-legend-t" title="点击打开:显示/颜色">'
     +'<i style="background:var(--accent,#5d72e8)"></i>年级排名</span>'
-    +(hasCls?'<span class="sv31-legend-t'+(tline[1]?"":" off")+'" data-sv31-tline="1" title="点击显示/隐藏该线">'
+    +(hasCls?'<span class="sv31-legend-t" title="点击打开:显示/颜色">'
       +'<i style="background:var(--green,#32a77a)"></i>班级排名</span>':"")+"</div>"
     +'<div class="sv31-pane'+(mode==="rank"?" on":"")+'" data-pane="rank">'+(paneRank||(f.posCount===0
       ?'<p class="card-sub">这些考试没录名次,排名走势暂时是空的——已自动切到「分数参考」。下次补录「名次 + 总人数」即可解锁。</p>'
@@ -8426,7 +8460,7 @@ function matrixSectionHtmlV32(f,mode){
   return '<div class="card"><div class="card-title-row">'
     +'<div><h3 class="card-title">⑧ 全量统计矩阵</h3><p class="card-sub" id="sv31HeatSub">'
     +(mode==="rank"?"数字越小、颜色越深 = 名次越好":"得分率仅在同一张卷子内可比;圆点 = 这科这次偏难/偏易")
-    +'</p></div><div class="legend"><span><span class="sv31-dot" style="background:#d95c5c"></span>这科这次偏难</span>'
+    +'</p></div><div class="legend sv31-nopalette"><span><span class="sv31-dot" style="background:#d95c5c"></span>这科这次偏难</span>'
     +'<span><span class="sv31-dot" style="background:#e59b45"></span>偏难(关注)</span>'
     +'<span><span class="sv31-dot" style="background:#32a77a"></span>偏易</span></div></div>'
     +(rowsHtml?'<div class="sv31-scroll"><table class="sv31-heat"><thead>'+head+"</thead><tbody>"+rowsHtml+"</tbody></table></div>"
@@ -8576,7 +8610,7 @@ function injectStylesV32(){
     ".sv31-tag{font-size:11px;font-weight:800;color:var(--accent,#5d72e8);background:var(--accent-soft,#eef1ff);border-radius:999px;padding:5px 10px;white-space:nowrap}",
     ".sv31-legend-t{cursor:pointer;user-select:none;padding:2px 7px;border-radius:7px;transition:opacity .15s}",
     ".sv31-legend-t:hover{background:var(--chip-bg,#f1f3f8)}",
-    ".sv31-legend-t.off{opacity:.4;text-decoration:line-through}",
+    ".sv31-legend-t.lg-hide-v29{text-decoration:line-through}",
     ".sv31-evib[hidden],.sv31-evbody[hidden]{display:none!important}",
     ".sv31-g2{display:grid;grid-template-columns:1fr;gap:16px}@media(min-width:900px){.sv31-g2{grid-template-columns:1fr 1fr}}",
     ".sv31-ext-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}@media(min-width:760px){.sv31-ext-grid{grid-template-columns:repeat(4,1fr)}}",
@@ -8748,6 +8782,8 @@ function routeStatsV32(){
   var sy=window.pageYOffset||0;
   c.innerHTML=statsPageV32(f);
   try{bindStatsV32(f,c.firstElementChild);}catch(e){}
+  /* 渲染后让 v29 图例取色/显隐对统计页图表生效(图二/图三换色与勾选显示) */
+  try{if(window.__v29&&window.__v29.afterRender)window.__v29.afterRender();}catch(e){}
   window.scrollTo(0,sy);
 }
 function rerenderStatsV32(){
@@ -8758,15 +8794,6 @@ function bindStatsV32(f,root){
     var t=e.target;
     var sc=t.closest("[data-sv31-scope]");
     if(sc){state.sv31.scope=sc.getAttribute("data-sv31-scope");rerenderStatsV32();return;}
-    var tln=t.closest("[data-sv31-tline]");
-    if(tln){
-      try{
-        state.sv31.tline=state.sv31.tline||{rank:[true,true],score:[true,true]};
-        var li=+tln.getAttribute("data-sv31-tline");
-        if(li>=0&&li<=1)state.sv31.tline.rank[li]=!state.sv31.tline.rank[li];
-      }catch(e){}
-      rerenderStatsV32();return;
-    }
     var evi=t.closest("[data-sv31-evi]");
     if(evi){
       var eb=evi.nextElementSibling;

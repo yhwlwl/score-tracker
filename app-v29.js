@@ -91,6 +91,9 @@
     '.picker-pop-v29.show{display:block}',
     '.picker-pop-v29 b{display:block;font-size:12px;margin-bottom:9px;color:var(--text)}',
     '.pk-swatches-v29{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-bottom:10px}',
+    '.pk-show-v29{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--muted,#788392);margin:2px 0 10px;padding-top:9px;border-top:1px dashed var(--line,#e6e9ef);cursor:pointer;user-select:none}',
+    '.pk-show-v29 input{width:14px;height:14px;accent-color:var(--accent,#5d72e8)}',
+    '.lg-hide-v29{opacity:.4}',
     '.pk-swatches-v29 button{width:32px;height:32px;border-radius:9px;border:2px solid transparent;padding:0}',
     '.pk-swatches-v29 button.on{border-color:var(--text)}',
     '.pk-row-v29{display:flex;gap:8px;align-items:center;justify-content:space-between}',
@@ -326,9 +329,14 @@
   var LS_COLORS_V29='st_line_colors_v29';
   var CUSTOM_V29=(function(){try{return JSON.parse(localStorage.getItem(LS_COLORS_V29)||'{}')||{};}catch(e){return{};}})();
   var SWATCHES_V29=['#5d72e8','#2f9d76','#e59b45','#df5f68','#8f62db','#22a6b3','#e0567e','#6c87ff','#b8860b','#18212f'];
-  var LEGEND_CONTAINERS_V29='.legend,.overview-legend,.rank-legend-v7';
+  /* sv31-nopalette(矩阵圆点等固定语义)不进入取色 */
+  var LEGEND_CONTAINERS_V29='.legend:not(.sv31-nopalette),.overview-legend:not(.sv31-nopalette),.rank-legend-v7:not(.sv31-nopalette)';
 
   function saveColorsV29(){try{localStorage.setItem(LS_COLORS_V29,JSON.stringify(CUSTOM_V29));}catch(e){}}
+  /* 显示/隐藏状态(只从取色框的勾选改,不在点击图例时直接切换,避免误触) */
+  var LS_HIDE_V29='st_legend_hidden_v31';
+  var HIDDEN_V29=(function(){try{return JSON.parse(localStorage.getItem(LS_HIDE_V29)||'{}')||{};}catch(e){return{};}})();
+  function saveHiddenV29(){try{localStorage.setItem(LS_HIDE_V29,JSON.stringify(HIDDEN_V29));}catch(e){}}
 
   /* 把一个图表 SVG 的子元素按「path + 其后相邻的 circle」分组，组序与图例序一致 */
   function groupSvgSeriesV29(svg){
@@ -377,15 +385,15 @@
 
   function applyCustomLineColorsV29(){
     document.querySelectorAll('.card').forEach(function(card){
-      if(!card.querySelector('.chart-wrap svg'))return;
+      var svg=card.querySelector('.chart-wrap svg,.sv31-chart svg');
+      if(!svg)return;
       var lg=ensureLegendV29(card);
       if(!lg)return;
-      var svg=card.querySelector('.chart-wrap svg');
       var groups=groupSvgSeriesV29(svg);
       var items=Array.prototype.filter.call(lg.children,function(n){return String(n.tagName||'').toUpperCase()==='SPAN';});
       items.forEach(function(item,idx){
         var label=(item.textContent||'').replace('✎','').replace('🎨','').trim();
-        item.title='点击更换颜色';
+        item.title='点击更换颜色 / 显示';
         var c=CUSTOM_V29[label];
         var i=item.querySelector('i');
         if(c){
@@ -409,6 +417,15 @@
             g2.dots.forEach(function(d){setStrokeV29(d,null);});
           }
         }
+        /* 显示/隐藏:只由取色框「在图表中显示这条线」勾选驱动 */
+        var hid=HIDDEN_V29[label]===true;
+        item.classList.toggle('lg-hide-v29',hid);
+        var g3=groups[idx];
+        if(g3){
+          var disp=hid?'none':'';
+          g3.line.style.display=disp;
+          g3.dots.forEach(function(d){d.style.display=disp;});
+        }
       });
     });
   }
@@ -422,16 +439,26 @@
     popElV29.id='v29ColorPop';
     popElV29.innerHTML='<b></b><div class="pk-swatches-v29">'
       +SWATCHES_V29.map(function(c){return '<button type="button" data-c="'+c+'" style="background:'+c+'"></button>';}).join('')
-      +'</div><div class="pk-row-v29"><input type="color" value="#5d72e8" title="自定义颜色"><button type="button" class="pk-reset-v29">恢复默认</button></div>';
+      +'</div><label class="pk-show-v29"><input type="checkbox"> 在图表中显示这条线</label>'
+      +'<div class="pk-row-v29"><input type="color" value="#5d72e8" title="自定义颜色"><button type="button" class="pk-reset-v29">恢复默认</button></div>';
     document.body.appendChild(popElV29);
     popElV29.addEventListener('click',function(e){
       var sw=e.target.closest('.pk-swatches-v29 button');
-      if(sw&&popLabelV29){pickColorV29(sw.getAttribute('data-c'));return;}
+      if(sw&&popLabelV29){pickColorV29(sw.getAttribute('data-c'));closePickerV29();return;} /* 选色后自动关闭 */
       if(e.target.closest('.pk-reset-v29')&&popLabelV29){
         delete CUSTOM_V29[popLabelV29];saveColorsV29();applyCustomLineColorsV29();closePickerV29();
       }
     });
-    popElV29.querySelector('input[type=color]').addEventListener('input',function(){pickColorV29(this.value);});
+    /* 显示/隐藏勾选(不随选色关闭,由用户点×/外点收起) */
+    popElV29.querySelector('.pk-show-v29 input').addEventListener('change',function(){
+      if(!popLabelV29)return;
+      HIDDEN_V29[popLabelV29]=!this.checked;
+      saveHiddenV29();applyCustomLineColorsV29();
+    });
+    popElV29.querySelector('input[type=color]').addEventListener('change',function(){
+      if(this.value)pickColorV29(this.value);
+      closePickerV29(); /* 自定义取色后自动关闭 */
+    });
     document.addEventListener('click',function(e){
       if(!popElV29.classList.contains('show'))return;
       if(e.target.closest('.picker-pop-v29')||e.target.closest(LEGEND_CONTAINERS_V29+' > *'))return;
@@ -450,6 +477,8 @@
     ensurePickerV29();
     popLabelV29=label;
     popElV29.querySelector('b').textContent='「'+label+'」的颜色';
+    var sb=popElV29.querySelector('.pk-show-v29 input');
+    if(sb)sb.checked=!(HIDDEN_V29[label]===true);
     var cur=CUSTOM_V29[label]||'#5d72e8';
     popElV29.querySelector('input[type=color]').value=cur.length===7?cur:'#5d72e8';
     popElV29.querySelectorAll('.pk-swatches-v29 button').forEach(function(b){

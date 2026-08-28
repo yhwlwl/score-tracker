@@ -48,7 +48,15 @@ function injectStylesV31(){
     '.stat-rank-v31{font-size:11px;color:var(--muted,#98a1ae);margin-top:3px;font-weight:600;font-variant-numeric:tabular-nums}',
     '.update-bar-v31{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom));z-index:96;display:flex;align-items:center;gap:10px;background:var(--panel-solid,#fff);color:var(--text,#18212f);border:1px solid var(--accent,#5d72e8);border-radius:14px;padding:11px 12px 11px 14px;box-shadow:var(--nav-shadow,0 10px 35px rgba(28,39,63,.2));max-width:min(470px,calc(100vw - 24px));font-size:12.5px;animation:v31rise .3s cubic-bezier(.2,.8,.25,1)}',
     '@keyframes v31rise{from{transform:translate(-50%,14px);opacity:0}to{transform:translate(-50%,0);opacity:1}}',
-    '.update-bar-v31 .u-x{border:0;background:transparent;color:var(--muted,#98a1ae);font-size:15px;cursor:pointer;padding:2px 4px;font-family:inherit;flex:none}'
+    '.update-bar-v31 .u-x{border:0;background:transparent;color:var(--muted,#98a1ae);font-size:15px;cursor:pointer;padding:2px 4px;font-family:inherit;flex:none}',
+    /* 首页趋势图例行:手机端可左右滑动(含惯性滚动),不改布局不加滚动条 */
+    '.trend-legend-row-v25{display:flex;gap:8px;overflow-x:auto;padding:0 0 6px;scrollbar-width:none;-webkit-overflow-scrolling:touch;touch-action:pan-x;overscroll-behavior-x:contain;cursor:grab}',
+    '.trend-legend-row-v25::-webkit-scrollbar{display:none}',
+    '.trend-legend-row-v25 .legend{flex-wrap:nowrap;white-space:nowrap;margin-top:0}',
+    '.trend-legend-row-v25 .lg-hint-v31{margin-left:4px}',
+    '.overview-legend{display:flex;gap:12px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;touch-action:pan-x;padding-bottom:2px}',
+    '.overview-legend::-webkit-scrollbar{display:none}',
+    '.overview-legend .lg-hint-v31{margin-left:2px;flex:none}'
   ].join('\n');
   var st=document.createElement('style');
   st.id='app-v31-style';
@@ -73,7 +81,7 @@ function showColorTipBannerV31(){
 
 /* ================= 图例旁小灰字 ================= */
 function injectLegendHintsV31(){
-  var sel='.legend,.overview-legend,.rank-legend-v7';
+  var sel='.legend:not(.sv31-nopalette),.overview-legend:not(.sv31-nopalette),.rank-legend-v7:not(.sv31-nopalette)';
   document.querySelectorAll(sel+',#autoLegendV29').forEach(function(lg){
     if(lg.querySelector('.lg-hint-v31'))return;
     if(!lg.children.length&&!lg.textContent.trim())return;
