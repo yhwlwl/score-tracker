@@ -5,8 +5,11 @@ const CLIENT_PATCH_V13 = `<script id="mg-client-v13">
   if(window.__mgV13)return;window.__mgV13=1;
   var DEPTH13={},DEPTH13_READY=false; /* READY=true 且映射非空才覆盖显示,避免把旧值顶成「-」 */
   function loadDepth13(){
-    var call=(typeof api==='function')?api('users'):Promise.resolve({rows:[]});
-    return call.then(function(u){
+    if(typeof api!=='function'){
+      console.warn('[mg-v13] 页面无全局 api() 可调用,深度分列保留面板原值');
+      return Promise.resolve();
+    }
+    return api('users').then(function(u){
       DEPTH13={};
       (u.rows||[]).forEach(function(r){
         ['username','original_username','name','display_name','nickname','user_name'].forEach(function(k){
