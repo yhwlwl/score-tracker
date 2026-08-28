@@ -15,6 +15,13 @@ const CLIENT_PATCH_V13 = `<script id="mg-client-v13">
       try{console.log('[mg-v13] users rows='+rows.length+' ts='+(Date.now()-t0)+'ms first='+JSON.stringify(rows[0]||null).slice(0,600));}catch(e){}
       DEPTH13={};
       rows.forEach(function(r){
+        if(!r)return;
+        /* 口径对齐数据库:深度分 = 创建考试数×3 + 活跃天数×2(原始字段 exam_count / days),不用上游旧值 */
+        try{
+          var ec=Number(r.exam_count),dy=Number(r.days);
+          if(!isFinite(ec)||!isFinite(dy)){ec=null;dy=null;}
+          if(ec!==null&&dy!==null)r.depth_score=ec*3+dy*2;
+        }catch(e){}
         ['username','original_username','name','display_name','nickname','user_name'].forEach(function(k){
           if(r&&r[k])DEPTH13[String(r[k])]=r;
         });
