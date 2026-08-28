@@ -29,13 +29,13 @@
       .trend-actions-v25 button:hover{border-color:#a9b4c8;color:#2c3648}
       .trend-actions-v25 button:active{transform:scale(.97)}
       .full-trend-modal-v25 .modal{max-width:920px}
-      .full-trend-stage-v25{overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px 12px}
+      .full-trend-stage-v25{overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x;overscroll-behavior-x:contain;border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px 12px}
       .full-trend-scroll-hint-v25{font-size:10px;color:var(--muted);margin-top:7px}
       .full-trend-actions-v25{display:flex;gap:10px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
       .score-view-v25{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;margin:0 0 4px}
       .score-view-v25 .label{font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap}
       .score-view-v25 .basis-btn-v13{flex:0 1 auto;width:auto;padding:7px 11px;white-space:nowrap}
-      .combo-chips-v25{display:flex;gap:8px;overflow:auto;padding:0 0 8px;margin-top:6px;scrollbar-width:none}
+      .combo-chips-v25{display:flex;gap:8px;overflow:auto;padding:0 0 8px;margin-top:6px;scrollbar-width:none;touch-action:pan-x;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
       .combo-chips-v25::-webkit-scrollbar{display:none}
       .order-btn-v25{border:1px solid var(--line);background:#fff;color:#667085;border-radius:8px;width:28px;height:28px;font-size:12px;line-height:1;padding:0;flex:0 0 auto;cursor:pointer}
       .order-btn-v25:hover, .order-btn-v25:active{border-color:#a9b4c8;color:#2c3648}

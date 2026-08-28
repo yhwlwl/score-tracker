@@ -4409,13 +4409,13 @@ saveExam=async function saveExamV21(id,modal){
       .trend-actions-v25 button:hover{border-color:#a9b4c8;color:#2c3648}
       .trend-actions-v25 button:active{transform:scale(.97)}
       .full-trend-modal-v25 .modal{max-width:920px}
-      .full-trend-stage-v25{overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px 12px}
+      .full-trend-stage-v25{overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x;overscroll-behavior-x:contain;border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px 12px}
       .full-trend-scroll-hint-v25{font-size:10px;color:var(--muted);margin-top:7px}
       .full-trend-actions-v25{display:flex;gap:10px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
       .score-view-v25{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;margin:0 0 4px}
       .score-view-v25 .label{font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap}
       .score-view-v25 .basis-btn-v13{flex:0 1 auto;width:auto;padding:7px 11px;white-space:nowrap}
-      .combo-chips-v25{display:flex;gap:8px;overflow:auto;padding:0 0 8px;margin-top:6px;scrollbar-width:none}
+      .combo-chips-v25{display:flex;gap:8px;overflow:auto;padding:0 0 8px;margin-top:6px;scrollbar-width:none;touch-action:pan-x;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
       .combo-chips-v25::-webkit-scrollbar{display:none}
       .order-btn-v25{border:1px solid var(--line);background:#fff;color:#667085;border-radius:8px;width:28px;height:28px;font-size:12px;line-height:1;padding:0;flex:0 0 auto;cursor:pointer}
       .order-btn-v25:hover, .order-btn-v25:active{border-color:#a9b4c8;color:#2c3648}
@@ -6065,6 +6065,8 @@ saveExam=async function saveExamV21(id,modal){
   /* 单科排名/原始分等模式没有图例 → 自动补一枚可点击的科目图例，让换色能力一致 */
   function ensureLegendV29(card){
     if(card.querySelector('.legend,.overview-legend,.rank-legend-v7'))return card.querySelector('.legend,.overview-legend,.rank-legend-v7');
+    /* 统计页等其它页不自动造图例(只有首页单科模式需要),避免误加「总览」标签 */
+    try{if(typeof state!=="undefined"&&state.page!=="home")return null;}catch(e){}
     var stage=card.querySelector('.chart-wrap');
     if(!stage)return null;
     var svg=stage.querySelector('svg');
@@ -6095,6 +6097,7 @@ saveExam=async function saveExamV21(id,modal){
       if(!svg)return;
       var lg=ensureLegendV29(card);
       if(!lg)return;
+      if(lg.classList&&lg.classList.contains('sv31-nopalette'))return; /* 固定语义图例(矩阵圆点):不换色不显隐 */
       var groups=groupSvgSeriesV29(svg);
       var items=Array.prototype.filter.call(lg.children,function(n){return String(n.tagName||'').toUpperCase()==='SPAN';});
       items.forEach(function(item,idx){
@@ -8027,7 +8030,7 @@ function trendHtmlV32(f,mode){
     var lines=[];
     lines.push({vals:ts.map(function(x){return 100-x.pos;}),color:"var(--accent,#5d72e8)"});
     if(hasCls)lines.push({vals:ts.map(function(x){return x.cls===null?null:100-x.cls;}),color:"var(--green,#32a77a)",dash:true});
-    paneRank=lineSvgV32(lines,labels,{tickLabel:function(v){return "前"+clamp32(Math.round(100-v),0,99)+"%";}});
+    paneRank='<div class="sv31-chart">'+lineSvgV32(lines,labels,{tickLabel:function(v){return "前"+clamp32(Math.round(100-v),0,99)+"%";}})+"</div>";
     var sc=ts.filter(function(x){return x.score!==null;});
     if(sc.length>=2){
       var idxMap={};sc.forEach(function(x,k){idxMap[x.i]=k;});

@@ -766,7 +766,7 @@ function trendHtmlV32(f,mode){
     var lines=[];
     lines.push({vals:ts.map(function(x){return 100-x.pos;}),color:"var(--accent,#5d72e8)"});
     if(hasCls)lines.push({vals:ts.map(function(x){return x.cls===null?null:100-x.cls;}),color:"var(--green,#32a77a)",dash:true});
-    paneRank=lineSvgV32(lines,labels,{tickLabel:function(v){return "前"+clamp32(Math.round(100-v),0,99)+"%";}});
+    paneRank='<div class="sv31-chart">'+lineSvgV32(lines,labels,{tickLabel:function(v){return "前"+clamp32(Math.round(100-v),0,99)+"%";}})+"</div>";
     var sc=ts.filter(function(x){return x.score!==null;});
     if(sc.length>=2){
       var idxMap={};sc.forEach(function(x,k){idxMap[x.i]=k;});

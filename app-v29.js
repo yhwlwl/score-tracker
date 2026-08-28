@@ -359,6 +359,8 @@
   /* 单科排名/原始分等模式没有图例 → 自动补一枚可点击的科目图例，让换色能力一致 */
   function ensureLegendV29(card){
     if(card.querySelector('.legend,.overview-legend,.rank-legend-v7'))return card.querySelector('.legend,.overview-legend,.rank-legend-v7');
+    /* 统计页等其它页不自动造图例(只有首页单科模式需要),避免误加「总览」标签 */
+    try{if(typeof state!=="undefined"&&state.page!=="home")return null;}catch(e){}
     var stage=card.querySelector('.chart-wrap');
     if(!stage)return null;
     var svg=stage.querySelector('svg');
@@ -389,6 +391,7 @@
       if(!svg)return;
       var lg=ensureLegendV29(card);
       if(!lg)return;
+      if(lg.classList&&lg.classList.contains('sv31-nopalette'))return; /* 固定语义图例(矩阵圆点):不换色不显隐 */
       var groups=groupSvgSeriesV29(svg);
       var items=Array.prototype.filter.call(lg.children,function(n){return String(n.tagName||'').toUpperCase()==='SPAN';});
       items.forEach(function(item,idx){
