@@ -9,15 +9,18 @@ const CLIENT_PATCH_V13 = `<script id="mg-client-v13">
       console.warn('[mg-v13] 页面无全局 api() 可调用,深度分列保留面板原值');
       return Promise.resolve();
     }
+    var t0=Date.now();
     return api('users').then(function(u){
+      var rows=u&&u.rows||[];
+      try{console.log('[mg-v13] users rows='+rows.length+' ts='+(Date.now()-t0)+'ms first='+JSON.stringify(rows[0]||null).slice(0,600));}catch(e){}
       DEPTH13={};
-      (u.rows||[]).forEach(function(r){
+      rows.forEach(function(r){
         ['username','original_username','name','display_name','nickname','user_name'].forEach(function(k){
           if(r&&r[k])DEPTH13[String(r[k])]=r;
         });
       });
       DEPTH13_READY=true;
-    }).catch(function(e){console.warn('[mg-v13] users 数据加载失败,深度分保持原值:',e&&e.message||e);});
+    }).catch(function(e){console.warn('[mg-v13] users ERR ts='+(Date.now()-t0)+'ms:',e&&e.message||e);});
   }
   function depthOf13(name){var r=DEPTH13[name];if(!r)return '';return String(r.depth_score!=null?r.depth_score:'');}
   function setDepthTd(td,uname){
