@@ -11080,8 +11080,8 @@ var PAL2NS = (window.PAL = window.PAL || {});
         ? '<span class="label">细度：</span>' + binChips
         : '<span class="label" style="opacity:.55">视图间可切换</span>') +
       '</div>' +
-      '<svg viewBox="0 0 ' + W + " " + H + '" style="width:100%;max-width:760px;display:block;color:inherit">' +
-      svg + "</svg>" +
+      '<div class="dsb-scroll"><svg viewBox="0 0 ' + W + " " + H + '" style="width:100%;max-width:760px;display:block;color:inherit">' +
+      svg + "</svg></div>" +
       '<div class="dsb-fig-cap">' + caption + '</div>';
   }
   function renderDistInto() {
@@ -11348,9 +11348,17 @@ var PAL2NS = (window.PAL = window.PAL || {});
       lbl += '<text x="' + (padL - 6) + '" y="' + (yOf(p) + 3.5) +
         '" font-size="9" text-anchor="end" fill="currentColor" opacity=".45">' + p + '</text>';
     });
-    var xlbl = '<text x="' + xOf(0) + '" y="' + (H - 6) + '" font-size="9" fill="currentColor" opacity=".45">#1</text>' +
-      '<text x="' + xOf(n - 1) + '" y="' + (H - 6) + '" font-size="9" text-anchor="middle" fill="currentColor" opacity=".45">#' + n + '</text>' +
-      '<text x="' + (fx1) + '" y="' + (H - 6) + '" font-size="9" text-anchor="end" fill="#4a90d9" opacity=".8">下场</text>';
+    /* x 轴:真实考试名称(超长截断;考试多时每隔一场标一次,保持可读) */
+    var xlbl = "";
+    var xStep = n > 8 ? 2 : 1;
+    for (var xi = 0; xi < n; xi += xStep) {
+      var xnm = String(obs[xi].label || obs[xi].date || "").trim();
+      if (xnm.length > 5) xnm = xnm.slice(0, 5) + "…";
+      xlbl += '<text x="' + xOf(xi).toFixed(1) + '" y="' + (H - 6) +
+        '" font-size="8.6" text-anchor="middle" fill="currentColor" opacity=".45">' +
+        esc(xnm) + '</text>';
+    }
+    xlbl += '<text x="' + (fx1) + '" y="' + (H - 6) + '" font-size="9" text-anchor="end" fill="#4a90d9" opacity=".8">下场</text>';
     return '<svg viewBox="0 0 ' + W + " " + H + '" style="width:100%;max-width:760px;display:block;color:inherit">' +
       grid + lbl + xlbl + band + histSvg +
       '<path d="' + muPath + '" fill="none" stroke="#4a90d9" stroke-width="2"/>' +
@@ -11564,7 +11572,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
           '<div class="dsb-block-title">本 期 洞 察</div>' +
           insightsList(rep, obs.length) +
           '<div class="dsb-fig" style="margin-top:14px"><div class="dsb-fig-title">排名轨迹与预测区间</div>' +
-          trajectorySvg(rep, obs, hist) +
+          '<div class="dsb-scroll">' + trajectorySvg(rep, obs, hist) + '</div>' +
           '<div class="dsb-fig-cap">' + trajCap + '</div></div>' +
           '<div class="dsb-fig" style="margin-top:12px"><div class="dsb-fig-title">下一场落点分布</div>' +
           '<div id="dsbDistWrap">' + distBlock(rep) + '</div></div>' +
@@ -11678,6 +11686,10 @@ var PAL2NS = (window.PAL = window.PAL || {});
       'white-space:nowrap;align-self:center}' +
       '#dsbRoot .combo-chips-v25 .chip{flex:0 0 auto}' +
       '#dsbRoot .dsb-caliber{font-size:11px;opacity:.6;margin:-4px 0 10px;line-height:1.7}' +
+      '/* ---- 手机端:图表露一部分+横滑(与首页图表一致) ---- */' +
+      '#dsbRoot .dsb-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x;' +
+      'overscroll-behavior-x:contain;padding:2px 1px 4px}' +
+      '#dsbRoot .dsb-scroll svg{min-width:640px;height:auto}' +
       '/* ---- 暗色主题:同款结构提亮,避免颜色过深 ---- */' +
       'html[data-theme="night"] #dsbRoot .dsb-fig{background:var(--panel-solid,#161c26)}' +
       'html[data-theme="night"] #dsbRoot .dsb-tip{background:rgba(29,36,49,.5);border-color:rgba(140,150,170,.3)}' +
