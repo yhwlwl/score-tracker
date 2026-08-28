@@ -149,7 +149,7 @@ function checkUpdateV31(){
 function installTrackingV31(){
   /* 打开取色器：点击任意图例项 */
   document.addEventListener('click',function(e){
-    var hit=e.target.closest('.legend > *,.overview-legend > *,.rank-legend-v7 > *,#autoLegendV29 > *');
+    var hit=e.target.closest('.legend:not(.sv31-nopalette) > *,.overview-legend:not(.sv31-nopalette) > *,.rank-legend-v7:not(.sv31-nopalette) > *,#autoLegendV29 > *');
     if(!hit)return;
     var label=(hit.textContent||'').replace(/[🎨✎]/g,'').replace('点击可换颜色','').trim();
     window.__stTrack('legend_color_open',{subject:label});

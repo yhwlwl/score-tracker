@@ -501,7 +501,7 @@
     if(bindPickerV29.done)return;
     bindPickerV29.done=true;
     document.addEventListener('click',function(e){
-      var hit=e.target.closest('.legend > *,.overview-legend > *,.rank-legend-v7 > *');
+      var hit=e.target.closest('.legend:not(.sv31-nopalette) > *,.overview-legend:not(.sv31-nopalette) > *,.rank-legend-v7:not(.sv31-nopalette) > *');
       if(!hit)return;
       var label=(hit.textContent||'').replace('✎','').trim();
       if(label)openPickerV29(hit,label);
