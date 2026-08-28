@@ -1,5 +1,6 @@
 # 构建产物（Cloudflare 云端构建时重新生成，不入库）
 deploy/
+.wrangler/
 
 # 本地工具与临时文件
 node_modules/
