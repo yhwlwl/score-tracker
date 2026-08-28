@@ -31,5 +31,6 @@ fs.mkdirSync(path.join(OUT, "api"), { recursive: true });
 for (const f of FILES) fs.copyFileSync(path.join(ROOT, f), path.join(OUT, f));
 fs.copyFileSync(path.join(ROOT, "functions/mg.js"), path.join(OUT, "functions/mg.js"));
 fs.copyFileSync(path.join(ROOT, "api/mg.js"), path.join(OUT, "api/mg.js"));
+fs.copyFileSync(path.join(ROOT, "api/mg-ui.js"), path.join(OUT, "api/mg-ui.js"));
 
-console.log("deploy/ 已生成：" + FILES.length + " 个静态文件 + functions/mg.js(共用 api/mg.js)");
+console.log("deploy/ 已生成：" + FILES.length + " 个静态文件 + /mg 管理面板函数");

@@ -1,0 +1,9 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+const db=createClient(Deno.env.get('SUPABASE_URL')||'',Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||'',{auth:{persistSession:false,autoRefreshToken:false}});
+const H={'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow, noarchive'};
+const out=(v:any,status=200)=>new Response(JSON.stringify(v),{status,headers:H});
+async function sha(v:string){const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v));return[...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('')}
+async function auth(token:string){if(!token)return null;const {data,error}=await db.from('score_tracker_users').select('id,is_admin,session_expires_at').eq('session_token_hash',await sha(token)).maybeSingle();if(error)throw error;if(!data?.is_admin||!data.session_expires_at||new Date(data.session_expires_at).getTime()<Date.now())return null;return data}
+Deno.serve(async req=>{if(req.method!=='GET')return out({error:'method_not_allowed'},405);try{const admin=await auth(req.headers.get('x-score-token')||'');if(!admin)return out({error:'unauthorized'},401);const {data,error}=await db.rpc('score_tracker_admin_exact_metrics');if(error)throw error;return out(data||{})}catch(e){console.error(e);return out({error:e instanceof Error?e.message:'metrics_unavailable'},500)}});
