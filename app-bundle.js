@@ -7122,7 +7122,7 @@ var RELEASE_NOTES_V31={
   'v5.0':'全新「统计分析」页：排名走势、强弱科定位、个人最佳殿堂、目标校准与试卷难度信号',
   'v5.1':'长期目标系统：各科目标分数、理想学校与考试倒计时；首页逐科差距卡、趋势图目标线与统计页联动；新增市/区排名（总分层面，选填）；修复成绩加载与移动端排版问题；全部脚本合并单文件，打开更快更省流量',
   'v5.2':'统计分析页增强：单场大跌自动提醒、总分连续进退提醒、参考人数口径变化提醒（人数不同的考试不再直接比名次）；修复个人最佳、连续退步等文案口径与样本门槛',
-  'v6.0':'统计分析页 v6.0：「深度分析」Beta 板块——下场名次预测与95%区间、趋势/变点检验、试卷难度推断,附每步计算过程；分布图支持三视图(名次段/发挥标尺/累计概率,最可能点直接标出)；顶部科目/组合口径全页联动,组合排名只认你填写的「组合年排/班排」,六科组合直接沿用总分排名,没填排名不显示合成数据；①总览「最近一次」标注考试；趋势图例可点击显隐；修复组合chip与板块顺序'
+  'v6.0':'统计分析页 v6.0：「深度分析」Beta 板块，提供下场名次预测与95%区间、趋势/变点检验和异常提醒，附每步计算过程；分布图支持三视图(名次段/发挥标尺/累计概率)，名次段与发挥标尺均可调整细度，状态模型中心直接标出；顶部科目/组合口径全页联动,组合排名只认你填写的「组合年排/班排」,六科组合直接沿用总分排名,没填排名不显示合成数据；①总览「最近一次」标注考试；趋势图例可点击显隐；修复组合chip与板块顺序'
 };
 function dismissKeyV31(v){return 'st_update_dismissed_'+v;}
 function showUpdateBarV31(latest){
@@ -10278,6 +10278,26 @@ var PAL2NS = (window.PAL = window.PAL || {});
   'use strict';
 
   /**
+   * 下一场位比点预测。alpha 表示最近一场的权重。
+   * 与论文真实数据回测保持同一口径：输入为原始位比 100*r/N，
+   * 不使用潜在标准分，也不承担区间或趋势解释。
+   */
+  function forecast(percentiles, alpha) {
+    alpha = alpha == null ? 0.40 : alpha;
+    if (!percentiles || !percentiles.length || !(alpha > 0 && alpha <= 1)) {
+      return { valid: false };
+    }
+    var value = Number(percentiles[0]);
+    if (!isFinite(value)) return { valid: false };
+    for (var i = 1; i < percentiles.length; i++) {
+      var current = Number(percentiles[i]);
+      if (!isFinite(current)) continue;
+      value = alpha * current + (1 - alpha) * value;
+    }
+    return { valid: true, percentile: value, alpha: alpha, historyCount: percentiles.length };
+  }
+
+  /**
    * @param x 标准化残差序列（均值 0 方差 1 尺度）
    * @param opts {lambda=0.3, L=2.815}  L·λ 组合决定 ARL0
    * @returns {z: EWMA统计量路径, violations: 违限索引}
@@ -10316,7 +10336,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
   }
 
   global.PAL = global.PAL || {};
-  PAL.ewma = { ewmaChart: ewma, simulateArl0: simulateArl0 };
+  PAL.ewma = { forecast: forecast, ewmaChart: ewma, simulateArl0: simulateArl0 };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 ;
@@ -10574,6 +10594,12 @@ var PAL2NS = (window.PAL = window.PAL || {});
     }
     if (zs.length < 2) { report.valid = false; report.reason = '有效位比观测不足'; return report; }
     report.series = zs;
+
+    /* 透明点预测基线：直接平滑原始位比。它只回答“下一场参考落点”，
+       与后面的状态模型、区间和目标概率保持职责分离。 */
+    report.ewmaForecast = PAL.ewma.forecast(observations.map(function (d) {
+      return 100 * d.rank / d.N;
+    }), opts.ewmaForecastAlpha == null ? 0.40 : opts.ewmaForecastAlpha);
 
     /* 2. 动态层：稳健滤波（第一遍）+ BOCPD + 干预后重滤波
        机制：BOCPD 判定体制切换的场次的下一场，对 DLM 执行协方差膨胀干预，
@@ -10850,15 +10876,28 @@ var PAL2NS = (window.PAL = window.PAL || {});
   }
 
   /* ---------- 状态 ---------- */
-  var S = { cur: "__total__", goalPct: 20, distBin: 5, view: "band" };
+  var S = { cur: "__total__", goalPct: 20, distBin: 5, zmapBins: 20, view: "band" };
   var REP = null; /* 当前报告缓存,供交互处理器使用 */
+
+  /* 生产冻结配置。区间先验取五折 user-level 校准中 no-SE 版本的
+     Kp95 均值，W 在五折中均选择 4。研究代码仍保留 SE 消融入口，
+     生产默认采用当前真实回测中区间效率更好的 no-SE 配置。 */
+  var PROD_ANALYSIS_OPTS = {
+    seWeighting: false,
+    ewmaForecastAlpha: 0.40,
+    conformalPriorK: 4.539237871385978,
+    conformalPriorW: 4
+  };
+  function analyzeProd(obs) {
+    return P2.pipeline.analyzeSeries(obs, PROD_ANALYSIS_OPTS);
+  }
 
   /* ---------- 历史滚动预测回显 ---------- */
   function walkForward(obs) {
     var out = [];
     for (var k = 4; k < obs.length; k++) {
       try {
-        var r = P2.pipeline.analyzeSeries(obs.slice(0, k));
+        var r = analyzeProd(obs.slice(0, k));
         if (!r || !r.valid || !r.nextExam) continue;
         var ne = r.nextExam;
         var act = obs[k].rank / obs[k].N * 100;
@@ -10882,14 +10921,14 @@ var PAL2NS = (window.PAL = window.PAL || {});
       }).join('');
   }
   function dModeAndGoalMarks(rep, xOf, ihG) {
-    /* 最可能点(中位)与目标的虚线标注 */
+    /* 状态模型中心(中位)与目标的虚线标注 */
     var md = rep.nextExam ? rep.nextExam.medianPercentile : null;
     var out = "";
     if (md != null && md > 0.3 && md < 99.7) {
       var mx = xOf(md);
       out += '<line x1="' + mx.toFixed(1) + '" y1="4" x2="' + mx.toFixed(1) +
         '" y2="' + (20 + ihG) + '" stroke="#4a90d9" stroke-width="1.2" stroke-dasharray="3 3" opacity=".8"/>' +
-        '<text x="' + (mx + 4).toFixed(1) + '" y="23" font-size="9" fill="#4a90d9">最可能 前' +
+        '<text x="' + (mx + 4).toFixed(1) + '" y="23" font-size="9" fill="#4a90d9">模型中心 前' +
         pct1(md) + '%</text>';
     }
     var gx = xOf(S.goalPct);
@@ -10915,7 +10954,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
       /* 发挥标尺视图:横轴=标准分标尺,每根柱=相等的一段「发挥距离」,
          柱高=该发挥段命中概率 → 柱与柱完全可比,峰即最可能点 */
       var zTop = 4, zBot = -4, zRange = zTop - zBot;
-      var NB = 20, zBin = zRange / NB;
+      var NB = S.zmapBins || 20, zBin = zRange / NB;
       var xOfZ = function (z) { return padL + iw * (zTop - z) / zRange; };
       var xOfP = function (p) {
         var z = probit(1 - p / 100);
@@ -10962,7 +11001,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
       if (mdX !== null) {
         marksZ += '<line x1="' + mdX.toFixed(1) + '" y1="4" x2="' + mdX.toFixed(1) +
           '" y2="' + (20 + ih) + '" stroke="#4a90d9" stroke-width="1.2" stroke-dasharray="3 3" opacity=".8"/>' +
-          '<text x="' + Math.min(mdX + 4, W - 90).toFixed(1) + '" y="23" font-size="9" fill="#4a90d9">最可能 前' +
+          '<text x="' + Math.min(mdX + 4, W - 90).toFixed(1) + '" y="23" font-size="9" fill="#4a90d9">模型中心 前' +
           pct1(md) + '%</text>';
       }
       var gxZ = clampX(xOfP(S.goalPct));
@@ -10972,8 +11011,9 @@ var PAL2NS = (window.PAL = window.PAL || {});
         S.goalPct + '%</text>';
       svg = barsZ + labelsZ + marksZ;
       caption = '横轴=「发挥距离」标尺：同样 2 个名次点，越靠前对应的发挥距离越大（名次刻度按真实位置标注）。' +
-        '每根柱宽度 = <b>相等的一段发挥距离</b>，柱高 = 该发挥段的命中概率 —— 柱与柱完全可比，' +
-        '<span style="color:#4a90d9">最高柱=最可能点</span>。蓝色柱=达成目标前' + S.goalPct + '% 的区域';
+        '每根柱宽度 = <b>相等的一段发挥距离</b>，柱高 = 该发挥段的命中概率；柱与柱完全可比，' +
+        '<span style="color:#4a90d9">最高柱=状态模型中心</span>。蓝色柱=达成目标前' + S.goalPct +
+        '% 的区域。当前分为 <b>' + NB + ' 格</b>；调细只会显示更多局部起伏，不会改变预测结果';
     } else if (view === "cum") {
       /* 累计概率视图:曲线=「落到前X%以内」的总概率,直接读数 */
       var cumPts = "", cumY = [], midY = null;
@@ -11004,7 +11044,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
           '<line x1="' + mXC.toFixed(1) + '" y1="4" x2="' + mXC.toFixed(1) + '" y2="' + (20 + ih) +
           '" stroke="#4a90d9" stroke-width="1.1" stroke-dasharray="3 3" opacity=".8"/>' +
           '<text x="' + (mXC + 4).toFixed(1) + '" y="23" font-size="9" fill="#4a90d9">' +
-          '曲线过半点 = 最可能 前' + pct1(md) + '%</text>';
+          '曲线过半点 = 模型中心 前' + pct1(md) + '%</text>';
       }
       var labelsCum = "";
       [0, 10, 20, 25, 50, 75, 90, 100].forEach(function (tk) {
@@ -11013,7 +11053,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
       });
       svg = cumSvg + labelsCum + marksCum;
       caption = '曲线 = 「落到前X%以内」的累计命中概率：在横轴找目标名次、沿竖线到曲线、再横着读概率（如考进前' + S.goalPct +
-        '% ≈ <b>' + Math.round(cumGoal * 100) + '%</b>）。曲线爬过 50% 横线的点 = 最可能点（' + (md != null ? '前' + pct1(md) + '%' : '—') + '）。';
+        '% ≈ <b>' + Math.round(cumGoal * 100) + '%</b>）。曲线爬过 50% 横线的点 = 状态模型中心（' + (md != null ? '前' + pct1(md) + '%' : '暂无') + '）。';
     } else {
       /* 名次段视图(默认):柱=该名次段命中概率,柱高=柱顶数字;蓝色密度曲线峰=最可能点 */
       var bars = "", labelsB = "", curve = "";
@@ -11066,7 +11106,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
       }
       var xOfPct = function (p) { return padL + iw * p / 100; };
       svg = bars + curveSvg + labelsB + dModeAndGoalMarks(rep, xOfPct, ih);
-      caption = '柱子 = 该名次段的命中概率（柱高=柱顶数字）；<b style="color:#4a90d9">蓝色曲线</b> = 概率密度，峰即<b>最可能点</b>（蓝色虚线处）。' +
+      caption = '柱子 = 该名次段的命中概率（柱高=柱顶数字）；<b style="color:#4a90d9">蓝色曲线</b> = 状态模型概率密度，峰值对应<b>模型中心</b>（蓝色虚线处）。' +
         '命中前' + S.goalPct + '% 的概率 ≈ <b>' + Math.round(pGoal * 100) + '%</b>';
     }
     var binChips = view === "band"
@@ -11075,10 +11115,23 @@ var PAL2NS = (window.PAL = window.PAL || {});
           '" data-dsb-bin="' + bn + '">每格' + bn + '%</button>';
       }).join('')
       : "";
+    var zBinChips = view === "zmap"
+      ? [
+        { n: 10, t: "较粗", tip: "10格，轮廓更平滑" },
+        { n: 20, t: "标准", tip: "20格，兼顾轮廓和细节" },
+        { n: 40, t: "较细", tip: "40格，显示更多局部细节" }
+      ].map(function (opt) {
+        return '<button type="button" class="' + chipCls((S.zmapBins || 20) === opt.n) +
+          '" data-dsb-zbins="' + opt.n + '" aria-pressed="' + ((S.zmapBins || 20) === opt.n) +
+          '" title="' + opt.tip + '">' + opt.t + '</button>';
+      }).join('')
+      : "";
     return '<div class="combo-chips-v25" style="margin-bottom:8px">' + dViewChips() +
       (view === "band"
         ? '<span class="label">细度：</span>' + binChips
-        : '<span class="label" style="opacity:.55">视图间可切换</span>') +
+        : view === "zmap"
+          ? '<span class="label">细度：</span>' + zBinChips
+          : '<span class="label" style="opacity:.55">视图间可切换</span>') +
       '</div>' +
       '<div class="dsb-scroll"><svg viewBox="0 0 ' + W + " " + H + '" style="width:100%;max-width:760px;display:block;color:inherit">' +
       svg + "</svg></div>" +
@@ -11097,7 +11150,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
   function details(title, bodyHtml, open) {
     return '<details' + (open ? ' open' : '') + ' style="margin-top:10px">' +
       '<summary style="cursor:pointer;font-size:13px;opacity:.72;user-select:none">' +
-      '▸ ' + title + '</summary>' +
+      title + '</summary>' +
       '<div style="padding:8px 2px 2px">' + bodyHtml + '</div></details>';
   }
 
@@ -11110,10 +11163,10 @@ var PAL2NS = (window.PAL = window.PAL || {});
     }
     var verdict = !mk.valid ? '场次不足' :
       mk.significant ? (mk.s > 0 ? '存在显著上升趋势' : '存在显著下降趋势') : '无统计显著趋势';
-    return details('趋势检验（通过才算数的那个）',
+    return details('长期方向检验',
       '<div style="font-size:14px;font-weight:600">' + verdict + '</div>' +
-      '<div style="font-size:12px;opacity:.75;margin-top:4px">Mann–Kendall 检验 p = ' +
-      (mk.valid ? mk.p.toFixed(3) : '—') + '（α=0.05）' + senTxt +
+      '<div style="font-size:12px;opacity:.75;margin-top:4px">Mann-Kendall 检验 p = ' +
+      (mk.valid ? mk.p.toFixed(3) : '暂无') + '（α=0.05）' + senTxt +
       '<br>口径说明：「动量」是描述性规则；这里只陈述通过统计检验的结论。</div>');
   }
 
@@ -11121,15 +11174,15 @@ var PAL2NS = (window.PAL = window.PAL || {});
     var cpLast = rep.changepoint.recentChangeProb[rep.changepoint.recentChangeProb.length - 1];
     var ev = rep.ewma || {};
     var evTxt = (ev.violations && ev.violations.length)
-      ? '⚠ 第 ' + ev.violations.map(function (v) { return v + 2; }).join('、') + ' 场出现异动信号'
+      ? '第 ' + ev.violations.map(function (v) { return v + 2; }).join('、') + ' 场出现连续偏移信号'
       : '无异动信号';
     var nInterv = rep.interventions.filter(Boolean).length;
-    return details('体制信号（变点 + 渐进预警）',
+    return details('突然变化与连续偏移',
       '<div style="font-size:13px;line-height:1.7">' +
       '近期体制变化概率：<b>' + cpLast.toFixed(2) + '</b>' +
-      (cpLast > 0.5 ? '（偏高——最近的成绩结构可能已切换）' : '') +
+      (cpLast > 0.5 ? '（偏高，最近的成绩结构可能已切换）' : '') +
       '；历史触发重估 ' + nInterv + ' 次<br>' +
-      'EWMA 渐进劣化监测：' + evTxt + '</div>');
+      'EWMA 残差监测：' + evTxt + '</div>');
   }
 
   function difficultyDetails(rep) {
@@ -11137,15 +11190,38 @@ var PAL2NS = (window.PAL = window.PAL || {});
     if (!Array.isArray(darr) || !darr.length) return '';
     var nh = darr.filter(function (d) { return d.pHard > 0.4; }).length;
     var ne2 = darr.filter(function (d) { return d.pEasy > 0.4; }).length;
-    return details('试卷难度推断',
-      '<div style="font-size:13px">逐卷检验：判为难卷 <b>' + nh + '</b> 场、易卷 <b>' + ne2 +
-      '</b> 场。难卷场次的位比波动已在模型中自动降权。</div>');
+    return details('分数与排名是否一致',
+      '<div style="font-size:13px;line-height:1.75">有 <b>' + nh +
+      '</b> 场得分低于个人在相近排名下的通常水平，有 <b>' + ne2 +
+      '</b> 场高于通常水平。这里只说明个人历史关系出现偏离，不判断试卷客观难易。</div>');
+  }
+
+  /* 第二层：只解释判断逻辑，不要求用户理解统计名词。 */
+  function whyDetails(rep, obsN) {
+    var mk = rep.trend.mk;
+    var direction = !mk.valid || !mk.significant ? '暂未看出稳定的长期方向' :
+      (mk.s > 0 ? '多场记录共同支持整体向好' : '多场记录共同支持整体回落');
+    var cpLast = rep.changepoint.recentChangeProb[rep.changepoint.recentChangeProb.length - 1];
+    var shift = cpLast > 0.5 ? '近期可能出现了较明显的状态切换' : '近期没有发现明确的突然换挡';
+    var ev = rep.ewma || {};
+    var drift = ev.violations && ev.violations.length
+      ? '连续几场的小幅偏移已经累积成提醒'
+      : '连续小幅偏移尚未达到提醒条件';
+    return details('为什么得到这些结论',
+      '<div class="dsb-why-grid">' +
+      '<div><b>先统一比较口径</b><span>不同参考人数的名次先换到同一把尺子上。</span></div>' +
+      '<div><b>再降低偶发失常影响</b><span>单次异常不会直接被解释成长期进步或退步。</span></div>' +
+      '<div><b>分别检查三类变化</b><span>' + esc(direction) + '；' + esc(shift) + '；' + esc(drift) + '。</span></div>' +
+      '<div><b>最后给出参考范围</b><span>范围结合当前状态与近 ' + obsN +
+      ' 场预测误差。它表达可能波动，不是成绩保证。</span></div>' +
+      '</div>');
   }
 
   /* ---------- 计算过程:「计算收据」三层 ---------- */
   /* 第二层主体:用用户真实数据把整笔账算一遍 */
   function receiptInner(rep, obs) {
     var ne = rep.nextExam;
+    var ewf = rep.ewmaForecast;
     var pred = rep.filter.predictive;
     var lastMu = rep.filter.mu[rep.filter.mu.length - 1];
     var effShift = pred.location - lastMu;
@@ -11159,11 +11235,11 @@ var PAL2NS = (window.PAL = window.PAL || {});
       var o = obs[i];
       var z = M ? M.positionToZ(o.rank, o.N).z : null;
       var w = weights[i] != null ? weights[i] : 1;
-      var flag = w < 0.7 ? ' <span style="color:#d4574e;font-size:10px">⚠失常降权</span>' : "";
+      var flag = w < 0.7 ? ' <span style="color:#d4574e;font-size:10px">异常降权</span>' : "";
       rows += '<tr>' +
         '<td style="padding:3px 8px;opacity:.8">#' + (i + 1) + '</td>' +
         '<td style="padding:3px 8px">前' + pct0(o.rank / o.N * 100) + '%（' + o.rank + '/' + o.N + '）</td>' +
-        '<td style="padding:3px 8px">' + (z != null ? z.toFixed(2) : "—") + '</td>' +
+        '<td style="padding:3px 8px">' + (z != null ? z.toFixed(2) : "暂无") + '</td>' +
         '<td style="padding:3px 8px">' + w.toFixed(2) + flag + '</td></tr>';
     }
     var dampNote = (Math.abs(beta) > 1e-9 && Math.abs(effShift - beta) > 1e-9)
@@ -11171,7 +11247,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
       : '采纳全部趋势 ' + fs2(beta);
     var stepStyle = 'font-size:12.5px;line-height:1.9';
     return '<div style="' + stepStyle + '">' +
-      '<div style="font-weight:600;margin-bottom:4px">第 1 步 · 你的每场比赛换算成标准分</div>' +
+      '<div style="font-weight:600;margin-bottom:4px">第 1 步 · 你的每场考试换算成标准分</div>' +
       '<table style="border-collapse:collapse;width:100%;font-size:12px">' +
       '<tr style="opacity:.55"><th style="text-align:left;padding:3px 8px">场次</th>' +
       '<th style="text-align:left;padding:3px 8px">位比</th>' +
@@ -11182,17 +11258,22 @@ var PAL2NS = (window.PAL = window.PAL || {});
       '<div style="font-weight:600;margin-top:10px">第 2 步 · 合成你的真实水平</div>' +
       '<div>加权稳定点 μ̂ = <b>' + lastMu.toFixed(2) + '</b></div>' +
 
-      '<div style="font-weight:600;margin-top:10px">第 3 步 · 走到下一场</div>' +
+      '<div style="font-weight:600;margin-top:10px">第 3 步 · 状态模型走到下一场</div>' +
       '<div>' + lastMu.toFixed(2) + ' <b>' + fs2(effShift) + '</b> = <b>' +
       pred.location.toFixed(2) + '</b>　<span style="font-size:11px;opacity:.65">' + dampNote + '</span></div>' +
 
-      '<div style="font-weight:600;margin-top:10px">第 4 步 · 定波动范围</div>' +
+      '<div style="font-weight:600;margin-top:10px">第 4 步 · 近期成绩单独做平滑参考</div>' +
+      '<div>最近一场占 40%，更早记录逐渐衰减，得到 <b>前' +
+      (ewf && ewf.valid ? pct1(ewf.percentile) : '未知') + '%</b></div>' +
+
+      '<div style="font-weight:600;margin-top:10px">第 5 步 · 定状态模型的波动范围</div>' +
       '<div>你平时的起伏 ±' + (pred.scaleRaw || pred.scale).toFixed(2) +
       (pred.conformalK != null ? '，按你历史误差放大 ×' + pred.conformalK.toFixed(2) +
         ' ⇒ ±<b>' + pred.scale.toFixed(2) + '</b>' : '') + '</div>' +
 
-      '<div style="font-weight:600;margin-top:10px">第 5 步 · 换回名次，得到最终答案</div>' +
-      '<div style="font-size:14px">最可能 <b>前' + pct1(ne.medianPercentile) + '%</b>；95%区间 ' +
+      '<div style="font-weight:600;margin-top:10px">第 6 步 · 分开阅读两个结果</div>' +
+      '<div style="font-size:14px">近期平滑参考 <b>前' +
+      (ewf && ewf.valid ? pct1(ewf.percentile) : '未知') + '%</b>；状态模型参考范围 ' +
       '<b>[前' + pct0(ne.ci95Percentile[0]) + '%, 前' + pct0(ne.ci95Percentile[1]) + '%]</b></div>' +
       "</div>";
   }
@@ -11203,51 +11284,45 @@ var PAL2NS = (window.PAL = window.PAL || {});
     var mth = 'font-family:Georgia,serif;font-style:italic';
     var l3 = details('方法与参数',
       '<div style="font-size:12px;line-height:2;opacity:.85">' +
-      '· 测量层：位比 <i style="' + mth + '">r/N</i> 经 Blom 分数 <span style="' + mth + '">z = Φ<sup>−1</sup>((r−0.375)/(N+0.25))</span> 嵌入，解析 <span style="' + mth + '">se ≈ √(p(1−p)/N)</span><br>' +
+      '· 点预测：EWMA Forecast 直接平滑原始位比，α=0.40，仅输出下一场参考点<br>' +
+      '· 测量层：位比 <i style="' + mth + '">r/N</i> 经 Blom 分数 <span style="' + mth + '">z = Φ<sup>−1</sup>((r−0.375)/(N+0.25))</span> 嵌入；参考人数 SE 仅保留研究诊断，生产状态模型使用等权观测<br>' +
       '· 动态层：局部线性 DLM（折扣 <span style="' + mth + '">δ<sub>μ</sub>=0.96, δ<sub>β</sub>=0.90</span>），观测噪声 Student-t(<i style="' + mth + '">ν</i>=6) IRLS 稳健加权；σ²<sub>day</sub> 由一步残差 MAD 学习、六折计入预测<br>' +
       '· 变点层：BOCPD(NIG) 体制切换概率 &gt;0.5 且 MAP 游程≥5 时，下一场协方差膨胀干预 ×40<br>' +
       '· 趋势门控：原始 z 序列 MK 检验显著 → μ̂+0.7β，否则 φ=0<br>' +
-      '· 共形校准：前向尺度参照残差取 Q95，先验 K=6 收缩 W=8，除以 t<sub>0.975,6</sub> 换算标准尺度<br>' +
-      '· 推断层：MK+Sen 主检验、EWMA(λ=.3, L=2.815)、BH-FDR q=0.10 统一预算<br>' +
+      '· 历史残差校准：前向尺度参照残差取 Q95，no-SE 五折先验 K=4.54、收缩 W=4，除以 t<sub>0.975,6</sub> 换算标准尺度<br>' +
+      '· 推断层：MK+Sen 主检验、EWMA Residual Monitor(λ=.3, L=2.815)、BH-FDR q=0.10 统一预算<br>' +
       '· 区间：t(df=6) 后验分位数</div>');
-    return details('📋 怎么算的？', inner + l3);
+    return details('查看完整计算过程', inner + l3);
   }
 
   /* ---------- 默认可见区:预测主卡 ---------- */
   function mainCard(rep, obsN) {
     var ne = rep.nextExam;
     if (!ne) return '';
-    var pred = rep.filter.predictive;
-    var mu = rep.filter.mu[rep.filter.mu.length - 1];
-    var pc = function (z) { return 100 * (1 - C.normCdf(z)); };
-    var calib = pred.conformalK != null
-      ? '×' + pred.conformalK.toFixed(2) + (pred.calibrated ? '' : '（先验主导）')
-      : '未启用';
-    return '<div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end">' +
-      '<div><div style="font-size:11px;opacity:.6">下场最有可能</div>' +
-      '<div style="font-size:20px;font-weight:700">前 ' + pct1(ne.medianPercentile) + '%</div>' +
-      '<div style="font-size:11px;opacity:.55">由稳定水平 前' + pct1(pc(mu)) + '% 推算</div>' +
-      '<div style="font-size:10px;opacity:.45;margin-top:3px">↑ 已剔除失常场次的影响</div></div>' +
-      '<div><div style="font-size:11px;opacity:.6">下场预测（95%区间）</div>' +
+    var ewf = rep.ewmaForecast;
+    return '<div class="dsb-summary-row">' +
+      '<div class="dsb-summary-item"><div class="dsb-summary-label">下一场参考位置</div>' +
+      '<div class="dsb-summary-value">前 ' +
+      (ewf && ewf.valid ? pct1(ewf.percentile) : pct1(ne.medianPercentile)) + '%</div>' +
+      '<div class="dsb-summary-help">最近的考试影响更大，适合作为下一场的简单参考</div></div>' +
+      '<div class="dsb-summary-item"><div class="dsb-summary-label">可能波动范围</div>' +
       '<div style="font-size:20px;font-weight:700">前' + pct0(ne.ci95Percentile[0]) + '% ~ 前' +
       pct0(ne.ci95Percentile[1]) + '%</div>' +
-      '<div style="font-size:11px;opacity:.55">最可能 前' + pct1(ne.medianPercentile) +
-      '% · 区间校准 ' + calib + '</div>' +
-      '<div style="font-size:10px;opacity:.45;margin-top:3px">↑ 水平 ± 平时起伏' +
-      (pred.conformalK != null ? ' × 你的历史误差' : '') + '</div></div>' +
-      '<div style="flex:1;min-width:200px">' +
-      '<div style="font-size:11px;opacity:.6;margin-bottom:4px">下次考进前 X%？</div>' +
+      '<div class="dsb-summary-help">状态模型综合稳定水平、平时起伏和偶发失常</div></div>' +
+      '<div class="dsb-summary-item dsb-goal-box">' +
+      '<div class="dsb-summary-label">达到目标的参考把握</div>' +
       '<div style="display:flex;gap:6px;align-items:center">' +
       '<input id="dsbGoalPct" type="number" min="1" max="99" step="1" value="20" ' +
+      'aria-label="目标年级位置，填写1到99" ' +
       'style="width:56px;padding:3px 8px;border-radius:8px;border:1px solid rgba(127,127,127,.4);background:transparent;color:inherit;font-size:13px">' +
       '<button id="dsbGoalBtn" style="padding:4px 12px;font-size:12.5px;border-radius:8px;' +
-      'border:1px solid rgba(127,127,127,.35);background:transparent;color:inherit;cursor:pointer">算概率</button>' +
+      'border:1px solid rgba(127,127,127,.35);background:transparent;color:inherit;cursor:pointer">查看把握</button>' +
       '<span id="dsbGoalOut" style="font-size:15px;font-weight:700"></span></div></div>' +
       '</div>' +
-      '<div class="dsb-tip"><b>怎么读这张卡：</b>你的稳定水平大约在<b>前 ' + pct1(pc(mu)) + '%</b>；下次考试大概率落在' +
+      '<div class="dsb-tip"><b>一句话理解：</b>近期成绩推算的参考点是<b>前 ' +
+      (ewf && ewf.valid ? pct1(ewf.percentile) : pct1(ne.medianPercentile)) + '%</b>。考虑正常发挥起伏后，状态模型给出的参考范围是' +
       '<span style="color:#4a90d9">前' + pct0(ne.ci95Percentile[0]) + '% ~ 前' +
-      pct0(ne.ci95Percentile[1]) + '%</span>之间。下方竖须就是过去每次「当时预测 vs 实际结果」；' +
-      '点开「📋 怎么算的？」可查看本页每个数字的计算过程。</div>';
+      pct0(ne.ci95Percentile[1]) + '%</span>。参考点和范围来自不同方法，应分开阅读；它们都不是成绩保证。</div>';
   }
 
   /* ---------- 轨迹图(SVG):原始位比点 + 滤波带 + 预测扇区 + 历史预测回显 ---------- */
@@ -11371,27 +11446,28 @@ var PAL2NS = (window.PAL = window.PAL || {});
     var items = [];
     var mk = rep.trend.mk;
     if (mk.valid && mk.significant) {
-      items.push({ t: mk.s > 0 ? "整体呈显著上升趋势" : "整体呈显著下降趋势",
-        ev: "Mann–Kendall p=" + mk.p.toFixed(3) });
+      items.push(mk.s > 0
+        ? "多场记录共同支持整体向好，不是只看最近一次成绩"
+        : "多场记录共同支持整体回落，建议结合近期学习和考试情况查看");
     }
     var cpLast = rep.changepoint.recentChangeProb[rep.changepoint.recentChangeProb.length - 1];
-    if (cpLast > 0.5) items.push({ t: "最近的成绩结构可能已切换（如难度/状态突变）", ev: "体制变化概率 " + cpLast.toFixed(2) });
+    if (cpLast > 0.5) items.push("最近的表现可能出现了明显换挡，旧记录的参考价值正在下降");
     var ev = rep.ewma || {};
     if (ev.violations && ev.violations.length) {
-      items.push({ t: "第 " + ev.violations.map(function (v) { return v + 2; }).join("、") +
-        " 场出现渐进异动信号", ev: "EWMA 控制图违限" });
+      items.push("连续几场的小幅变化已经累积成提醒，建议关注是否存在持续原因");
     }
     var darr = rep.difficulty;
     if (Array.isArray(darr) && darr.length) {
       var nh = darr.filter(function (d) { return d.pHard > 0.4; }).length;
       var nea = darr.filter(function (d) { return d.pEasy > 0.4; }).length;
-      if (nh || nea) items.push({ t: "有 " + nh + " 场难卷、" + nea + " 场易卷被判出（位比波动已降权处理）", ev: "逐卷检验 P>0.4" });
+      if (nh) items.push("有 " + nh + " 场得分低于个人在相近排名下的通常水平，原因需要结合试卷和临场情况判断");
+      if (nea) items.push("有 " + nea + " 场得分高于个人在相近排名下的通常水平");
     }
-    if (!items.length) items.push({ t: "成绩以正常波动为主，无显著趋势或异动信号", ev: "全部检验未触发" });
-    items.push({ t: "预测区间按你近 " + obsN + " 场的波动幅度校准，真实回测覆盖94.9%", ev: "滚动共形" });
-    return '<ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.85">' +
+    if (!items.length) items.push("目前以正常波动为主，没有发现需要特别提醒的长期方向或连续异动");
+    items.push("参考范围结合了近 " + obsN + " 场的历史误差；记录越少，范围通常越不稳定");
+    return '<ul class="dsb-plain-insights">' +
       items.slice(0, 4).map(function (it) {
-        return "<li>" + esc(it.t) + ' <span style="font-size:10.5px;opacity:.5">[' + esc(it.ev) + "]</span></li>";
+        return "<li>" + esc(it) + "</li>";
       }).join("") + "</ul>";
   }
 
@@ -11535,8 +11611,8 @@ var PAL2NS = (window.PAL = window.PAL || {});
         esc(combo.name) + '</b>」 · 序列=你为组合填写的「组合年排」；未填写时若该场总分=该组合（如六科组合），则沿用总分排名</p>';
     } else if (S.cur === '__total__' && caliber && caliber.kind === 'combo') {
       caliberNote = '<p class="dsb-caliber" style="margin:-4px 0 10px">' +
-        '⚠ 总分参与人数(' + caliber.totalN + ') ≤ 单科最大池(' + caliber.maxSubN +
-        ')——疑似<b>组合内排名</b>而非全年级。组合口径衡量你在同选科群体中的位置，与年级口径含义不同；' +
+        '<b>注意：</b>总分参与人数(' + caliber.totalN + ') ≤ 单科最大池(' + caliber.maxSubN +
+        ')，疑似<b>组合内排名</b>而非全年级。组合口径衡量你在同选科群体中的位置，与年级口径含义不同；' +
         '系统按录入原样分析，解读时注意口径。</p>';
     }
 
@@ -11547,7 +11623,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
         '有效位比观测不足 4 场，暂无法建模。' +
         (combo ? '在考试录入弹窗为组合填写「组合年排名次/年级人数」后即可解锁。' : '') + '</div>';
     } else {
-      var rep = P2.pipeline.analyzeSeries(obs);
+      var rep = analyzeProd(obs);
       if (!rep.valid) {
         body = '<div style="font-size:13px;opacity:.75">数据未通过有效性检查。</div>';
       } else {
@@ -11562,21 +11638,23 @@ var PAL2NS = (window.PAL = window.PAL || {});
         var hitN = hist.filter(function (h) { return h.inside; }).length;
         var histNote = hist.length
           ? '竖须=过去每场「当时的预测区间」（绿=实际落内、<span style="color:#d4574e">红叉</span>=失手，命中 ' +
-            hitN + '/' + hist.length + '）· 竖须上蓝点=当时认为最可能的位置 · '
+            hitN + '/' + hist.length + '）· 竖须上蓝点=当时的状态模型中心 · '
           : '';
-        var trajCap = '灰点=每场实际位比（<span style="color:#2e9e6b">绿圈</span>=落在当时预测区间内） · 蓝线=滤波真实水平 · ' +
-          '阴影带=水平估计的可信范围（<b>不是</b>预测区间，预测区间是更宽的竖须） · ' +
-          '右侧色阶扇区=下场落点概率密度（越深越接近最可能点，即蓝色虚线处） · ' + histNote;
-        body = '<div class="dsb-block-title">下一场预测（主结论）</div>' +
+        var trajCap = '灰点=每场实际排名位置（<span style="color:#2e9e6b">绿圈</span>=落在当时预测区间内） · 蓝线=综合多场记录后的稳定水平 · ' +
+          '阴影带=当前水平可能范围（<b>不是</b>下一场预测区间，下一场范围通常更宽） · ' +
+          '右侧色阶扇区=状态模型的下场落点概率密度（越深越接近模型中心） · ' + histNote;
+        body = '<div class="dsb-level-head"><span>第一层</span><b>先看结论</b><small>不用理解统计术语</small></div>' +
           mainCard(rep, obs.length) +
-          '<div class="dsb-block-title">本 期 洞 察</div>' +
+          '<div class="dsb-block-title">本期提醒</div>' +
           insightsList(rep, obs.length) +
+          '<div class="dsb-level-head"><span>第二层</span><b>为什么这样判断</b><small>查看每条结论的依据</small></div>' +
+          whyDetails(rep, obs.length) +
           '<div class="dsb-fig" style="margin-top:14px"><div class="dsb-fig-title">排名轨迹与预测区间</div>' +
           '<div class="dsb-scroll">' + trajectorySvg(rep, obs, hist) + '</div>' +
           '<div class="dsb-fig-cap">' + trajCap + '</div></div>' +
           '<div class="dsb-fig" style="margin-top:12px"><div class="dsb-fig-title">下一场落点分布</div>' +
           '<div id="dsbDistWrap">' + distBlock(rep) + '</div></div>' +
-          '<div class="dsb-block-title">算法细节（点开查看各自推导）</div>' +
+          '<div class="dsb-level-head"><span>第三层</span><b>专业细节</b><small>统计检验、计算过程和参数</small></div>' +
           '<div class="dsb-grid2">' +
           trendDetails(rep) + signalsDetails(rep) + difficultyDetails(rep) +
           calcDetails(rep, obs) + '</div>';
@@ -11587,7 +11665,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
       '<div class="dsb-head">' +
       '<span style="font-size:15px;font-weight:700">⑨ 深度分析</span>' +
       '<sup style="font-size:9.5px;opacity:.55">Beta</sup>' +
-      '<span class="dsb-note">研究版统计算法 · 所有数字都可展开看推导 · ⓘ 数据实时在本机计算</span></div>' +
+      '<span class="dsb-note">先看结论，需要时再展开依据和专业细节。数据只在本机计算</span></div>' +
       '<div style="margin:2px 0 10px">' +
       (comboList().length ? '<div class="combo-chips-v25">' + comboChipsHtml(combo) + '</div>' : '') +
       '<div class="combo-chips-v25"><span class="label">单科：</span>' + chips + '</div>' +
@@ -11604,7 +11682,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
     var obs = cob ? obsCombo(exams, cob)
       : (S.cur === '__total__' ? obsTotal(exams) : obsSubject(exams, S.cur));
     if (obs.length < 4) return null;
-    try { return P2.pipeline.analyzeSeries(obs); } catch (e) { return null; }
+    try { return analyzeProd(obs); } catch (e) { return null; }
   }
   function onDocClick(ev) {
     var t = ev.target;
@@ -11612,6 +11690,13 @@ var PAL2NS = (window.PAL = window.PAL || {});
     var binChip = t.closest("[data-dsb-bin]");
     if (binChip) {
       S.distBin = parseInt(binChip.getAttribute("data-dsb-bin"), 10) || 5;
+      renderDistInto();
+      return;
+    }
+    var zBinChip = t.closest("[data-dsb-zbins]");
+    if (zBinChip) {
+      var nextBins = parseInt(zBinChip.getAttribute("data-dsb-zbins"), 10);
+      S.zmapBins = [10, 20, 40].indexOf(nextBins) >= 0 ? nextBins : 20;
       renderDistInto();
       return;
     }
@@ -11647,7 +11732,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
       var v = parseFloat(inp.value);
       if (!(v >= 1 && v <= 99)) { out.textContent = "1~99"; return; }
       var rep = curReport();
-      if (!rep || !rep.filter.predictive) { out.textContent = "—"; return; }
+      if (!rep || !rep.filter.predictive) { out.textContent = "暂无"; return; }
       var zTarget = probit(1 - v / 100);
       S.goalPct = Math.round(v);
       var pr = P2.dynamics.probReach(rep.filter.predictive, zTarget);
@@ -11674,8 +11759,27 @@ var PAL2NS = (window.PAL = window.PAL || {});
       '#dsbRoot .dsb-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}' +
       '#dsbRoot .dsb-note{margin-left:auto;font-size:10.5px;opacity:.5;text-align:right}' +
       '#dsbRoot .dsb-block-title{font-size:12.5px;font-weight:700;margin:14px 0 8px;letter-spacing:1px;opacity:.85}' +
+      '#dsbRoot .dsb-level-head{display:flex;align-items:baseline;gap:8px;margin:18px 0 9px;' +
+      'padding-top:12px;border-top:1px solid var(--line,#e8ebf0)}' +
+      '#dsbRoot .dsb-level-head:first-of-type{margin-top:10px;padding-top:0;border-top:0}' +
+      '#dsbRoot .dsb-level-head span{font-size:10px;font-weight:700;color:#4a90d9}' +
+      '#dsbRoot .dsb-level-head b{font-size:14px}' +
+      '#dsbRoot .dsb-level-head small{font-size:10.5px;opacity:.5}' +
+      '#dsbRoot .dsb-summary-row{display:grid;grid-template-columns:minmax(150px,.9fr) minmax(190px,1.15fr) minmax(210px,1fr);' +
+      'gap:18px;align-items:end}' +
+      '#dsbRoot .dsb-summary-item{min-width:0}' +
+      '#dsbRoot .dsb-summary-label{font-size:11px;opacity:.62;margin-bottom:3px}' +
+      '#dsbRoot .dsb-summary-value{font-size:20px;font-weight:700}' +
+      '#dsbRoot .dsb-summary-help{font-size:10.5px;opacity:.52;margin-top:4px;line-height:1.55}' +
+      '#dsbRoot .dsb-plain-insights{margin:0;padding-left:18px;font-size:13px;line-height:1.85}' +
+      '#dsbRoot .dsb-why-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 18px;font-size:12.5px;line-height:1.65}' +
+      '#dsbRoot .dsb-why-grid div{display:grid;gap:2px}' +
+      '#dsbRoot .dsb-why-grid span{opacity:.7}' +
       '#dsbRoot .dsb-grid2{display:grid;gap:12px}' +
       '@media(min-width:900px){#dsbRoot .dsb-grid2{grid-template-columns:1fr 1fr}}' +
+      '@media(max-width:760px){#dsbRoot .dsb-summary-row{grid-template-columns:1fr 1fr;gap:14px 12px}' +
+      '#dsbRoot .dsb-goal-box{grid-column:1/-1}#dsbRoot .dsb-why-grid{grid-template-columns:1fr}' +
+      '#dsbRoot .dsb-level-head{align-items:flex-start;flex-wrap:wrap}#dsbRoot .dsb-level-head small{width:100%;margin-left:42px}}' +
       '#dsbRoot .dsb-fig{border:1px solid var(--line,#e8ebf0);border-radius:14px;padding:12px 14px;' +
       'background:var(--panel-solid,#fff);min-width:0}' +
       '#dsbRoot .dsb-fig-title{font-size:12.5px;font-weight:700;margin-bottom:6px;opacity:.9}' +
@@ -11766,11 +11870,17 @@ var PAL2NS = (window.PAL = window.PAL || {});
     obsSubject: obsSubject,
     subjectList: subjectList,
     probit: probit,
-    analyze: function (obs) { return P2.pipeline.analyzeSeries(obs); },
+    analyze: function (obs) { return analyzeProd(obs); },
     sectionHtml: sectionHtml,
     refresh: refresh,
     mountIfMissing: mountIfMissing,
     setSubject: function (s) { S.cur = s; },
+    analysisOptions: {
+      seWeighting: PROD_ANALYSIS_OPTS.seWeighting,
+      ewmaForecastAlpha: PROD_ANALYSIS_OPTS.ewmaForecastAlpha,
+      conformalPriorK: PROD_ANALYSIS_OPTS.conformalPriorK,
+      conformalPriorW: PROD_ANALYSIS_OPTS.conformalPriorW
+    },
     shadowKey: LS_SHADE
   };
 })();
