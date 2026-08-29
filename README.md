@@ -10,6 +10,12 @@ Score Tracker 最初只是一个“目标成绩 vs. 真实成绩”的手机端�
 
 它面向真实的高中考试场景：不同考试可能满分不同、可能有赋分与原始分、参考人数可能变化、部分考试只覆盖某些科目，也可能需要同时关注总分、单科、四科 / 六科组合、班排、年排甚至市区排名。因此系统尽量保留这些“考试语境”，而不是把所有数据压成一条简单分数曲线。
 
+## Product Preview / 产品截图
+
+![Score Tracker product overview](docs/images/score-tracker-showcase.webp)
+
+*成绩轨迹、可打印成绩报告、智能提醒与深度分析等代表性界面。*
+
 ---
 
 ## 当前运行规模
@@ -136,6 +142,10 @@ Score Tracker 因此同时保存：
 - 总览、科目和组合之间联动。
 
 这部分定位为 **Beta / exploratory analytics**：它帮助发现模式和风险，不把统计推断包装成确定性的“成绩预测”。样本少、考试口径不一致或参考人数变化过大时，结果应结合原始考试记录理解。
+
+![Score Tracker analytics views](docs/images/score-tracker-analysis.webp)
+
+*雷达对比、成绩报告明细、全量统计矩阵与学科结构等分析视图。*
 
 ---
 
