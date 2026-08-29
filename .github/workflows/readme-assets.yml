@@ -20,7 +20,10 @@ jobs:
           mkdir -p docs/images
           assemble() {
             local out="$1" prefix="$2"
-            cat ${prefix}.part.* > "$out"
+            : > "$out"
+            for part in ${prefix}.part.*; do
+              base64 -d "$part" >> "$out"
+            done
           }
           assemble docs/images/01-score-trend.webp .readme-assets/01-score-trend
           assemble docs/images/02-radar-comparison.webp .readme-assets/02-radar-comparison
