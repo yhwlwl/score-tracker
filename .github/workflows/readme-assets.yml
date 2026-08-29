@@ -22,18 +22,19 @@ jobs:
             local out="$1" prefix="$2"
             : > "$out"
             for part in ${prefix}.part.*; do
-              base64 -d "$part" >> "$out"
+              cat "$part" >> "$out"
             done
           }
           assemble docs/images/01-score-trend.webp .readme-assets/01-score-trend
           assemble docs/images/02-radar-comparison.webp .readme-assets/02-radar-comparison
-          assemble docs/images/03-score-report.webp .readme-assets/03-score-report
-          assemble docs/images/04-smart-reminders.webp .readme-assets/04-smart-reminders
-          assemble docs/images/05-statistics-matrix.webp .readme-assets/05-statistics-matrix
-          assemble docs/images/06-subject-structure.webp .readme-assets/06-subject-structure
-          assemble docs/images/07-appearance-themes.webp .readme-assets/07-appearance-themes
-          assemble docs/images/08-deep-analysis-summary.webp .readme-assets/08-deep-analysis-summary
-          assemble docs/images/09-deep-analysis-evidence.webp .readme-assets/09-deep-analysis-evidence
+          assemble docs/images/03-score-report-overview.webp .readme-assets/03-score-report-overview
+          assemble docs/images/04-score-report-detail.webp .readme-assets/04-score-report-detail
+          assemble docs/images/05-smart-reminders.webp .readme-assets/05-smart-reminders
+          assemble docs/images/06-statistics-matrix.webp .readme-assets/06-statistics-matrix
+          assemble docs/images/07-subject-structure.webp .readme-assets/07-subject-structure
+          assemble docs/images/08-appearance-themes.webp .readme-assets/08-appearance-themes
+          assemble docs/images/09-deep-analysis-summary.webp .readme-assets/09-deep-analysis-summary
+          assemble docs/images/10-deep-analysis-evidence.webp .readme-assets/10-deep-analysis-evidence
           rm -f .readme-assets/*.part.*
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
