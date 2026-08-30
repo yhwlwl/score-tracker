@@ -11666,6 +11666,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
       '<span style="font-size:15px;font-weight:700">⑨ 深度分析</span>' +
       '<sup style="font-size:9.5px;opacity:.55">Beta</sup>' +
       '<span class="dsb-note">先看结论，需要时再展开依据和专业细节。数据只在本机计算</span></div>' +
+      '<div class="dsb-privacy-note" role="note">为改进预测质量，本模块会使用经匿名化、去标识化处理的使用数据进行统计分析；不会记录密码等敏感内容。</div>' +
       '<div style="margin:2px 0 10px">' +
       (comboList().length ? '<div class="combo-chips-v25">' + comboChipsHtml(combo) + '</div>' : '') +
       '<div class="combo-chips-v25"><span class="label">单科：</span>' + chips + '</div>' +
@@ -11758,6 +11759,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
       '/* ---- 排版(与统计页卡片体系统一,主题可变) ---- */' +
       '#dsbRoot .dsb-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}' +
       '#dsbRoot .dsb-note{margin-left:auto;font-size:10.5px;opacity:.5;text-align:right}' +
+      '#dsbRoot .dsb-privacy-note{font-size:10.5px;line-height:1.6;opacity:.52;margin:-5px 0 11px;color:var(--muted,#667085)}' +
       '#dsbRoot .dsb-block-title{font-size:12.5px;font-weight:700;margin:14px 0 8px;letter-spacing:1px;opacity:.85}' +
       '#dsbRoot .dsb-level-head{display:flex;align-items:baseline;gap:8px;margin:18px 0 9px;' +
       'padding-top:12px;border-top:1px solid var(--line,#e8ebf0)}' +
@@ -11804,11 +11806,79 @@ var PAL2NS = (window.PAL = window.PAL || {});
   function pageIsStats() {
     try { return state.page === "stats"; } catch (e) { return false; }
   }
-  function mountIfMissing() {
+  /* ---------- 可见性埋点:只在板块/隐私说明真正进入视口时触发 ---------- */
+  var deepBetaViewTracked = false;
+  var privacyNoticeViewTracked = false;
+  var deepBetaVisibilityObserver = null;
+  var privacyNoticeVisibilityObserver = null;
+  var visibilityFallbackBound = false;
+  function trackDeepBetaView() {
+    if (deepBetaViewTracked) return;
+    deepBetaViewTracked = true;
+    track("deep_beta_view", { surface: "stats" });
+  }
+  function trackPrivacyNoticeView() {
+    if (privacyNoticeViewTracked) return;
+    privacyNoticeViewTracked = true;
+    track("privacy_notice_view", { surface: "deep_beta", notice_version: "v1" });
+  }
+  function isInViewport(el) {
+    if (!el || !el.getBoundingClientRect) return false;
+    var r = el.getBoundingClientRect();
+    return r.bottom > 0 && r.right > 0 && r.top < (window.innerHeight || document.documentElement.clientHeight) &&
+      r.left < (window.innerWidth || document.documentElement.clientWidth);
+  }
+  function checkVisibilityFallback() {
     if (!pageIsStats()) return;
+    var root = $("#dsbRoot");
+    if (!root) return;
+    if (isInViewport(root)) trackDeepBetaView();
+    var note = root.querySelector(".dsb-privacy-note");
+    if (isInViewport(note)) trackPrivacyNoticeView();
+  }
+  function disconnectVisibilityObservers() {
+    try { if (deepBetaVisibilityObserver) deepBetaVisibilityObserver.disconnect(); } catch (e) { }
+    try { if (privacyNoticeVisibilityObserver) privacyNoticeVisibilityObserver.disconnect(); } catch (e) { }
+    deepBetaVisibilityObserver = null;
+    privacyNoticeVisibilityObserver = null;
+  }
+  function observeSectionVisibility(root) {
+    if (!root || root.getAttribute("data-dsb-visibility-observed") === "1") return;
+    root.setAttribute("data-dsb-visibility-observed", "1");
+    if (typeof window.IntersectionObserver === "function") {
+      disconnectVisibilityObservers();
+      deepBetaVisibilityObserver = new IntersectionObserver(function (entries) {
+        if (entries[0] && entries[0].isIntersecting) trackDeepBetaView();
+      }, { threshold: 0.1 });
+      deepBetaVisibilityObserver.observe(root);
+      var note = root.querySelector(".dsb-privacy-note");
+      if (note) {
+        privacyNoticeVisibilityObserver = new IntersectionObserver(function (entries) {
+          if (entries[0] && entries[0].isIntersecting) trackPrivacyNoticeView();
+        }, { threshold: 0.1 });
+        privacyNoticeVisibilityObserver.observe(note);
+      }
+    } else {
+      if (!visibilityFallbackBound) {
+        visibilityFallbackBound = true;
+        window.addEventListener("scroll", checkVisibilityFallback, { passive: true });
+        window.addEventListener("resize", checkVisibilityFallback, { passive: true });
+      }
+      setTimeout(checkVisibilityFallback, 0);
+    }
+  }
+  function resetVisibilityTrackingIfOutsideStats() {
+    if (pageIsStats()) return;
+    deepBetaViewTracked = false;
+    privacyNoticeViewTracked = false;
+    disconnectVisibilityObservers();
+  }
+  function mountIfMissing() {
+    if (!pageIsStats()) { resetVisibilityTrackingIfOutsideStats(); return; }
     var c = document.getElementById("content");
     if (!c) return;
-    if ($("#dsbRoot", c)) return;           /* 已挂载 */
+    var existing = $("#dsbRoot", c);
+    if (existing) { observeSectionVisibility(existing); return; }           /* 已挂载 */
     if (!c.firstElementChild) return;        /* 统计页还没渲染好 */
     /* 插在「数据质量与方法论」(⑩)之前 → 深度分析=⑨ 紧随全量矩阵(⑧)。
        注意: quality 卡位于 .sv31-page 内部,不能要求它是 #content 的直接子级,
@@ -11816,11 +11886,13 @@ var PAL2NS = (window.PAL = window.PAL || {});
     var q = c.querySelector(".sv31-quality");
     if (q) q.insertAdjacentHTML("beforebegin", sectionHtml());
     else c.insertAdjacentHTML("beforeend", sectionHtml());
+    observeSectionVisibility($("#dsbRoot", c));
   }
   function refresh() {
     var root = $("#dsbRoot");
     if (!root) { mountIfMissing(); return; }
     root.outerHTML = sectionHtml();
+    observeSectionVisibility($("#dsbRoot"));
   }
   var mountTimer = null;
   function scheduleMount() {
@@ -11888,4 +11960,3 @@ var PAL2NS = (window.PAL = window.PAL || {});
 
 window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
 })();
-
