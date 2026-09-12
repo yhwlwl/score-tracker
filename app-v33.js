@@ -190,7 +190,7 @@ function chipHtml(s){
   else if(diff==null){cls="na";tail="待考试"}
   else{cls=diff>=0?"ok":"no";tail=diff>=0?"已超 "+diff:"还差 "+(-diff)}
   if(goal!=null&&v==null&&!examSource().length)tail="成绩读取中…";
-  return '<span class="gh-chip '+cls+'" data-subject="'+esc(s.name)+'" onclick="event.stopPropagation();__v33.jump(\''+esc(s.name).replace(/'/g,"")+'\')" title="查看统计分析">'
+  return '<span class="gh-chip '+cls+'" data-subject="'+esc(s.name)+'" title="查看统计分析">'
     +"<small>"+esc(s.name)+" · "+(goal==null?"—":"目标 "+goal)+"</small><b>"+(v==null?"—":v)+"</b><em>"+tail+"</em></span>";
 }
 function renderHomeCard(mount){
@@ -221,7 +221,7 @@ function renderHomeCard(mount){
   }
   if(G.data.school)side+='<div class="gh-school">理想学校<b>'+esc(G.data.school)+"</b></div>";
   var card=document.createElement("div");card.id="goalHeroV33";card.className="goal-hero-v33";
-  card.onclick=function(){openEditor("card")};
+  card.onclick=function(e){if(e.target&&e.target.closest&&e.target.closest('.gh-chips'))return;openEditor("card")};
   card.innerHTML='<div class="gh-main-v33"><div class="gh-title-row"><span class="gh-title">我的目标 · '+esc(G.data.name||"本学期")
     +'</span><span class="gh-hint">点击编辑</span></div>'
     +'<div class="gh-chips">'+chips+'</div>'
@@ -232,6 +232,17 @@ function renderHomeCard(mount){
   try{
     /* 手机端:chips 超出即提示可左右滑(并保证横滑不会被整体点击吃掉) */
     var cw=$(".gh-chips",card);
+    if(cw){
+      var startX=0,startScroll=0,moved=false;
+      cw.addEventListener('pointerdown',function(e){startX=e.clientX;startScroll=cw.scrollLeft;moved=false;});
+      cw.addEventListener('pointermove',function(e){if(Math.abs(e.clientX-startX)>7||Math.abs(cw.scrollLeft-startScroll)>5)moved=true;});
+      cw.addEventListener('click',function(e){
+        var chip=e.target.closest&&e.target.closest('.gh-chip');if(!chip)return;
+        e.stopPropagation();
+        if(moved){e.preventDefault();moved=false;return;}
+        __v33.jump(chip.dataset.subject||'');
+      });
+    }
     if(cw&&cw.scrollWidth>cw.clientWidth+6){
       var ht=$(".gh-hint",card);if(ht)ht.textContent="左右滑看各科 · 点卡片编辑";
       cw.scrollLeft=0;
@@ -446,7 +457,25 @@ function fillCalib(row){
 }
 
 /* ================= 市/区排名录入(仅新增/编辑弹窗,显式应用防覆盖) ================= */
-var cityObs=null;
+var cityObs=null,lastExamV33=null;
+var openExamBeforeV33City=(typeof openExam==="function")?openExam:null;
+if(openExamBeforeV33City){
+  openExam=function openExamV33City(exam){lastExamV33=exam||null;return openExamBeforeV33City.apply(this,arguments)};
+}
+function citySourceV33(exam){
+  exam=exam||{};
+  function pick(camel,snake){var v=exam[camel];if(v===null||v===undefined||v==="")v=exam[snake];return v===null||v===undefined||v===""?"":String(v);}
+  return{
+    cityRank:pick("cityRank","city_rank"),cityParticipants:pick("cityParticipants","city_participants"),
+    districtRank:pick("districtRank","district_rank"),districtParticipants:pick("districtParticipants","district_participants")
+  };
+}
+function cityLineV33(exam){
+  var c=citySourceV33(exam),parts=[];
+  if(c.cityRank)parts.push("市排 "+c.cityRank+(c.cityParticipants?"/"+c.cityParticipants:""));
+  if(c.districtRank)parts.push("区排 "+c.districtRank+(c.districtParticipants?"/"+c.districtParticipants:""));
+  return parts.length?'<div style="font-size:11px;color:var(--muted,#788392);padding:5px 2px 0;font-variant-numeric:tabular-nums">'+esc(parts.join(" · "))+"</div>":"";
+}
 function watchExamModal(){
   if(cityObs||typeof MutationObserver!=="function")return;
   cityObs=new MutationObserver(function(){
@@ -463,26 +492,58 @@ function watchExamModal(){
       +'<div class="v33-citygrid">'
       +'<div><label class="v33-lab">市名次 / 市人数</label><div class="v33-pair"><input id="v33CityR" inputmode="numeric" placeholder="名次"/><input id="v33CityN" inputmode="numeric" placeholder="人数"/></div></div>'
       +'<div><label class="v33-lab">区名次 / 区人数</label><div class="v33-pair"><input id="v33DistR" inputmode="numeric" placeholder="名次"/><input id="v33DistN" inputmode="numeric" placeholder="人数"/></div></div>'
-      +'<label style="display:flex;gap:7px;align-items:center;font-size:11.5px;color:var(--muted,#788392)"><input type="checkbox" id="v33ApplyCity"/> 保存时应用以上市/区排名（勾选才会写入；编辑旧考试时不勾选则保持原值）</label>'
+      +'<label style="display:flex;gap:7px;align-items:center;font-size:11.5px;color:var(--muted,#788392)"><input type="checkbox" id="v33ApplyCity"/> 保存时应用以上市/区排名（勾选才会写入；不勾选则保持原值）</label>'
       +"</div></details>";
       anchor.insertAdjacentElement("afterend",host);
+      /* 编辑/恢复旧考试:回填已保存的市/区排名,并默认勾选,保存时显式写入 */
+      var source=citySourceV33(lastExamV33);
+      if(source.cityRank||source.cityParticipants||source.districtRank||source.districtParticipants){
+        if(source.cityRank)$("#v33CityR",host).value=source.cityRank;
+        if(source.cityParticipants)$("#v33CityN",host).value=source.cityParticipants;
+        if(source.districtRank)$("#v33DistR",host).value=source.districtRank;
+        if(source.districtParticipants)$("#v33DistN",host).value=source.districtParticipants;
+        var apply=$("#v33ApplyCity",host);if(apply)apply.checked=true;
+      }
     }
   });
   cityObs.observe(document.body,{childList:true,subtree:true});
 }
-var apiBeforeV33=(typeof api==="function")?api:null;
-if(apiBeforeV33){
-  api=function(action,payload){
-    if(action==="save_exam"&&payload&&payload.exam&&document.getElementById("v33cityBox")){
-      var apply=document.getElementById("v33ApplyCity");
-      if(apply&&apply.checked){
-        payload.exam.city_rank=$("#v33CityR").value.trim();
-        payload.exam.city_participants=$("#v33CityN").value.trim();
-        payload.exam.district_rank=$("#v33DistR").value.trim();
-        payload.exam.district_participants=$("#v33DistN").value.trim();
-      }
-    }
-    return apiBeforeV33.apply(this,arguments);
+/* 保存路径是 dataApiV7;旧版误挂 api 导致市/区字段从未真正提交。
+   这里同时保留 api 兜底,兼容旧调用路径与既有回归脚本。 */
+function applyCityV33(payload){
+  if(!payload||!payload.exam||!document.getElementById("v33cityBox"))return;
+  var apply=document.getElementById("v33ApplyCity");
+  if(apply&&apply.checked){
+    payload.exam.city_rank=($("#v33CityR").value||"").trim();
+    payload.exam.city_participants=($("#v33CityN").value||"").trim();
+    payload.exam.district_rank=($("#v33DistR").value||"").trim();
+    payload.exam.district_participants=($("#v33DistN").value||"").trim();
+  }
+}
+var dataApiBeforeV33City=(typeof dataApiV7==="function")?dataApiV7:null;
+if(dataApiBeforeV33City){
+  dataApiV7=function dataApiV33City(action,payload){
+    if(action==="save_exam")applyCityV33(payload);
+    return dataApiBeforeV33City.apply(this,arguments);
+  };
+}
+var apiBeforeV33City=(typeof api==="function")?api:null;
+if(apiBeforeV33City){
+  api=function apiV33City(action,payload){
+    if(action==="save_exam")applyCityV33(payload);
+    return apiBeforeV33City.apply(this,arguments);
+  };
+}
+/* 记录页展示已保存的市/区排名(有数据才显示) */
+var recordHtmlBeforeV33City=(typeof recordHtml==="function")?recordHtml:null;
+if(recordHtmlBeforeV33City){
+  recordHtml=function recordHtmlV33City(exam){
+    var html=recordHtmlBeforeV33City.apply(this,arguments);
+    try{
+      var line=cityLineV33(exam);
+      if(line&&html.indexOf('<div class="record-actions')>-1)html=html.replace('<div class="record-actions',line+'<div class="record-actions');
+    }catch(e){}
+    return html;
   };
 }
 

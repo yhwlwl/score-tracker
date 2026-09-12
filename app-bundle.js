@@ -1,5 +1,5 @@
 /*! app-bundle.js · 自动生成,勿手改 —— 改源码后运行: node design/build-bundles.js
-   来源顺序: compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js */
+   来源顺序: compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js */
 /* ===== compat.js ===== */
 // Compatibility helpers for older iOS Safari/WebViews.
 // Keep this file tiny and load it before the application scripts.
@@ -3366,7 +3366,7 @@ saveExam=async function saveExamV17(id,modal){var button=modal.querySelector('.s
 
 recordHtml=function recordHtmlV17(exam){var subjects=Object.keys(exam.scores||{}),finalTotal=totalFor(exam,'actual'),rawTotal=totalRawForV13(exam);var tags=subjects.map(function(subject){var row=exam.scores[subject]||{},a=num(row.actual),raw=num(row.raw),t=num(row.target),year=rankInfoByScopeV16(exam,subject,'year'),cls=rankInfoByScopeV16(exam,subject,'class');if(a===null&&raw===null&&t===null&&year.rank===null&&year.positionPercent===null&&cls.rank===null&&cls.positionPercent===null)return'';var rankText='';if(year.directPercent)rankText+=` · 年位比 前${formatPercent(year.positionPercent)}`;else if(year.rank!==null)rankText+=` · 年排 ${year.rank}${year.participants?`/${year.participants}`:''}`;if(cls.directPercent)rankText+=` · 班位比 前${formatPercent(cls.positionPercent)}`;else if(cls.rank!==null)rankText+=` · 班排 ${cls.rank}${cls.participants?`/${cls.participants}`:''}`;return `<span class="score-tag">${escapeHtml(subject)}${row.excludeFromTotal?'<span class="stat-badge-v17">统计项</span>':''} ${a===null?'—':formatScore(a)}${raw!==null?`<span class="raw-final-inline-v13"> · 原始 <b>${formatScore(raw)}</b></span>`:''}<span style="color:#a1a9b5"> / 目标 ${t===null?'—':formatScore(t)}</span>${rankText?`<span style="color:#667085">${rankText}</span>`:''}</span>`;}).join('');var year=rankInfoByScopeV16(exam,'总分','year'),cls=rankInfoByScopeV16(exam,'总分','class'),badges='';if(year.directPercent)badges+=`<span class="score-tag"><b>年位比 前${formatPercent(year.positionPercent)}</b></span>`;else if(year.rank!==null)badges+=`<span class="score-tag"><b>年排 ${year.rank}${year.participants?` / ${year.participants}`:''}</b></span>`;if(cls.directPercent)badges+=`<span class="score-tag"><b>班位比 前${formatPercent(cls.positionPercent)}</b></span>`;else if(cls.rank!==null)badges+=`<span class="score-tag"><b>班排 ${cls.rank}${cls.participants?` / ${cls.participants}`:''}</b></span>`;return `<div class="record ${exam.is_hidden?'hidden-record-v10':''}"><div class="record-date">${fmtYearDate(exam.exam_date)}<b>${escapeHtml(exam.name)}<span class="grade-badge-v13">${escapeHtml(exam.grade_level||'未分类')}</span>${exam.is_hidden?'<span class="hidden-badge-v10">已隐藏</span>':''}</b></div><div class="record-scores">${tags||'<span class="score-tag">尚未填写分数或排名</span>'}<span class="score-tag"><b>赋分总分 ${finalTotal===null?'—':formatScore(finalTotal)}</b>${rawTotal!==null?` · 原始总分 ${formatScore(rawTotal)}`:''}</span>${badges}</div><div class="record-actions record-actions-v10"><button class="record-action-btn-v10" data-edit="${exam.id}">编辑</button><button class="record-action-btn-v10" data-hidden-toggle="${exam.id}">${exam.is_hidden?'恢复显示':'隐藏'}</button><button class="record-action-btn-v10 danger" data-delete="${exam.id}">删除</button></div></div>`;};
 
-recordsHtml=function recordsHtmlV17(){var exams=state.allExams||[],hidden=exams.filter(function(e){return e.is_hidden;}).length,order=categoryOptionsV14();function recentFirst(a,b){var d=String(b.exam_date||'').localeCompare(String(a.exam_date||''));if(d)return d;return String(b.created_at||'').localeCompare(String(a.created_at||''));}var groups=[...order.map(function(v){return{name:v,exams:exams.filter(function(e){return e.grade_level===v;}).sort(recentFirst)};}),{name:'未分类',exams:exams.filter(function(e){return !e.grade_level;}).sort(recentFirst)}].filter(function(g){return g.exams.length;});return `<div class="page-head"><div><h2>考试记录</h2><p>按${escapeHtml(categoryLabelV14())}分组，每组按考试时间从近到远。${hidden?` ${hidden} 次已隐藏。`:''}</p></div><button class="primary" id="addExam">＋ 新建</button></div>${groups.length?groups.map(function(g){return `<section class="grade-section-v13"><div class="grade-section-head-v13"><h3>${escapeHtml(g.name)}</h3><span>${g.exams.length} 次</span></div><div class="card records-card">${g.exams.map(recordHtml).join('')}</div></section>`;}).join(''):`<div class="card records-card"><div class="empty-chart" style="height:260px"><div>还没有考试记录<br><button class="secondary" id="emptyAdd" style="margin-top:14px">记录第一场考试</button></div></div></div>`}`;};
+recordsHtml=function recordsHtmlV17(){var exams=state.allExams||[],hidden=exams.filter(function(e){return e.is_hidden;}).length,order=categoryOptionsV14();function byDateAsc(a,b){var d=String(a.exam_date||'').localeCompare(String(b.exam_date||''));if(d)return d;return String(a.created_at||'').localeCompare(String(b.created_at||''));}var groups=[...order.map(function(v){return{name:v,exams:exams.filter(function(e){return e.grade_level===v;}).sort(byDateAsc)};}),{name:'未分类',exams:exams.filter(function(e){return !e.grade_level;}).sort(byDateAsc)}].filter(function(g){return g.exams.length;});return `<div class="page-head"><div><h2>考试记录</h2><p>按${escapeHtml(categoryLabelV14())}分组，每组按考试时间从早到晚。${hidden?` ${hidden} 次已隐藏。`:''}</p></div><button class="primary" id="addExam">＋ 新建</button></div>${groups.length?groups.map(function(g){return `<section class="grade-section-v13"><div class="grade-section-head-v13"><h3>${escapeHtml(g.name)}</h3><span>${g.exams.length} 次</span></div><div class="card records-card">${g.exams.map(recordHtml).join('')}</div></section>`;}).join(''):`<div class="card records-card"><div class="empty-chart" style="height:260px"><div>还没有考试记录<br><button class="secondary" id="emptyAdd" style="margin-top:14px">记录第一场考试</button></div></div></div>`}`;};
 
 var bindPageBeforeV17=bindPage;
 bindPage=function bindPageV17(){bindPageBeforeV17();document.querySelectorAll('[data-trend-scope-v16]').forEach(function(button){button.onclick=function(){var scope=button.dataset.trendScopeV16;if(scope==='score'){state.trendMetric='score';}else{state.rankScopeV16=scope;if(hasDirectPercentV17(scope)&&!hasRawRankV17(scope))state.trendMetric='rank';else if(state.trendMetric!=='rank_raw'&&state.trendMetric!=='rank')state.trendMetric='rank_raw';}render();};});document.querySelectorAll('[data-radar-scope-v16]').forEach(function(button){button.onclick=function(){var scope=button.dataset.radarScopeV16;state.rankScopeV16=scope;if(hasDirectPercentV17(scope)&&!hasRawRankV17(scope))state.radarMode='rank';else if(state.radarMode!=='rank_raw'&&state.radarMode!=='rank')state.radarMode='rank_raw';state.radarSelection=[];ensureRadarSelection();render();};});};
@@ -4595,6 +4595,21 @@ saveExam=async function saveExamV21(id,modal){
       endField.className='field end-date-field-v25';
       endField.innerHTML='<label>结束日期（可选）</label><input id="examEndDateV25" type="date" value="'+escapeHtml(exam&&exam.end_date?exam.end_date:'')+'">';
       dateField.insertAdjacentElement('afterend',endField);
+      var startDate=modal.querySelector('#examDate'),endDate=endField.querySelector('#examEndDateV25');
+      function syncEndDateAnchor(){
+        var start=String(startDate&&startDate.value||'');
+        endDate.min=start;
+        if(endDate.dataset.autoV61==='1')endDate.value=start;
+      }
+      function primeEndDate(){
+        if(!endDate.value&&startDate&&startDate.value){endDate.value=startDate.value;endDate.dataset.autoV61='1';}
+      }
+      endDate.addEventListener('pointerdown',primeEndDate);
+      endDate.addEventListener('focus',primeEndDate);
+      endDate.addEventListener('input',function(){delete endDate.dataset.autoV61;});
+      endDate.addEventListener('change',function(){delete endDate.dataset.autoV61;});
+      if(startDate)startDate.addEventListener('input',syncEndDateAnchor);
+      syncEndDateAnchor();
     }
 
     // C1) 弹窗文案精简
@@ -4686,7 +4701,7 @@ saveExam=async function saveExamV21(id,modal){
             rememberRanksV25(payload.exam.exam_date,payload.exam.name,ranks); // 本地兜底
           }
           var endInput=modal.querySelector('#examEndDateV25');
-          if(endInput)payload.exam.end_date=String(endInput.value||'').trim();
+          if(endInput)payload.exam.end_date=endInput.dataset.autoV61==='1'?'':String(endInput.value||'').trim();
         }
       }
       return dataApiV25Before(action,payload);
@@ -4816,10 +4831,35 @@ saveExam=async function saveExamV21(id,modal){
     return head+text.slice(m[0].length);
   }
   function extractChartSvgV25(){
-    if(typeof chartHtml!=='function')return null;
-    var html=chartHtml();
-    var m=html.match(/<svg[\s\S]*?<\/svg>/);
-    return m?m[0]:null;
+    var stage=document.getElementById('chart'),source=stage&&stage.querySelector('svg');
+    if(!source)return null;
+    var clone=source.cloneNode(true),sourceNodes=source.querySelectorAll('*'),cloneNodes=clone.querySelectorAll('*');
+    for(var i=0;i<sourceNodes.length&&i<cloneNodes.length;i++){
+      var src=sourceNodes[i],dst=cloneNodes[i],tag=String(src.tagName||'').toLowerCase(),cs=getComputedStyle(src);
+      if(/^(path|polyline|circle|line)$/.test(tag)&&cs.stroke&&cs.stroke!=='none')dst.setAttribute('stroke',cs.stroke);
+      if(/^(circle|text)$/.test(tag)&&cs.fill&&cs.fill!=='none')dst.setAttribute('fill',cs.fill);
+      if(cs.display==='none')dst.setAttribute('display','none');
+    }
+    var box=(clone.getAttribute('viewBox')||'0 0 760 300').trim().split(/\s+/).map(Number),w=box[2]||760,h=box[3]||300;
+    var card=stage.closest('.chart-card')||stage.parentElement;
+    var legend=card&&card.querySelector('.trend-legend-row-v25 .legend,.trend-legend-row-v25 .overview-legend,.trend-legend-row-v25 .rank-legend-v7,.legend,.overview-legend,.rank-legend-v7');
+    var items=legend?Array.prototype.filter.call(legend.children,function(n){return String(n.tagName||'').toLowerCase()==='span'&&!n.classList.contains('lg-hint-v31');}):[];
+    if(items.length){
+      var ns='http://www.w3.org/2000/svg',group=document.createElementNS(ns,'g'),x=22,y=h+28,rowHeight=25;
+      group.setAttribute('aria-label','图例');
+      items.forEach(function(item){
+        var label=String(item.textContent||'').replace('✎','').replace('🎨','').trim(),dot=item.querySelector('i'),color=dot?getComputedStyle(dot).backgroundColor:'#667085';
+        var itemWidth=Math.max(82,34+Array.from(label).length*13);
+        if(x+itemWidth>w-18){x=22;y+=rowHeight;}
+        var mark=document.createElementNS(ns,'circle');mark.setAttribute('cx',String(x+5));mark.setAttribute('cy',String(y-4));mark.setAttribute('r','5');mark.setAttribute('fill',color);
+        var text=document.createElementNS(ns,'text');text.setAttribute('x',String(x+17));text.setAttribute('y',String(y));text.setAttribute('fill','#4f596b');text.setAttribute('font-size','12');text.textContent=label;
+        if(item.classList.contains('lg-hide-v29')){mark.setAttribute('opacity','.35');text.setAttribute('opacity','.45');}
+        group.appendChild(mark);group.appendChild(text);x+=itemWidth;
+      });
+      clone.appendChild(group);
+      clone.setAttribute('viewBox',[box[0]||0,box[1]||0,w,y-h+18+h].join(' '));
+    }
+    return new XMLSerializer().serializeToString(clone);
   }
   function downloadSvgAsPngV25(svgText,filename){
     try{
@@ -4914,6 +4954,14 @@ saveExam=async function saveExamV21(id,modal){
     return{min:0,max:100,ticks:5};
   }
 
+  /* 导出/完整趋势复用首页图例的自定义配色与显隐（v29/v31 存于 localStorage） */
+  function customTrendColorV25(label,fallback){
+    try{var c=JSON.parse(localStorage.getItem('st_line_colors_v29')||'{}');if(c&&typeof c==='object'&&c[label])return c[label];}catch(e){}
+    return fallback;
+  }
+  function hiddenTrendLineV25(label){
+    try{var h=JSON.parse(localStorage.getItem('st_legend_hidden_v31')||'{}');return !!(h&&typeof h==='object'&&h[label]===true);}catch(e){return false;}
+  }
   function fullTrendSvgV25(){
     var exams=state.exams||[];
     var subject=state.subject||'总分';
@@ -4931,30 +4979,31 @@ saveExam=async function saveExamV21(id,modal){
     if(isRawRank||isPercent){
       var rankSubjects=subject==='总览'?['总分'].concat(SUBJECTS):[subject];
       series=rankSubjects.map(function(s,i){
-        return{label:s,color:colors[i%colors.length],value:function(e){return isRawRank?rawRankValueV11(e,s):rankInfoV7(e,s).performance;}};
+        return{label:s,color:customTrendColorV25(s,colors[i%colors.length]),value:function(e){return isRawRank?rawRankValueV11(e,s):rankInfoV7(e,s).performance;}};
       });
     }else if(basis==='raw'){
       if(subject==='总览'){
-        series=['总分'].concat(SUBJECTS).map(function(s,i){return{label:s,color:colors[i%colors.length],value:function(e){return rawScoreRateV13(e,s);}};});
+        series=['总分'].concat(SUBJECTS).map(function(s,i){return{label:s,color:customTrendColorV25(s,colors[i%colors.length]),value:function(e){return rawScoreRateV13(e,s);}};});
       }else{
-        series=[{label:subject==='总分'?'原始总分':subject,color:'#d38429',value:function(e){return subject==='总分'?totalRawForV13(e):examRawScoreV13(e,subject);}}];
+        var rawLabel=subject==='总分'?'原始总分':subject;
+        series=[{label:rawLabel,color:customTrendColorV25(rawLabel,'#d38429'),value:function(e){return subject==='总分'?totalRawForV13(e):examRawScoreV13(e,subject);}}];
       }
     }else if(scorePercent){
       series=[
-        {label:'真实',color:'#5d72e8',value:function(e){return subject==='总分'?totalRate(e,'actual'):scoreRate(e,subject,'actual');}},
-        {label:'目标',color:'#32a77a',dash:'7 7',value:function(e){return subject==='总分'?totalRate(e,'target'):scoreRate(e,subject,'target');}}
+        {label:'真实',color:customTrendColorV25('真实','#5d72e8'),value:function(e){return subject==='总分'?totalRate(e,'actual'):scoreRate(e,subject,'actual');}},
+        {label:'目标',color:customTrendColorV25('目标','#32a77a'),dash:'7 7',value:function(e){return subject==='总分'?totalRate(e,'target'):scoreRate(e,subject,'target');}}
       ];
     }else{
       if(subject==='总览'){
-        series=['总分'].concat(SUBJECTS).map(function(s,i){return{label:s,color:colors[i%colors.length],value:function(e){return scoreRate(e,s,'actual');}};});
+        series=['总分'].concat(SUBJECTS).map(function(s,i){return{label:s,color:customTrendColorV25(s,colors[i%colors.length]),value:function(e){return scoreRate(e,s,'actual');}};});
       }else{
         series=[
-          {label:'真实',color:'#5d72e8',dash:'',value:function(e){return subject==='总分'?totalFor(e,'actual'):examScore(e,subject,'actual');}},
-          {label:'目标',color:'#32a77a',dash:'7 7',value:function(e){return subject==='总分'?totalFor(e,'target'):examScore(e,subject,'target');}}
+          {label:'真实',color:customTrendColorV25('真实','#5d72e8'),dash:'',value:function(e){return subject==='总分'?totalFor(e,'actual'):examScore(e,subject,'actual');}},
+          {label:'目标',color:customTrendColorV25('目标','#32a77a'),dash:'7 7',value:function(e){return subject==='总分'?totalFor(e,'target'):examScore(e,subject,'target');}}
         ];
       }
     }
-    var visible=series.filter(function(s){return exams.some(function(e){return s.value(e)!==null;});});
+    var visible=series.filter(function(s){return !hiddenTrendLineV25(s.label)&&exams.some(function(e){return s.value(e)!==null;});});
     if(!visible.length)return '<div class="empty-chart"><div><div class="empty-icon">⌁</div>当前还没有可用于完整趋势的数据</div></div>';
     var points=exams.map(function(e){return{exam:e,values:visible.map(function(s){return s.value(e);})};});
     var flat=[];
@@ -4989,7 +5038,19 @@ saveExam=async function saveExamV21(id,modal){
       return '<path d="'+d+'" fill="none" stroke="'+item.color+'" stroke-width="'+(sidx===0&&subject==='总览'?'3.2':'2.8')+'" stroke-linecap="round" stroke-linejoin="round"'+(item.dash?' stroke-dasharray="'+item.dash+'"':'')+'/>'+circles;
     }).join('');
     var labels=points.map(function(p,i){return '<text x="'+x(i)+'" y="'+(H-18)+'" text-anchor="middle" class="axis-label">'+fmtDate(p.exam.exam_date)+'</text>';}).join('');
-    return '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'+grid+lines+labels+'</svg>';
+    var legendRows=0,legend='';
+    if(visible.length){
+      var perRow=Math.max(2,Math.min(5,Math.floor((W-48)/150)));
+      legendRows=Math.ceil(visible.length/perRow);
+      var colW=(W-48)/perRow;
+      legend=visible.map(function(s,i){
+        var row=Math.floor(i/perRow),col=i%perRow,lx=24+col*colW,ly=H+16+row*20;
+        return '<circle cx="'+(lx+5)+'" cy="'+(ly-4)+'" r="5" fill="'+s.color+'"/>'
+          +'<text x="'+(lx+17)+'" y="'+ly+'" style="font-size:12px;fill:#4f596b">'+escapeHtml(s.label)+'</text>';
+      }).join('');
+    }
+    var totalH=H+(legendRows?legendRows*20+14:0);
+    return '<svg viewBox="0 0 '+W+' '+totalH+'" preserveAspectRatio="none">'+grid+lines+labels+legend+'</svg>';
   }
 
   function openFullTrendV25(){
@@ -5390,6 +5451,7 @@ saveExam=async function saveExamV21(id,modal){
 
   syncVersionV25();
 })();
+
 /* ===== app-v26.js ===== */
 // v26 / product v3.0: 记录页分数显示重设计。
 // 胶囊 pill（宽度随内容、换行锯齿）→ 总分强调条 + 等宽分数格（auto-fill 网格，任意宽度都排满整行）。
@@ -6605,6 +6667,14 @@ function rankLineChartV30(exams,key,title){
 function rateOfTotalsV30(sum,num){
   return (sum!==null&&num!==null&&num>0)?Math.round(sum/num*1000)/10:null;
 }
+/* 打印报告跟随首页图例的自定义配色（未自定义时用默认蓝） */
+function customTrendColorV30(fallback){
+  try{
+    var c=JSON.parse(localStorage.getItem('st_line_colors_v29')||'{}');
+    if(c&&typeof c==='object')return c['真实']||c['总分']||fallback;
+  }catch(e){}
+  return fallback;
+}
 /* 总分得分率英雄图（单主线） */
 function totalRateChartV30(exams){
   var xs=[],pts=[];
@@ -6619,7 +6689,7 @@ function totalRateChartV30(exams){
     n:xs.length,xlabels:xs,
     yFmt:function(v){return Math.round(v)+'%';},
     ptFmt:function(v){return v+'%';},
-    series:[{name:'最终总分',color:'#5d72e8',pts:pts,main:true}]
+    series:[{name:'最终总分',color:customTrendColorV30('#5d72e8'),pts:pts,main:true}]
   });
 }
 function sumRawMaxV30(ex){
@@ -7122,7 +7192,8 @@ var RELEASE_NOTES_V31={
   'v5.0':'全新「统计分析」页：排名走势、强弱科定位、个人最佳殿堂、目标校准与试卷难度信号',
   'v5.1':'长期目标系统：各科目标分数、理想学校与考试倒计时；首页逐科差距卡、趋势图目标线与统计页联动；新增市/区排名（总分层面，选填）；修复成绩加载与移动端排版问题；全部脚本合并单文件，打开更快更省流量',
   'v5.2':'统计分析页增强：单场大跌自动提醒、总分连续进退提醒、参考人数口径变化提醒（人数不同的考试不再直接比名次）；修复个人最佳、连续退步等文案口径与样本门槛',
-  'v6.0':'统计分析页 v6.0：「深度分析」Beta 板块，提供下场名次预测与95%区间、趋势/变点检验和异常提醒，附每步计算过程；分布图支持三视图(名次段/发挥标尺/累计概率)，名次段与发挥标尺均可调整细度，状态模型中心直接标出；顶部科目/组合口径全页联动,组合排名只认你填写的「组合年排/班排」,六科组合直接沿用总分排名,没填排名不显示合成数据；①总览「最近一次」标注考试；趋势图例可点击显隐；修复组合chip与板块顺序'
+  'v6.0':'统计分析页 v6.0：「深度分析」Beta 板块，提供下场名次预测与95%区间、趋势/变点检验和异常提醒，附每步计算过程；分布图支持三视图(名次段/发挥标尺/累计概率)，名次段与发挥标尺均可调整细度，状态模型中心直接标出；顶部科目/组合口径全页联动,组合排名只认你填写的「组合年排/班排」,六科组合直接沿用总分排名,没填排名不显示合成数据；①总览「最近一次」标注考试；趋势图例可点击显隐；修复组合chip与板块顺序',
+  'v6.1':'记录考试支持自动草稿和一键清空，保存后保持页面位置；结束日期从开始日期定位并随考试保存；首页分类可多选叠加趋势；目标卡支持顺畅横滑；修复市/区排名保存后不显示、编辑回填空白；考试记录默认按时间从早到晚；趋势图片与打印报告同步当前配色并包含图例。'
 };
 function dismissKeyV31(v){return 'st_update_dismissed_'+v;}
 function showUpdateBarV31(latest){
@@ -9105,7 +9176,7 @@ function chipHtml(s){
   else if(diff==null){cls="na";tail="待考试"}
   else{cls=diff>=0?"ok":"no";tail=diff>=0?"已超 "+diff:"还差 "+(-diff)}
   if(goal!=null&&v==null&&!examSource().length)tail="成绩读取中…";
-  return '<span class="gh-chip '+cls+'" data-subject="'+esc(s.name)+'" onclick="event.stopPropagation();__v33.jump(\''+esc(s.name).replace(/'/g,"")+'\')" title="查看统计分析">'
+  return '<span class="gh-chip '+cls+'" data-subject="'+esc(s.name)+'" title="查看统计分析">'
     +"<small>"+esc(s.name)+" · "+(goal==null?"—":"目标 "+goal)+"</small><b>"+(v==null?"—":v)+"</b><em>"+tail+"</em></span>";
 }
 function renderHomeCard(mount){
@@ -9136,7 +9207,7 @@ function renderHomeCard(mount){
   }
   if(G.data.school)side+='<div class="gh-school">理想学校<b>'+esc(G.data.school)+"</b></div>";
   var card=document.createElement("div");card.id="goalHeroV33";card.className="goal-hero-v33";
-  card.onclick=function(){openEditor("card")};
+  card.onclick=function(e){if(e.target&&e.target.closest&&e.target.closest('.gh-chips'))return;openEditor("card")};
   card.innerHTML='<div class="gh-main-v33"><div class="gh-title-row"><span class="gh-title">我的目标 · '+esc(G.data.name||"本学期")
     +'</span><span class="gh-hint">点击编辑</span></div>'
     +'<div class="gh-chips">'+chips+'</div>'
@@ -9147,6 +9218,17 @@ function renderHomeCard(mount){
   try{
     /* 手机端:chips 超出即提示可左右滑(并保证横滑不会被整体点击吃掉) */
     var cw=$(".gh-chips",card);
+    if(cw){
+      var startX=0,startScroll=0,moved=false;
+      cw.addEventListener('pointerdown',function(e){startX=e.clientX;startScroll=cw.scrollLeft;moved=false;});
+      cw.addEventListener('pointermove',function(e){if(Math.abs(e.clientX-startX)>7||Math.abs(cw.scrollLeft-startScroll)>5)moved=true;});
+      cw.addEventListener('click',function(e){
+        var chip=e.target.closest&&e.target.closest('.gh-chip');if(!chip)return;
+        e.stopPropagation();
+        if(moved){e.preventDefault();moved=false;return;}
+        __v33.jump(chip.dataset.subject||'');
+      });
+    }
     if(cw&&cw.scrollWidth>cw.clientWidth+6){
       var ht=$(".gh-hint",card);if(ht)ht.textContent="左右滑看各科 · 点卡片编辑";
       cw.scrollLeft=0;
@@ -9361,7 +9443,25 @@ function fillCalib(row){
 }
 
 /* ================= 市/区排名录入(仅新增/编辑弹窗,显式应用防覆盖) ================= */
-var cityObs=null;
+var cityObs=null,lastExamV33=null;
+var openExamBeforeV33City=(typeof openExam==="function")?openExam:null;
+if(openExamBeforeV33City){
+  openExam=function openExamV33City(exam){lastExamV33=exam||null;return openExamBeforeV33City.apply(this,arguments)};
+}
+function citySourceV33(exam){
+  exam=exam||{};
+  function pick(camel,snake){var v=exam[camel];if(v===null||v===undefined||v==="")v=exam[snake];return v===null||v===undefined||v===""?"":String(v);}
+  return{
+    cityRank:pick("cityRank","city_rank"),cityParticipants:pick("cityParticipants","city_participants"),
+    districtRank:pick("districtRank","district_rank"),districtParticipants:pick("districtParticipants","district_participants")
+  };
+}
+function cityLineV33(exam){
+  var c=citySourceV33(exam),parts=[];
+  if(c.cityRank)parts.push("市排 "+c.cityRank+(c.cityParticipants?"/"+c.cityParticipants:""));
+  if(c.districtRank)parts.push("区排 "+c.districtRank+(c.districtParticipants?"/"+c.districtParticipants:""));
+  return parts.length?'<div style="font-size:11px;color:var(--muted,#788392);padding:5px 2px 0;font-variant-numeric:tabular-nums">'+esc(parts.join(" · "))+"</div>":"";
+}
 function watchExamModal(){
   if(cityObs||typeof MutationObserver!=="function")return;
   cityObs=new MutationObserver(function(){
@@ -9378,26 +9478,58 @@ function watchExamModal(){
       +'<div class="v33-citygrid">'
       +'<div><label class="v33-lab">市名次 / 市人数</label><div class="v33-pair"><input id="v33CityR" inputmode="numeric" placeholder="名次"/><input id="v33CityN" inputmode="numeric" placeholder="人数"/></div></div>'
       +'<div><label class="v33-lab">区名次 / 区人数</label><div class="v33-pair"><input id="v33DistR" inputmode="numeric" placeholder="名次"/><input id="v33DistN" inputmode="numeric" placeholder="人数"/></div></div>'
-      +'<label style="display:flex;gap:7px;align-items:center;font-size:11.5px;color:var(--muted,#788392)"><input type="checkbox" id="v33ApplyCity"/> 保存时应用以上市/区排名（勾选才会写入；编辑旧考试时不勾选则保持原值）</label>'
+      +'<label style="display:flex;gap:7px;align-items:center;font-size:11.5px;color:var(--muted,#788392)"><input type="checkbox" id="v33ApplyCity"/> 保存时应用以上市/区排名（勾选才会写入；不勾选则保持原值）</label>'
       +"</div></details>";
       anchor.insertAdjacentElement("afterend",host);
+      /* 编辑/恢复旧考试:回填已保存的市/区排名,并默认勾选,保存时显式写入 */
+      var source=citySourceV33(lastExamV33);
+      if(source.cityRank||source.cityParticipants||source.districtRank||source.districtParticipants){
+        if(source.cityRank)$("#v33CityR",host).value=source.cityRank;
+        if(source.cityParticipants)$("#v33CityN",host).value=source.cityParticipants;
+        if(source.districtRank)$("#v33DistR",host).value=source.districtRank;
+        if(source.districtParticipants)$("#v33DistN",host).value=source.districtParticipants;
+        var apply=$("#v33ApplyCity",host);if(apply)apply.checked=true;
+      }
     }
   });
   cityObs.observe(document.body,{childList:true,subtree:true});
 }
-var apiBeforeV33=(typeof api==="function")?api:null;
-if(apiBeforeV33){
-  api=function(action,payload){
-    if(action==="save_exam"&&payload&&payload.exam&&document.getElementById("v33cityBox")){
-      var apply=document.getElementById("v33ApplyCity");
-      if(apply&&apply.checked){
-        payload.exam.city_rank=$("#v33CityR").value.trim();
-        payload.exam.city_participants=$("#v33CityN").value.trim();
-        payload.exam.district_rank=$("#v33DistR").value.trim();
-        payload.exam.district_participants=$("#v33DistN").value.trim();
-      }
-    }
-    return apiBeforeV33.apply(this,arguments);
+/* 保存路径是 dataApiV7;旧版误挂 api 导致市/区字段从未真正提交。
+   这里同时保留 api 兜底,兼容旧调用路径与既有回归脚本。 */
+function applyCityV33(payload){
+  if(!payload||!payload.exam||!document.getElementById("v33cityBox"))return;
+  var apply=document.getElementById("v33ApplyCity");
+  if(apply&&apply.checked){
+    payload.exam.city_rank=($("#v33CityR").value||"").trim();
+    payload.exam.city_participants=($("#v33CityN").value||"").trim();
+    payload.exam.district_rank=($("#v33DistR").value||"").trim();
+    payload.exam.district_participants=($("#v33DistN").value||"").trim();
+  }
+}
+var dataApiBeforeV33City=(typeof dataApiV7==="function")?dataApiV7:null;
+if(dataApiBeforeV33City){
+  dataApiV7=function dataApiV33City(action,payload){
+    if(action==="save_exam")applyCityV33(payload);
+    return dataApiBeforeV33City.apply(this,arguments);
+  };
+}
+var apiBeforeV33City=(typeof api==="function")?api:null;
+if(apiBeforeV33City){
+  api=function apiV33City(action,payload){
+    if(action==="save_exam")applyCityV33(payload);
+    return apiBeforeV33City.apply(this,arguments);
+  };
+}
+/* 记录页展示已保存的市/区排名(有数据才显示) */
+var recordHtmlBeforeV33City=(typeof recordHtml==="function")?recordHtml:null;
+if(recordHtmlBeforeV33City){
+  recordHtml=function recordHtmlV33City(exam){
+    var html=recordHtmlBeforeV33City.apply(this,arguments);
+    try{
+      var line=cityLineV33(exam);
+      if(line&&html.indexOf('<div class="record-actions')>-1)html=html.replace('<div class="record-actions',line+'<div class="record-actions');
+    }catch(e){}
+    return html;
   };
 }
 
@@ -11959,4 +12091,123 @@ var PAL2NS = (window.PAL = window.PAL || {});
 
 
 window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
+})();
+
+
+/* ===== app-v35.js ===== */
+/* app-v35.js · v6.1 usability fixes: multi-category trends, safe drafts and viewport stability. */
+(function(){
+  'use strict';
+  if(window.__v35)return;window.__v35=1;
+
+  function esc61(v){return typeof escapeHtml==='function'?escapeHtml(v):String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function userKey61(){return String(state&&state.user&&(state.user.id||state.user.username)||'guest');}
+  function filterKey61(){return 'st_category_filters_v61_'+userKey61();}
+  function draftKey61(){return 'st_exam_draft_v61_'+userKey61();}
+  function categoryValues61(){var a=[];try{a=(categoryOptionsV14()||[]).slice();}catch(e){}if((state.allExams||[]).some(function(x){return !x.grade_level;}))a.push('未分类');return Array.from(new Set(a));}
+  function hydrateFilters61(){
+    var key=filterKey61();if(state._v61FilterKey===key)return;state._v61FilterKey=key;
+    var saved=[];try{saved=JSON.parse(localStorage.getItem(key)||'[]');}catch(e){}
+    if(!Array.isArray(saved))saved=[];
+    if(!saved.length&&state.gradeFilter&&state.gradeFilter!=='全部')saved=[state.gradeFilter];
+    state.gradeFiltersV61=saved;
+  }
+  function cleanFilters61(){hydrateFilters61();var allowed=categoryValues61();state.gradeFiltersV61=(state.gradeFiltersV61||[]).filter(function(x){return allowed.indexOf(x)>-1;});}
+  function saveFilters61(){try{localStorage.setItem(filterKey61(),JSON.stringify(state.gradeFiltersV61||[]));}catch(e){}}
+
+  applyGradeFilterV13=function applyGradeFilterV61(){
+    cleanFilters61();
+    var source=state.unfilteredVisibleExamsV13||[],selected=state.gradeFiltersV61||[];
+    state.exams=!selected.length?source.slice():source.filter(function(exam){var value=exam.grade_level||'未分类';return selected.indexOf(value)>-1;});
+    state.gradeFilter=selected.length===1?selected[0]:'全部';
+    if(typeof applyExamSubjectsV10==='function')applyExamSubjectsV10(state.exams,state.subjectConfigs||[]);
+    state.radarSelection=(state.radarSelection||[]).filter(function(id){return state.exams.some(function(e){return e.id===id;});});
+    if(typeof ensureRadarSelection==='function')ensureRadarSelection();
+  };
+
+  var homeBefore61=homeHtml;
+  homeHtml=function homeHtmlV61(){
+    cleanFilters61();var html=homeBefore61(),selected=state.gradeFiltersV61||[],opts=categoryValues61();
+    var bar='<div class="grade-filter-v13 grade-filter-v61"><span class="label">'+esc61(categoryLabelV14())+'（可多选）</span>'
+      +'<button class="grade-chip-v13 '+(!selected.length?'active':'')+'" data-grade-filter-v61="全部">全部</button>'
+      +opts.map(function(v){return'<button class="grade-chip-v13 '+(selected.indexOf(v)>-1?'active':'')+'" data-grade-filter-v61="'+esc61(v)+'">'+esc61(v)+'</button>';}).join('')+'</div>';
+    return html.replace(/<div class="grade-filter-v13[^"]*">[\s\S]*?<\/div><section class="grid-main">/,bar+'<section class="grid-main">');
+  };
+
+  function cityDraft61(modal){
+    var box=modal.querySelector('#v33cityBox');if(!box)return{};
+    var apply=box.querySelector('#v33ApplyCity');if(!apply||!apply.checked)return{};
+    return{city_rank:(box.querySelector('#v33CityR')||{}).value||'',city_participants:(box.querySelector('#v33CityN')||{}).value||'',district_rank:(box.querySelector('#v33DistR')||{}).value||'',district_participants:(box.querySelector('#v33DistN')||{}).value||''};
+  }
+  function captureExam61(modal){
+    var mode=modal.dataset.rankEntryModeV17||'rank',exam={
+      id:null,name:(modal.querySelector('#examName')||{}).value||'',exam_date:(modal.querySelector('#examDate')||{}).value||'',
+      end_date:(function(){var end=modal.querySelector('#examEndDateV25');return end&&end.dataset.autoV61!=='1'?end.value||'':'';})(),grade_level:(modal.querySelector('#gradeLevelV14')||{}).value||'',
+      is_hidden:(modal.querySelector('#examHiddenV16')||{}).value==='1',moduleIds:[].slice.call(modal._moduleIdsV21||[]),scores:{},moduleRanks:{},
+      total_actual_score:(modal.querySelector('.total-actual-override-v24')||{}).value||'',total_raw_score:(modal.querySelector('.total-raw-override-v24')||{}).value||''
+    };
+    var city=cityDraft61(modal);for(var k in city)exam[k]=city[k];
+    if(mode==='rank'){
+      exam.total_rank=(modal.querySelector('#totalRankV16')||{}).value||'';exam.total_participants=(modal.querySelector('#totalParticipantsV16')||{}).value||'';
+      exam.total_class_rank=(modal.querySelector('#totalClassRankV16')||{}).value||'';exam.total_class_participants=(modal.querySelector('#totalClassParticipantsV16')||{}).value||'';
+    }else{
+      exam.total_year_position_percent=(modal.querySelector('.total-year-position-v17')||{}).value||'';exam.total_class_position_percent=(modal.querySelector('.total-class-position-v17')||{}).value||'';
+    }
+    modal.querySelectorAll('.exam-subject-card-v10').forEach(function(card){
+      var name=(card.querySelector('.exam-subject-name-v10')||{}).value||'';name=name.trim();if(!name)return;
+      exam.scores[name]={target:(card.querySelector('.target-v16')||{}).value||'',raw:(card.querySelector('.raw-v16')||{}).value||'',actual:(card.querySelector('.actual-v16')||{}).value||'',rawMax:(card.querySelector('.rawmax-v16')||{}).value||'',max:(card.querySelector('.max-v16')||{}).value||'',rank:mode==='rank'?((card.querySelector('.year-rank-v16')||{}).value||''):'',participants:mode==='rank'?((card.querySelector('.year-participants-v16')||{}).value||''):'',classRank:mode==='rank'?((card.querySelector('.class-rank-v16')||{}).value||''):'',classParticipants:mode==='rank'?((card.querySelector('.class-participants-v16')||{}).value||''):'',yearPositionPercent:mode==='percent'?((card.querySelector('.year-position-v17')||{}).value||''):'',classPositionPercent:mode==='percent'?((card.querySelector('.class-position-v17')||{}).value||''):'',excludeFromTotal:!!(card.querySelector('.exclude-total-check-v17')||{}).checked};
+    });
+    modal.querySelectorAll('.combo-card-v21').forEach(function(card){var id=card.dataset.comboId;if(!id)return;exam.moduleRanks[id]={yearRank:(card.querySelector('.combo-yr-v25')||{}).value||'',yearParticipants:(card.querySelector('.combo-yp-v25')||{}).value||'',classRank:(card.querySelector('.combo-cr-v25')||{}).value||'',classParticipants:(card.querySelector('.combo-cp-v25')||{}).value||''};});
+    return exam;
+  }
+  function readDraft61(){try{var d=JSON.parse(localStorage.getItem(draftKey61())||'null');return d&&d.exam?d:null;}catch(e){return null;}}
+  function saveDraft61(modal){try{localStorage.setItem(draftKey61(),JSON.stringify({saved_at:new Date().toISOString(),exam:captureExam61(modal)}));}catch(e){}}
+  function clearDraft61(){try{localStorage.removeItem(draftKey61());}catch(e){}}
+  function decorateDraft61(modal,restored){
+    if(!modal||modal.dataset.draftV61==='1')return;modal.dataset.draftV61='1';var dirty=false,timer=null;
+    var actions=modal.querySelector('.modal-actions');
+    if(actions){var clear=document.createElement('button');clear.type='button';clear.className='secondary text-danger draft-clear-v61';clear.textContent='一键清空';actions.insertBefore(clear,actions.firstChild);clear.onclick=function(){clearDraft61();modal.remove();if(state.modal===modal)state.modal=null;openExam(null);toast('未保存内容已清空');};}
+    var note=document.createElement('div');note.className='draft-note-v61';note.textContent=restored?'已恢复上次未保存的内容；保存成功后草稿会自动删除。':'填写内容会自动留在本机；误关后再次打开即可继续。';
+    var body=modal.querySelector('.modal-body');if(body)body.insertBefore(note,body.firstChild);
+    function schedule(){dirty=true;clearTimeout(timer);timer=setTimeout(function(){saveDraft61(modal);},220);}
+    modal.addEventListener('input',schedule);modal.addEventListener('change',schedule);
+    modal.addEventListener('click',function(e){if(dirty&&(e.target===modal||e.target.closest('.close-btn,.cancel-btn')))saveDraft61(modal);},true);
+  }
+
+  var openExamBefore61=openExam;
+  openExam=function openExamV61(exam){
+    var draft=!exam?readDraft61():null,result=openExamBefore61(draft?draft.exam:exam),modal=state.modal;
+    if(draft&&modal){
+      var title=modal.querySelector('.modal-head h3');if(title)title.textContent='继续未保存的考试';
+      modal.querySelectorAll('.delete-exam-v10,#deleteExamV16,#deleteExamModalV13').forEach(function(x){var row=x.closest('.modal-danger-row-v10');(row||x).remove();});
+      var save=modal.querySelector('.save-btn');if(save)save.textContent='保存考试';
+      setTimeout(function(){toast('已恢复上次未保存的内容');},0);
+    }
+    decorateDraft61(modal,!!draft);return result;
+  };
+
+  var dataApiBefore61=typeof dataApiV7==='function'?dataApiV7:null;
+  if(dataApiBefore61)dataApiV7=async function dataApiV61(action,payload){var result=await dataApiBefore61.apply(this,arguments);if(action==='save_exam')clearDraft61();return result;};
+
+  var saveExamBefore61=saveExam;
+  saveExam=async function saveExamV61(id,modal){
+    var scroller=document.scrollingElement||document.documentElement,y=scroller.scrollTop||window.pageYOffset||0;
+    var result=await saveExamBefore61.apply(this,arguments);
+    function restore(){try{window.scrollTo({top:y,left:0,behavior:'auto'});}catch(e){window.scrollTo(0,y);}}
+    restore();requestAnimationFrame(restore);setTimeout(restore,80);setTimeout(restore,220);return result;
+  };
+
+  var bindBefore61=bindPage;
+  bindPage=function bindPageV61(){
+    bindBefore61();
+    document.querySelectorAll('[data-grade-filter-v61]').forEach(function(button){button.onclick=function(){
+      var value=button.dataset.gradeFilterV61;cleanFilters61();
+      if(value==='全部')state.gradeFiltersV61=[];
+      else{var i=state.gradeFiltersV61.indexOf(value);if(i>-1)state.gradeFiltersV61.splice(i,1);else state.gradeFiltersV61.push(value);}
+      saveFilters61();state.radarSelection=[];applyGradeFilterV13();render();
+    };});
+  };
+
+  var style=document.createElement('style');style.id='app-v35-style';style.textContent='.grade-filter-v61{align-items:center}.grade-filter-v61 .label{white-space:nowrap}.draft-note-v61{border:1px solid var(--line,#e5e9ef);background:var(--cell,#f7f9fc);color:var(--muted,#687386);border-radius:11px;padding:9px 11px;margin-bottom:12px;font-size:11px;line-height:1.6}.draft-clear-v61{margin-right:auto}.gh-chips{touch-action:pan-x!important}';document.head.appendChild(style);
+  window.__v61={captureDraft:captureExam61,readDraft:readDraft61,clearDraft:clearDraft61,filters:function(){return(state.gradeFiltersV61||[]).slice();}};
 })();

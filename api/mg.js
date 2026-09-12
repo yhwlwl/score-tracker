@@ -27,7 +27,7 @@ function overviewFromMetrics(metrics) {
   const logs = value(undefined, c.logs, metrics.visit_rows_total || metrics.events_total);
   const visitors = value(p.visitors, c.visitors, metrics.visitors_24h);
   const sessions = value(p.sessions, c.sessions, metrics.sessions_24h);
-  const users = value(undefined, c.users, metrics.users_total);
+  const users = value(undefined, metrics.registered_users ?? c.users, metrics.users_total);
   const online = value(p.online, c.online, metrics.online_5m);
   const exams = value(undefined, c.exams, metrics.exams_total);
   const scores = value(undefined, c.scores, metrics.scores_total);

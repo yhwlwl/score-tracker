@@ -275,6 +275,14 @@ function rankLineChartV30(exams,key,title){
 function rateOfTotalsV30(sum,num){
   return (sum!==null&&num!==null&&num>0)?Math.round(sum/num*1000)/10:null;
 }
+/* 打印报告跟随首页图例的自定义配色（未自定义时用默认蓝） */
+function customTrendColorV30(fallback){
+  try{
+    var c=JSON.parse(localStorage.getItem('st_line_colors_v29')||'{}');
+    if(c&&typeof c==='object')return c['真实']||c['总分']||fallback;
+  }catch(e){}
+  return fallback;
+}
 /* 总分得分率英雄图（单主线） */
 function totalRateChartV30(exams){
   var xs=[],pts=[];
@@ -289,7 +297,7 @@ function totalRateChartV30(exams){
     n:xs.length,xlabels:xs,
     yFmt:function(v){return Math.round(v)+'%';},
     ptFmt:function(v){return v+'%';},
-    series:[{name:'最终总分',color:'#5d72e8',pts:pts,main:true}]
+    series:[{name:'最终总分',color:customTrendColorV30('#5d72e8'),pts:pts,main:true}]
   });
 }
 function sumRawMaxV30(ex){

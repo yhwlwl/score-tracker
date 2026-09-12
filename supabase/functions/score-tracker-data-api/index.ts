@@ -177,7 +177,7 @@ async function list(user: any) {
     db
       .from("score_tracker_exams")
       .select(
-        "id,name,exam_date,total_rank,total_participants,total_class_rank,total_class_participants,total_year_position_percent,total_class_position_percent,total_actual_score,total_raw_score,is_hidden,grade_level,created_at,updated_at,city_rank,city_participants,district_rank,district_participants"
+        "id,name,exam_date,end_date,total_rank,total_participants,total_class_rank,total_class_participants,total_year_position_percent,total_class_position_percent,total_actual_score,total_raw_score,is_hidden,grade_level,created_at,updated_at,city_rank,city_participants,district_rank,district_participants"
       )
       .eq("user_id", user.id)
       .order("exam_date")
@@ -366,6 +366,10 @@ async function saveExam(uid: string, exam: any) {
     e0b = rankErr(distR, distN, "区排名");
   if (e0a) return { error: e0a, status: 400 };
   if (e0b) return { error: e0b, status: 400 };
+  const endDateRaw = String(exam?.end_date ?? "").trim();
+  const endDate = endDateRaw ? (/^\d{4}-\d{2}-\d{2}$/.test(endDateRaw) ? endDateRaw : null) : null;
+  if (endDateRaw && !endDate) return { error: "结束日期格式不正确", status: 400 };
+  if (endDate && endDate < date) return { error: "结束日期不能早于开始日期", status: 400 };
   if (exam?.total_rank !== "" && exam?.total_rank != null && yr === null) return { error: "年级总排名请输入正整数", status: 400 };
   if (exam?.total_participants !== "" && exam?.total_participants != null && yn === null) return { error: "年级参考人数请输入正整数", status: 400 };
   if (exam?.total_class_rank !== "" && exam?.total_class_rank != null && cr === null) return { error: "班级总排名请输入正整数", status: 400 };
@@ -435,7 +439,8 @@ async function saveExam(uid: string, exam: any) {
   let id = String(exam?.id ?? ""),
     created = false,
     now = new Date().toISOString();
-  const values = {
+  const hasKey = (k: string) => Object.prototype.hasOwnProperty.call(exam || {}, k);
+  const values: any = {
     name,
     exam_date: date,
     grade_level: category,
@@ -447,13 +452,15 @@ async function saveExam(uid: string, exam: any) {
     total_class_position_percent: cp,
     total_actual_score: ta,
     total_raw_score: tr,
-    city_rank: cityR,
-    city_participants: cityN,
-    district_rank: distR,
-    district_participants: distN,
     is_hidden: !!exam?.is_hidden,
     updated_at: now,
   };
+  /* 市/区排名与结束日期仅在本次请求显式携带时更新，避免旧客户端保存时被清空 */
+  if (hasKey("city_rank")) values.city_rank = cityR;
+  if (hasKey("city_participants")) values.city_participants = cityN;
+  if (hasKey("district_rank")) values.district_rank = distR;
+  if (hasKey("district_participants")) values.district_participants = distN;
+  if (hasKey("end_date")) values.end_date = endDate;
   if (id) {
     const owned = await db.from("score_tracker_exams").select("id").eq("id", id).eq("user_id", uid).maybeSingle();
     if (owned.error) throw owned.error;

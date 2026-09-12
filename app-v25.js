@@ -215,6 +215,21 @@
       endField.className='field end-date-field-v25';
       endField.innerHTML='<label>结束日期（可选）</label><input id="examEndDateV25" type="date" value="'+escapeHtml(exam&&exam.end_date?exam.end_date:'')+'">';
       dateField.insertAdjacentElement('afterend',endField);
+      var startDate=modal.querySelector('#examDate'),endDate=endField.querySelector('#examEndDateV25');
+      function syncEndDateAnchor(){
+        var start=String(startDate&&startDate.value||'');
+        endDate.min=start;
+        if(endDate.dataset.autoV61==='1')endDate.value=start;
+      }
+      function primeEndDate(){
+        if(!endDate.value&&startDate&&startDate.value){endDate.value=startDate.value;endDate.dataset.autoV61='1';}
+      }
+      endDate.addEventListener('pointerdown',primeEndDate);
+      endDate.addEventListener('focus',primeEndDate);
+      endDate.addEventListener('input',function(){delete endDate.dataset.autoV61;});
+      endDate.addEventListener('change',function(){delete endDate.dataset.autoV61;});
+      if(startDate)startDate.addEventListener('input',syncEndDateAnchor);
+      syncEndDateAnchor();
     }
 
     // C1) 弹窗文案精简
@@ -306,7 +321,7 @@
             rememberRanksV25(payload.exam.exam_date,payload.exam.name,ranks); // 本地兜底
           }
           var endInput=modal.querySelector('#examEndDateV25');
-          if(endInput)payload.exam.end_date=String(endInput.value||'').trim();
+          if(endInput)payload.exam.end_date=endInput.dataset.autoV61==='1'?'':String(endInput.value||'').trim();
         }
       }
       return dataApiV25Before(action,payload);
@@ -436,10 +451,35 @@
     return head+text.slice(m[0].length);
   }
   function extractChartSvgV25(){
-    if(typeof chartHtml!=='function')return null;
-    var html=chartHtml();
-    var m=html.match(/<svg[\s\S]*?<\/svg>/);
-    return m?m[0]:null;
+    var stage=document.getElementById('chart'),source=stage&&stage.querySelector('svg');
+    if(!source)return null;
+    var clone=source.cloneNode(true),sourceNodes=source.querySelectorAll('*'),cloneNodes=clone.querySelectorAll('*');
+    for(var i=0;i<sourceNodes.length&&i<cloneNodes.length;i++){
+      var src=sourceNodes[i],dst=cloneNodes[i],tag=String(src.tagName||'').toLowerCase(),cs=getComputedStyle(src);
+      if(/^(path|polyline|circle|line)$/.test(tag)&&cs.stroke&&cs.stroke!=='none')dst.setAttribute('stroke',cs.stroke);
+      if(/^(circle|text)$/.test(tag)&&cs.fill&&cs.fill!=='none')dst.setAttribute('fill',cs.fill);
+      if(cs.display==='none')dst.setAttribute('display','none');
+    }
+    var box=(clone.getAttribute('viewBox')||'0 0 760 300').trim().split(/\s+/).map(Number),w=box[2]||760,h=box[3]||300;
+    var card=stage.closest('.chart-card')||stage.parentElement;
+    var legend=card&&card.querySelector('.trend-legend-row-v25 .legend,.trend-legend-row-v25 .overview-legend,.trend-legend-row-v25 .rank-legend-v7,.legend,.overview-legend,.rank-legend-v7');
+    var items=legend?Array.prototype.filter.call(legend.children,function(n){return String(n.tagName||'').toLowerCase()==='span'&&!n.classList.contains('lg-hint-v31');}):[];
+    if(items.length){
+      var ns='http://www.w3.org/2000/svg',group=document.createElementNS(ns,'g'),x=22,y=h+28,rowHeight=25;
+      group.setAttribute('aria-label','图例');
+      items.forEach(function(item){
+        var label=String(item.textContent||'').replace('✎','').replace('🎨','').trim(),dot=item.querySelector('i'),color=dot?getComputedStyle(dot).backgroundColor:'#667085';
+        var itemWidth=Math.max(82,34+Array.from(label).length*13);
+        if(x+itemWidth>w-18){x=22;y+=rowHeight;}
+        var mark=document.createElementNS(ns,'circle');mark.setAttribute('cx',String(x+5));mark.setAttribute('cy',String(y-4));mark.setAttribute('r','5');mark.setAttribute('fill',color);
+        var text=document.createElementNS(ns,'text');text.setAttribute('x',String(x+17));text.setAttribute('y',String(y));text.setAttribute('fill','#4f596b');text.setAttribute('font-size','12');text.textContent=label;
+        if(item.classList.contains('lg-hide-v29')){mark.setAttribute('opacity','.35');text.setAttribute('opacity','.45');}
+        group.appendChild(mark);group.appendChild(text);x+=itemWidth;
+      });
+      clone.appendChild(group);
+      clone.setAttribute('viewBox',[box[0]||0,box[1]||0,w,y-h+18+h].join(' '));
+    }
+    return new XMLSerializer().serializeToString(clone);
   }
   function downloadSvgAsPngV25(svgText,filename){
     try{
@@ -534,6 +574,14 @@
     return{min:0,max:100,ticks:5};
   }
 
+  /* 导出/完整趋势复用首页图例的自定义配色与显隐（v29/v31 存于 localStorage） */
+  function customTrendColorV25(label,fallback){
+    try{var c=JSON.parse(localStorage.getItem('st_line_colors_v29')||'{}');if(c&&typeof c==='object'&&c[label])return c[label];}catch(e){}
+    return fallback;
+  }
+  function hiddenTrendLineV25(label){
+    try{var h=JSON.parse(localStorage.getItem('st_legend_hidden_v31')||'{}');return !!(h&&typeof h==='object'&&h[label]===true);}catch(e){return false;}
+  }
   function fullTrendSvgV25(){
     var exams=state.exams||[];
     var subject=state.subject||'总分';
@@ -551,30 +599,31 @@
     if(isRawRank||isPercent){
       var rankSubjects=subject==='总览'?['总分'].concat(SUBJECTS):[subject];
       series=rankSubjects.map(function(s,i){
-        return{label:s,color:colors[i%colors.length],value:function(e){return isRawRank?rawRankValueV11(e,s):rankInfoV7(e,s).performance;}};
+        return{label:s,color:customTrendColorV25(s,colors[i%colors.length]),value:function(e){return isRawRank?rawRankValueV11(e,s):rankInfoV7(e,s).performance;}};
       });
     }else if(basis==='raw'){
       if(subject==='总览'){
-        series=['总分'].concat(SUBJECTS).map(function(s,i){return{label:s,color:colors[i%colors.length],value:function(e){return rawScoreRateV13(e,s);}};});
+        series=['总分'].concat(SUBJECTS).map(function(s,i){return{label:s,color:customTrendColorV25(s,colors[i%colors.length]),value:function(e){return rawScoreRateV13(e,s);}};});
       }else{
-        series=[{label:subject==='总分'?'原始总分':subject,color:'#d38429',value:function(e){return subject==='总分'?totalRawForV13(e):examRawScoreV13(e,subject);}}];
+        var rawLabel=subject==='总分'?'原始总分':subject;
+        series=[{label:rawLabel,color:customTrendColorV25(rawLabel,'#d38429'),value:function(e){return subject==='总分'?totalRawForV13(e):examRawScoreV13(e,subject);}}];
       }
     }else if(scorePercent){
       series=[
-        {label:'真实',color:'#5d72e8',value:function(e){return subject==='总分'?totalRate(e,'actual'):scoreRate(e,subject,'actual');}},
-        {label:'目标',color:'#32a77a',dash:'7 7',value:function(e){return subject==='总分'?totalRate(e,'target'):scoreRate(e,subject,'target');}}
+        {label:'真实',color:customTrendColorV25('真实','#5d72e8'),value:function(e){return subject==='总分'?totalRate(e,'actual'):scoreRate(e,subject,'actual');}},
+        {label:'目标',color:customTrendColorV25('目标','#32a77a'),dash:'7 7',value:function(e){return subject==='总分'?totalRate(e,'target'):scoreRate(e,subject,'target');}}
       ];
     }else{
       if(subject==='总览'){
-        series=['总分'].concat(SUBJECTS).map(function(s,i){return{label:s,color:colors[i%colors.length],value:function(e){return scoreRate(e,s,'actual');}};});
+        series=['总分'].concat(SUBJECTS).map(function(s,i){return{label:s,color:customTrendColorV25(s,colors[i%colors.length]),value:function(e){return scoreRate(e,s,'actual');}};});
       }else{
         series=[
-          {label:'真实',color:'#5d72e8',dash:'',value:function(e){return subject==='总分'?totalFor(e,'actual'):examScore(e,subject,'actual');}},
-          {label:'目标',color:'#32a77a',dash:'7 7',value:function(e){return subject==='总分'?totalFor(e,'target'):examScore(e,subject,'target');}}
+          {label:'真实',color:customTrendColorV25('真实','#5d72e8'),dash:'',value:function(e){return subject==='总分'?totalFor(e,'actual'):examScore(e,subject,'actual');}},
+          {label:'目标',color:customTrendColorV25('目标','#32a77a'),dash:'7 7',value:function(e){return subject==='总分'?totalFor(e,'target'):examScore(e,subject,'target');}}
         ];
       }
     }
-    var visible=series.filter(function(s){return exams.some(function(e){return s.value(e)!==null;});});
+    var visible=series.filter(function(s){return !hiddenTrendLineV25(s.label)&&exams.some(function(e){return s.value(e)!==null;});});
     if(!visible.length)return '<div class="empty-chart"><div><div class="empty-icon">⌁</div>当前还没有可用于完整趋势的数据</div></div>';
     var points=exams.map(function(e){return{exam:e,values:visible.map(function(s){return s.value(e);})};});
     var flat=[];
@@ -609,7 +658,19 @@
       return '<path d="'+d+'" fill="none" stroke="'+item.color+'" stroke-width="'+(sidx===0&&subject==='总览'?'3.2':'2.8')+'" stroke-linecap="round" stroke-linejoin="round"'+(item.dash?' stroke-dasharray="'+item.dash+'"':'')+'/>'+circles;
     }).join('');
     var labels=points.map(function(p,i){return '<text x="'+x(i)+'" y="'+(H-18)+'" text-anchor="middle" class="axis-label">'+fmtDate(p.exam.exam_date)+'</text>';}).join('');
-    return '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'+grid+lines+labels+'</svg>';
+    var legendRows=0,legend='';
+    if(visible.length){
+      var perRow=Math.max(2,Math.min(5,Math.floor((W-48)/150)));
+      legendRows=Math.ceil(visible.length/perRow);
+      var colW=(W-48)/perRow;
+      legend=visible.map(function(s,i){
+        var row=Math.floor(i/perRow),col=i%perRow,lx=24+col*colW,ly=H+16+row*20;
+        return '<circle cx="'+(lx+5)+'" cy="'+(ly-4)+'" r="5" fill="'+s.color+'"/>'
+          +'<text x="'+(lx+17)+'" y="'+ly+'" style="font-size:12px;fill:#4f596b">'+escapeHtml(s.label)+'</text>';
+      }).join('');
+    }
+    var totalH=H+(legendRows?legendRows*20+14:0);
+    return '<svg viewBox="0 0 '+W+' '+totalH+'" preserveAspectRatio="none">'+grid+lines+labels+legend+'</svg>';
   }
 
   function openFullTrendV25(){

@@ -15,10 +15,13 @@ Deno.serve(async req=>{
     const requested=Number(url.searchParams.get('days')||7);
     const days=Math.max(1,Math.min(90,Number.isFinite(requested)?Math.trunc(requested):7));
     // 主分析和补充分析并行读取。补充分析是可选项，旧环境尚未迁移时不影响主面板。
-    const [mainResult, moreResult]=await Promise.all([
+    const [mainResult, moreResult, registeredResult, depthResult]=await Promise.all([
       db.rpc('score_tracker_admin_dashboard_metrics',{p_days:days}),
-      db.rpc('score_tracker_admin_dashboard_more',{p_days:days})
+      db.rpc('score_tracker_admin_dashboard_more',{p_days:days}),
+      db.from('score_tracker_users').select('*',{count:'exact',head:true}).or('is_admin.eq.false,is_admin.is.null'),
+      db.rpc('score_tracker_admin_depth_distribution',{p_days:days})
     ]);
+    if(registeredResult.error)throw registeredResult.error;
     let result=mainResult;
     // 迁移尚未同步时保留旧口径，避免后台整体不可用；同步后始终走完整分析函数。
     if(result.error){
@@ -26,7 +29,10 @@ Deno.serve(async req=>{
       if(result.error)throw result.error;
     }
     const metrics={...(result.data||{}),...(!moreResult.error?(moreResult.data||{}):{})};
+    if(!depthResult.error&&Array.isArray(depthResult.data))metrics.depth=depthResult.data;
+    metrics.counts={...(metrics.counts||{}),users:registeredResult.count||0};
     return out({...metrics,
+      registered_users:registeredResult.count||0,
       analytics_window_days:Number(metrics.analytics_window_days||days),
       timeseries:metrics.timeseries||metrics.trend||metrics.events_by_day||[],
       pages_all:metrics.pages_all||metrics.pages||metrics.pages_7d||[],

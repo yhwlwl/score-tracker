@@ -60,10 +60,68 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
     const inventory={score_tracker_users:{rows:users.filter(x=>!x.is_admin).length,first:null,last:null},score_tracker_exams:{rows:examsN,first:null,last:null},score_tracker_scores:{rows:scoresN,first:null,last:null},score_tracker_visit_logs:{rows:logsN,first:logsStart,last:logs[0]?.occurred_at||null},score_tracker_feedback_submissions:{rows:feedbackN,first:fbStart,last:feedback[0]?.created_at||null}};
     return json({generated_at:new Date().toISOString(),counts:{logs:logsN,visitors:visitors.size,sessions:sessions.size,users:users.filter(x=>!x.is_admin).length,online:online.size,exams:examsN,scores:scoresN,feedback:feedbackN},coverage:{logs_start:logsStart,feedback_start:fbStart},depth:group(depthRows,x=>x.level),events:group(logs,x=>x.event_type),pages:group(logs.filter(x=>x.event_type==='app_page_view'),x=>x.app_page),sources:group([...sessionSource.values()].map(x=>({x})),x=>x.x),cities:group(logs,x=>x.city),devices:group(logs,x=>/iPhone|iPad/i.test(x.user_agent||'')?'iOS':/Android/i.test(x.user_agent||'')?'Android':/Windows/i.test(x.user_agent||'')?'Windows':/Macintosh/i.test(x.user_agent||'')?'macOS':'其他'),versions:group(logs,x=>x.app_version),feedback_types:group(feedback,x=>x.feedback_type),inventory})
   }
-  if(action==='realtime'){const range=q.searchParams.get('range')||'5m',minutes=range==='15m'?15:range==='1h'?60:range==='24h'?1440:5,since=new Date(Date.now()-minutes*60000).toISOString(),[lr,ur]=await Promise.all([db.from('score_tracker_visit_logs').select('*').gte('occurred_at',since).order('occurred_at',{ascending:false}).limit(2000),db.from('score_tracker_users').select('id,username').limit(1000)]);if(lr.error)throw lr.error;if(ur.error)throw ur.error;const users=ur.data||[],seen=new Set(),out=[];for(const l of lr.data||[]){const k=l.visitor_id||l.user_id||l.session_id;if(!k||seen.has(k))continue;seen.add(k);out.push({...l,seconds_ago:Math.round((Date.now()-new Date(l.occurred_at).getTime())/1000),username:users.find(u=>u.id===l.user_id)?.username||null})}return json({rows:out,range,minutes,summary:{events:(lr.data||[]).length,new_registrations:(lr.data||[]).filter(x=>x.event_type==='register_completed').length,new_exams:(lr.data||[]).filter(x=>/exam_(created|added)|exam_created/.test(x.event_type||'')).length,new_feedback:(lr.data||[]).filter(x=>/feedback_(submitted|replied)/.test(x.event_type||'')).length}})}
+  if(action==='realtime'){
+    const range=q.searchParams.get('range')||'5m';
+    const minutes=range==='15m'?15:range==='1h'?60:range==='24h'?1440:5;
+    const since=new Date(Date.now()-minutes*60000).toISOString();
+    const [lr,eventsCount,registrations,examsCreated,feedbackCreated,feedbackReplied]=await Promise.all([
+      db.from('score_tracker_visit_logs').select('*').gte('occurred_at',since).order('occurred_at',{ascending:false}).limit(2000),
+      db.from('score_tracker_visit_logs').select('*',{count:'exact',head:true}).gte('occurred_at',since),
+      db.from('score_tracker_users').select('*',{count:'exact',head:true}).or('is_admin.eq.false,is_admin.is.null').gte('created_at',since),
+      db.from('score_tracker_exams').select('*',{count:'exact',head:true}).gte('created_at',since),
+      db.from('score_tracker_feedback_submissions').select('*',{count:'exact',head:true}).gte('created_at',since),
+      db.from('score_tracker_feedback_replies').select('*',{count:'exact',head:true}).neq('author_type','admin').gte('created_at',since)
+    ]);
+    for(const r of [lr,eventsCount,registrations,examsCreated,feedbackCreated,feedbackReplied])if(r.error)throw r.error;
+    const logs=lr.data||[],userIds=[...new Set(logs.map(x=>x.user_id).filter(Boolean))];
+    const ur=userIds.length?await db.from('score_tracker_users').select('id,username').in('id',userIds):{data:[],error:null};
+    if(ur.error)throw ur.error;
+    const names=new Map((ur.data||[]).map(x=>[x.id,x.username])),seen=new Set(),out=[];
+    for(const l of logs){
+      const k=l.visitor_id||l.user_id||l.session_id;
+      if(!k||seen.has(k))continue;
+      seen.add(k);
+      out.push({...l,seconds_ago:Math.round((Date.now()-new Date(l.occurred_at).getTime())/1000),username:names.get(l.user_id)||null});
+    }
+    return json({rows:out,range,minutes,summary:{
+      events:eventsCount.count||0,
+      new_registrations:registrations.count||0,
+      new_exams:examsCreated.count||0,
+      new_feedback:(feedbackCreated.count||0)+(feedbackReplied.count||0)
+    }})
+  }
   if(action==='users'){const limit=Math.max(1,Math.min(100,Number(q.searchParams.get('page_size')||q.searchParams.get('limit')||50)||50)),page=Math.max(1,Number(q.searchParams.get('page')||1)||1),offset=(page-1)*limit,search=String(q.searchParams.get('search')||q.searchParams.get('q')||'').trim().slice(0,80)||null,sort=['username','last_seen','depth_score','exam_count','actual_exams','score_rows','sessions','events','days','feedback_count'].includes(q.searchParams.get('sort')||'')?q.searchParams.get('sort'):'last_seen',order=q.searchParams.get('order')==='asc'?'asc':'desc',depthLevel=String(q.searchParams.get('depth_level')||'').trim()||null,activity=String(q.searchParams.get('activity')||'').trim()||null;const {data,error}=await db.rpc('score_tracker_admin_users_page',{p_limit:limit,p_offset:offset,p_search:search,p_sort:sort,p_order:order,p_depth_level:depthLevel,p_activity:activity});if(error)throw error;const rows=data||[];return json({rows,total_count:Number(rows[0]?.total_count||0),page,page_size:limit,server:true})}
   if(action==='logs'){const limit=Math.max(1,Math.min(100,Number(q.searchParams.get('page_size')||q.searchParams.get('limit')||100)||100)),page=Math.max(1,Number(q.searchParams.get('page')||1)||1),offset=(page-1)*limit,search=String(q.searchParams.get('search')||q.searchParams.get('q')||'').trim().slice(0,80),safeSearch=search.replace(/[^\p{L}\p{N}_\- ]/gu,' ').trim(),eventType=String(q.searchParams.get('event_type')||'').trim(),mode=String(q.searchParams.get('account_mode')||'').trim(),includeHeartbeat=q.searchParams.get('heartbeat')==='show';let query=db.from('score_tracker_visit_logs').select('id,event_id,session_id,event_type,occurred_at,client_time,user_id,country_code,region_code,city,ip_timezone,edge_region,pathname,referrer_origin,user_agent,browser_language,client_timezone,screen_width,screen_height,viewport_width,viewport_height,account_mode,is_pwa,app_version,metadata,visitor_id,app_page,utm_source,utm_campaign,first_referrer,geo_source,geo_resolved_at',{count:'exact'});if(safeSearch){const textFilters=['event_type','app_page','pathname','referrer_origin','city','app_version'].map(field=>`${field}.ilike.%${safeSearch}%`);const uuid= /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(search);if(uuid){textFilters.push(`visitor_id.eq.${search}`,`session_id.eq.${search}`,`user_id.eq.${search}`)}query=query.or(textFilters.join(','))}if(eventType)query=query.eq('event_type',eventType);if(mode)query=query.eq('account_mode',mode);if(!includeHeartbeat)query=query.neq('event_type','heartbeat');const result=await query.order('occurred_at',{ascending:false}).range(offset,offset+limit-1);if(result.error)throw result.error;return json({rows:result.data||[],total_count:result.count||0,page,page_size:limit,server:true})}
-  if(action==='user'){const id=q.searchParams.get('id')||'';const [ur,er,sr,lr,fr]=await Promise.all([db.from('score_tracker_users').select('id,username,is_admin,created_at,updated_at').eq('id',id).maybeSingle(),db.from('score_tracker_exams').select('*').eq('user_id',id).order('exam_date',{ascending:false}).limit(200),db.from('score_tracker_scores').select('*').eq('user_id',id).limit(2000),db.from('score_tracker_visit_logs').select('*').eq('user_id',id).order('occurred_at',{ascending:false}).limit(500),db.from('score_tracker_feedback_submissions').select('*').eq('user_id',id).order('created_at',{ascending:false}).limit(100)]);for(const r of [ur,er,sr,lr,fr])if(r.error)throw r.error;if(!ur.data)return json({error:'not_found'},404);return json({user:ur.data,depth:depth(ur.data,lr.data||[],er.data||[],sr.data||[]),exams:er.data||[],scores:sr.data||[],events:lr.data||[],feedback:fr.data||[]})}
+  if(action==='user'){
+    const id=q.searchParams.get('id')||'';
+    const [ur,er,sr,lr,fr,dr,pr]=await Promise.all([
+      db.from('score_tracker_users').select('id,username,is_admin,created_at,updated_at').eq('id',id).maybeSingle(),
+      db.from('score_tracker_exams').select('*').eq('user_id',id).order('exam_date',{ascending:false}).limit(200),
+      db.from('score_tracker_scores').select('*').eq('user_id',id).limit(2000),
+      db.from('score_tracker_visit_logs').select('*').eq('user_id',id).order('occurred_at',{ascending:false}).limit(500),
+      db.from('score_tracker_feedback_submissions').select('*').eq('user_id',id).order('created_at',{ascending:false}).limit(100),
+      db.rpc('score_tracker_depth_breakdown',{uid:id}),
+      db.rpc('score_tracker_admin_users_page',{p_limit:1,p_offset:0,p_search:id,p_sort:'last_seen',p_order:'desc',p_depth_level:null,p_activity:null})
+    ]);
+    for(const r of [ur,er,sr,lr,fr,pr])if(r.error)throw r.error;
+    if(!ur.data)return json({error:'not_found'},404);
+    const row=(pr.data||[])[0]||{},breakdown=!dr.error&&dr.data?dr.data:{};
+    const exactDepth={
+      ...breakdown,
+      score:Number(breakdown.score??row.depth_score??0),
+      level:String(breakdown.level??row.depth_level??'new'),
+      days:Number(row.days??breakdown.active_days??0),
+      sessions:Number(row.sessions??breakdown.sessions??0),
+      events:Number(row.events??breakdown.events??0),
+      exam_count:Number(row.exam_count??breakdown.exam_count??0),
+      actual_exams:Number(row.actual_exams??breakdown.actual_exams??0),
+      score_rows:Number(row.score_rows??breakdown.score_rows??0),
+      subjects:Number(row.subjects??breakdown.subjects??0),
+      feedback_count:Number(row.feedback_count??breakdown.feedback_submissions??0),
+      last_seen:row.last_seen??breakdown.last_seen??null
+    };
+    return json({user:ur.data,depth:exactDepth,exams:er.data||[],scores:sr.data||[],events:lr.data||[],feedback:fr.data||[]})
+  }
   if(action==='visitors'){const [logs,ur]=await Promise.all([recentLogs(5000),db.from('score_tracker_users').select('id,username').limit(1000)]);if(ur.error)throw ur.error;const users=ur.data||[],map=new Map();for(const l of [...logs].reverse()){if(!l.visitor_id)continue;let x=map.get(l.visitor_id)||{visitor_id:l.visitor_id,events:0,sessions:new Set(),days:new Set(),first_seen:l.occurred_at,last_seen:l.occurred_at,user_id:null,pwa:false,page:null,city:null};x.events++;if(l.session_id)x.sessions.add(l.session_id);x.days.add(String(l.occurred_at).slice(0,10));x.last_seen=l.occurred_at;x.page=l.app_page||l.pathname;x.city=l.city;if(l.user_id)x.user_id=l.user_id;if(l.is_pwa)x.pwa=true;map.set(l.visitor_id,x)}const rows=[...map.values()].map(x=>({...x,sessions:x.sessions.size,days:x.days.size,username:users.find(u=>u.id===x.user_id)?.username||null})).sort((a,b)=>+new Date(b.last_seen)-+new Date(a.last_seen));return json({rows})}
   if(action==='session'){
     const sessionId=String(q.searchParams.get('id')||q.searchParams.get('session_id')||'').trim();
