@@ -479,6 +479,8 @@
   function openPickerV29(item,label){
     ensurePickerV29();
     popLabelV29=label;
+    /* 暴露当前科目给委托埋点；popover 关闭后保留到下次打开，确保冒泡到 document 时仍可读取。 */
+    popElV29.dataset.subjectV29=label;
     popElV29.querySelector('b').textContent='「'+label+'」的颜色';
     var sb=popElV29.querySelector('.pk-show-v29 input');
     if(sb)sb.checked=!(HIDDEN_V29[label]===true);
