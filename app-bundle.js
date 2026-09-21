@@ -6247,6 +6247,8 @@ saveExam=async function saveExamV21(id,modal){
   function openPickerV29(item,label){
     ensurePickerV29();
     popLabelV29=label;
+    /* 暴露当前科目给委托埋点；popover 关闭后保留到下次打开，确保冒泡到 document 时仍可读取。 */
+    popElV29.dataset.subjectV29=label;
     popElV29.querySelector('b').textContent='「'+label+'」的颜色';
     var sb=popElV29.querySelector('.pk-show-v29 input');
     if(sb)sb.checked=!(HIDDEN_V29[label]===true);
@@ -7231,9 +7233,20 @@ function checkUpdateV31(){
     }).catch(function(){});
   }catch(e){}
 }
+var updateChecksInstalledV31=false;
+function installUpdateChecksV31(){
+  if(updateChecksInstalledV31)return;
+  updateChecksInstalledV31=true;
+  checkUpdateV31();
+  setInterval(checkUpdateV31,30*60*1000);
+}
 
 /* ================= 埋点挂接 ================= */
+var trackingInstalledV31=false;
 function installTrackingV31(){
+  /* bindPage 会在每次渲染后执行；document 级监听器只能安装一次。 */
+  if(trackingInstalledV31)return;
+  trackingInstalledV31=true;
   /* 打开取色器：点击任意图例项 */
   document.addEventListener('click',function(e){
     var hit=e.target.closest('.legend:not(.sv31-nopalette) > *,.overview-legend:not(.sv31-nopalette) > *,.rank-legend-v7:not(.sv31-nopalette) > *,#autoLegendV29 > *');
@@ -7241,22 +7254,23 @@ function installTrackingV31(){
     var label=(hit.textContent||'').replace(/[🎨✎]/g,'').replace('点击可换颜色','').trim();
     window.__stTrack('legend_color_open',{subject:label});
   },true);
-  /* 取色器内动作 */
-  function popTrack(kind,extra){
-    return function(e){
-      var pop=e.target.closest('.picker-pop-v29');
-      if(!pop)return;
-      var subject=pop.dataset.subjectV29||pop.getAttribute('data-subject')||'';
-      var payload={subject:subject};
-      if(extra)for(var k in extra)payload[k]=extra[k];
-      window.__stTrack(kind,payload);
-    };
-  }
-  document.addEventListener('click',popTrack('legend_color_apply'),false);
+  /* 只把真正改变颜色的控件记作 apply；popover 内的普通点击不再误报。 */
+  document.addEventListener('click',function(e){
+    var pop=e.target.closest('.picker-pop-v29');
+    if(!pop)return;
+    var swatch=e.target.closest('.pk-swatches-v29 button');
+    var reset=e.target.closest('.pk-reset-v29');
+    if(!swatch&&!reset)return;
+    window.__stTrack('legend_color_apply',{
+      subject:pop.dataset.subjectV29||'',
+      custom:false,
+      reset:!!reset
+    });
+  },false);
   document.addEventListener('change',function(e){
     var pop=e.target.closest('.picker-pop-v29');
     if(pop&&e.target.tagName==='INPUT'&&e.target.type==='color'){
-      window.__stTrack('legend_color_apply',{subject:pop.dataset.subjectV29||'',custom:true});
+      window.__stTrack('legend_color_apply',{subject:pop.dataset.subjectV29||'',custom:true,reset:false});
     }
   },false);
   /* 主题切换：包装 v29 的 applyTheme（切换前取旧主题，仅真实变化才上报） */
@@ -7320,8 +7334,7 @@ bindPage=function bindPageV31(){
     injectLegendHintsV31();
     installTrackingV31();
     if(!localStorage.getItem('st_tip_colors_v31'))showColorTipBannerV31();
-    checkUpdateV31();
-    setInterval(checkUpdateV31,30*60*1000);
+    installUpdateChecksV31();
   }catch(e){}
 };
 function escV31(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
