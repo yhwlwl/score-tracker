@@ -95,7 +95,7 @@ if(dApiBeforeV33){
       try{Promise.resolve(p).then(function(r){
         try{
           if(r&&r.goal!==undefined){
-            window.__v33GoalCache=r;
+            window.__v33GoalCache=null;
             applyGoalResponse(r);
           }
         }catch(e){}
