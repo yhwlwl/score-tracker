@@ -106,6 +106,8 @@
     var latestMetricBeforeV24=latestMetricV20;
     latestMetricV20=function latestMetricV24(){
       var exams=typeof sortedVisibleExamsV20==='function'?sortedVisibleExamsV20():[...(state.exams||[])];
+      var base=latestMetricBeforeV24();
+      var manual=null;
       for(var i=exams.length-1;i>=0;i--){
         var exam=exams[i],override=num(exam?.total_actual_score);
         if(override===null)continue;
@@ -117,9 +119,16 @@
           var pv=totalFor(exams[j],'actual');
           if(pv!==null){previous=pv;break;}
         }
-        return{label:'最近一次真实总分',value:override,exam:exam,delta:previous===null?null:override-previous,deltaLabel:'较上次'};
+        manual={label:'最近一次真实总分',value:override,exam:exam,delta:previous===null?null:override-previous,deltaLabel:'较上次'};
+        break;
       }
-      return latestMetricBeforeV24();
+      if(!manual)return base;
+      if(!base)return manual;
+      function orderKey(x){
+        var e=x&&x.exam||{};
+        return String(e.exam_date||'')+'|'+String(e.created_at||e.updated_at||'');
+      }
+      return orderKey(manual)>=orderKey(base)?manual:base;
     };
   }
 
