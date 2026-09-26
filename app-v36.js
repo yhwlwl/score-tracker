@@ -18,12 +18,12 @@
       '.trend-collapse-v36 svg{width:15px;height:15px;display:block;transition:transform .2s ease}',
       '.trend-collapse-v36[aria-expanded="true"] svg{transform:rotate(180deg)}',
       '.chart-card>.card-title-row{padding-right:39px}',
-      '.trend-controls-v36{max-height:720px;opacity:1;transform:translateY(0);overflow:hidden;transition:max-height .26s cubic-bezier(.2,.75,.2,1),opacity .18s ease,transform .2s ease;margin-bottom:0}',
+      '.trend-controls-v36{max-height:1200px;opacity:1;transform:translateY(0);overflow:hidden;transition:max-height .26s cubic-bezier(.2,.75,.2,1),opacity .18s ease,transform .2s ease;margin-bottom:0}',
       '.chart-card.trend-controls-collapsed-v36 .trend-controls-v36{max-height:0;opacity:0;transform:translateY(-4px);pointer-events:none}',
       '.chart-card.trend-controls-collapsed-v36 .trend-actions-v25{margin-top:4px}',
       '@media(max-width:620px){.trend-collapse-v36{top:14px;right:14px;width:30px;height:30px}.chart-card>.card-title-row{padding-right:38px}}',
       /* v31 曾把手机图表 touch-action 收窄成 pan-x，导致手指落在图表上时页面不能纵向滚动。 */
-      '@media(max-width:720px){.chart-card .chart-wrap,.chart-card .rank-chart-stage-v7,.chart-card .overview-stage-v5{touch-action:pan-x pan-y!important;overscroll-behavior-y:auto}.chart-card .trend-scroll-v19{touch-action:pan-x pan-y!important}.full-trend-stage-v25{touch-action:pan-x pan-y!important}}'
+      '@media(max-width:720px){.chart-card .chart-wrap,.chart-card .rank-chart-stage-v7,.chart-card .overview-stage-v5{touch-action:pan-x pan-y!important;overscroll-behavior-y:auto}.chart-card .trend-scroll-v19,.chart-card .combo-chips-v25,.chart-card .chips,.chart-card .trend-legend-row-v25,.chart-card .rank-legend-v7,.chart-card .overview-legend{touch-action:pan-x pan-y!important}.full-trend-stage-v25{touch-action:pan-x pan-y!important}}'
     ].join('\n');
     (document.head||document.documentElement).appendChild(style);
   }
@@ -65,7 +65,7 @@
       button.type='button';
       button.className='trend-collapse-v36';
       button.innerHTML='<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 7.5 10 12l4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-      card.appendChild(button);
+      card.insertBefore(button,controls);
       button.addEventListener('click',function(){
         var collapsed=!card.classList.contains('trend-controls-collapsed-v36');
         updateCollapseButtonV36(card,button,collapsed);
