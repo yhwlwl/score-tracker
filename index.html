@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#f7f8fb" />
-  <meta name="application-version" content="v6.1" />
+  <meta name="application-version" content="v6.2" />
   <title>成绩轨迹 · Score Tracker</title>
   <meta name="description" content="记录全年考试成绩与目标成绩，用趋势图和雷达图看见自己的变化。" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📈</text></svg>">
@@ -14,9 +14,22 @@
 <body>
   <!-- v2.0: subject-list mapping, weighted total overrides, bundled data reads -->
   <div id="app">
-    <div class="splash"><div class="brand-mark">↗</div><div>成绩轨迹</div><small>正在准备你的学习空间…</small></div>
+    <div class="splash">
+      <div class="brand-mark">↗</div>
+      <div>成绩轨迹</div>
+      <small>正在准备你的学习空间…</small>
+      <div class="splash-alt">
+        <span>如果连不进去，可尝试备用网址</span>
+        <span class="splash-alt-links"><a href="https://score1.yhwlwl.xyz">score1.yhwlwl.xyz</a><i>或</i><a href="https://score-tracker-d83.pages.dev">score-tracker-d83.pages.dev</a></span>
+      </div>
+    </div>
   </div>
   <style id="app-v33-style">
+.splash-alt{margin-top:3px;display:grid;gap:3px;justify-items:center;font-size:10.5px;line-height:1.55;color:var(--muted,#8490a1);font-weight:400;opacity:.78}
+.splash-alt-links{display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap}
+.splash-alt a{color:inherit;text-decoration:none;border-bottom:1px solid color-mix(in srgb,currentColor 32%,transparent);transition:opacity .15s ease}
+.splash-alt a:hover{opacity:.72}.splash-alt i{font-style:normal;opacity:.58}
+@media(max-width:520px){.splash-alt{max-width:310px;margin-left:auto;margin-right:auto}.splash-alt-links{gap:6px 7px}}
 .goal-hero-v33{display:flex;gap:18px;background:linear-gradient(145deg,var(--panel-solid,#fff),var(--accent-soft,#eef1ff));border:1px solid var(--line,#e8ebf0);border-radius:20px;box-shadow:0 10px 35px rgba(27,37,58,.08);padding:16px 18px;margin:14px 0;cursor:pointer}
 .goal-hero-v33:active{transform:translateY(1px)}
 .gh-main-v33{flex:1;min-width:0}.gh-title-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
@@ -77,5 +90,6 @@
     <!-- 全部脚本已按原顺序打包:改任何 app-vN.js 后运行 node design/build-bundles.js -->
     <!-- 全部脚本已按原顺序打包:改任何 app-vN.js 后运行 node design/build-bundles.js -->
   <script src="./app-bundle.js?v=bcd166fe0a" defer></script>
+  <script src="./feature-vote.js?v=v6.2" defer></script>
 </body>
 </html>

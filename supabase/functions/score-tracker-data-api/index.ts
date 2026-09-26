@@ -590,6 +590,74 @@ async function saveGoal(uid: string, raw: any) {
   return { ok: true };
 }
 
+
+async function featureVoteOverview(uid: string) {
+  const r = await db.rpc("score_tracker_feature_vote_overview", { p_user_id: uid });
+  if (r.error) throw r.error;
+  return r.data ?? {
+    submitted: false,
+    availableCount: 0,
+    totalVoters: 0,
+    totalVotes: 0,
+    options: [],
+    myVotes: [],
+    suggestions: [],
+  };
+}
+
+async function submitFeatureVote(uid: string, rawIds: any, rawCustom: any) {
+  const ids = Array.isArray(rawIds)
+    ? [...new Set(rawIds.map((x: any) => String(x ?? "").trim()).filter(Boolean))].slice(0, 50)
+    : [];
+  const custom = String(rawCustom ?? "").trim();
+  if (custom.length > 300) return { error: "新增需求不能超过 300 个字符", status: 400 };
+  if (!ids.length && !custom) return { error: "请选择至少一项，或填写一个新增需求", status: 400 };
+
+  let validIds: string[] = [];
+  if (ids.length) {
+    const or = await db
+      .from("score_tracker_feature_vote_options")
+      .select("id")
+      .in("id", ids)
+      .eq("is_active", true);
+    if (or.error) throw or.error;
+    validIds = (or.data ?? []).map((x: any) => String(x.id));
+  }
+  if (ids.length && !validIds.length && !custom) return { error: "所选功能已不可投票，请刷新后重试", status: 400 };
+
+  let addedVotes = 0;
+  if (validIds.length) {
+    const er = await db
+      .from("score_tracker_feature_votes")
+      .select("option_id")
+      .eq("user_id", uid)
+      .in("option_id", validIds);
+    if (er.error) throw er.error;
+    const existing = new Set((er.data ?? []).map((x: any) => String(x.option_id)));
+    const missing = validIds.filter((id) => !existing.has(id));
+    if (missing.length) {
+      const ir = await db.from("score_tracker_feature_votes").insert(
+        missing.map((option_id) => ({ user_id: uid, option_id }))
+      );
+      if (ir.error && ir.error.code !== "23505") throw ir.error;
+      addedVotes = missing.length;
+    }
+  }
+
+  let suggestionId: string | null = null;
+  if (custom) {
+    const sr = await db
+      .from("score_tracker_feature_vote_suggestions")
+      .insert({ user_id: uid, content: custom })
+      .select("id")
+      .single();
+    if (sr.error) throw sr.error;
+    suggestionId = sr.data.id;
+  }
+
+  return { ok: true, addedVotes, suggestionId, overview: await featureVoteOverview(uid) };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return out({ error: "Method not allowed" }, 405);
@@ -602,6 +670,11 @@ Deno.serve(async (req: Request) => {
     const user = await auth(String(body.token ?? ""));
     if (!user) return out({ error: "登录已失效，请重新登录", code: "UNAUTHORIZED" }, 401);
     const action = String(body.action ?? "");
+    if (action === "feature_vote_status" || action === "feature_vote_overview") return out(await featureVoteOverview(user.id));
+    if (action === "feature_vote_submit") {
+      const r = await submitFeatureVote(user.id, body.optionIds, body.customRequest);
+      return r.error ? out({ error: r.error }, r.status ?? 400) : out(r);
+    }
     if (action === "list_exams" || action === "bootstrap") return out(await list(user));
     if (action === "save_classification") {
       const r = await saveClass(user.id, body.classification);
