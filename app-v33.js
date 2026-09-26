@@ -379,6 +379,13 @@ function syncModeUI(){
 }
 function closeEditor(){var b=$("#goalBkV33");if(b)b.classList.remove("open")}
 function saveEditor(){
+  var before=G.data?{
+    subjects:Object.assign({},G.data.subjects||{}),
+    totalGoal:G.data.totalGoal??null,
+    school:G.data.school||"",
+    date:G.data.date||"",
+    dateName:G.data.dateName||""
+  }:null;
   var d=G.data=G.data||{};
   d.subjects=collectInputs();
   var school=$("#gv33School").value.trim();
@@ -387,10 +394,19 @@ function saveEditor(){
   d.dateName=dn==="自定义…"?(($("#gv33Custom").value.trim())||"目标"):dn;
   d.school=school;d.date=date;
   if(EDIT.mode==="manu"){var m=parseInt($("#gv33Manual").value,10);d.totalGoal=isNaN(m)?null:m;}
-  else{var s=0,h=false;for(var k in d.subjects){s+=+d.subjects[k];h=true}d.totalGoal=h?s:null;}
-  try{__stTrack("goal_saved",{subjects_set:Object.keys(d.subjects).length,has_school:d.school?1:0,has_date:d.date?1:0,total_mode:EDIT.mode==="manu"?"manual":"auto"})}catch(e){}
-  persistGoal().then(function(){refreshGoalUI()}).catch(function(){});
-  closeEditor();refreshGoalUI();
+  else{var sum=0,h=false;for(var k in d.subjects){sum+=+d.subjects[k];h=true}d.totalGoal=h?sum:null;}
+  var btn=$("#gv33Save");
+  if(btn){btn.disabled=true;btn.textContent="保存中…";}
+  persistGoal().then(function(){
+    try{__stTrack("goal_saved",{subjects_set:Object.keys(d.subjects).length,has_school:d.school?1:0,has_date:d.date?1:0,total_mode:EDIT.mode==="manu"?"manual":"auto"})}catch(e){}
+    closeEditor();refreshGoalUI();
+    try{if(typeof toast==="function")toast("长期目标已保存");}catch(e){}
+  }).catch(function(e){
+    if(before)G.data=before;
+    if(btn&&btn.isConnected){btn.disabled=false;btn.textContent="保存";}
+    refreshGoalUI();
+    try{if(typeof toast==="function")toast((e&&e.message)||"目标保存失败，请检查网络后重试");}catch(_){}
+  });
 }
 function clearEditor(){
   track("goal_cleared");
