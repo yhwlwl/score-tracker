@@ -66,7 +66,7 @@ Score Tracker 最初只是一个“目标成绩 vs. 真实成绩”的手机端�
 
 图例支持显隐与自定义颜色；移动端图表支持横向浏览，长考试名称会按真实考试顺序展示。
 
-![Score Tracker 成绩趋势](docs/images/01-score-trend.webp)
+![Score Tracker 成绩趋势](docs/images/IMG_4295.jpeg)
 
 *总分、单科和科目组合可以在同一条时间轴上切换；图中以得分率展示多场考试的长期变化。*
 
@@ -78,7 +78,7 @@ Score Tracker 因此同时保存名次、参考人数、位比 / position percen
 
 统计页会尽量在口径一致时比较，在参考人数明显变化时给出提醒，避免把不同样本规模下的名次直接当作同一尺度。
 
-![Score Tracker 雷达对比](docs/images/02-radar-comparison.webp)
+![Score Tracker 雷达对比](docs/images/IMG_4296.jpeg)
 
 *同两场考试可以切换最终分、原始分、目标、年排 / 班排以及名次 / 百分位口径，观察六科学科结构的变化。*
 
@@ -106,7 +106,7 @@ Score Tracker 因此同时保存名次、参考人数、位比 / position percen
 
 这些结论都尽量保留“为什么这样判断”的入口，而不是只给一句标签。
 
-![Score Tracker 全量统计矩阵](docs/images/06-statistics-matrix.webp)
+![Score Tracker 全量统计矩阵](docs/images/IMG_4297.jpeg)
 
 *历次考试 × 六科 / 总分的统一矩阵同时呈现位比、表现颜色、常见水平与个人记录，适合快速发现长期模式。*
 
