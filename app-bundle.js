@@ -807,7 +807,7 @@ function bindPage() {
       toast('复制失败，请手动选择');
     }
   });
-  $('[data-radar-mode]').forEach((b) => b.onclick = () => {
+  $$('[data-radar-mode]').forEach((b) => b.onclick = () => {
     state.radarMode = b.dataset.radarMode;
     ensureRadarSelection();
     render();
