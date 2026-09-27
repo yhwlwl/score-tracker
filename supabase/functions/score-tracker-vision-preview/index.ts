@@ -12,6 +12,9 @@ const DEFAULT_VISION_BASE_URL = "https://openrouter.ai/api/v1";
 const DEFAULT_AI_DAILY_LIMIT = 10;
 const DEFAULT_AI_GLOBAL_DAILY_LIMIT = 100;
 const DEFAULT_AI_COOLDOWN_SECONDS = 15;
+const DEFAULT_UPSTREAM_TIMEOUT_MS = 30000;
+const DATABASE_TIMEOUT_MS = 8000;
+const CACHE_TTL_MS = 30000;
 
 function safeConfigInt(value: unknown, fallback: number, min: number, max: number) {
   const n = Number(value);
@@ -39,29 +42,61 @@ function isOpenRouterBase(baseUrl: string) {
   }
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 90000) {
+class VisionServiceError extends Error {
+  code: string;
+  status: number;
+  constructor(message: string, code: string, status = 503) {
+    super(message);
+    this.name = "VisionServiceError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
+async function withTimeout<T>(operation: PromiseLike<T>, timeoutMs: number, code: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve(operation),
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new VisionServiceError("服务请求超时", code)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = DEFAULT_UPSTREAM_TIMEOUT_MS) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    const response = await fetch(url, { ...init, signal: controller.signal });
+    const payload = await response.json().catch(() => ({}));
+    return { response, payload };
   } finally {
     clearTimeout(timer);
   }
 }
 
+let visionConfigCache: { expiresAt: number; value: any } | null = null;
+
 async function visionConfig() {
-  let row: any = null;
-  try {
-    const result = await db.from("score_tracker_ai_configs")
+  const now = Date.now();
+  if (visionConfigCache && visionConfigCache.expiresAt > now) return visionConfigCache.value;
+
+  const result = await withTimeout(
+    db.from("score_tracker_ai_configs")
       .select("openrouter_api_key,base_url,model,enabled,beta_only,daily_limit,global_daily_limit,cooldown_seconds")
       .eq("id", "score_vision")
-      .maybeSingle();
-    if (result.error) throw result.error;
-    row = result.data;
-  } catch (error) {
-    console.error("vision config read", error instanceof Error ? error.message : error);
-  }
-  return {
+      .maybeSingle(),
+    DATABASE_TIMEOUT_MS,
+    "vision_config_timeout",
+  );
+  if (result.error) throw result.error;
+
+  const row: any = result.data;
+  const value = {
     apiKey: row?.enabled === false ? "" : String(row?.openrouter_api_key || Deno.env.get("OPENROUTER_API_KEY") || "").trim(),
     baseUrl: normalizeBaseUrl(row?.base_url || Deno.env.get("OPENROUTER_BASE_URL") || DEFAULT_VISION_BASE_URL),
     model: String(row?.model || DEFAULT_VISION_MODEL).trim() || DEFAULT_VISION_MODEL,
@@ -72,6 +107,8 @@ async function visionConfig() {
     globalDailyLimit: safeConfigInt(row?.global_daily_limit, DEFAULT_AI_GLOBAL_DAILY_LIMIT, 1, 10000),
     cooldownSeconds: safeConfigInt(row?.cooldown_seconds, DEFAULT_AI_COOLDOWN_SECONDS, 0, 86400),
   };
+  visionConfigCache = { expiresAt: now + CACHE_TTL_MS, value };
+  return value;
 }
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -98,16 +135,29 @@ async function auth(token: string) {
   return data;
 }
 
+const visionBetaCache = new Map<string, { expiresAt: number; allowed: boolean }>();
+
 async function isVisionBetaUser(username: unknown) {
   const usernameKey = String(username ?? "").trim().toLowerCase();
   if (!usernameKey) return false;
-  const result = await db.from("score_tracker_ai_beta_users")
-    .select("username_key")
-    .eq("username_key", usernameKey)
-    .eq("enabled", true)
-    .maybeSingle();
+
+  const cached = visionBetaCache.get(usernameKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.allowed;
+
+  const result = await withTimeout(
+    db.from("score_tracker_ai_beta_users")
+      .select("username_key")
+      .eq("username_key", usernameKey)
+      .eq("enabled", true)
+      .maybeSingle(),
+    DATABASE_TIMEOUT_MS,
+    "vision_beta_timeout",
+  );
   if (result.error) throw result.error;
-  return !!result.data;
+
+  const allowed = !!result.data;
+  visionBetaCache.set(usernameKey, { expiresAt: Date.now() + CACHE_TTL_MS, allowed });
+  return allowed;
 }
 
 async function claimAiRequest(userId: string, limits: { dailyLimit: number; globalDailyLimit: number; cooldownSeconds: number }) {
@@ -217,12 +267,47 @@ function normalize(raw: any, context: any) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  const requestId = crypto.randomUUID();
+  const startedAt = Date.now();
+  const mark = (phase: string, extra: Record<string, unknown> = {}) => {
+    console.log("vision_timing", JSON.stringify({
+      request_id: requestId,
+      phase,
+      elapsed_ms: Date.now() - startedAt,
+      ...extra,
+    }));
+  };
+
   try {
+    mark("request_received");
     const body = await req.json().catch(() => ({}));
-    const user = await auth(String(body.token ?? ""));
+
+    let user;
+    try {
+      user = await withTimeout(auth(String(body.token ?? "")), DATABASE_TIMEOUT_MS, "auth_timeout");
+      mark(user ? "auth_ok" : "auth_rejected");
+    } catch (error) {
+      mark("auth_failed");
+      console.error("vision auth error", JSON.stringify({
+        request_id: requestId,
+        message: error instanceof Error ? error.message : String(error),
+      }));
+      return json({ error: "登录状态检查暂不可用，请稍后再试", code: "auth_unavailable", request_status: 0 }, 503);
+    }
     if (!user) return json({ error: "登录已失效，请重新登录" }, 401);
 
-    const config = await visionConfig();
+    let config;
+    try {
+      config = await withTimeout(visionConfig(), DATABASE_TIMEOUT_MS, "vision_config_timeout");
+      mark("config_ok");
+    } catch (error) {
+      mark("config_failed");
+      console.error("vision config error", JSON.stringify({
+        request_id: requestId,
+        message: error instanceof Error ? error.message : String(error),
+      }));
+      return json({ error: "识别服务配置暂不可用，请稍后再试", code: "vision_config_unavailable", request_status: 0 }, 503);
+    }
     if (body.action === "beta_status") {
       if (config.disabled || !config.configured) {
         return json({ eligible: false, enabled: !config.disabled, beta_only: config.betaOnly });
@@ -264,7 +349,12 @@ Deno.serve(async (req) => {
 
     let quota;
     try {
-      quota = await claimAiRequest(user.id, config);
+      quota = await withTimeout(
+        claimAiRequest(user.id, config),
+        DATABASE_TIMEOUT_MS,
+        "rate_limit_timeout",
+      );
+      mark("quota_checked");
     } catch (error) {
       console.error("vision quota check", error instanceof Error ? error.message : error);
       return json({ error: "识别服务限流检查暂不可用，请稍后再试", code: "rate_limit_unavailable", request_status: 0 }, 503);
@@ -306,23 +396,29 @@ Deno.serve(async (req) => {
       requestHeaders["X-Title"] = "Score Tracker Preview";
     }
 
+    mark("upstream_start", { image_count: images.length });
     let response: Response;
+    let payload: any;
     try {
-      response = await fetchWithTimeout(config.baseUrl + "/chat/completions", {
+      const upstream = await fetchWithTimeout(config.baseUrl + "/chat/completions", {
         method: "POST",
         headers: requestHeaders,
         body: JSON.stringify(requestBody),
       });
+      response = upstream.response;
+      payload = upstream.payload;
+      mark("upstream_response", { status: response.status });
     } catch (error) {
       const timedOut = error instanceof Error && error.name === "AbortError";
+      mark("upstream_failed", { status: timedOut ? 504 : 502 });
       return json({
-        error: timedOut ? "识别服务请求超时" : "识别服务网络错误",
+        error: timedOut ? "识别服务请求超时，请稍后再试" : "识别服务网络错误，请稍后再试",
         code: timedOut ? "upstream_timeout" : "upstream_network_error",
         request_status: 0,
         upstream_status: 0,
         upstream_message: cleanText(error instanceof Error ? error.message : error, 240),
       }, timedOut ? 504 : 502);
-    }    const payload = await response.json().catch(() => ({}));
+    }
     if (!response.ok) {
       const detail = upstreamMessage(payload);
       const upstreamStatus = response.status;
@@ -340,11 +436,48 @@ Deno.serve(async (req) => {
       return json({ ...shared, error: "识别服务暂不可用", code: "upstream_error" }, 502);
     }
     const text = outputText(payload);
-    if (!text) return json({ error: "没有识别到可用内容，请换一张更清晰的图片" }, 422);
-    return json(normalize(parseJson(text), context));
+    if (!text) {
+      mark("empty_model_output");
+      return json({ error: "没有识别到可用内容，请换一张更清晰的图片", code: "empty_model_output" }, 422);
+    }
+
+    let parsed: any;
+    try {
+      parsed = parseJson(text);
+    } catch (error) {
+      mark("model_parse_failed");
+      console.error("vision model output parse error", JSON.stringify({
+        request_id: requestId,
+        message: error instanceof Error ? error.message : String(error),
+      }));
+      return json({ error: "识别结果格式异常，请重试", code: "invalid_model_output", request_status: 200, upstream_status: 200 }, 422);
+    }
+
+    try {
+      const normalized = normalize(parsed, context);
+      mark("completed", { subject_count: normalized.subjects.length });
+      return json(normalized);
+    } catch (error) {
+      mark("model_normalize_failed");
+      console.error("vision normalize error", JSON.stringify({
+        request_id: requestId,
+        message: error instanceof Error ? error.message : String(error),
+      }));
+      return json({ error: "识别结果处理失败，请重试", code: "invalid_model_output", request_status: 200, upstream_status: 200 }, 422);
+    }
   } catch (error) {
-    const message = cleanText(error instanceof Error ? error.message : error, 240) || "识别失败，请稍后再试";
-    console.error("vision handler error", message);
-    return json({ error: "识别失败，请稍后再试", code: "vision_handler_error", request_status: 0, upstream_status: 0, upstream_message: message }, 500);
+    const message = cleanText(error instanceof Error ? error.message : error) || "识别失败，请稍后再试";
+    const isServiceError = error instanceof VisionServiceError;
+    const status = isServiceError ? error.status : 500;
+    const code = isServiceError ? error.code : "vision_handler_error";
+    mark("handler_error", { status });
+    console.error("vision handler error", JSON.stringify({ request_id: requestId, message }));
+    return json({
+      error: isServiceError ? "识别服务暂不可用，请稍后再试" : "识别失败，请稍后再试",
+      code,
+      request_status: 0,
+      upstream_status: 0,
+      upstream_message: message,
+    }, status);
   }
 });

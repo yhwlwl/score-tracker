@@ -14,6 +14,24 @@
     } catch (e) {}
   }
 
+  function requestWithTimeout(url, options, timeoutMs) {
+    var controller = typeof AbortController === 'function' ? new AbortController() : null;
+    var requestOptions = Object.assign({}, options || {});
+    if (controller) requestOptions.signal = controller.signal;
+    var timer;
+    var timeout = new Promise(function (_, reject) {
+      timer = setTimeout(function () {
+        if (controller) controller.abort();
+        var timeoutError = new Error('识别服务请求超时');
+        timeoutError.name = 'TimeoutError';
+        reject(timeoutError);
+      }, timeoutMs);
+    });
+    return Promise.race([fetch(url, requestOptions), timeout]).finally(function () {
+      clearTimeout(timer);
+    });
+  }
+
   var LABELS = {
     name: ['考试名称', '考试名', '考试'],
     date: ['考试日期', '日期', '考试时间'],
@@ -711,14 +729,13 @@
       '<div class="modal nl-entry-modal" role="dialog" aria-modal="true">' +
       '<div class="modal-head"><div><h3>快速录入</h3><p class="nl-entry-subtitle">选择识别方式，识别后回填到原来的录入表</p></div><button class="close-btn" type="button" aria-label="关闭">×</button></div>' +
       '<div class="nl-entry-tabs" role="tablist" aria-label="快速录入方式">' +
-      '<button type="button" class="nl-entry-tab is-active" data-entry-tab="image" role="tab" aria-selected="true">拍照录入</button>' +
-      '<button type="button" class="nl-entry-tab" data-entry-tab="text" role="tab" aria-selected="false">自然语言录入</button>' +
+      '<button type="button" class="nl-entry-tab" data-entry-tab="image" role="tab" aria-selected="false" hidden>拍照录入</button>' +
+      '<button type="button" class="nl-entry-tab is-active" data-entry-tab="text" role="tab" aria-selected="true">自然语言录入</button>' +
       '</div>' +
       '<div class="modal-body">' +
-      '<section class="nl-entry-pane nl-entry-image-pane is-active" data-entry-pane="image">' +
+      '<section class="nl-entry-pane nl-entry-image-pane" data-entry-pane="image" hidden>' +
       '<div class="nl-entry-upload-card"><label class="nl-entry-file-button"><span>选择成绩单图片</span><small>支持多选，最多 6 张</small><input class="nl-entry-files" type="file" accept="image/*" multiple></label><p>可按成绩单顺序选择多张截图，系统会合并识别同一次考试。</p></div>' +
       '<div class="nl-entry-image-list" aria-live="polite"><span class="nl-entry-empty">还没有选择图片</span></div>' +
-      '<p class="nl-entry-vision-note">图片会发送到管理员配置的识图模型处理；系统不保存原图。</p>' +
       '<div class="nl-entry-progress" hidden aria-live="polite"><div class="nl-entry-progress-head"><span>识别进度</span><strong class="nl-entry-elapsed">0.0s</strong></div><ol class="nl-entry-progress-steps"><li class="nl-entry-progress-step" data-progress-step="0"><span class="nl-entry-progress-dot">1</span><span>读取并压缩图片</span></li><li class="nl-entry-progress-step" data-progress-step="1"><span class="nl-entry-progress-dot">2</span><span>发送图片与请求</span></li><li class="nl-entry-progress-step" data-progress-step="2"><span class="nl-entry-progress-dot">3</span><span>等待 AI 识别</span></li><li class="nl-entry-progress-step" data-progress-step="3"><span class="nl-entry-progress-dot">4</span><span>整理可编辑结果</span></li></ol></div>' +
       '<p class="nl-entry-vision-edit-hint" hidden>识别结果可直接编辑，确认无误后再点击“确认并填入”。</p>' +
       '<textarea class="nl-entry-vision-output" aria-label="识别结果，可编辑" spellcheck="false" hidden></textarea>' +
@@ -750,6 +767,7 @@
     var visionSteps = Array.prototype.slice.call(backdrop.querySelectorAll('[data-progress-step]'));
     var visionTimer = null;
     var visionStartedAt = 0;
+    var visionRecognitionDurationMs = null;
     var visionProgressStep = 0;
     var promptText = aiPromptText();
     var promptBox = backdrop.querySelector('.nl-entry-prompt-text');
@@ -789,6 +807,7 @@
     function startVisionProgress() {
       if (visionTimer) clearInterval(visionTimer);
       visionStartedAt = Date.now();
+      visionRecognitionDurationMs = null;
       visionProgressStep = 0;
       if (visionProgress) {
         visionProgress.hidden = false;
@@ -807,6 +826,7 @@
         clearInterval(visionTimer);
         visionTimer = null;
       }
+      visionRecognitionDurationMs = visionStartedAt ? Math.max(0, Date.now() - visionStartedAt) : null;
       updateVisionProgress(visionProgressStep, success, !success);
       if (visionProgress) {
         visionProgress.classList.toggle('is-complete', success);
@@ -819,6 +839,7 @@
         visionTimer = null;
       }
       visionStartedAt = 0;
+      visionRecognitionDurationMs = null;
       visionProgressStep = 0;
       if (visionProgress) {
         visionProgress.hidden = true;
@@ -835,7 +856,7 @@
     cancelButton.onclick = close;
     backdrop.onclick = function (event) { if (event.target === backdrop) close(); };
 
-    function setTab(name) {
+    function setTab(name, shouldTrack) {
       backdrop.querySelectorAll('[data-entry-tab]').forEach(function (tab) {
         var active = tab.dataset.entryTab === name;
         tab.classList.toggle('is-active', active);
@@ -846,7 +867,7 @@
         pane.classList.toggle('is-active', active);
         pane.hidden = !active;
       });
-      trackUsage('quick_entry_mode_changed', { mode: name });
+      if (shouldTrack !== false) trackUsage('quick_entry_mode_changed', { mode: name });
       clearError();
       if (name === 'text') textarea.focus();
     }
@@ -944,14 +965,15 @@
       }
       var response;
       try {
-        response = await fetch(VISION_ENDPOINT, {
+        response = await requestWithTimeout(VISION_ENDPOINT, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token: token, images: images, context: visionContext(modal) })
-        });
+        }, 36000);
       } catch (cause) {
-        var networkError = new Error('无法连接识别服务，请检查网络后重试。');
-        networkError.requestStatus = 0;
+        var timedOut = cause && (cause.name === 'AbortError' || cause.name === 'TimeoutError');
+        var networkError = new Error(timedOut ? '识别服务响应超时，请稍后重试。' : '无法连接识别服务，请检查网络后重试。');
+        networkError.requestStatus = timedOut ? 504 : 0;
         networkError.upstreamStatus = 0;
         networkError.upstreamMessage = cause && cause.message ? String(cause.message).slice(0, 180) : '';
         throw networkError;
@@ -979,6 +1001,7 @@
         error_count: 1,
         request_status: Number(error && (error.requestStatus || error.status) || 0),
         upstream_status: Number(error && error.upstreamStatus || 0),
+        recognition_duration_ms: visionRecognitionDurationMs === null ? null : Math.round(visionRecognitionDurationMs),
         error_message: String(error && error.message || '识图失败').slice(0, 240)
       };
     }
@@ -1040,7 +1063,12 @@
       visionSubmitButton.textContent = '正在填入…';
       try {
         var count = await applyResult(modal, parsed);
-        trackUsage('quick_entry_image_recognition_succeeded', { image_count: selectedFiles.length, field_count: parsed.fieldCount, applied_count: count });
+        trackUsage('quick_entry_image_recognition_succeeded', {
+          image_count: selectedFiles.length,
+          field_count: parsed.fieldCount,
+          applied_count: count,
+          recognition_duration_ms: visionRecognitionDurationMs === null ? null : Math.round(visionRecognitionDurationMs)
+        });
         close();
         showResult(modal, parsed, count);
         if (typeof toast === 'function') toast('图片已识别并回填，请检查后保存');
@@ -1082,6 +1110,10 @@
         visionOutput.hidden = false;
         if (visionEditHint) visionEditHint.hidden = false;
         finishVisionProgress(true);
+        trackUsage('quick_entry_image_recognition_completed', {
+          image_count: selectedFiles.length,
+          recognition_duration_ms: visionRecognitionDurationMs === null ? null : Math.round(visionRecognitionDurationMs)
+        });
         visionSubmitButton.disabled = false;
         visionSubmitButton.textContent = '确认并填入';
       } catch (e) {
@@ -1119,7 +1151,20 @@
       }
     };
     renderFiles();
-    setTab('image');
+    setTab('text', false);
+    requestVisionBetaStatus().then(function (available) {
+      if (!backdrop.isConnected) return;
+      var imageTab = backdrop.querySelector('[data-entry-tab="image"]');
+      var imagePane = backdrop.querySelector('[data-entry-pane="image"]');
+      if (available) {
+        if (imageTab) imageTab.hidden = false;
+        setTab('image', false);
+      } else {
+        if (imageTab) imageTab.remove();
+        if (imagePane) imagePane.remove();
+        setTab('text', false);
+      }
+    });
   }
 
   function decorateModal(modal) {
@@ -1234,28 +1279,54 @@
   }
 
   var visionBetaStatusUser = '';
-  var visionBetaStatusInFlight = false;
+  var visionBetaStatusKnown = false;
+  var visionBetaStatusEligible = false;
+  var visionBetaStatusAvailable = false;
+  var visionBetaStatusInFlight = null;
 
-  async function checkVisionBetaStatus() {
+  function currentVisionBetaUser() {
     var currentUser = typeof state !== 'undefined' && state.user ? state.user : null;
     var token = localStorage.getItem('st_token') || '';
     var username = currentUser && String(currentUser.username || '').trim();
-    if (!username || !token || hasVisionBetaSeen(username) || visionBetaStatusUser === username || visionBetaStatusInFlight) return;
-    visionBetaStatusInFlight = true;
-    try {
-      var response = await fetch(VISION_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'beta_status', token: token })
+    return { token: token, username: username };
+  }
+
+  function requestVisionBetaStatus() {
+    var current = currentVisionBetaUser();
+    if (!current.username || !current.token) return Promise.resolve(false);
+    if (visionBetaStatusUser === current.username && visionBetaStatusKnown) {
+      return Promise.resolve(visionBetaStatusAvailable);
+    }
+    if (visionBetaStatusInFlight) return visionBetaStatusInFlight;
+    visionBetaStatusInFlight = requestWithTimeout(VISION_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'beta_status', token: current.token })
+    }, 8000).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (payload) {
+        if (!response.ok) return false;
+        visionBetaStatusUser = current.username;
+        visionBetaStatusKnown = true;
+        visionBetaStatusEligible = !!(payload && payload.eligible);
+        visionBetaStatusAvailable = payload && payload.enabled !== false &&
+          (payload.beta_only === false || visionBetaStatusEligible);
+        return visionBetaStatusAvailable;
       });
-      var payload = await response.json().catch(function () { return {}; });
-      if (!response.ok) return;
-      visionBetaStatusUser = username;
-      if (payload && payload.eligible) showVisionBetaInvite(username);
-    } catch (e) {
+    }).catch(function () {
       // 资格检查失败时保持静默，不影响正常登录和录入。
-    } finally {
-      visionBetaStatusInFlight = false;
+      return false;
+    }).finally(function () {
+      visionBetaStatusInFlight = null;
+    });
+    return visionBetaStatusInFlight;
+  }
+
+  async function checkVisionBetaStatus() {
+    var current = currentVisionBetaUser();
+    if (!current.username || !current.token) return;
+    await requestVisionBetaStatus();
+    if (visionBetaStatusEligible && !hasVisionBetaSeen(current.username)) {
+      showVisionBetaInvite(current.username);
     }
   }
 
