@@ -135,23 +135,30 @@
   }
 
   function inspectHttpError(response, meta) {
+    // 先记下状态，让 api()/dataApiV7() 的 catch 可以立即拿到真实 status；
+    // 响应体稍后解析完成后再补上服务端返回的真实 message。
+    var record = makeDiagnostic({
+      state: 'http_error',
+      status: response.status,
+      statusText: response.statusText,
+      method: meta.method,
+      target: meta.target,
+      action: meta.action,
+      startedAt: meta.startedAt,
+      message: response.statusText || '请求失败',
+      errorName: 'HttpError'
+    });
+    remember(record);
     var clone;
     try { clone = response.clone(); } catch (e) { clone = null; }
     var parse = clone ? clone.json().catch(function () { return {}; }) : Promise.resolve({});
     parse.then(function (payload) {
       var serverMessage = payload && (payload.error || payload.message || payload.detail);
-      var record = makeDiagnostic({
-        state: 'http_error',
-        status: response.status,
-        statusText: response.statusText,
-        method: meta.method,
-        target: meta.target,
-        action: meta.action,
-        startedAt: meta.startedAt,
-        message: serverMessage || response.statusText || '请求失败',
-        errorName: 'HttpError'
-      });
-      remember(record);
+      if (serverMessage) {
+        record.error_status = record.request_status;
+        record.error_message = safeMessage(serverMessage, record.error_message);
+        record.error.message = record.error_message;
+      }
       sendDiagnostic(record);
     });
   }
