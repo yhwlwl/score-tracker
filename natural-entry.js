@@ -14,6 +14,24 @@
     } catch (e) {}
   }
 
+  function requestWithTimeout(url, options, timeoutMs) {
+    var controller = typeof AbortController === 'function' ? new AbortController() : null;
+    var requestOptions = Object.assign({}, options || {});
+    if (controller) requestOptions.signal = controller.signal;
+    var timer;
+    var timeout = new Promise(function (_, reject) {
+      timer = setTimeout(function () {
+        if (controller) controller.abort();
+        var timeoutError = new Error('识别服务请求超时');
+        timeoutError.name = 'TimeoutError';
+        reject(timeoutError);
+      }, timeoutMs);
+    });
+    return Promise.race([fetch(url, requestOptions), timeout]).finally(function () {
+      clearTimeout(timer);
+    });
+  }
+
   var LABELS = {
     name: ['考试名称', '考试名', '考试'],
     date: ['考试日期', '日期', '考试时间'],
@@ -718,7 +736,6 @@
       '<section class="nl-entry-pane nl-entry-image-pane" data-entry-pane="image" hidden>' +
       '<div class="nl-entry-upload-card"><label class="nl-entry-file-button"><span>选择成绩单图片</span><small>支持多选，最多 6 张</small><input class="nl-entry-files" type="file" accept="image/*" multiple></label><p>可按成绩单顺序选择多张截图，系统会合并识别同一次考试。</p></div>' +
       '<div class="nl-entry-image-list" aria-live="polite"><span class="nl-entry-empty">还没有选择图片</span></div>' +
-      '<p class="nl-entry-vision-note">图片会发送到管理员配置的识图模型处理；系统不保存原图。</p>' +
       '<div class="nl-entry-progress" hidden aria-live="polite"><div class="nl-entry-progress-head"><span>识别进度</span><strong class="nl-entry-elapsed">0.0s</strong></div><ol class="nl-entry-progress-steps"><li class="nl-entry-progress-step" data-progress-step="0"><span class="nl-entry-progress-dot">1</span><span>读取并压缩图片</span></li><li class="nl-entry-progress-step" data-progress-step="1"><span class="nl-entry-progress-dot">2</span><span>发送图片与请求</span></li><li class="nl-entry-progress-step" data-progress-step="2"><span class="nl-entry-progress-dot">3</span><span>等待 AI 识别</span></li><li class="nl-entry-progress-step" data-progress-step="3"><span class="nl-entry-progress-dot">4</span><span>整理可编辑结果</span></li></ol></div>' +
       '<p class="nl-entry-vision-edit-hint" hidden>识别结果可直接编辑，确认无误后再点击“确认并填入”。</p>' +
       '<textarea class="nl-entry-vision-output" aria-label="识别结果，可编辑" spellcheck="false" hidden></textarea>' +
@@ -944,14 +961,15 @@
       }
       var response;
       try {
-        response = await fetch(VISION_ENDPOINT, {
+        response = await requestWithTimeout(VISION_ENDPOINT, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token: token, images: images, context: visionContext(modal) })
-        });
+        }, 36000);
       } catch (cause) {
-        var networkError = new Error('无法连接识别服务，请检查网络后重试。');
-        networkError.requestStatus = 0;
+        var timedOut = cause && (cause.name === 'AbortError' || cause.name === 'TimeoutError');
+        var networkError = new Error(timedOut ? '识别服务响应超时，请稍后重试。' : '无法连接识别服务，请检查网络后重试。');
+        networkError.requestStatus = timedOut ? 504 : 0;
         networkError.upstreamStatus = 0;
         networkError.upstreamMessage = cause && cause.message ? String(cause.message).slice(0, 180) : '';
         throw networkError;
@@ -1266,11 +1284,11 @@
       return Promise.resolve(visionBetaStatusAvailable);
     }
     if (visionBetaStatusInFlight) return visionBetaStatusInFlight;
-    visionBetaStatusInFlight = fetch(VISION_ENDPOINT, {
+    visionBetaStatusInFlight = requestWithTimeout(VISION_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'beta_status', token: current.token })
-    }).then(function (response) {
+    }, 8000).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (payload) {
         if (!response.ok) return false;
         visionBetaStatusUser = current.username;
