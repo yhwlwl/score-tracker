@@ -7145,7 +7145,9 @@ function injectStylesV31(){
     '.tip-banner-v31 .t-x{flex:none;border:0;background:var(--cell,#f3f4f7);width:26px;height:26px;border-radius:8px;font-size:14px;color:var(--muted,#667085);cursor:pointer;font-family:inherit}',
     '.lg-hint-v31{font-size:10px;color:var(--muted,#98a1ae);opacity:.75;margin-left:2px;white-space:nowrap;pointer-events:none;-webkit-user-select:none;user-select:none}',
     '.stat-rank-v31{font-size:11px;color:var(--muted,#98a1ae);margin-top:3px;font-weight:600;font-variant-numeric:tabular-nums}',
-    '.update-bar-v31{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom));z-index:96;display:flex;align-items:center;gap:10px;background:var(--panel-solid,#fff);color:var(--text,#18212f);border:1px solid var(--accent,#5d72e8);border-radius:14px;padding:11px 12px 11px 14px;box-shadow:var(--nav-shadow,0 10px 35px rgba(28,39,63,.2));max-width:min(470px,calc(100vw - 24px));font-size:12.5px;animation:v31rise .3s cubic-bezier(.2,.8,.25,1)}',
+    '.update-bar-v31{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom));z-index:96;display:flex;align-items:center;gap:12px;background:var(--panel-solid,#fff);color:var(--text,#18212f);border:1px solid var(--accent,#5d72e8);border-radius:16px;padding:12px 14px;box-sizing:border-box;width:min(620px,calc(100vw - 24px));box-shadow:var(--nav-shadow,0 10px 35px rgba(28,39,63,.2));font-size:12.5px;line-height:1.55;animation:v31rise .3s cubic-bezier(.2,.8,.25,1)}',
+    '.update-bar-v31>span:nth-child(2){min-width:0;flex:1;overflow-wrap:anywhere}',
+    '.update-bar-v31 .u-go{white-space:nowrap;flex:none}',
     '@keyframes v31rise{from{transform:translate(-50%,14px);opacity:0}to{transform:translate(-50%,0);opacity:1}}',
     '.update-bar-v31 .u-x{border:0;background:transparent;color:var(--muted,#98a1ae);font-size:15px;cursor:pointer;padding:2px 4px;font-family:inherit;flex:none}',
     /* 首页趋势图例行:手机端可左右滑动(含惯性滚动),不改布局不加滚动条 */
@@ -7172,17 +7174,17 @@ function injectStylesV31(){
 }
 
 /* ================= 提示条（手动关闭）================= */
-function showColorTipBannerV31(){
-  if(document.getElementById('colorTipBannerV31'))return;
+function showQuickEntryTipBannerV31(){
+  if(document.getElementById('quickEntryTipBannerV31'))return;
   var b=document.createElement('div');
-  b.className='tip-banner-v31';b.id='colorTipBannerV31';
-  b.innerHTML='<span class="t-ico">🎨</span><span>点击图表下方的<b>图例</b>，可以更换每条线的颜色</span>'
+  b.className='tip-banner-v31';b.id='quickEntryTipBannerV31';
+  b.innerHTML='<span class="t-ico">✨</span><span>自然语言快速录入功能已上线（图片识别也很快会更新），欢迎前往录入考试中体验</span>'
     +'<button type="button" class="t-x" aria-label="关闭">×</button>';
   document.body.appendChild(b);
   b.querySelector('.t-x').addEventListener('click',function(){
     b.remove();
-    try{localStorage.setItem('st_tip_colors_v31','dismissed');}catch(e){}
-    window.__stTrack('tip_dismiss',{});
+    try{localStorage.setItem('st_tip_quick_entry_v31','dismissed');}catch(e){}
+    window.__stTrack('quick_entry_tip_dismissed',{});
   });
 }
 
@@ -7207,12 +7209,12 @@ var RELEASE_NOTES_V31={
   'v5.2':'统计分析页增强：单场大跌自动提醒、总分连续进退提醒、参考人数口径变化提醒（人数不同的考试不再直接比名次）；修复个人最佳、连续退步等文案口径与样本门槛',
   'v6.0':'统计分析页 v6.0：「深度分析」Beta 板块，提供下场名次预测与95%区间、趋势/变点检验和异常提醒，附每步计算过程；分布图支持三视图(名次段/发挥标尺/累计概率)，名次段与发挥标尺均可调整细度，状态模型中心直接标出；顶部科目/组合口径全页联动,组合排名只认你填写的「组合年排/班排」,六科组合直接沿用总分排名,没填排名不显示合成数据；①总览「最近一次」标注考试；趋势图例可点击显隐；修复组合chip与板块顺序',
   'v6.1':'记录考试支持自动草稿和一键清空，保存后保持页面位置；结束日期从开始日期定位并随考试保存；首页分类可多选叠加趋势；目标卡支持顺畅横滑；修复市/区排名保存后不显示、编辑回填空白；考试记录默认按时间从早到晚；趋势图片与打印报告同步当前配色并包含图例。',
-  'v6.3':'新增快速录入，支持自然语言输入（图片识别将很快支持）'
+  'v6.3':'自然语言快速录入功能已上线（图片识别也很快会更新），欢迎前往录入考试中体验'
 };
 function dismissKeyV31(v){return 'st_update_dismissed_'+v;}
 function showUpdateBarV31(latest){
   if(document.getElementById('updateBarV31'))return;
-  var note=RELEASE_NOTES_V31[latest]||'体验优化与新功能';
+  var note=RELEASE_NOTES_V31[String(latest||'').trim()]||'体验优化与新功能';
   var b=document.createElement('div');
   b.className='update-bar-v31';b.id='updateBarV31';
   b.innerHTML='<span>🚀</span><span><b>新版本 '+escV31(latest)+' 已发布</b>　'+escV31(note)+'</span>'
@@ -7343,9 +7345,8 @@ var bindPageBeforeV31=(typeof bindPage==='function')?bindPage:null;
 bindPage=function bindPageV31(){
   if(bindPageBeforeV31)bindPageBeforeV31();
   try{
-    injectLegendHintsV31();
     installTrackingV31();
-    if(!localStorage.getItem('st_tip_colors_v31'))showColorTipBannerV31();
+    if(!localStorage.getItem('st_tip_quick_entry_v31'))showQuickEntryTipBannerV31();
     installUpdateChecksV31();
   }catch(e){}
 };
@@ -7356,7 +7357,7 @@ injectStylesV31();
 
 /* 测试钩子 */
 window.__v31={
-  showColorTipBanner:showColorTipBannerV31,
+  showQuickEntryTipBanner:showQuickEntryTipBannerV31,
   injectLegendHints:injectLegendHintsV31,
   checkUpdate:checkUpdateV31,
   releaseNotes:RELEASE_NOTES_V31,

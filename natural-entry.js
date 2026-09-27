@@ -776,7 +776,7 @@
     if (!head || !title) return;
     var button = document.createElement('button');
     button.type = 'button';
-    button.className = 'secondary nl-entry-trigger';
+    button.className = 'primary nl-entry-trigger';
     button.textContent = '快速录入';
     button.title = '用一段话填入考试信息和成绩';
     button.onclick = function () { openQuickEntry(modal); };
@@ -789,7 +789,9 @@
   style.textContent = [
     '.modal-head{gap:10px}',
     '.modal-head>h3,.modal-head>div:first-child{min-width:0}',
-    '.nl-entry-trigger{margin-left:auto;white-space:nowrap;padding:8px 11px;font-size:11px}',
+    '.nl-entry-trigger{margin-left:auto;white-space:nowrap;padding:8px 12px;font-size:11px;font-weight:700;color:#fff!important;background:linear-gradient(135deg,var(--accent,#5d72e8),#7c6ee8)!important;border:1px solid transparent!important;box-shadow:0 5px 14px rgba(93,114,232,.2);transition:transform .15s,box-shadow .15s,filter .15s}',
+    '.nl-entry-trigger:hover{filter:brightness(1.04);box-shadow:0 7px 17px rgba(93,114,232,.26)}',
+    '.nl-entry-trigger:active{transform:translateY(1px)}',
     '.nl-entry-backdrop{z-index:250;background:rgba(22,28,39,.52)}',
     '.nl-entry-modal{width:min(650px,100%);max-height:min(88vh,820px)}',
     '.nl-entry-subtitle{margin:4px 0 0;color:var(--muted,#788392);font-size:11px;line-height:1.5}',
