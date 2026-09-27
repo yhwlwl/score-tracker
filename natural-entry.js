@@ -767,6 +767,7 @@
     var visionSteps = Array.prototype.slice.call(backdrop.querySelectorAll('[data-progress-step]'));
     var visionTimer = null;
     var visionStartedAt = 0;
+    var visionRecognitionDurationMs = null;
     var visionProgressStep = 0;
     var promptText = aiPromptText();
     var promptBox = backdrop.querySelector('.nl-entry-prompt-text');
@@ -806,6 +807,7 @@
     function startVisionProgress() {
       if (visionTimer) clearInterval(visionTimer);
       visionStartedAt = Date.now();
+      visionRecognitionDurationMs = null;
       visionProgressStep = 0;
       if (visionProgress) {
         visionProgress.hidden = false;
@@ -824,6 +826,7 @@
         clearInterval(visionTimer);
         visionTimer = null;
       }
+      visionRecognitionDurationMs = visionStartedAt ? Math.max(0, Date.now() - visionStartedAt) : null;
       updateVisionProgress(visionProgressStep, success, !success);
       if (visionProgress) {
         visionProgress.classList.toggle('is-complete', success);
@@ -836,6 +839,7 @@
         visionTimer = null;
       }
       visionStartedAt = 0;
+      visionRecognitionDurationMs = null;
       visionProgressStep = 0;
       if (visionProgress) {
         visionProgress.hidden = true;
@@ -997,6 +1001,7 @@
         error_count: 1,
         request_status: Number(error && (error.requestStatus || error.status) || 0),
         upstream_status: Number(error && error.upstreamStatus || 0),
+        recognition_duration_ms: visionRecognitionDurationMs === null ? null : Math.round(visionRecognitionDurationMs),
         error_message: String(error && error.message || '识图失败').slice(0, 240)
       };
     }
@@ -1058,7 +1063,12 @@
       visionSubmitButton.textContent = '正在填入…';
       try {
         var count = await applyResult(modal, parsed);
-        trackUsage('quick_entry_image_recognition_succeeded', { image_count: selectedFiles.length, field_count: parsed.fieldCount, applied_count: count });
+        trackUsage('quick_entry_image_recognition_succeeded', {
+          image_count: selectedFiles.length,
+          field_count: parsed.fieldCount,
+          applied_count: count,
+          recognition_duration_ms: visionRecognitionDurationMs === null ? null : Math.round(visionRecognitionDurationMs)
+        });
         close();
         showResult(modal, parsed, count);
         if (typeof toast === 'function') toast('图片已识别并回填，请检查后保存');
@@ -1100,6 +1110,10 @@
         visionOutput.hidden = false;
         if (visionEditHint) visionEditHint.hidden = false;
         finishVisionProgress(true);
+        trackUsage('quick_entry_image_recognition_completed', {
+          image_count: selectedFiles.length,
+          recognition_duration_ms: visionRecognitionDurationMs === null ? null : Math.round(visionRecognitionDurationMs)
+        });
         visionSubmitButton.disabled = false;
         visionSubmitButton.textContent = '确认并填入';
       } catch (e) {
