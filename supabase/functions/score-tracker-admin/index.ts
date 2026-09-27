@@ -3,6 +3,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const U=Deno.env.get('SUPABASE_URL')||'',S=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||'';
 const db=createClient(U,S,{auth:{persistSession:false,autoRefreshToken:false}});
+const DEFAULT_VISION_MODEL='nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free';
+function maskVisionKey(value){const s=String(value||'').trim();return s?s.slice(0,5)+'••••••••'+s.slice(-4):'';}
 const J={'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow, noarchive'};
 const json=(v,status=200)=>new Response(JSON.stringify(v),{status,headers:J});
 async function sha(v){const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v));return[...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('')}
@@ -61,7 +63,29 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
   const admin=await auth(req.headers.get('x-score-token')||'');if(!admin)return json({error:'unauthorized'},401);if(action==='ping')return json({ok:true});
   if(action==='feedback_reply'&&req.method==='POST'){const b=await req.json(),id=String(b.id||''),content=String(b.content||'').trim().slice(0,5000);if(!content)return json({error:'empty'},400);const {error}=await db.from('score_tracker_feedback_replies').insert({feedback_id:id,author_user_id:admin.id,author_type:'admin',content});if(error)throw error;await db.from('score_tracker_feedback_submissions').update({status:'reviewing'}).eq('id',id).eq('status','new');return json({ok:true})}
   if(action==='feedback_status'&&req.method==='POST'){const b=await req.json(),status=String(b.status||'');if(!['new','reviewing','planned','resolved','closed'].includes(status))return json({error:'bad_status'},400);const {error}=await db.from('score_tracker_feedback_submissions').update({status}).eq('id',String(b.id||''));if(error)throw error;return json({ok:true})}
+  if(action==='ai_config_save'&&req.method==='POST'){
+    const b=await req.json();
+    const current=await db.from('score_tracker_ai_configs').select('openrouter_api_key').eq('id','score_vision').maybeSingle();
+    if(current.error)throw current.error;
+    const provided=String(b.apiKey||'').trim();
+    const key=b.clearKey?null:(provided&&!/^•+$/.test(provided)?provided:(current.data?.openrouter_api_key||null));
+    const model=String(b.model||DEFAULT_VISION_MODEL).trim().slice(0,160);
+    if(!/^[A-Za-z0-9._:/-]{3,160}$/.test(model))return json({error:'模型名称格式不正确'},400);
+    const saved=await db.from('score_tracker_ai_configs').upsert({
+      id:'score_vision',
+      provider:'openrouter',
+      openrouter_api_key:key,
+      model,
+      enabled:b.enabled!==false,
+      updated_at:new Date().toISOString(),
+      updated_by:admin.id
+    },{onConflict:'id'}).select('openrouter_api_key,model,enabled,updated_at').single();
+    if(saved.error)throw saved.error;
+    return json({ok:true,configured:!!saved.data?.openrouter_api_key,masked_key:maskVisionKey(saved.data?.openrouter_api_key),model:saved.data.model,enabled:saved.data.enabled,updated_at:saved.data.updated_at});
+  }
   if(action==='feature_votes'){
+    const ai=await db.from('score_tracker_ai_configs').select('openrouter_api_key,model,enabled,updated_at').eq('id','score_vision').maybeSingle();
+    if(ai.error)throw ai.error;
     const [or,vr,sr]=await Promise.all([
       db.from('score_tracker_feature_vote_options').select('id,option_key,label,description,source,is_active,sort_order,created_at,updated_at').order('sort_order').order('created_at'),
       db.from('score_tracker_feature_votes').select('id,user_id,option_id,created_at').order('created_at',{ascending:false}),
@@ -83,6 +107,13 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
       perUser.set(v.user_id,row);
     }
     return json({
+      ai_config:{
+        configured:!!ai.data?.openrouter_api_key,
+        masked_key:maskVisionKey(ai.data?.openrouter_api_key),
+        model:ai.data?.model||DEFAULT_VISION_MODEL,
+        enabled:ai.data?.enabled!==false,
+        updated_at:ai.data?.updated_at||null
+      },
       total_voters:perUser.size,total_votes:votes.length,
       options:options.map(o=>({...o,votes:counts.get(o.id)||0})),
       users:[...perUser.values()].sort((a,b)=>+new Date(b.last_voted_at||0)-+new Date(a.last_voted_at||0)),

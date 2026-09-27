@@ -1,6 +1,4 @@
-/* student natural-language exam entry
- * v1: local parsing only; the text is not sent to a server.
- */
+/* student quick exam entry: local natural-language parsing plus optional multi-image recognition */
 (function () {
   'use strict';
 
@@ -710,24 +708,46 @@
     backdrop.className = 'modal-backdrop nl-entry-backdrop';
     backdrop.innerHTML =
       '<div class="modal nl-entry-modal" role="dialog" aria-modal="true">' +
-      '<div class="modal-head"><div><h3>快速录入</h3><p class="nl-entry-subtitle">输入一段文字，识别后回填到原来的录入表</p></div><button class="close-btn" type="button" aria-label="关闭">×</button></div>' +
+      '<div class="modal-head"><div><h3>快速录入</h3><p class="nl-entry-subtitle">选择识别方式，识别后回填到原来的录入表</p></div><button class="close-btn" type="button" aria-label="关闭">×</button></div>' +
+      '<div class="nl-entry-tabs" role="tablist" aria-label="快速录入方式">' +
+      '<button type="button" class="nl-entry-tab is-active" data-entry-tab="image" role="tab" aria-selected="true">拍照录入</button>' +
+      '<button type="button" class="nl-entry-tab" data-entry-tab="text" role="tab" aria-selected="false">自然语言录入</button>' +
+      '</div>' +
       '<div class="modal-body">' +
+      '<section class="nl-entry-pane nl-entry-image-pane is-active" data-entry-pane="image">' +
+      '<div class="nl-entry-upload-card"><label class="nl-entry-file-button"><span>选择成绩单图片</span><small>支持多选，最多 6 张</small><input class="nl-entry-files" type="file" accept="image/*" multiple></label><p>可按成绩单顺序选择多张截图，系统会合并识别同一次考试。</p></div>' +
+      '<div class="nl-entry-image-list" aria-live="polite"><span class="nl-entry-empty">还没有选择图片</span></div>' +
+      '<p class="nl-entry-vision-note">图片会发送到管理员配置的识图模型处理；系统不保存原图。</p>' +
+      '<pre class="nl-entry-vision-output" hidden></pre>' +
+      '<div class="modal-actions"><button class="primary nl-entry-vision-submit" type="button" disabled>识别图片</button></div>' +
+      '</section>' +
+      '<section class="nl-entry-pane nl-entry-text-pane" data-entry-pane="text" hidden>' +
       '<textarea class="nl-entry-text" aria-label="快速录入内容" spellcheck="false" placeholder="例如：\n考试名称：高一上学期期中考试\n考试日期：2026-09-20\n年级：高一\n语文：目标120，原始112/150，最终112/150，年排36/620，班排8/45\n数学：目标135，真实128/150\n总分年排：36/620，班排：8/45"></textarea>' +
       '<p class="nl-entry-help">支持考试名称、日期、年级、结束日期、各科目标 / 原始分 / 最终分（赋分后） / 满分 / 年排 / 班排 / 位比、市区排名、总分和图表显示状态。只有一个成绩时默认填入最终分。<br><strong>你也可以复制下面的提示词，并将它和成绩单截图一起发给豆包等 AI，整理后再粘贴回来。</strong></p>' +
       '<details class="nl-entry-prompt"><summary>给 AI 的识别提示词（可复制） <span>点击展开并复制</span></summary><div class="nl-entry-prompt-box"><pre class="nl-entry-prompt-text"></pre><button class="secondary nl-entry-copy" type="button">复制提示词</button></div></details>' +
+      '<div class="modal-actions"><button class="primary nl-entry-submit" type="button">识别并填入</button></div>' +
+      '</section>' +
       '<div class="nl-entry-error" role="status"></div>' +
-      '<div class="modal-actions"><button class="secondary nl-entry-cancel" type="button">取消</button><button class="primary nl-entry-submit" type="button">识别并填入</button></div>' +
+      '<div class="modal-actions nl-entry-footer-actions"><button class="secondary nl-entry-cancel" type="button">取消</button></div>' +
       '</div></div>';
 
     document.body.appendChild(backdrop);
     var closeButton = backdrop.querySelector('.close-btn');
     var cancelButton = backdrop.querySelector('.nl-entry-cancel');
     var submitButton = backdrop.querySelector('.nl-entry-submit');
+    var visionSubmitButton = backdrop.querySelector('.nl-entry-vision-submit');
     var textarea = backdrop.querySelector('.nl-entry-text');
     var error = backdrop.querySelector('.nl-entry-error');
+    var fileInput = backdrop.querySelector('.nl-entry-files');
+    var imageList = backdrop.querySelector('.nl-entry-image-list');
+    var visionOutput = backdrop.querySelector('.nl-entry-vision-output');
     var promptText = aiPromptText();
     var promptBox = backdrop.querySelector('.nl-entry-prompt-text');
     var copyButton = backdrop.querySelector('.nl-entry-copy');
+    var selectedFiles = [];
+    var visionText = '';
+    var visionPayload = null;
+
     if (promptBox) promptBox.textContent = promptText;
     if (copyButton) copyButton.onclick = async function () {
       var copied = await copyText(promptText);
@@ -735,17 +755,224 @@
       copyButton.textContent = copied ? '已复制' : '复制失败，请手动选择';
       setTimeout(function () { copyButton.textContent = '复制提示词'; }, 1600);
     };
+
     function close() { backdrop.remove(); }
+    function clearError() { error.textContent = ''; }
     closeButton.onclick = close;
     cancelButton.onclick = close;
     backdrop.onclick = function (event) { if (event.target === backdrop) close(); };
+
+    function setTab(name) {
+      backdrop.querySelectorAll('[data-entry-tab]').forEach(function (tab) {
+        var active = tab.dataset.entryTab === name;
+        tab.classList.toggle('is-active', active);
+        tab.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      backdrop.querySelectorAll('[data-entry-pane]').forEach(function (pane) {
+        var active = pane.dataset.entryPane === name;
+        pane.classList.toggle('is-active', active);
+        pane.hidden = !active;
+      });
+      trackUsage('quick_entry_mode_changed', { mode: name });
+      clearError();
+      if (name === 'text') textarea.focus();
+    }
+    backdrop.querySelectorAll('[data-entry-tab]').forEach(function (tab) {
+      tab.onclick = function () { setTab(tab.dataset.entryTab); };
+    });
+
+    function renderFiles() {
+      imageList.innerHTML = '';
+      if (!selectedFiles.length) {
+        imageList.innerHTML = '<span class="nl-entry-empty">还没有选择图片</span>';
+        visionSubmitButton.disabled = true;
+        return;
+      }
+      selectedFiles.forEach(function (file, index) {
+        var row = document.createElement('div');
+        row.className = 'nl-entry-image-item';
+        row.innerHTML = '<span class="nl-entry-image-index">' + (index + 1) + '</span><span class="nl-entry-image-name"></span><button type="button" class="nl-entry-image-remove" aria-label="移除图片">×</button>';
+        row.querySelector('.nl-entry-image-name').textContent = file.name || ('图片 ' + (index + 1));
+        row.querySelector('.nl-entry-image-remove').onclick = function () {
+          selectedFiles.splice(index, 1);
+          visionText = '';
+          visionPayload = null;
+          visionOutput.hidden = true;
+          visionSubmitButton.textContent = '识别图片';
+          renderFiles();
+        };
+        imageList.appendChild(row);
+      });
+      visionSubmitButton.disabled = false;
+    }
+    fileInput.onchange = function () {
+      var incoming = Array.prototype.slice.call(fileInput.files || []).filter(function (file) {
+        return /^image\//i.test(file.type);
+      });
+      var allowed = Math.max(0, 6 - selectedFiles.length);
+      selectedFiles = selectedFiles.concat(incoming.slice(0, allowed));
+      if (incoming.length > allowed) error.textContent = '最多选择 6 张图片。';
+      else clearError();
+      visionText = '';
+      visionPayload = null;
+      visionOutput.hidden = true;
+      visionSubmitButton.textContent = '识别图片';
+      fileInput.value = '';
+      renderFiles();
+      trackUsage('quick_entry_images_selected', { image_count: selectedFiles.length });
+    };
+
+    function fileDataUrl(file) {
+      return new Promise(function (resolve, reject) {
+        var reader = new FileReader();
+        reader.onload = function () { resolve(String(reader.result || '')); };
+        reader.onerror = function () { reject(new Error('读取图片失败')); };
+        reader.readAsDataURL(file);
+      });
+    }
+    function compactImage(dataUrl) {
+      return new Promise(function (resolve) {
+        var image = new Image();
+        image.onload = function () {
+          var maxSide = 1800;
+          var scale = Math.min(1, maxSide / Math.max(image.naturalWidth || image.width, image.naturalHeight || image.height));
+          var canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round((image.naturalWidth || image.width) * scale));
+          canvas.height = Math.max(1, Math.round((image.naturalHeight || image.height) * scale));
+          var context = canvas.getContext('2d');
+          if (!context) { resolve(dataUrl); return; }
+          context.fillStyle = '#fff';
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          try { resolve(canvas.toDataURL('image/jpeg', 0.84)); } catch (e) { resolve(dataUrl); }
+        };
+        image.onerror = function () { resolve(dataUrl); };
+        image.src = dataUrl;
+      });
+    }
+    function visionContext() {
+      var grade = modal.querySelector('#gradeLevelV14');
+      var classificationOptions = grade
+        ? Array.prototype.map.call(grade.options || [], function (option) { return option.textContent.trim(); }).filter(Boolean)
+        : [];
+      return { classificationOptions: classificationOptions, subjectNames: modalSubjectNames(modal) };
+    }
+    async function callVision(images) {
+      var token = localStorage.getItem('st_token') || '';
+      if (!token) throw new Error('请先登录后再使用拍照录入。');
+      var response = await fetch('https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-vision-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: token, images: images, context: visionContext(modal) })
+      });
+      var payload = await response.json().catch(function () { return {}; });
+      if (!response.ok) throw new Error(payload.error || '识图服务暂时不可用，请稍后再试。');
+      return payload;
+    }
+    function displayValue(value) {
+      return value === null || value === undefined || value === '' ? '-' : String(value);
+    }
+    function displayPair(value, total) {
+      return value === null || value === undefined || value === '' ? '-' : displayValue(value) + '/' + displayValue(total);
+    }
+    function visionToText(payload) {
+      var exam = payload && payload.exam || {};
+      var lines = [
+        '考试名称：' + displayValue(exam.name),
+        '考试日期：' + displayValue(exam.date),
+        '结束日期：-',
+        '年级：' + displayValue(exam.category),
+        '总分年排：' + displayPair(exam.yearRank, exam.yearParticipants),
+        '总分班排：' + displayPair(exam.classRank, exam.classParticipants),
+        '总分年位比：-',
+        '总分班位比：-',
+        '最终总分：' + displayValue(exam.finalTotal),
+        '原始总分：' + displayValue(exam.rawTotal),
+        '市排名：-',
+        '区排名：-',
+        '隐藏：-'
+      ];
+      (payload && Array.isArray(payload.subjects) ? payload.subjects : []).forEach(function (subject) {
+        var finalScore = subject.finalScore;
+        if ((finalScore === null || finalScore === undefined || finalScore === '') && subject.ambiguousScore !== null && subject.ambiguousScore !== undefined) {
+          finalScore = subject.ambiguousScore;
+        }
+        lines.push(
+          displayValue(subject.name) + '：目标：' + displayValue(subject.target) +
+          '，原始分：' + displayPair(subject.rawScore, subject.rawMax) +
+          '，最终分（赋分后）：' + displayPair(finalScore, subject.finalMax) +
+          '，年排：' + displayPair(subject.yearRank, subject.yearParticipants) +
+          '，班排：' + displayPair(subject.classRank, subject.classParticipants)
+        );
+      });
+      return lines.join('\n');
+    }
+    async function encodeImages() {
+      var images = [];
+      for (var i = 0; i < selectedFiles.length; i += 1) {
+        var source = await fileDataUrl(selectedFiles[i]);
+        images.push(await compactImage(source));
+      }
+      return images;
+    }
+    async function applyVisionResult() {
+      var parsed = parseInput(visionText, modal);
+      if (parsed.errors.length) {
+        error.textContent = parsed.errors.join(' ');
+        return;
+      }
+      parsed.warnings = (visionPayload && Array.isArray(visionPayload.warnings) ? visionPayload.warnings : []).slice(0, 5);
+      visionSubmitButton.disabled = true;
+      visionSubmitButton.textContent = '正在填入…';
+      try {
+        var count = await applyResult(modal, parsed);
+        trackUsage('quick_entry_image_recognition_succeeded', { image_count: selectedFiles.length, field_count: parsed.fieldCount, applied_count: count });
+        close();
+        showResult(modal, parsed, count);
+        if (typeof toast === 'function') toast('图片已识别并回填，请检查后保存');
+      } catch (e) {
+        trackUsage('quick_entry_image_recognition_failed', { image_count: selectedFiles.length, error_count: 1 });
+        error.textContent = '回填失败：' + (e.message || '请稍后重试');
+        visionSubmitButton.disabled = false;
+        visionSubmitButton.textContent = '确认并填入';
+      }
+    }
+    visionSubmitButton.onclick = async function () {
+      clearError();
+      if (visionText) {
+        await applyVisionResult();
+        return;
+      }
+      if (!selectedFiles.length) {
+        error.textContent = '请先选择至少 1 张成绩单图片。';
+        return;
+      }
+      visionSubmitButton.disabled = true;
+      visionSubmitButton.textContent = '识别中…';
+      trackUsage('quick_entry_image_recognition_started', { image_count: selectedFiles.length });
+      try {
+        var images = await encodeImages();
+        visionPayload = await callVision(images);
+        visionText = visionToText(visionPayload);
+        visionOutput.textContent = visionText;
+        visionOutput.hidden = false;
+        visionSubmitButton.disabled = false;
+        visionSubmitButton.textContent = '确认并填入';
+      } catch (e) {
+        trackUsage('quick_entry_image_recognition_failed', { image_count: selectedFiles.length, error_count: 1 });
+        error.textContent = e.message || '识图失败，请稍后重试。';
+        visionSubmitButton.disabled = false;
+        visionSubmitButton.textContent = '识别图片';
+      }
+    };
+
     submitButton.onclick = async function () {
-      error.textContent = '';
+      clearError();
       var inputChars = textarea.value.trim().length;
-      trackUsage('quick_entry_recognition_started', { input_chars: inputChars });
+      trackUsage('quick_entry_natural_recognition_started', { input_chars: inputChars });
       var parsed = parseInput(textarea.value, modal);
       if (parsed.errors.length) {
-        trackUsage('quick_entry_recognition_failed', { error_count: parsed.errors.length, input_chars: inputChars });
+        trackUsage('quick_entry_natural_recognition_failed', { error_count: parsed.errors.length, input_chars: inputChars });
         error.textContent = parsed.errors.join(' ');
         return;
       }
@@ -753,18 +980,19 @@
       submitButton.textContent = '识别中…';
       try {
         var count = await applyResult(modal, parsed);
-        trackUsage('quick_entry_recognition_succeeded', { field_count: parsed.fieldCount, applied_count: count, rank_mode: parsed.rankMode || 'none' });
+        trackUsage('quick_entry_natural_recognition_succeeded', { field_count: parsed.fieldCount, applied_count: count, rank_mode: parsed.rankMode || 'none' });
         close();
         showResult(modal, parsed, count);
         if (typeof toast === 'function') toast('已回填，请检查后保存');
       } catch (e) {
-        trackUsage('quick_entry_recognition_failed', { error_count: 1, input_chars: inputChars });
+        trackUsage('quick_entry_natural_recognition_failed', { error_count: 1, input_chars: inputChars });
         error.textContent = '回填失败：' + (e.message || '请稍后重试');
         submitButton.disabled = false;
         submitButton.textContent = '识别并填入';
       }
     };
-    textarea.focus();
+    renderFiles();
+    setTab('image');
   }
 
   function decorateModal(modal) {
@@ -795,6 +1023,25 @@
     '.nl-entry-backdrop{z-index:250;background:rgba(22,28,39,.52)}',
     '.nl-entry-modal{width:min(650px,100%);max-height:min(88vh,820px)}',
     '.nl-entry-subtitle{margin:4px 0 0;color:var(--muted,#788392);font-size:11px;line-height:1.5}',
+
+    '.nl-entry-tabs{display:flex;gap:8px;padding:12px 14px 0;border-bottom:1px solid var(--line,#e8ebf0)}',
+    '.nl-entry-tab{flex:1;border:1px solid var(--line,#e8ebf0);border-bottom:0;border-radius:12px 12px 0 0;background:var(--cell,#f7f9fc);color:var(--muted,#788392);padding:9px 10px;font-size:12px;font-weight:700;cursor:pointer}',
+    '.nl-entry-tab.is-active{background:var(--panel-solid,#fff);color:var(--accent,#5d72e8);border-color:#98a6f2;box-shadow:0 -2px 0 #98a6f2 inset}',
+    '.nl-entry-pane{padding-top:2px}',
+    '.nl-entry-upload-card{border:1px dashed #9aa9ec;border-radius:14px;background:linear-gradient(135deg,#f6f7ff,#fbfcff);padding:18px;text-align:center}',
+    '.nl-entry-file-button{display:inline-flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:var(--accent,#5d72e8);font-weight:750;font-size:13px}',
+    '.nl-entry-file-button small{font-size:10px;color:var(--muted,#788392);font-weight:500}',
+    '.nl-entry-files{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}',
+    '.nl-entry-upload-card p{margin:10px 0 0;color:var(--muted,#788392);font-size:11px;line-height:1.55}',
+    '.nl-entry-image-list{display:grid;gap:7px;margin-top:12px}',
+    '.nl-entry-empty{display:block;padding:14px;border:1px solid var(--line,#e8ebf0);border-radius:12px;color:var(--muted,#788392);font-size:11px;text-align:center}',
+    '.nl-entry-image-item{display:flex;align-items:center;gap:8px;border:1px solid var(--line,#e8ebf0);border-radius:10px;padding:7px 9px;background:var(--panel-solid,#fff);font-size:11px}',
+    '.nl-entry-image-index{display:grid;place-items:center;width:20px;height:20px;border-radius:7px;background:#eef0ff;color:var(--accent,#5d72e8);font-weight:750;flex:none}',
+    '.nl-entry-image-name{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text,#18212f)}',
+    '.nl-entry-image-remove{border:0;background:transparent;color:var(--muted,#788392);font-size:16px;line-height:1;padding:2px 5px;cursor:pointer}',
+    '.nl-entry-vision-note{font-size:10.5px;line-height:1.55;color:var(--muted,#788392);margin:10px 2px 0}',
+    '.nl-entry-vision-output{max-height:240px;overflow:auto;white-space:pre-wrap;margin:12px 0 0;border:1px solid #d9e3f3;border-radius:12px;padding:11px;background:#f5f8ff;color:#526174;font:11px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace}',
+    '.nl-entry-footer-actions{margin-top:0}',
     '.nl-entry-text{display:block;width:100%;min-height:250px;box-sizing:border-box;resize:vertical;border:1px solid var(--line,#e8ebf0);border-radius:14px;padding:13px 14px;background:var(--panel-solid,#fff);color:var(--text,#18212f);font:inherit;font-size:13px;line-height:1.7;outline:none}',
     '.nl-entry-text:focus{border-color:#98a6f2;box-shadow:0 0 0 3px #eef0ff}',
     '.nl-entry-help{font-size:11px;line-height:1.65;color:var(--muted,#788392);margin:9px 2px 0}',
