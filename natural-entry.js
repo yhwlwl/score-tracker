@@ -711,11 +711,11 @@
       '<div class="modal nl-entry-modal" role="dialog" aria-modal="true">' +
       '<div class="modal-head"><div><h3>快速录入</h3><p class="nl-entry-subtitle">选择识别方式，识别后回填到原来的录入表</p></div><button class="close-btn" type="button" aria-label="关闭">×</button></div>' +
       '<div class="nl-entry-tabs" role="tablist" aria-label="快速录入方式">' +
-      '<button type="button" class="nl-entry-tab is-active" data-entry-tab="image" role="tab" aria-selected="true">拍照录入</button>' +
-      '<button type="button" class="nl-entry-tab" data-entry-tab="text" role="tab" aria-selected="false">自然语言录入</button>' +
+      '<button type="button" class="nl-entry-tab" data-entry-tab="image" role="tab" aria-selected="false" hidden>拍照录入</button>' +
+      '<button type="button" class="nl-entry-tab is-active" data-entry-tab="text" role="tab" aria-selected="true">自然语言录入</button>' +
       '</div>' +
       '<div class="modal-body">' +
-      '<section class="nl-entry-pane nl-entry-image-pane is-active" data-entry-pane="image">' +
+      '<section class="nl-entry-pane nl-entry-image-pane" data-entry-pane="image" hidden>' +
       '<div class="nl-entry-upload-card"><label class="nl-entry-file-button"><span>选择成绩单图片</span><small>支持多选，最多 6 张</small><input class="nl-entry-files" type="file" accept="image/*" multiple></label><p>可按成绩单顺序选择多张截图，系统会合并识别同一次考试。</p></div>' +
       '<div class="nl-entry-image-list" aria-live="polite"><span class="nl-entry-empty">还没有选择图片</span></div>' +
       '<p class="nl-entry-vision-note">图片会发送到管理员配置的识图模型处理；系统不保存原图。</p>' +
@@ -835,7 +835,7 @@
     cancelButton.onclick = close;
     backdrop.onclick = function (event) { if (event.target === backdrop) close(); };
 
-    function setTab(name) {
+    function setTab(name, shouldTrack) {
       backdrop.querySelectorAll('[data-entry-tab]').forEach(function (tab) {
         var active = tab.dataset.entryTab === name;
         tab.classList.toggle('is-active', active);
@@ -846,7 +846,7 @@
         pane.classList.toggle('is-active', active);
         pane.hidden = !active;
       });
-      trackUsage('quick_entry_mode_changed', { mode: name });
+      if (shouldTrack !== false) trackUsage('quick_entry_mode_changed', { mode: name });
       clearError();
       if (name === 'text') textarea.focus();
     }
@@ -1119,7 +1119,20 @@
       }
     };
     renderFiles();
-    setTab('image');
+    setTab('text', false);
+    requestVisionBetaStatus().then(function (available) {
+      if (!backdrop.isConnected) return;
+      var imageTab = backdrop.querySelector('[data-entry-tab="image"]');
+      var imagePane = backdrop.querySelector('[data-entry-pane="image"]');
+      if (available) {
+        if (imageTab) imageTab.hidden = false;
+        setTab('image', false);
+      } else {
+        if (imageTab) imageTab.remove();
+        if (imagePane) imagePane.remove();
+        setTab('text', false);
+      }
+    });
   }
 
   function decorateModal(modal) {
@@ -1234,28 +1247,54 @@
   }
 
   var visionBetaStatusUser = '';
-  var visionBetaStatusInFlight = false;
+  var visionBetaStatusKnown = false;
+  var visionBetaStatusEligible = false;
+  var visionBetaStatusAvailable = false;
+  var visionBetaStatusInFlight = null;
 
-  async function checkVisionBetaStatus() {
+  function currentVisionBetaUser() {
     var currentUser = typeof state !== 'undefined' && state.user ? state.user : null;
     var token = localStorage.getItem('st_token') || '';
     var username = currentUser && String(currentUser.username || '').trim();
-    if (!username || !token || hasVisionBetaSeen(username) || visionBetaStatusUser === username || visionBetaStatusInFlight) return;
-    visionBetaStatusInFlight = true;
-    try {
-      var response = await fetch(VISION_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'beta_status', token: token })
+    return { token: token, username: username };
+  }
+
+  function requestVisionBetaStatus() {
+    var current = currentVisionBetaUser();
+    if (!current.username || !current.token) return Promise.resolve(false);
+    if (visionBetaStatusUser === current.username && visionBetaStatusKnown) {
+      return Promise.resolve(visionBetaStatusAvailable);
+    }
+    if (visionBetaStatusInFlight) return visionBetaStatusInFlight;
+    visionBetaStatusInFlight = fetch(VISION_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'beta_status', token: current.token })
+    }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (payload) {
+        if (!response.ok) return false;
+        visionBetaStatusUser = current.username;
+        visionBetaStatusKnown = true;
+        visionBetaStatusEligible = !!(payload && payload.eligible);
+        visionBetaStatusAvailable = payload && payload.enabled !== false &&
+          (payload.beta_only === false || visionBetaStatusEligible);
+        return visionBetaStatusAvailable;
       });
-      var payload = await response.json().catch(function () { return {}; });
-      if (!response.ok) return;
-      visionBetaStatusUser = username;
-      if (payload && payload.eligible) showVisionBetaInvite(username);
-    } catch (e) {
+    }).catch(function () {
       // 资格检查失败时保持静默，不影响正常登录和录入。
-    } finally {
-      visionBetaStatusInFlight = false;
+      return false;
+    }).finally(function () {
+      visionBetaStatusInFlight = null;
+    });
+    return visionBetaStatusInFlight;
+  }
+
+  async function checkVisionBetaStatus() {
+    var current = currentVisionBetaUser();
+    if (!current.username || !current.token) return;
+    await requestVisionBetaStatus();
+    if (visionBetaStatusEligible && !hasVisionBetaSeen(current.username)) {
+      showVisionBetaInvite(current.username);
     }
   }
 
