@@ -9,6 +9,9 @@ const db = createClient(
 
 const DEFAULT_VISION_MODEL = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free";
 const DEFAULT_VISION_BASE_URL = "https://openrouter.ai/api/v1";
+const AI_DAILY_LIMIT = 10;
+const AI_GLOBAL_DAILY_LIMIT = 100;
+const AI_COOLDOWN_SECONDS = 15;
 
 function normalizeBaseUrl(value: unknown) {
   const raw = String(value ?? DEFAULT_VISION_BASE_URL).trim().replace(/\/+$/, "");
@@ -86,6 +89,18 @@ async function auth(token: string) {
   return data;
 }
 
+
+async function claimAiRequest(userId: string) {
+  const result = await db.rpc("claim_score_tracker_ai_request", {
+    p_user_id: userId,
+    p_daily_limit: AI_DAILY_LIMIT,
+    p_global_daily_limit: AI_GLOBAL_DAILY_LIMIT,
+    p_cooldown_seconds: AI_COOLDOWN_SECONDS,
+  });
+  if (result.error) throw result.error;
+  return result.data?.[0] ?? null;
+}
+
 function cleanText(value: unknown, max = 80) {
   const text = String(value ?? "").trim();
   return text ? text.slice(0, max) : null;
@@ -126,6 +141,8 @@ function normalize(raw: any, context: any) {
   const warnings = Array.isArray(raw?.warnings) ? raw.warnings.map((x: unknown) => cleanText(x, 160)).filter(Boolean) : [];
   const allowedCategories = Array.isArray(context?.classificationOptions) ? context.classificationOptions.map((x: unknown) => String(x)) : [];
   const examRaw = raw?.exam ?? {};
+  const examSchoolRank = cleanInt(examRaw.schoolRank);
+  const examSchoolParticipants = cleanInt(examRaw.schoolParticipants);
   const category = cleanText(examRaw.category, 40);
   const exam = {
     name: cleanText(examRaw.name, 60),
@@ -139,12 +156,15 @@ function normalize(raw: any, context: any) {
     classParticipants: cleanInt(examRaw.classParticipants),
   };
   if (category && !exam.category) warnings.push(`识别到分类“${category}”，但它不在当前分类选项中，请手动选择。`);
+  if (examSchoolRank !== null || examSchoolParticipants !== null) warnings.push("识别到总分校次/校排名，系统不会将其当作年排或班排，已忽略。");
 
   const seen = new Set<string>();
   const subjects = (Array.isArray(raw?.subjects) ? raw.subjects : []).map((item: any) => {
     const name = cleanText(item?.name, 40);
     if (!name || seen.has(name)) return null;
     seen.add(name);
+    const subjectSchoolRank = cleanInt(item.schoolRank);
+    const subjectSchoolParticipants = cleanInt(item.schoolParticipants);
     const subject = {
       name,
       target: cleanNum(item.target),
@@ -158,6 +178,7 @@ function normalize(raw: any, context: any) {
       classParticipants: cleanInt(item.classParticipants),
       ambiguousScore: cleanNum(item.ambiguousScore),
     };
+    if (subjectSchoolRank !== null || subjectSchoolParticipants !== null) warnings.push(`${name} 识别到校次/校排名，系统不会将其当作年排或班排，已忽略。`);
     if (subject.ambiguousScore !== null) warnings.push(`${name} 有一个分数 ${subject.ambiguousScore}，无法确定是原始分还是赋分/最终分，请手动确认。`);
     if (subject.rawScore !== null && subject.rawMax !== null && subject.rawScore > subject.rawMax) warnings.push(`${name} 的原始分高于识别到的原始满分，请核对。`);
     if (subject.finalScore !== null && subject.finalMax !== null && subject.finalScore > subject.finalMax) warnings.push(`${name} 的最终分高于识别到的最终满分，请核对。`);
@@ -187,10 +208,31 @@ Deno.serve(async (req) => {
 
     const config = await visionConfig();
     if (config.disabled) return json({ error: "识图功能当前未启用，请联系管理员" }, 503);
-    if (!config.apiKey) return json({ error: "识图服务尚未配置 OpenRouter Key，请联系管理员" }, 503);
+    if (!config.apiKey) return json({ error: "识图服务尚未配置识别服务 Key，请联系管理员" }, 503);
+
+    let quota;
+    try {
+      quota = await claimAiRequest(user.id);
+    } catch (error) {
+      console.error("vision quota check", error instanceof Error ? error.message : error);
+      return json({ error: "识别服务限流检查暂不可用，请稍后再试", code: "rate_limit_unavailable", request_status: 0 }, 503);
+    }
+    if (!quota?.allowed) {
+      const reason = quota?.reason === "global_limit"
+        ? "当前识别服务今日总额度已用完，请明天再试"
+        : quota?.reason === "daily_limit"
+          ? "你今天的识别次数已用完，请明天再试"
+          : "识别请求过于频繁，请稍后再试";
+      return json({
+        error: reason,
+        code: "ai_rate_limited",
+        request_status: 429,
+        retry_after_seconds: Number(quota?.retry_after_seconds || 0),
+      }, 429);
+    }
 
     const context = body.context ?? {};
-    const prompt = `你是一个中文学生成绩单识别器。请从用户提供的 1～6 张同一次考试的截图或照片中提取明确可见的数据。\n\n重要规则：\n1. 绝不猜测看不清、没有明确标注或无法确认的数据；不确定就返回 null，并在 warnings 说明。\n2. “原始分/卷面分”和“赋分/等级分/最终分”必须根据图片文字语义区分。若某科只有一个分数或一组“分数/满分”，且没有明确写原始分，默认放到 finalScore/finalMax；只有明确出现原始分时才填写 rawScore/rawMax。\n3. “年排/年级排名”和“班排/班级排名”必须按图片标注区分；不要把校次、联考名次等其他排名擅自当成年排；无法判断范围时放 null，并加入 warnings。\n4. 参考人数只在图片明确出现时提取，不要用其他字段的数字补全。\n5. 科目/模块名称按图片原文，可包含自定义题型；${JSON.stringify(context.subjectNames || [])} 是当前录入表已有科目，仅用于辅助匹配，不要凭空新增图片中不存在的科目。\n6. 不要根据常识补满分；图片没有满分就返回 null。\n7. 日期必须转换成 YYYY-MM-DD；年份不明确则返回 null。\n8. 分类只允许从这些选项里选择：${JSON.stringify(context.classificationOptions || [])}；不明确就 null。\n9. 多张图若内容重复，合并为一个考试，不要重复科目。\n10. 总分只从图片明确标注“总分/总成绩”的位置提取；不要把某一科成绩或排名填入总分。\n\n只返回 JSON，不要 Markdown，不要解释。格式：\n{\n  "exam": {"name": string|null, "date": string|null, "category": string|null, "finalTotal": number|null, "rawTotal": number|null, "yearRank": number|null, "yearParticipants": number|null, "classRank": number|null, "classParticipants": number|null},\n  "subjects": [{"name": string, "target": number|null, "rawScore": number|null, "rawMax": number|null, "finalScore": number|null, "finalMax": number|null, "yearRank": number|null, "yearParticipants": number|null, "classRank": number|null, "classParticipants": number|null, "ambiguousScore": number|null}],\n  "warnings": [string]\n}`;    const content: any[] = [{ type: "text", text: prompt }];
+    const prompt = `你是一个中文学生成绩单识别器。请从用户提供的 1～6 张同一次考试的截图或照片中提取明确可见的数据。\n\n重要规则：\n1. 绝不猜测看不清、没有明确标注或无法确认的数据；不确定就返回 null，并在 warnings 说明。\n2. “原始分/卷面分”和“赋分/等级分/最终分”必须根据图片文字语义区分。若某科只有一个分数或一组“分数/满分”，且没有明确写原始分，默认放到 finalScore/finalMax；只有明确出现原始分时才填写 rawScore/rawMax。\n3. 排名标签必须按语义映射，禁止按表格位置猜测：联考名次/联考排名/年排/年级排名填入 yearRank；班次/班排/班级排名填入 classRank；校次/校排/校排名/学校排名属于学校范围排名，只能放入 schoolRank（若输出），系统会忽略，绝不能填入 yearRank 或 classRank。若同一组数据同时出现“联考名次、校次、班次”，分别取联考名次和班次，校次不要替代年排。无法判断范围时放 null，并加入 warnings。\n4. 参考人数只在图片明确出现时提取，不要用其他字段的数字补全。\n5. 科目/模块名称按图片原文，可包含自定义题型；${JSON.stringify(context.subjectNames || [])} 是当前录入表已有科目，仅用于辅助匹配，不要凭空新增图片中不存在的科目。\n6. 不要根据常识补满分；图片没有满分就返回 null。\n7. 日期必须转换成 YYYY-MM-DD；年份不明确则返回 null。\n8. 分类只允许从这些选项里选择：${JSON.stringify(context.classificationOptions || [])}；不明确就 null。\n9. 多张图若内容重复，合并为一个考试，不要重复科目。\n10. 总分只从图片明确标注“总分/总成绩”的位置提取；不要把某一科成绩或排名填入总分。\n\n只返回 JSON，不要 Markdown，不要解释。格式：\n{\n  "exam": {"name": string|null, "date": string|null, "category": string|null, "finalTotal": number|null, "rawTotal": number|null, "yearRank": number|null, "yearParticipants": number|null, "classRank": number|null, "classParticipants": number|null, "schoolRank": number|null, "schoolParticipants": number|null},\n  "subjects": [{"name": string, "target": number|null, "rawScore": number|null, "rawMax": number|null, "finalScore": number|null, "finalMax": number|null, "yearRank": number|null, "yearParticipants": number|null, "classRank": number|null, "classParticipants": number|null, "schoolRank": number|null, "schoolParticipants": number|null, "ambiguousScore": number|null}],\n  "warnings": [string]\n}`;    const content: any[] = [{ type: "text", text: prompt }];
     for (const image of images) content.push({ type: "image_url", image_url: { url: image } });
 
     if (!config.baseUrl) return json({ error: "识别服务 Base URL 配置无效，请联系管理员", code: "invalid_base_url", request_status: 0 }, 503);

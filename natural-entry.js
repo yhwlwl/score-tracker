@@ -23,9 +23,9 @@
     rawMax: ['原始满分', '原始总分'],
     actual: ['最终分（赋分后）', '最终成绩', '最终分', '赋分成绩', '赋分分', '赋分', '真实成绩', '真实分', '考后成绩', '实际成绩', '实得分'],
     max: ['最终满分', '赋分满分', '满分'],
-    yearRank: ['年级总排名', '总分年级排名', '总年排', '年级排名', '总分年排', '年排'],
+    yearRank: ['年级总排名', '总分年级排名', '总年排', '联考排名', '联考名次', '年级排名', '总分年排', '年排'],
     yearPeople: ['年级总人数', '总年级人数', '全年级人数', '年级人数', '参考人数'],
-    classRank: ['班级总排名', '总分班级排名', '总班排', '班级排名', '总分班排', '班排'],
+    classRank: ['班级总排名', '总分班级排名', '总班排', '班级排名', '总分班排', '班排', '班次'],
     classPeople: ['班级总人数', '总班级人数', '全班人数', '班级人数'],
     yearPercent: ['年级总位比', '总分年位比', '总分年级前', '年级位比', '年位比', '总分前', '年级前'],
     classPercent: ['班级总位比', '总分班位比', '总分班级前', '班级位比', '班位比', '总班位比', '班级前'],
@@ -658,7 +658,7 @@
       '2. 日期统一为 YYYY-MM-DD；排名统一写成“名次/人数”；位比只保留“前 x%”中的数字。\n' +
       '3. 所有缺失字段统一填写半角短横线“-”；成对字段也要保留斜杠，例如“50/-”“120/-”，不要省略斜杠或用后面的数字补全。\n' +
       '4. 如果原文只有一个成绩或一组“成绩/满分”，默认填写在“最终分（赋分后）”；只有明确出现原始分时才填写原始分。\n' +
-      '5. 每个科目单独一行；总分排名必须单独放在“总分...”行，不能复制某一科的排名。\n' +
+      '5. 排名标签按语义映射：联考名次/联考排名视为年排，班次/班排视为班排；校次/校排/校排名是学校范围排名，忽略它，绝不能用它填年排或班排。总分排名必须单独放在“总分...”行，不能复制某一科的排名。\n' +
       '6. 只输出整理后的纯文本，不要输出 Markdown、代码块或解释。\n\n' +
       '输出格式：\n' +
       '考试名称：-\n' +
@@ -718,7 +718,9 @@
       '<div class="nl-entry-upload-card"><label class="nl-entry-file-button"><span>选择成绩单图片</span><small>支持多选，最多 6 张</small><input class="nl-entry-files" type="file" accept="image/*" multiple></label><p>可按成绩单顺序选择多张截图，系统会合并识别同一次考试。</p></div>' +
       '<div class="nl-entry-image-list" aria-live="polite"><span class="nl-entry-empty">还没有选择图片</span></div>' +
       '<p class="nl-entry-vision-note">图片会发送到管理员配置的识图模型处理；系统不保存原图。</p>' +
-      '<pre class="nl-entry-vision-output" hidden></pre>' +
+      '<div class="nl-entry-progress" hidden aria-live="polite"><div class="nl-entry-progress-head"><span>识别进度</span><strong class="nl-entry-elapsed">0.0s</strong></div><ol class="nl-entry-progress-steps"><li class="nl-entry-progress-step" data-progress-step="0"><span class="nl-entry-progress-dot">1</span><span>读取并压缩图片</span></li><li class="nl-entry-progress-step" data-progress-step="1"><span class="nl-entry-progress-dot">2</span><span>发送图片与请求</span></li><li class="nl-entry-progress-step" data-progress-step="2"><span class="nl-entry-progress-dot">3</span><span>等待 AI 识别</span></li><li class="nl-entry-progress-step" data-progress-step="3"><span class="nl-entry-progress-dot">4</span><span>整理可编辑结果</span></li></ol></div>' +
+      '<p class="nl-entry-vision-edit-hint" hidden>识别结果可直接编辑，确认无误后再点击“确认并填入”。</p>' +
+      '<textarea class="nl-entry-vision-output" aria-label="识别结果，可编辑" spellcheck="false" hidden></textarea>' +
       '<div class="modal-actions"><button class="primary nl-entry-vision-submit" type="button" disabled>识别图片</button></div>' +
       '</section>' +
       '<section class="nl-entry-pane nl-entry-text-pane" data-entry-pane="text" hidden>' +
@@ -741,6 +743,13 @@
     var fileInput = backdrop.querySelector('.nl-entry-files');
     var imageList = backdrop.querySelector('.nl-entry-image-list');
     var visionOutput = backdrop.querySelector('.nl-entry-vision-output');
+    var visionEditHint = backdrop.querySelector('.nl-entry-vision-edit-hint');
+    var visionProgress = backdrop.querySelector('.nl-entry-progress');
+    var visionElapsed = backdrop.querySelector('.nl-entry-elapsed');
+    var visionSteps = Array.prototype.slice.call(backdrop.querySelectorAll('[data-progress-step]'));
+    var visionTimer = null;
+    var visionStartedAt = 0;
+    var visionProgressStep = 0;
     var promptText = aiPromptText();
     var promptBox = backdrop.querySelector('.nl-entry-prompt-text');
     var copyButton = backdrop.querySelector('.nl-entry-copy');
@@ -756,7 +765,70 @@
       setTimeout(function () { copyButton.textContent = '复制提示词'; }, 1600);
     };
 
-    function close() { backdrop.remove(); }
+    function close() {
+      if (visionTimer) {
+        clearInterval(visionTimer);
+        visionTimer = null;
+      }
+      backdrop.remove();
+    }
+    function elapsedText() {
+      return ((Math.max(0, Date.now() - visionStartedAt)) / 1000).toFixed(1) + 's';
+    }
+    function updateVisionProgress(step, completed, failed) {
+      visionProgressStep = step;
+      if (visionProgress) visionProgress.hidden = false;
+      visionSteps.forEach(function (item, index) {
+        item.classList.toggle('is-done', completed || index < step);
+        item.classList.toggle('is-active', !completed && !failed && index === step);
+        item.classList.toggle('is-error', !!failed && index === step);
+      });
+      if (visionElapsed) visionElapsed.textContent = elapsedText();
+    }
+    function startVisionProgress() {
+      if (visionTimer) clearInterval(visionTimer);
+      visionStartedAt = Date.now();
+      visionProgressStep = 0;
+      if (visionProgress) {
+        visionProgress.hidden = false;
+        visionProgress.classList.remove('is-complete', 'has-error');
+      }
+      updateVisionProgress(0, false, false);
+      visionTimer = setInterval(function () {
+        if (visionElapsed) visionElapsed.textContent = elapsedText();
+      }, 100);
+    }
+    function setVisionProgress(step) {
+      updateVisionProgress(step, false, false);
+    }
+    function finishVisionProgress(success) {
+      if (visionTimer) {
+        clearInterval(visionTimer);
+        visionTimer = null;
+      }
+      updateVisionProgress(visionProgressStep, success, !success);
+      if (visionProgress) {
+        visionProgress.classList.toggle('is-complete', success);
+        visionProgress.classList.toggle('has-error', !success);
+      }
+    }
+    function resetVisionProgress() {
+      if (visionTimer) {
+        clearInterval(visionTimer);
+        visionTimer = null;
+      }
+      visionStartedAt = 0;
+      visionProgressStep = 0;
+      if (visionProgress) {
+        visionProgress.hidden = true;
+        visionProgress.classList.remove('is-complete', 'has-error');
+      }
+      visionSteps.forEach(function (item) {
+        item.classList.remove('is-done', 'is-active', 'is-error');
+      });
+      if (visionElapsed) visionElapsed.textContent = '0.0s';
+      if (visionEditHint) visionEditHint.hidden = true;
+    }
     function clearError() { error.textContent = ''; }
     closeButton.onclick = close;
     cancelButton.onclick = close;
@@ -798,6 +870,8 @@
           visionText = '';
           visionPayload = null;
           visionOutput.hidden = true;
+          visionOutput.value = '';
+          resetVisionProgress();
           visionSubmitButton.textContent = '识别图片';
           renderFiles();
         };
@@ -816,6 +890,8 @@
       visionText = '';
       visionPayload = null;
       visionOutput.hidden = true;
+      visionOutput.value = '';
+      resetVisionProgress();
       visionSubmitButton.textContent = '识别图片';
       fileInput.value = '';
       renderFiles();
@@ -884,6 +960,8 @@
         var requestStatus = Number(response.status || 0);
         var upstreamStatus = Number(payload.upstream_status || requestStatus || 0);
         var detail = payload.upstream_message ? String(payload.upstream_message).slice(0, 180) : '';
+        var retryAfter = Number(payload.retry_after_seconds || 0);
+        if (!detail && retryAfter > 0) detail = '约 ' + retryAfter + ' 秒后可重试';
         var label = payload.error || '识图服务暂时不可用';
         var suffix = '（HTTP ' + (upstreamStatus || requestStatus || 0) + (detail ? '：' + detail : '') + '）';
         var serviceError = new Error(String(label) + suffix);
@@ -950,6 +1028,7 @@
       return images;
     }
     async function applyVisionResult() {
+      if (visionOutput && !visionOutput.hidden) visionText = visionOutput.value;
       var parsed = parseInput(visionText, modal);
       if (parsed.errors.length) {
         error.textContent = parsed.errors.join(' ');
@@ -973,6 +1052,11 @@
     }
     visionSubmitButton.onclick = async function () {
       clearError();
+      if (visionOutput && !visionOutput.hidden) {
+        visionText = visionOutput.value;
+        await applyVisionResult();
+        return;
+      }
       if (visionText) {
         await applyVisionResult();
         return;
@@ -983,16 +1067,24 @@
       }
       visionSubmitButton.disabled = true;
       visionSubmitButton.textContent = '识别中…';
+      startVisionProgress();
       trackUsage('quick_entry_image_recognition_started', { image_count: selectedFiles.length });
       try {
+        setVisionProgress(0);
         var images = await encodeImages();
+        setVisionProgress(1);
+        setVisionProgress(2);
         visionPayload = await callVision(images);
+        setVisionProgress(3);
         visionText = visionToText(visionPayload);
-        visionOutput.textContent = visionText;
+        visionOutput.value = visionText;
         visionOutput.hidden = false;
+        if (visionEditHint) visionEditHint.hidden = false;
+        finishVisionProgress(true);
         visionSubmitButton.disabled = false;
         visionSubmitButton.textContent = '确认并填入';
       } catch (e) {
+        finishVisionProgress(false);
         trackUsage('quick_entry_image_recognition_failed', visionFailureMeta(e));
         error.textContent = e.message || '识图失败，请稍后重试。';
         visionSubmitButton.disabled = false;
@@ -1074,7 +1166,23 @@
     '.nl-entry-image-name{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text,#18212f)}',
     '.nl-entry-image-remove{border:0;background:transparent;color:var(--muted,#788392);font-size:16px;line-height:1;padding:2px 5px;cursor:pointer}',
     '.nl-entry-vision-note{font-size:10.5px;line-height:1.55;color:var(--muted,#788392);margin:10px 2px 0}',
-    '.nl-entry-vision-output{max-height:240px;overflow:auto;white-space:pre-wrap;margin:12px 0 0;border:1px solid #d9e3f3;border-radius:12px;padding:11px;background:#f5f8ff;color:#526174;font:11px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace}',
+    '.nl-entry-progress{margin:12px 0 0;border:1px solid var(--line,#e8ebf0);border-radius:14px;padding:11px 12px;background:var(--cell,#f7f9fc)}',
+    '.nl-entry-progress-head{display:flex;align-items:center;justify-content:space-between;color:var(--muted,#788392);font-size:11px;font-weight:700}',
+    '.nl-entry-elapsed{color:var(--accent,#5d72e8);font-variant-numeric:tabular-nums}',
+    '.nl-entry-progress-steps{list-style:none;margin:9px 0 0;padding:0;display:grid;gap:6px}',
+    '.nl-entry-progress-step{display:flex;align-items:center;gap:8px;color:var(--muted,#788392);font-size:10.5px;line-height:1.35}',
+    '.nl-entry-progress-dot{display:grid;place-items:center;width:18px;height:18px;border:1px solid var(--line,#e8ebf0);border-radius:50%;background:var(--panel-solid,#fff);font-size:9px;font-weight:800;flex:0 0 auto}',
+    '.nl-entry-progress-step.is-active{color:var(--accent,#5d72e8);font-weight:700}',
+    '.nl-entry-progress-step.is-active .nl-entry-progress-dot{border-color:var(--accent,#5d72e8);box-shadow:0 0 0 3px rgba(93,114,232,.12)}',
+    '.nl-entry-progress-step.is-done{color:var(--green,#32a77a)}',
+    '.nl-entry-progress-step.is-done .nl-entry-progress-dot{border-color:var(--green,#32a77a);background:var(--green-soft,#e9f8f2);color:var(--green,#32a77a)}',
+    '.nl-entry-progress-step.is-error{color:var(--danger,#d9534f)}',
+    '.nl-entry-progress-step.is-error .nl-entry-progress-dot{border-color:var(--danger,#d9534f);background:var(--danger-soft,#fff0f0);color:var(--danger,#d9534f)}',
+    '.nl-entry-progress.is-complete{border-color:#bfe8d5;background:var(--green-soft,#e9f8f2)}',
+    '.nl-entry-progress.has-error{border-color:#f0c5c5;background:var(--danger-soft,#fff5f5)}',
+    '.nl-entry-vision-edit-hint{font-size:10.5px;line-height:1.55;color:var(--muted,#788392);margin:10px 2px 0}',
+    '.nl-entry-vision-output{display:block;width:100%;box-sizing:border-box;min-height:220px;max-height:360px;resize:vertical;overflow:auto;white-space:pre-wrap;margin:8px 0 0;border:1px solid #9aa9ec;border-radius:12px;padding:11px;background:#f5f8ff;color:#526174;font:11px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace;outline:0}',
+    '.nl-entry-vision-output:focus{border-color:var(--accent,#5d72e8);box-shadow:0 0 0 3px rgba(93,114,232,.12)}',
     '.nl-entry-footer-actions{margin-top:0}',
     '.nl-entry-text{display:block;width:100%;min-height:250px;box-sizing:border-box;resize:vertical;border:1px solid var(--line,#e8ebf0);border-radius:14px;padding:13px 14px;background:var(--panel-solid,#fff);color:var(--text,#18212f);font:inherit;font-size:13px;line-height:1.7;outline:none}',
     '.nl-entry-text:focus{border-color:#98a6f2;box-shadow:0 0 0 3px #eef0ff}',
