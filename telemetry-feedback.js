@@ -46,6 +46,9 @@
       body: JSON.stringify({ action: 'track_event', token: localStorage.getItem('st_token') || '', eventType, context: c, metadata }) }).catch(() => undefined);
   }
 
+  // Expose the existing telemetry channel to feature modules without exposing user-entered content.
+  window.__scoreTrackerTrack = track;
+
   window.fetch = async (...args) => {
     let action = '', body = null;
     try {

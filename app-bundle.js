@@ -172,6 +172,9 @@
       body: JSON.stringify({ action: 'track_event', token: localStorage.getItem('st_token') || '', eventType, context: c, metadata }) }).catch(() => undefined);
   }
 
+  // Expose the existing telemetry channel to feature modules without exposing user-entered content.
+  window.__scoreTrackerTrack = track;
+
   window.fetch = async (...args) => {
     let action = '', body = null;
     try {
@@ -804,9 +807,8 @@ function bindPage() {
       toast('复制失败，请手动选择');
     }
   });
-  $$('[data-radar-mode]').forEach((b) => b.onclick = () => {
+  $('[data-radar-mode]').forEach((b) => b.onclick = () => {
     state.radarMode = b.dataset.radarMode;
-    state.radarSelection = [];
     ensureRadarSelection();
     render();
   });
@@ -2865,7 +2867,7 @@ state.classification = state.classification || { label: '年级', options: ['高
     .score-with-max-v14{display:grid;grid-template-columns:minmax(0,1fr) auto 68px;gap:5px;align-items:center}
     .score-with-max-v14 span{font-size:11px;color:var(--muted)}
     .raw-box-v14{background:#fff9f1;border:1px solid #f3e2cb;border-radius:12px;padding:8px}
-    .final-box-v14{background:#f4fbf8;border:1px solid #dbeee6;border-radius:12px;padding:8px}
+    .final-box-v14{background:#eefaf5;border:1px solid #b8e5ce;border-radius:12px;padding:8px}.score-entry-tip-v16{display:block;margin-top:3px;color:#299a72;font-size:10px;font-weight:600;line-height:1.35}.final-box-v14:focus-within{border-color:#8bd1ae;box-shadow:0 0 0 2px rgba(47,169,116,.12)}
     .target-box-v14{padding:8px}
     @media(max-width:620px){
       .category-settings-v14{padding:18px 16px}.category-head-v14{display:block}.category-head-v14 button{margin-top:10px}
@@ -2935,7 +2937,7 @@ openExam=function openExamV14(exam=null){
   const modal=document.createElement('div');modal.className='modal-backdrop';modal.innerHTML=`<div class="modal"><div class="modal-head"><h3>${editing?'编辑考试':'记录一次考试'}</h3><button class="close-btn">×</button></div><div class="modal-body"><div class="form-grid"><div class="field"><label>考试名称</label><input id="examName" maxlength="60" value="${escapeHtml(exam?.name||'')}" placeholder="例如：期中考试"></div><div class="field"><label>考试日期</label><input id="examDate" type="date" value="${exam?.exam_date||today}"></div><div class="field"><label>${escapeHtml(categoryLabelV14())}</label><select id="gradeLevelV14" class="grade-select-v13"><option value="">未分类</option>${options.map(v=>`<option value="${escapeHtml(v)}" ${selected===v?'selected':''}>${escapeHtml(v)}</option>`).join('')}</select></div></div><div class="section-head-v7"><div><h4>本次考试科目</h4><p>原始分和赋分/最终分使用各自的满分；例如上海小科可填“原始 85 / 100，赋分 61 / 70”。</p></div></div><div class="exam-subjects-v10" id="examSubjectsV14"></div><div class="exam-subject-toolbar-v10"><button class="secondary" id="addExamSubjectV14">＋ 添加科目 / 模块</button></div><div class="score-total-preview-v13"><div class="score-total-box-v13"><span>原始总分</span><b id="rawTotalV14">—</b></div><div class="score-total-box-v13"><span>赋分 / 最终总分</span><b id="finalTotalV14">—</b></div></div><div class="section-head-v7"><div><h4>总排名（可选）</h4></div></div><div class="rank-table-v7"><div class="rank-row-v7 header"><span>项目</span><span>名次</span><span>参考人数</span></div><div class="rank-row-v7 total"><span>总分</span><input id="totalRankV14" inputmode="numeric" value="${exam?.total_rank??''}"><input id="totalParticipantsV14" inputmode="numeric" value="${exam?.total_participants??''}"></div></div><div class="visibility-box-v10"><div><b>图表显示</b><span>${exam?.is_hidden?'已隐藏，不参与图表。':'正常参与图表。'}</span></div><button class="secondary" id="toggleHiddenV14">${exam?.is_hidden?'恢复显示':'隐藏'}</button><input type="hidden" id="examHiddenV14" value="${exam?.is_hidden?'1':'0'}"></div>${editing?'<div class="modal-danger-row-v10"><button class="delete-exam-v10" id="deleteExamV14">删除这次考试</button></div>':''}<div class="modal-actions"><button class="secondary cancel-btn">取消</button><button class="primary save-btn">${editing?'保存修改':'保存考试'}</button></div></div></div>`;document.body.appendChild(modal);state.modal=modal;const list=$('#examSubjectsV14',modal);
   const sync=()=>{const next=$$('.exam-subject-card-v10',list).map(card=>({name:$('.exam-subject-name-v10',card).value,target:$('.target-v14',card).value,raw:$('.raw-v14',card).value,actual:$('.actual-v14',card).value,rawMax:$('.rawmax-v14',card).value,max:$('.max-v14',card).value,rank:$('.rank-v14',card).value,participants:$('.participants-v14',card).value}));rows.splice(0,rows.length,...next);};
   const totals=()=>{sync();$('#rawTotalV14',modal).textContent=formatScore(rawTotalFromRowsV13(rows));$('#finalTotalV14',modal).textContent=formatScore(finalTotalFromRowsV13(rows));};
-  const card=row=>`<div class="exam-subject-card-v10"><div class="exam-subject-head-v10"><input class="exam-subject-name-v10" maxlength="40" value="${escapeHtml(row.name||'')}" placeholder="科目 / 模块"><button class="remove-exam-subject-v10" type="button">×</button></div><div class="score-compact-v14"><div class="mini-field-v10 target-box-v14"><label>目标</label><input class="target-v14" inputmode="decimal" value="${row.target??''}" placeholder="可留空"></div><div class="mini-field-v10 final-box-v14"><label>赋分 / 最终分</label><div class="score-with-max-v14"><input class="actual-v14" inputmode="decimal" value="${row.actual??''}" placeholder="得分"><span>/</span><input class="max-v14" inputmode="decimal" value="${row.max??100}" placeholder="满分"></div></div><div class="mini-field-v10 raw-box-v14"><label>原始分</label><div class="score-with-max-v14"><input class="raw-v14" inputmode="decimal" value="${row.raw??''}" placeholder="得分"><span>/</span><input class="rawmax-v14" inputmode="decimal" value="${row.rawMax??row.max??100}" placeholder="满分"></div></div></div><div class="exam-rank-grid-v10"><div class="mini-field-v10"><label>名次</label><input class="rank-v14" inputmode="numeric" value="${row.rank??''}" placeholder="可留空"></div><div class="mini-field-v10"><label>参考人数</label><input class="participants-v14" inputmode="numeric" value="${row.participants??''}" placeholder="留空=总人数"></div></div></div>`;
+  const card=row=>`<div class="exam-subject-card-v10"><div class="exam-subject-head-v10"><input class="exam-subject-name-v10" maxlength="40" value="${escapeHtml(row.name||'')}" placeholder="科目 / 模块"><button class="remove-exam-subject-v10" type="button">×</button></div><div class="score-compact-v14"><div class="mini-field-v10 target-box-v14"><label>目标</label><input class="target-v14" inputmode="decimal" value="${row.target??''}" placeholder="可留空"></div><div class="mini-field-v10 final-box-v14"><label>最终分（赋分后）<span class="score-entry-tip-v16">无赋分也填这里</span></label><div class="score-with-max-v14"><input class="actual-v14" inputmode="decimal" value="${row.actual??''}" placeholder="得分"><span>/</span><input class="max-v14" inputmode="decimal" value="${row.max??100}" placeholder="满分"></div></div><div class="mini-field-v10 raw-box-v14"><label>原始分</label><div class="score-with-max-v14"><input class="raw-v14" inputmode="decimal" value="${row.raw??''}" placeholder="得分"><span>/</span><input class="rawmax-v14" inputmode="decimal" value="${row.rawMax??row.max??100}" placeholder="满分"></div></div></div><div class="exam-rank-grid-v10"><div class="mini-field-v10"><label>名次</label><input class="rank-v14" inputmode="numeric" value="${row.rank??''}" placeholder="可留空"></div><div class="mini-field-v10"><label>参考人数</label><input class="participants-v14" inputmode="numeric" value="${row.participants??''}" placeholder="留空=总人数"></div></div></div>`;
   const renderRows=()=>{list.innerHTML=rows.map(card).join('');$$('.remove-exam-subject-v10',list).forEach((b,i)=>b.onclick=()=>{sync();rows.splice(i,1);renderRows();totals()});$$('input',list).forEach(i=>i.addEventListener('input',totals));};renderRows();totals();
   const close=()=>{modal.remove();state.modal=null};$('.close-btn',modal).onclick=close;$('.cancel-btn',modal).onclick=close;modal.onclick=e=>{if(e.target===modal)close()};$('#addExamSubjectV14',modal).onclick=()=>{sync();if(rows.length>=40)return toast('最多 40 个科目 / 模块');rows.push({name:'',target:'',raw:'',actual:'',rawMax:100,max:100,rank:'',participants:''});renderRows();$('.exam-subject-card-v10:last-child .exam-subject-name-v10',list)?.focus();};$('#toggleHiddenV14',modal).onclick=()=>{const input=$('#examHiddenV14',modal),next=input.value!=='1';input.value=next?'1':'0';$('#toggleHiddenV14',modal).textContent=next?'恢复显示':'隐藏';$('.visibility-box-v10 span',modal).textContent=next?'保存后不参与图表。':'保存后正常参与图表。';};$('#deleteExamV14',modal)?.addEventListener('click',async()=>{if(!confirm(`确定永久删除「${exam?.name||'这次考试'}」？`))return;try{await dataApiV7('delete_exam',{examId:exam.id});await loadExams();close();render();toast('已删除');}catch(e){toast(e.message)}});$('.save-btn',modal).onclick=()=>saveExam(exam?.id||null,modal);
 };
@@ -3212,7 +3214,7 @@ openExam = function openExamV16(exam=null){
     rows.splice(0,rows.length,...next);
   }
   function totals(){sync();document.getElementById('rawTotalV16').textContent=formatScore(rawTotalFromRowsV13(rows));document.getElementById('finalTotalV16').textContent=formatScore(finalTotalFromRowsV13(rows));}
-  function card(row){return `<div class="exam-subject-card-v10"><div class="exam-subject-head-v10"><input class="exam-subject-name-v10" maxlength="40" value="${escapeHtml(row.name||'')}" placeholder="科目 / 模块"><button class="remove-exam-subject-v10" type="button">×</button></div><div class="score-compact-v14"><div class="mini-field-v10 target-box-v14"><label>目标</label><input class="target-v16" inputmode="decimal" value="${row.target??''}" placeholder="可留空"></div><div class="mini-field-v10 final-box-v14"><label>赋分 / 最终分</label><div class="score-with-max-v14"><input class="actual-v16" inputmode="decimal" value="${row.actual??''}" placeholder="得分"><span>/</span><input class="max-v16" inputmode="decimal" value="${row.max??100}" placeholder="满分"></div></div><div class="mini-field-v10 raw-box-v14"><label>原始分</label><div class="score-with-max-v14"><input class="raw-v16" inputmode="decimal" value="${row.raw??''}" placeholder="得分"><span>/</span><input class="rawmax-v16" inputmode="decimal" value="${row.rawMax??row.max??100}" placeholder="满分"></div></div></div><div class="subject-ranks-v16"><div class="subject-rank-row-v16"><span>年排</span><input class="year-rank-v16" inputmode="numeric" pattern="[0-9]*" value="${row.rank??''}" placeholder="名次"><input class="year-participants-v16" inputmode="numeric" pattern="[0-9]*" value="${row.participants??''}" placeholder="年级人数"></div><div class="subject-rank-row-v16"><span>班排</span><input class="class-rank-v16" inputmode="numeric" pattern="[0-9]*" value="${row.classRank??''}" placeholder="名次"><input class="class-participants-v16" inputmode="numeric" pattern="[0-9]*" value="${row.classParticipants??''}" placeholder="班级人数"></div></div></div>`;}
+  function card(row){return `<div class="exam-subject-card-v10"><div class="exam-subject-head-v10"><input class="exam-subject-name-v10" maxlength="40" value="${escapeHtml(row.name||'')}" placeholder="科目 / 模块"><button class="remove-exam-subject-v10" type="button">×</button></div><div class="score-compact-v14"><div class="mini-field-v10 target-box-v14"><label>目标</label><input class="target-v16" inputmode="decimal" value="${row.target??''}" placeholder="可留空"></div><div class="mini-field-v10 final-box-v14"><label>最终分（赋分后）<span class="score-entry-tip-v16">无赋分也填这里</span></label><div class="score-with-max-v14"><input class="actual-v16" inputmode="decimal" value="${row.actual??''}" placeholder="得分"><span>/</span><input class="max-v16" inputmode="decimal" value="${row.max??100}" placeholder="满分"></div></div><div class="mini-field-v10 raw-box-v14"><label>原始分</label><div class="score-with-max-v14"><input class="raw-v16" inputmode="decimal" value="${row.raw??''}" placeholder="得分"><span>/</span><input class="rawmax-v16" inputmode="decimal" value="${row.rawMax??row.max??100}" placeholder="满分"></div></div></div><div class="subject-ranks-v16"><div class="subject-rank-row-v16"><span>年排</span><input class="year-rank-v16" inputmode="numeric" pattern="[0-9]*" value="${row.rank??''}" placeholder="名次"><input class="year-participants-v16" inputmode="numeric" pattern="[0-9]*" value="${row.participants??''}" placeholder="年级人数"></div><div class="subject-rank-row-v16"><span>班排</span><input class="class-rank-v16" inputmode="numeric" pattern="[0-9]*" value="${row.classRank??''}" placeholder="名次"><input class="class-participants-v16" inputmode="numeric" pattern="[0-9]*" value="${row.classParticipants??''}" placeholder="班级人数"></div></div></div>`;}
   function renderRows(){
     list.innerHTML=rows.map(card).join('');
     $$('.remove-exam-subject-v10',list).forEach(function(button,index){button.onclick=function(){sync();rows.splice(index,1);renderRows();totals();};});
@@ -3290,7 +3292,7 @@ var bindPageBeforeV16=bindPage;
 bindPage=function bindPageV16(){
   bindPageBeforeV16();
   $$('[data-trend-scope-v16]').forEach(function(button){button.onclick=function(){var scope=button.dataset.trendScopeV16;if(scope==='score'){state.trendMetric='score';}else{state.rankScopeV16=scope;if(state.trendMetric!=='rank_raw'&&state.trendMetric!=='rank')state.trendMetric='rank_raw';}render();};});
-  $$('[data-radar-scope-v16]').forEach(function(button){button.onclick=function(){state.rankScopeV16=button.dataset.radarScopeV16;if(state.radarMode!=='rank_raw'&&state.radarMode!=='rank')state.radarMode='rank_raw';state.radarSelection=[];ensureRadarSelection();render();};});
+  $$('[data-radar-scope-v16]').forEach(function(button){button.onclick=function(){state.rankScopeV16=button.dataset.radarScopeV16;if(state.radarMode!=='rank_raw'&&state.radarMode!=='rank')state.radarMode='rank_raw';ensureRadarSelection();render();};});
 };
 /* ===== app-v17.js ===== */
 // v17 / product v1.1: direct position-percent input, statistical subtotal items, newest-first records.
@@ -3369,7 +3371,7 @@ recordHtml=function recordHtmlV17(exam){var subjects=Object.keys(exam.scores||{}
 recordsHtml=function recordsHtmlV17(){var exams=state.allExams||[],hidden=exams.filter(function(e){return e.is_hidden;}).length,order=categoryOptionsV14();function byDateAsc(a,b){var d=String(a.exam_date||'').localeCompare(String(b.exam_date||''));if(d)return d;return String(a.created_at||'').localeCompare(String(b.created_at||''));}var groups=[...order.map(function(v){return{name:v,exams:exams.filter(function(e){return e.grade_level===v;}).sort(byDateAsc)};}),{name:'未分类',exams:exams.filter(function(e){return !e.grade_level;}).sort(byDateAsc)}].filter(function(g){return g.exams.length;});return `<div class="page-head"><div><h2>考试记录</h2><p>按${escapeHtml(categoryLabelV14())}分组，每组按考试时间从早到晚。${hidden?` ${hidden} 次已隐藏。`:''}</p></div><button class="primary" id="addExam">＋ 新建</button></div>${groups.length?groups.map(function(g){return `<section class="grade-section-v13"><div class="grade-section-head-v13"><h3>${escapeHtml(g.name)}</h3><span>${g.exams.length} 次</span></div><div class="card records-card">${g.exams.map(recordHtml).join('')}</div></section>`;}).join(''):`<div class="card records-card"><div class="empty-chart" style="height:260px"><div>还没有考试记录<br><button class="secondary" id="emptyAdd" style="margin-top:14px">记录第一场考试</button></div></div></div>`}`;};
 
 var bindPageBeforeV17=bindPage;
-bindPage=function bindPageV17(){bindPageBeforeV17();document.querySelectorAll('[data-trend-scope-v16]').forEach(function(button){button.onclick=function(){var scope=button.dataset.trendScopeV16;if(scope==='score'){state.trendMetric='score';}else{state.rankScopeV16=scope;if(hasDirectPercentV17(scope)&&!hasRawRankV17(scope))state.trendMetric='rank';else if(state.trendMetric!=='rank_raw'&&state.trendMetric!=='rank')state.trendMetric='rank_raw';}render();};});document.querySelectorAll('[data-radar-scope-v16]').forEach(function(button){button.onclick=function(){var scope=button.dataset.radarScopeV16;state.rankScopeV16=scope;if(hasDirectPercentV17(scope)&&!hasRawRankV17(scope))state.radarMode='rank';else if(state.radarMode!=='rank_raw'&&state.radarMode!=='rank')state.radarMode='rank_raw';state.radarSelection=[];ensureRadarSelection();render();};});};
+bindPage=function bindPageV17(){bindPageBeforeV17();document.querySelectorAll('[data-trend-scope-v16]').forEach(function(button){button.onclick=function(){var scope=button.dataset.trendScopeV16;if(scope==='score'){state.trendMetric='score';}else{state.rankScopeV16=scope;if(hasDirectPercentV17(scope)&&!hasRawRankV17(scope))state.trendMetric='rank';else if(state.trendMetric!=='rank_raw'&&state.trendMetric!=='rank')state.trendMetric='rank_raw';}render();};});document.querySelectorAll('[data-radar-scope-v16]').forEach(function(button){button.onclick=function(){var scope=button.dataset.radarScopeV16;state.rankScopeV16=scope;if(hasDirectPercentV17(scope)&&!hasRawRankV17(scope))state.radarMode='rank';else if(state.radarMode!=='rank_raw'&&state.radarMode!=='rank')state.radarMode='rank_raw';ensureRadarSelection();render();};});};
 /* ===== app-v18.js ===== */
 // v18 / product v1.1: score modules, subtle Study Planner cross-link, optional ranking stays optional.
 state.modulesV18 = state.modulesV18 || [];
@@ -7204,7 +7206,8 @@ var RELEASE_NOTES_V31={
   'v5.1':'长期目标系统：各科目标分数、理想学校与考试倒计时；首页逐科差距卡、趋势图目标线与统计页联动；新增市/区排名（总分层面，选填）；修复成绩加载与移动端排版问题；全部脚本合并单文件，打开更快更省流量',
   'v5.2':'统计分析页增强：单场大跌自动提醒、总分连续进退提醒、参考人数口径变化提醒（人数不同的考试不再直接比名次）；修复个人最佳、连续退步等文案口径与样本门槛',
   'v6.0':'统计分析页 v6.0：「深度分析」Beta 板块，提供下场名次预测与95%区间、趋势/变点检验和异常提醒，附每步计算过程；分布图支持三视图(名次段/发挥标尺/累计概率)，名次段与发挥标尺均可调整细度，状态模型中心直接标出；顶部科目/组合口径全页联动,组合排名只认你填写的「组合年排/班排」,六科组合直接沿用总分排名,没填排名不显示合成数据；①总览「最近一次」标注考试；趋势图例可点击显隐；修复组合chip与板块顺序',
-  'v6.1':'记录考试支持自动草稿和一键清空，保存后保持页面位置；结束日期从开始日期定位并随考试保存；首页分类可多选叠加趋势；目标卡支持顺畅横滑；修复市/区排名保存后不显示、编辑回填空白；考试记录默认按时间从早到晚；趋势图片与打印报告同步当前配色并包含图例。'
+  'v6.1':'记录考试支持自动草稿和一键清空，保存后保持页面位置；结束日期从开始日期定位并随考试保存；首页分类可多选叠加趋势；目标卡支持顺畅横滑；修复市/区排名保存后不显示、编辑回填空白；考试记录默认按时间从早到晚；趋势图片与打印报告同步当前配色并包含图例。',
+  'v6.3':'新增快速录入，支持自然语言输入（图片识别将很快支持）'
 };
 function dismissKeyV31(v){return 'st_update_dismissed_'+v;}
 function showUpdateBarV31(latest){
@@ -7889,6 +7892,16 @@ function accentRgbV32(){
   return [93,114,232];
 }
 function rgba32(rgb,a){return "rgba("+rgb[0]+","+rgb[1]+","+rgb[2]+","+a+")";}
+function rankHeatColor32(rgb,p){
+  var alpha=clamp32(0.82-(p-8)/46*0.62,0.14,0.85);
+  var night=false;
+  try{night=document.documentElement&&document.documentElement.getAttribute("data-theme")==="night";}catch(e){}
+  if(night){
+    var depth=clamp32((alpha-0.14)/0.71,0,1);
+    return "rgba(5,10,20,"+clamp32(0.18+depth*0.52,0.18,0.70)+")";
+  }
+  return rgba32(rgb,alpha);
+}
 /* 折线:lines=[{vals,color,dash}] labels=[...];tickLabel(v) 自定义纵轴刻度 */
 function lineSvgV32(lines,labels,opts){
   opts=opts||{};
@@ -8429,7 +8442,7 @@ function matrixSectionHtmlV32(f,mode){
       if(mode==="rank"){
         var p=posYearOf32(e,rowV32(e,s));
         if(p===null)return "<td>—</td>";
-        return '<td style="background:'+rgba32(rgb,clamp32(0.82-(p-8)/46*0.62,0.14,0.85))+';color:#fff">'+r32(p)+dot+"</td>";
+        return '<td style="background:'+rankHeatColor32(rgb,p)+';color:#fff">'+r32(p)+dot+"</td>";
       }else{
         var rt=rateOf32(rowV32(e,s));
         if(rt===null)return "<td>—</td>";
@@ -8442,7 +8455,7 @@ function matrixSectionHtmlV32(f,mode){
       /* 合成口径:列值=所选科目位比中位数(与趋势线一致),分数模式=成员得分率中位 */
       var hit=f.totalSeries.filter(function(x){return x.i===i;})[0];
       if(mode==="rank"){
-        totCell=hit?'<td class="sv31-tot" style="background:'+rgba32(rgb,clamp32(0.82-(hit.pos-8)/46*0.62,0.14,0.85))+';color:#fff">'+r32(hit.pos)+"</td>"
+        totCell=hit?'<td class="sv31-tot" style="background:'+rankHeatColor32(rgb,hit.pos)+';color:#fff">'+r32(hit.pos)+"</td>"
           :"<td class='sv31-tot'>—</td>";
       }else{
         var rs=[];subs.forEach(function(s){var rr=rateOf32(rowV32(e,s));if(rr!==null)rs.push(rr);});
@@ -8452,7 +8465,7 @@ function matrixSectionHtmlV32(f,mode){
     }else{
       var tp=totalPosYear32(e);
       totCell=tp===null?"<td class='sv31-tot'>—</td>"
-        :mode==="rank"?'<td class="sv31-tot" style="background:'+rgba32(rgb,clamp32(0.82-(tp-8)/46*0.62,0.14,0.85))+';color:#fff">'+r32(tp)+"</td>"
+        :mode==="rank"?'<td class="sv31-tot" style="background:'+rankHeatColor32(rgb,tp)+';color:#fff">'+r32(tp)+"</td>"
         :'<td class="sv31-tot"><b>'+(examRateV32(e)===null?"—":Math.round(examRateV32(e))+"%")+"</b></td>";
     }
     rowsHtml+="<tr><td>"+esc32(shortName32(e.name))+"</td>"+cells+totCell+"</tr>";
