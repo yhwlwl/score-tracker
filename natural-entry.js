@@ -1,11 +1,10 @@
-/* student natural-language exam entry
- * v1: local parsing only; the text is not sent to a server.
- */
+/* student quick exam entry: local natural-language parsing plus optional multi-image recognition */
 (function () {
   'use strict';
 
   if (window.__studentNaturalEntryV1) return;
   window.__studentNaturalEntryV1 = true;
+  var VISION_ENDPOINT = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-vision-preview';
 
   function trackUsage(eventType, metadata) {
     try {
@@ -25,9 +24,9 @@
     rawMax: ['原始满分', '原始总分'],
     actual: ['最终分（赋分后）', '最终成绩', '最终分', '赋分成绩', '赋分分', '赋分', '真实成绩', '真实分', '考后成绩', '实际成绩', '实得分'],
     max: ['最终满分', '赋分满分', '满分'],
-    yearRank: ['年级总排名', '总分年级排名', '总年排', '年级排名', '总分年排', '年排'],
+    yearRank: ['年级总排名', '总分年级排名', '总年排', '年级排名', '总分年排', '年排', '校次', '校排', '校排名', '学校排名', '学校名次'],
     yearPeople: ['年级总人数', '总年级人数', '全年级人数', '年级人数', '参考人数'],
-    classRank: ['班级总排名', '总分班级排名', '总班排', '班级排名', '总分班排', '班排'],
+    classRank: ['班级总排名', '总分班级排名', '总班排', '班级排名', '总分班排', '班排', '班次'],
     classPeople: ['班级总人数', '总班级人数', '全班人数', '班级人数'],
     yearPercent: ['年级总位比', '总分年位比', '总分年级前', '年级位比', '年位比', '总分前', '年级前'],
     classPercent: ['班级总位比', '总分班位比', '总分班级前', '班级位比', '班位比', '总班位比', '班级前'],
@@ -660,7 +659,7 @@
       '2. 日期统一为 YYYY-MM-DD；排名统一写成“名次/人数”；位比只保留“前 x%”中的数字。\n' +
       '3. 所有缺失字段统一填写半角短横线“-”；成对字段也要保留斜杠，例如“50/-”“120/-”，不要省略斜杠或用后面的数字补全。\n' +
       '4. 如果原文只有一个成绩或一组“成绩/满分”，默认填写在“最终分（赋分后）”；只有明确出现原始分时才填写原始分。\n' +
-      '5. 每个科目单独一行；总分排名必须单独放在“总分...”行，不能复制某一科的排名。\n' +
+      '5. 排名不要机械依赖固定字段名，也不要要求标签必须和“年排/班排”完全一致：请结合成绩单表头、分组、相邻行和同一科目的语义判断。校次/校排/校排名/学校名次按年排整理；年排/年级排名也按年排整理；班次/班排/班级排名按班排整理；联考名次/联考排名属于多个学校或联考范围，目前不参考，统一填“-”，不要把它当成年排或班排。总分排名必须单独放在“总分...”行，不能复制某一科的排名。\n' +
       '6. 只输出整理后的纯文本，不要输出 Markdown、代码块或解释。\n\n' +
       '输出格式：\n' +
       '考试名称：-\n' +
@@ -710,24 +709,55 @@
     backdrop.className = 'modal-backdrop nl-entry-backdrop';
     backdrop.innerHTML =
       '<div class="modal nl-entry-modal" role="dialog" aria-modal="true">' +
-      '<div class="modal-head"><div><h3>快速录入</h3><p class="nl-entry-subtitle">输入一段文字，识别后回填到原来的录入表</p></div><button class="close-btn" type="button" aria-label="关闭">×</button></div>' +
+      '<div class="modal-head"><div><h3>快速录入</h3><p class="nl-entry-subtitle">选择识别方式，识别后回填到原来的录入表</p></div><button class="close-btn" type="button" aria-label="关闭">×</button></div>' +
+      '<div class="nl-entry-tabs" role="tablist" aria-label="快速录入方式">' +
+      '<button type="button" class="nl-entry-tab is-active" data-entry-tab="image" role="tab" aria-selected="true">拍照录入</button>' +
+      '<button type="button" class="nl-entry-tab" data-entry-tab="text" role="tab" aria-selected="false">自然语言录入</button>' +
+      '</div>' +
       '<div class="modal-body">' +
+      '<section class="nl-entry-pane nl-entry-image-pane is-active" data-entry-pane="image">' +
+      '<div class="nl-entry-upload-card"><label class="nl-entry-file-button"><span>选择成绩单图片</span><small>支持多选，最多 6 张</small><input class="nl-entry-files" type="file" accept="image/*" multiple></label><p>可按成绩单顺序选择多张截图，系统会合并识别同一次考试。</p></div>' +
+      '<div class="nl-entry-image-list" aria-live="polite"><span class="nl-entry-empty">还没有选择图片</span></div>' +
+      '<p class="nl-entry-vision-note">图片会发送到管理员配置的识图模型处理；系统不保存原图。</p>' +
+      '<div class="nl-entry-progress" hidden aria-live="polite"><div class="nl-entry-progress-head"><span>识别进度</span><strong class="nl-entry-elapsed">0.0s</strong></div><ol class="nl-entry-progress-steps"><li class="nl-entry-progress-step" data-progress-step="0"><span class="nl-entry-progress-dot">1</span><span>读取并压缩图片</span></li><li class="nl-entry-progress-step" data-progress-step="1"><span class="nl-entry-progress-dot">2</span><span>发送图片与请求</span></li><li class="nl-entry-progress-step" data-progress-step="2"><span class="nl-entry-progress-dot">3</span><span>等待 AI 识别</span></li><li class="nl-entry-progress-step" data-progress-step="3"><span class="nl-entry-progress-dot">4</span><span>整理可编辑结果</span></li></ol></div>' +
+      '<p class="nl-entry-vision-edit-hint" hidden>识别结果可直接编辑，确认无误后再点击“确认并填入”。</p>' +
+      '<textarea class="nl-entry-vision-output" aria-label="识别结果，可编辑" spellcheck="false" hidden></textarea>' +
+      '<div class="modal-actions"><button class="primary nl-entry-vision-submit" type="button" disabled>识别图片</button></div>' +
+      '</section>' +
+      '<section class="nl-entry-pane nl-entry-text-pane" data-entry-pane="text" hidden>' +
       '<textarea class="nl-entry-text" aria-label="快速录入内容" spellcheck="false" placeholder="例如：\n考试名称：高一上学期期中考试\n考试日期：2026-09-20\n年级：高一\n语文：目标120，原始112/150，最终112/150，年排36/620，班排8/45\n数学：目标135，真实128/150\n总分年排：36/620，班排：8/45"></textarea>' +
       '<p class="nl-entry-help">支持考试名称、日期、年级、结束日期、各科目标 / 原始分 / 最终分（赋分后） / 满分 / 年排 / 班排 / 位比、市区排名、总分和图表显示状态。只有一个成绩时默认填入最终分。<br><strong>你也可以复制下面的提示词，并将它和成绩单截图一起发给豆包等 AI，整理后再粘贴回来。</strong></p>' +
       '<details class="nl-entry-prompt"><summary>给 AI 的识别提示词（可复制） <span>点击展开并复制</span></summary><div class="nl-entry-prompt-box"><pre class="nl-entry-prompt-text"></pre><button class="secondary nl-entry-copy" type="button">复制提示词</button></div></details>' +
+      '<div class="modal-actions"><button class="primary nl-entry-submit" type="button">识别并填入</button></div>' +
+      '</section>' +
       '<div class="nl-entry-error" role="status"></div>' +
-      '<div class="modal-actions"><button class="secondary nl-entry-cancel" type="button">取消</button><button class="primary nl-entry-submit" type="button">识别并填入</button></div>' +
+      '<div class="modal-actions nl-entry-footer-actions"><button class="secondary nl-entry-cancel" type="button">取消</button></div>' +
       '</div></div>';
 
     document.body.appendChild(backdrop);
     var closeButton = backdrop.querySelector('.close-btn');
     var cancelButton = backdrop.querySelector('.nl-entry-cancel');
     var submitButton = backdrop.querySelector('.nl-entry-submit');
+    var visionSubmitButton = backdrop.querySelector('.nl-entry-vision-submit');
     var textarea = backdrop.querySelector('.nl-entry-text');
     var error = backdrop.querySelector('.nl-entry-error');
+    var fileInput = backdrop.querySelector('.nl-entry-files');
+    var imageList = backdrop.querySelector('.nl-entry-image-list');
+    var visionOutput = backdrop.querySelector('.nl-entry-vision-output');
+    var visionEditHint = backdrop.querySelector('.nl-entry-vision-edit-hint');
+    var visionProgress = backdrop.querySelector('.nl-entry-progress');
+    var visionElapsed = backdrop.querySelector('.nl-entry-elapsed');
+    var visionSteps = Array.prototype.slice.call(backdrop.querySelectorAll('[data-progress-step]'));
+    var visionTimer = null;
+    var visionStartedAt = 0;
+    var visionProgressStep = 0;
     var promptText = aiPromptText();
     var promptBox = backdrop.querySelector('.nl-entry-prompt-text');
     var copyButton = backdrop.querySelector('.nl-entry-copy');
+    var selectedFiles = [];
+    var visionText = '';
+    var visionPayload = null;
+
     if (promptBox) promptBox.textContent = promptText;
     if (copyButton) copyButton.onclick = async function () {
       var copied = await copyText(promptText);
@@ -735,17 +765,341 @@
       copyButton.textContent = copied ? '已复制' : '复制失败，请手动选择';
       setTimeout(function () { copyButton.textContent = '复制提示词'; }, 1600);
     };
-    function close() { backdrop.remove(); }
+
+    function close() {
+      if (visionTimer) {
+        clearInterval(visionTimer);
+        visionTimer = null;
+      }
+      backdrop.remove();
+    }
+    function elapsedText() {
+      return ((Math.max(0, Date.now() - visionStartedAt)) / 1000).toFixed(1) + 's';
+    }
+    function updateVisionProgress(step, completed, failed) {
+      visionProgressStep = step;
+      if (visionProgress) visionProgress.hidden = false;
+      visionSteps.forEach(function (item, index) {
+        item.classList.toggle('is-done', completed || index < step);
+        item.classList.toggle('is-active', !completed && !failed && index === step);
+        item.classList.toggle('is-error', !!failed && index === step);
+      });
+      if (visionElapsed) visionElapsed.textContent = elapsedText();
+    }
+    function startVisionProgress() {
+      if (visionTimer) clearInterval(visionTimer);
+      visionStartedAt = Date.now();
+      visionProgressStep = 0;
+      if (visionProgress) {
+        visionProgress.hidden = false;
+        visionProgress.classList.remove('is-complete', 'has-error');
+      }
+      updateVisionProgress(0, false, false);
+      visionTimer = setInterval(function () {
+        if (visionElapsed) visionElapsed.textContent = elapsedText();
+      }, 100);
+    }
+    function setVisionProgress(step) {
+      updateVisionProgress(step, false, false);
+    }
+    function finishVisionProgress(success) {
+      if (visionTimer) {
+        clearInterval(visionTimer);
+        visionTimer = null;
+      }
+      updateVisionProgress(visionProgressStep, success, !success);
+      if (visionProgress) {
+        visionProgress.classList.toggle('is-complete', success);
+        visionProgress.classList.toggle('has-error', !success);
+      }
+    }
+    function resetVisionProgress() {
+      if (visionTimer) {
+        clearInterval(visionTimer);
+        visionTimer = null;
+      }
+      visionStartedAt = 0;
+      visionProgressStep = 0;
+      if (visionProgress) {
+        visionProgress.hidden = true;
+        visionProgress.classList.remove('is-complete', 'has-error');
+      }
+      visionSteps.forEach(function (item) {
+        item.classList.remove('is-done', 'is-active', 'is-error');
+      });
+      if (visionElapsed) visionElapsed.textContent = '0.0s';
+      if (visionEditHint) visionEditHint.hidden = true;
+    }
+    function clearError() { error.textContent = ''; }
     closeButton.onclick = close;
     cancelButton.onclick = close;
     backdrop.onclick = function (event) { if (event.target === backdrop) close(); };
+
+    function setTab(name) {
+      backdrop.querySelectorAll('[data-entry-tab]').forEach(function (tab) {
+        var active = tab.dataset.entryTab === name;
+        tab.classList.toggle('is-active', active);
+        tab.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      backdrop.querySelectorAll('[data-entry-pane]').forEach(function (pane) {
+        var active = pane.dataset.entryPane === name;
+        pane.classList.toggle('is-active', active);
+        pane.hidden = !active;
+      });
+      trackUsage('quick_entry_mode_changed', { mode: name });
+      clearError();
+      if (name === 'text') textarea.focus();
+    }
+    backdrop.querySelectorAll('[data-entry-tab]').forEach(function (tab) {
+      tab.onclick = function () { setTab(tab.dataset.entryTab); };
+    });
+
+    function renderFiles() {
+      imageList.innerHTML = '';
+      if (!selectedFiles.length) {
+        imageList.innerHTML = '<span class="nl-entry-empty">还没有选择图片</span>';
+        visionSubmitButton.disabled = true;
+        return;
+      }
+      selectedFiles.forEach(function (file, index) {
+        var row = document.createElement('div');
+        row.className = 'nl-entry-image-item';
+        row.innerHTML = '<span class="nl-entry-image-index">' + (index + 1) + '</span><span class="nl-entry-image-name"></span><button type="button" class="nl-entry-image-remove" aria-label="移除图片">×</button>';
+        row.querySelector('.nl-entry-image-name').textContent = file.name || ('图片 ' + (index + 1));
+        row.querySelector('.nl-entry-image-remove').onclick = function () {
+          selectedFiles.splice(index, 1);
+          visionText = '';
+          visionPayload = null;
+          visionOutput.hidden = true;
+          visionOutput.value = '';
+          resetVisionProgress();
+          visionSubmitButton.textContent = '识别图片';
+          renderFiles();
+        };
+        imageList.appendChild(row);
+      });
+      visionSubmitButton.disabled = false;
+    }
+    fileInput.onchange = function () {
+      var incoming = Array.prototype.slice.call(fileInput.files || []).filter(function (file) {
+        return /^image\//i.test(file.type);
+      });
+      var allowed = Math.max(0, 6 - selectedFiles.length);
+      selectedFiles = selectedFiles.concat(incoming.slice(0, allowed));
+      if (incoming.length > allowed) error.textContent = '最多选择 6 张图片。';
+      else clearError();
+      visionText = '';
+      visionPayload = null;
+      visionOutput.hidden = true;
+      visionOutput.value = '';
+      resetVisionProgress();
+      visionSubmitButton.textContent = '识别图片';
+      fileInput.value = '';
+      renderFiles();
+      trackUsage('quick_entry_images_selected', { image_count: selectedFiles.length });
+    };
+
+    function fileDataUrl(file) {
+      return new Promise(function (resolve, reject) {
+        var reader = new FileReader();
+        reader.onload = function () { resolve(String(reader.result || '')); };
+        reader.onerror = function () { reject(new Error('读取图片失败')); };
+        reader.readAsDataURL(file);
+      });
+    }
+    function compactImage(dataUrl) {
+      return new Promise(function (resolve) {
+        var image = new Image();
+        image.onload = function () {
+          var maxSide = 1800;
+          var scale = Math.min(1, maxSide / Math.max(image.naturalWidth || image.width, image.naturalHeight || image.height));
+          var canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round((image.naturalWidth || image.width) * scale));
+          canvas.height = Math.max(1, Math.round((image.naturalHeight || image.height) * scale));
+          var context = canvas.getContext('2d');
+          if (!context) { resolve(dataUrl); return; }
+          context.fillStyle = '#fff';
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          try { resolve(canvas.toDataURL('image/jpeg', 0.84)); } catch (e) { resolve(dataUrl); }
+        };
+        image.onerror = function () { resolve(dataUrl); };
+        image.src = dataUrl;
+      });
+    }
+    function visionContext() {
+      var grade = modal.querySelector('#gradeLevelV14');
+      var classificationOptions = grade
+        ? Array.prototype.map.call(grade.options || [], function (option) { return option.textContent.trim(); }).filter(Boolean)
+        : [];
+      return { classificationOptions: classificationOptions, subjectNames: modalSubjectNames(modal) };
+    }
+    async function callVision(images) {
+      var token = localStorage.getItem('st_token') || '';
+      if (!token) {
+        var authError = new Error('请先登录后再使用拍照录入。（HTTP 401）');
+        authError.requestStatus = 401;
+        authError.upstreamStatus = 0;
+        throw authError;
+      }
+      var response;
+      try {
+        response = await fetch(VISION_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: token, images: images, context: visionContext(modal) })
+        });
+      } catch (cause) {
+        var networkError = new Error('无法连接识别服务，请检查网络后重试。');
+        networkError.requestStatus = 0;
+        networkError.upstreamStatus = 0;
+        networkError.upstreamMessage = cause && cause.message ? String(cause.message).slice(0, 180) : '';
+        throw networkError;
+      }
+      var payload = await response.json().catch(function () { return {}; });
+      if (!response.ok) {
+        var requestStatus = Number(response.status || 0);
+        var upstreamStatus = Number(payload.upstream_status || requestStatus || 0);
+        var detail = payload.upstream_message ? String(payload.upstream_message).slice(0, 180) : '';
+        var retryAfter = Number(payload.retry_after_seconds || 0);
+        if (!detail && retryAfter > 0) detail = '约 ' + retryAfter + ' 秒后可重试';
+        var label = payload.error || '识图服务暂时不可用';
+        var suffix = '（HTTP ' + (upstreamStatus || requestStatus || 0) + (detail ? '：' + detail : '') + '）';
+        var serviceError = new Error(String(label) + suffix);
+        serviceError.requestStatus = requestStatus;
+        serviceError.upstreamStatus = upstreamStatus;
+        serviceError.upstreamMessage = detail;
+        throw serviceError;
+      }
+      return payload;
+    }
+    function visionFailureMeta(error) {
+      return {
+        image_count: selectedFiles.length,
+        error_count: 1,
+        request_status: Number(error && (error.requestStatus || error.status) || 0),
+        upstream_status: Number(error && error.upstreamStatus || 0),
+        error_message: String(error && error.message || '识图失败').slice(0, 240)
+      };
+    }
+    function displayValue(value) {
+      return value === null || value === undefined || value === '' ? '-' : String(value);
+    }
+    function displayPair(value, total) {
+      return value === null || value === undefined || value === '' ? '-' : displayValue(value) + '/' + displayValue(total);
+    }
+    function visionToText(payload) {
+      var exam = payload && payload.exam || {};
+      var lines = [
+        '考试名称：' + displayValue(exam.name),
+        '考试日期：' + displayValue(exam.date),
+        '结束日期：-',
+        '年级：' + displayValue(exam.category),
+        '总分年排：' + displayPair(exam.yearRank, exam.yearParticipants),
+        '总分班排：' + displayPair(exam.classRank, exam.classParticipants),
+        '总分年位比：-',
+        '总分班位比：-',
+        '最终总分：' + displayValue(exam.finalTotal),
+        '原始总分：' + displayValue(exam.rawTotal),
+        '市排名：-',
+        '区排名：-',
+        '隐藏：-'
+      ];
+      (payload && Array.isArray(payload.subjects) ? payload.subjects : []).forEach(function (subject) {
+        var finalScore = subject.finalScore;
+        if ((finalScore === null || finalScore === undefined || finalScore === '') && subject.ambiguousScore !== null && subject.ambiguousScore !== undefined) {
+          finalScore = subject.ambiguousScore;
+        }
+        lines.push(
+          displayValue(subject.name) + '：目标：' + displayValue(subject.target) +
+          '，原始分：' + displayPair(subject.rawScore, subject.rawMax) +
+          '，最终分（赋分后）：' + displayPair(finalScore, subject.finalMax) +
+          '，年排：' + displayPair(subject.yearRank, subject.yearParticipants) +
+          '，班排：' + displayPair(subject.classRank, subject.classParticipants)
+        );
+      });
+      return lines.join('\n');
+    }
+    async function encodeImages() {
+      var images = [];
+      for (var i = 0; i < selectedFiles.length; i += 1) {
+        var source = await fileDataUrl(selectedFiles[i]);
+        images.push(await compactImage(source));
+      }
+      return images;
+    }
+    async function applyVisionResult() {
+      if (visionOutput && !visionOutput.hidden) visionText = visionOutput.value;
+      var parsed = parseInput(visionText, modal);
+      if (parsed.errors.length) {
+        error.textContent = parsed.errors.join(' ');
+        return;
+      }
+      parsed.warnings = (visionPayload && Array.isArray(visionPayload.warnings) ? visionPayload.warnings : []).slice(0, 5);
+      visionSubmitButton.disabled = true;
+      visionSubmitButton.textContent = '正在填入…';
+      try {
+        var count = await applyResult(modal, parsed);
+        trackUsage('quick_entry_image_recognition_succeeded', { image_count: selectedFiles.length, field_count: parsed.fieldCount, applied_count: count });
+        close();
+        showResult(modal, parsed, count);
+        if (typeof toast === 'function') toast('图片已识别并回填，请检查后保存');
+      } catch (e) {
+        trackUsage('quick_entry_image_recognition_failed', visionFailureMeta(e));
+        error.textContent = '回填失败：' + (e.message || '请稍后重试');
+        visionSubmitButton.disabled = false;
+        visionSubmitButton.textContent = '确认并填入';
+      }
+    }
+    visionSubmitButton.onclick = async function () {
+      clearError();
+      if (visionOutput && !visionOutput.hidden) {
+        visionText = visionOutput.value;
+        await applyVisionResult();
+        return;
+      }
+      if (visionText) {
+        await applyVisionResult();
+        return;
+      }
+      if (!selectedFiles.length) {
+        error.textContent = '请先选择至少 1 张成绩单图片。';
+        return;
+      }
+      visionSubmitButton.disabled = true;
+      visionSubmitButton.textContent = '识别中…';
+      startVisionProgress();
+      trackUsage('quick_entry_image_recognition_started', { image_count: selectedFiles.length });
+      try {
+        setVisionProgress(0);
+        var images = await encodeImages();
+        setVisionProgress(1);
+        setVisionProgress(2);
+        visionPayload = await callVision(images);
+        setVisionProgress(3);
+        visionText = visionToText(visionPayload);
+        visionOutput.value = visionText;
+        visionOutput.hidden = false;
+        if (visionEditHint) visionEditHint.hidden = false;
+        finishVisionProgress(true);
+        visionSubmitButton.disabled = false;
+        visionSubmitButton.textContent = '确认并填入';
+      } catch (e) {
+        finishVisionProgress(false);
+        trackUsage('quick_entry_image_recognition_failed', visionFailureMeta(e));
+        error.textContent = e.message || '识图失败，请稍后重试。';
+        visionSubmitButton.disabled = false;
+        visionSubmitButton.textContent = '识别图片';
+      }
+    };
+
     submitButton.onclick = async function () {
-      error.textContent = '';
+      clearError();
       var inputChars = textarea.value.trim().length;
-      trackUsage('quick_entry_recognition_started', { input_chars: inputChars });
+      trackUsage('quick_entry_natural_recognition_started', { input_chars: inputChars });
       var parsed = parseInput(textarea.value, modal);
       if (parsed.errors.length) {
-        trackUsage('quick_entry_recognition_failed', { error_count: parsed.errors.length, input_chars: inputChars });
+        trackUsage('quick_entry_natural_recognition_failed', { error_count: parsed.errors.length, input_chars: inputChars });
         error.textContent = parsed.errors.join(' ');
         return;
       }
@@ -753,18 +1107,19 @@
       submitButton.textContent = '识别中…';
       try {
         var count = await applyResult(modal, parsed);
-        trackUsage('quick_entry_recognition_succeeded', { field_count: parsed.fieldCount, applied_count: count, rank_mode: parsed.rankMode || 'none' });
+        trackUsage('quick_entry_natural_recognition_succeeded', { field_count: parsed.fieldCount, applied_count: count, rank_mode: parsed.rankMode || 'none' });
         close();
         showResult(modal, parsed, count);
         if (typeof toast === 'function') toast('已回填，请检查后保存');
       } catch (e) {
-        trackUsage('quick_entry_recognition_failed', { error_count: 1, input_chars: inputChars });
+        trackUsage('quick_entry_natural_recognition_failed', { error_count: 1, input_chars: inputChars });
         error.textContent = '回填失败：' + (e.message || '请稍后重试');
         submitButton.disabled = false;
         submitButton.textContent = '识别并填入';
       }
     };
-    textarea.focus();
+    renderFiles();
+    setTab('image');
   }
 
   function decorateModal(modal) {
@@ -795,6 +1150,41 @@
     '.nl-entry-backdrop{z-index:250;background:rgba(22,28,39,.52)}',
     '.nl-entry-modal{width:min(650px,100%);max-height:min(88vh,820px)}',
     '.nl-entry-subtitle{margin:4px 0 0;color:var(--muted,#788392);font-size:11px;line-height:1.5}',
+
+    '.nl-entry-tabs{display:flex;gap:8px;padding:12px 14px 0;border-bottom:1px solid var(--line,#e8ebf0)}',
+    '.nl-entry-tab{flex:1;border:1px solid var(--line,#e8ebf0);border-bottom:0;border-radius:12px 12px 0 0;background:var(--cell,#f7f9fc);color:var(--muted,#788392);padding:9px 10px;font-size:12px;font-weight:700;cursor:pointer}',
+    '.nl-entry-tab.is-active{background:var(--panel-solid,#fff);color:var(--accent,#5d72e8);border-color:#98a6f2;box-shadow:0 -2px 0 #98a6f2 inset}',
+    '.nl-entry-pane{padding-top:2px}',
+    '.nl-entry-upload-card{border:1px dashed #9aa9ec;border-radius:14px;background:linear-gradient(135deg,#f6f7ff,#fbfcff);padding:18px;text-align:center}',
+    '.nl-entry-file-button{display:inline-flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:var(--accent,#5d72e8);font-weight:750;font-size:13px}',
+    '.nl-entry-file-button small{font-size:10px;color:var(--muted,#788392);font-weight:500}',
+    '.nl-entry-files{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}',
+    '.nl-entry-upload-card p{margin:10px 0 0;color:var(--muted,#788392);font-size:11px;line-height:1.55}',
+    '.nl-entry-image-list{display:grid;gap:7px;margin-top:12px}',
+    '.nl-entry-empty{display:block;padding:14px;border:1px solid var(--line,#e8ebf0);border-radius:12px;color:var(--muted,#788392);font-size:11px;text-align:center}',
+    '.nl-entry-image-item{display:flex;align-items:center;gap:8px;border:1px solid var(--line,#e8ebf0);border-radius:10px;padding:7px 9px;background:var(--panel-solid,#fff);font-size:11px}',
+    '.nl-entry-image-index{display:grid;place-items:center;width:20px;height:20px;border-radius:7px;background:#eef0ff;color:var(--accent,#5d72e8);font-weight:750;flex:none}',
+    '.nl-entry-image-name{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text,#18212f)}',
+    '.nl-entry-image-remove{border:0;background:transparent;color:var(--muted,#788392);font-size:16px;line-height:1;padding:2px 5px;cursor:pointer}',
+    '.nl-entry-vision-note{font-size:10.5px;line-height:1.55;color:var(--muted,#788392);margin:10px 2px 0}',
+    '.nl-entry-progress{margin:12px 0 0;border:1px solid var(--line,#e8ebf0);border-radius:14px;padding:11px 12px;background:var(--cell,#f7f9fc)}',
+    '.nl-entry-progress-head{display:flex;align-items:center;justify-content:space-between;color:var(--muted,#788392);font-size:11px;font-weight:700}',
+    '.nl-entry-elapsed{color:var(--accent,#5d72e8);font-variant-numeric:tabular-nums}',
+    '.nl-entry-progress-steps{list-style:none;margin:9px 0 0;padding:0;display:grid;gap:6px}',
+    '.nl-entry-progress-step{display:flex;align-items:center;gap:8px;color:var(--muted,#788392);font-size:10.5px;line-height:1.35}',
+    '.nl-entry-progress-dot{display:grid;place-items:center;width:18px;height:18px;border:1px solid var(--line,#e8ebf0);border-radius:50%;background:var(--panel-solid,#fff);font-size:9px;font-weight:800;flex:0 0 auto}',
+    '.nl-entry-progress-step.is-active{color:var(--accent,#5d72e8);font-weight:700}',
+    '.nl-entry-progress-step.is-active .nl-entry-progress-dot{border-color:var(--accent,#5d72e8);box-shadow:0 0 0 3px rgba(93,114,232,.12)}',
+    '.nl-entry-progress-step.is-done{color:var(--green,#32a77a)}',
+    '.nl-entry-progress-step.is-done .nl-entry-progress-dot{border-color:var(--green,#32a77a);background:var(--green-soft,#e9f8f2);color:var(--green,#32a77a)}',
+    '.nl-entry-progress-step.is-error{color:var(--danger,#d9534f)}',
+    '.nl-entry-progress-step.is-error .nl-entry-progress-dot{border-color:var(--danger,#d9534f);background:var(--danger-soft,#fff0f0);color:var(--danger,#d9534f)}',
+    '.nl-entry-progress.is-complete{border-color:#bfe8d5;background:var(--green-soft,#e9f8f2)}',
+    '.nl-entry-progress.has-error{border-color:#f0c5c5;background:var(--danger-soft,#fff5f5)}',
+    '.nl-entry-vision-edit-hint{font-size:10.5px;line-height:1.55;color:var(--muted,#788392);margin:10px 2px 0}',
+    '.nl-entry-vision-output{display:block;width:100%;box-sizing:border-box;min-height:220px;max-height:360px;resize:vertical;overflow:auto;white-space:pre-wrap;margin:8px 0 0;border:1px solid #9aa9ec;border-radius:12px;padding:11px;background:#f5f8ff;color:#526174;font:11px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace;outline:0}',
+    '.nl-entry-vision-output:focus{border-color:var(--accent,#5d72e8);box-shadow:0 0 0 3px rgba(93,114,232,.12)}',
+    '.nl-entry-footer-actions{margin-top:0}',
     '.nl-entry-text{display:block;width:100%;min-height:250px;box-sizing:border-box;resize:vertical;border:1px solid var(--line,#e8ebf0);border-radius:14px;padding:13px 14px;background:var(--panel-solid,#fff);color:var(--text,#18212f);font:inherit;font-size:13px;line-height:1.7;outline:none}',
     '.nl-entry-text:focus{border-color:#98a6f2;box-shadow:0 0 0 3px #eef0ff}',
     '.nl-entry-help{font-size:11px;line-height:1.65;color:var(--muted,#788392);margin:9px 2px 0}',
@@ -810,7 +1200,18 @@
     '.nl-entry-result b,.nl-entry-result span{display:block}',
     '.nl-entry-warning{color:#9a6a20;margin-top:3px}',
     '.nl-entry-filled{background:#f4f7ff!important;box-shadow:0 0 0 2px rgba(93,114,232,.16)!important;transition:background .2s,box-shadow .2s}',
-    '@media(max-width:620px){.nl-entry-trigger{padding:7px 8px;font-size:10.5px}.nl-entry-modal{border-radius:18px}.nl-entry-text{min-height:230px}}'
+    '.vision-beta-backdrop{position:fixed;inset:0;z-index:500;display:grid;place-items:center;padding:20px;background:rgba(18,25,38,.48);backdrop-filter:blur(5px)}',
+    '.vision-beta-modal{width:min(430px,100%);box-sizing:border-box;border:1px solid rgba(117,135,231,.32);border-radius:24px;padding:26px 24px 22px;background:var(--panel-solid,#fff);box-shadow:0 24px 70px rgba(35,48,88,.22);color:var(--text,#18212f);position:relative}',
+    '.vision-beta-close{position:absolute;top:12px;right:14px;width:30px;height:30px;border:0;border-radius:50%;background:var(--cell,#f7f9fc);color:var(--muted,#788392);font-size:20px;line-height:1;cursor:pointer}',
+    '.vision-beta-kicker{display:inline-flex;align-items:center;border-radius:999px;padding:5px 9px;background:#eef0ff;color:var(--accent,#5d72e8);font-size:10px;font-weight:800;letter-spacing:.04em}',
+    '.vision-beta-modal h3{margin:14px 34px 9px 0;font-size:20px;line-height:1.35}',
+    '.vision-beta-modal p{margin:0;color:var(--muted,#788392);font-size:12px;line-height:1.75}',
+    '.vision-beta-modal p+p{margin-top:10px}',
+    '.vision-beta-note{margin-top:14px!important;padding:11px 12px;border-radius:13px;background:linear-gradient(135deg,#f5f7ff,#fbfcff);color:#5968a8!important}',
+    '.vision-beta-actions{display:grid;gap:9px;margin-top:20px}',
+    '.vision-beta-primary{width:100%;justify-content:center;padding:11px 14px;border-radius:12px;background:linear-gradient(135deg,#5d72e8,#7c6ee8);color:#fff;border:0;font-weight:800;cursor:pointer;box-shadow:0 8px 20px rgba(93,114,232,.2)}',
+    '.vision-beta-secondary{border:0;background:transparent;color:var(--muted,#788392);font-size:11px;cursor:pointer;padding:5px}',
+    '@media(max-width:620px){.nl-entry-trigger{padding:7px 8px;font-size:10.5px}.nl-entry-modal{border-radius:18px}.nl-entry-text{min-height:230px}.vision-beta-backdrop{padding:14px}.vision-beta-modal{border-radius:20px;padding:23px 18px 18px}}'
   ].join('\n');
   (document.head || document.documentElement).appendChild(style);
 
@@ -818,6 +1219,95 @@
     parse: parseInput,
     apply: applyResult
   };
+
+
+  function visionBetaSeenKey(username) {
+    return 'st_vision_beta_invite_seen_v1:' + encodeURIComponent(String(username || ''));
+  }
+
+  function hasVisionBetaSeen(username) {
+    try { return localStorage.getItem(visionBetaSeenKey(username)) === '1'; } catch (e) { return false; }
+  }
+
+  function markVisionBetaSeen(username) {
+    try { localStorage.setItem(visionBetaSeenKey(username), '1'); } catch (e) {}
+  }
+
+  var visionBetaStatusUser = '';
+  var visionBetaStatusInFlight = false;
+
+  async function checkVisionBetaStatus() {
+    var currentUser = typeof state !== 'undefined' && state.user ? state.user : null;
+    var token = localStorage.getItem('st_token') || '';
+    var username = currentUser && String(currentUser.username || '').trim();
+    if (!username || !token || hasVisionBetaSeen(username) || visionBetaStatusUser === username || visionBetaStatusInFlight) return;
+    visionBetaStatusInFlight = true;
+    try {
+      var response = await fetch(VISION_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'beta_status', token: token })
+      });
+      var payload = await response.json().catch(function () { return {}; });
+      if (!response.ok) return;
+      visionBetaStatusUser = username;
+      if (payload && payload.eligible) showVisionBetaInvite(username);
+    } catch (e) {
+      // 资格检查失败时保持静默，不影响正常登录和录入。
+    } finally {
+      visionBetaStatusInFlight = false;
+    }
+  }
+
+  function showVisionBetaInvite(username) {
+    if (document.querySelector('.vision-beta-backdrop')) return;
+    var backdrop = document.createElement('div');
+    backdrop.className = 'vision-beta-backdrop';
+    backdrop.innerHTML =
+      '<div class="vision-beta-modal" role="dialog" aria-modal="true" aria-labelledby="visionBetaTitle">' +
+      '<button type="button" class="vision-beta-close" aria-label="关闭">×</button>' +
+      '<span class="vision-beta-kicker">图片识别 · 内测邀请</span>' +
+      '<h3 id="visionBetaTitle">感谢你一直使用成绩轨迹</h3>' +
+      '<p>你是近期持续使用成绩轨迹的活跃用户，我们想邀请你优先体验图片识别录入内测。</p>' +
+      '<p class="vision-beta-note">进入“记录考试”，点击“快速录入”，选择“拍照录入”，即可上传成绩单图片。识别结果仍可编辑和确认。</p>' +
+      '<p>如果识别不准确，或遇到任何问题，欢迎通过页面反馈告诉我们，帮助我们在正式上线前继续改进。</p>' +
+      '<div class="vision-beta-actions"><button type="button" class="vision-beta-primary">去记录考试，试试快速录入</button><button type="button" class="vision-beta-secondary">稍后再试</button></div>' +
+      '</div>';
+    document.body.appendChild(backdrop);
+
+    var close = function (eventName) {
+      markVisionBetaSeen(username);
+      trackUsage(eventName, { source: 'vision_beta_invite' });
+      document.removeEventListener('keydown', onKeydown);
+      backdrop.remove();
+    };
+    var onKeydown = function (event) {
+      if (event.key === 'Escape') close('vision_beta_invite_dismissed');
+    };
+    var primary = backdrop.querySelector('.vision-beta-primary');
+    var secondary = backdrop.querySelector('.vision-beta-secondary');
+    var closeButton = backdrop.querySelector('.vision-beta-close');
+    primary.onclick = function () {
+      markVisionBetaSeen(username);
+      trackUsage('vision_beta_invite_cta_clicked', { source: 'vision_beta_invite' });
+      document.removeEventListener('keydown', onKeydown);
+      backdrop.remove();
+      if (typeof state !== 'undefined') {
+        state.page = 'records';
+        if (typeof render === 'function') render();
+        window.setTimeout(function () {
+          if (typeof openExam === 'function') openExam();
+        }, 80);
+      }
+    };
+    secondary.onclick = function () { close('vision_beta_invite_dismissed'); };
+    closeButton.onclick = function () { close('vision_beta_invite_dismissed'); };
+    backdrop.onclick = function (event) {
+      if (event.target === backdrop) close('vision_beta_invite_dismissed');
+    };
+    document.addEventListener('keydown', onKeydown);
+    trackUsage('vision_beta_invite_shown', { source: 'vision_beta_invite' });
+  }
 
   if (typeof document === 'undefined' || typeof openExam !== 'function') return;
 
@@ -827,4 +1317,19 @@
     decorateModal(state && state.modal ? state.modal : document.querySelector('.modal-backdrop'));
     return result;
   };
+
+  var renderBeforeVisionBeta = typeof render === 'function' ? render : null;
+  var visionBetaCheckTimer = 0;
+  if (renderBeforeVisionBeta) {
+    render = function renderWithVisionBetaInvite() {
+      var result = renderBeforeVisionBeta.apply(this, arguments);
+      if (!visionBetaCheckTimer) {
+        visionBetaCheckTimer = window.setTimeout(function () {
+          visionBetaCheckTimer = 0;
+          checkVisionBetaStatus().catch(function () {});
+        }, 260);
+      }
+      return result;
+    };
+  }
 })();
