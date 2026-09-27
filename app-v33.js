@@ -598,7 +598,7 @@ if(recordHtmlBeforeV33City){
 /* ================= 折线目标横线(得分率单科趋势,v25 几何复刻) ================= */
 function fmtPct(v){return Math.round(v*10)/10+"%"}
 function annotateTrendV33(html){
-  if(!hasGoal()||html.indexOf('<svg viewBox="0 0 760 300"')<0||html.indexOf('stroke-dasharray="7 7"')<0)return html;
+  if(!hasGoal()||html.indexOf('<svg viewBox="0 0 760 300"')<0||html.indexOf('data-goal-line-v33="1"')>=0)return html;
   var s33=ST();
   if(!s33||!s33.subject||s33.subject==="总览"||s33.subject==="总分")return html;
   var goal=goalSubjects()[s33.subject];
@@ -625,8 +625,8 @@ function annotateTrendV33(html){
   var L=46,R=18,cw=760-L-R,n=exams.length;
   var x1=n===1?L+cw/2:L,x2=n===1?L+cw/2:760-R;
   var label=asPercent?fmtPct(gr):((typeof formatScore==="function"?formatScore(gr):gr)+" 分");
-  var tag='<line x1="'+x1+'" y1="'+y.toFixed(1)+'" x2="'+x2+'" y2="'+y.toFixed(1)+'" stroke="#16a085" stroke-width="2" stroke-dasharray="3 4"/>'
-    +'<text x="'+(760-R)+'" y="'+(y-6).toFixed(1)+'" text-anchor="end" style="font-size:11px;fill:#16a085">长期目标 '+label+"</text>";
+  var tag='<line x1="'+x1+'" y1="'+y.toFixed(1)+'" x2="'+x2+'" y2="'+y.toFixed(1)+'" stroke="#0f8b6d" stroke-width="3" stroke-dasharray="8 5" stroke-linecap="round" data-goal-line-v33="1"/>'
+    +'<text x="'+(760-R)+'" y="'+(y-6).toFixed(1)+'" text-anchor="end" style="font-size:12px;font-weight:700;fill:#0f8b6d;paint-order:stroke;stroke:#fff;stroke-width:3px;stroke-opacity:.92">长期目标 '+label+"</text>";
   return html.replace("</svg>",tag+"</svg>");
 }
 var H0=300;
