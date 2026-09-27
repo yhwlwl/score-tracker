@@ -133,7 +133,13 @@
     }
     try {
       var data = await loadOverview(false);
-      if (Number(data.availableCount || 0) > 0) openVoteModal('auto', data);
+      var options = Array.isArray(data.options) ? data.options : [];
+      var hasVoted = (Array.isArray(data.myVotes) && data.myVotes.length > 0) ||
+        options.some(function (item) { return item && item.votedByMe; });
+      var hasUnvoted = options.length
+        ? options.some(function (item) { return item && item.isActive !== false && !item.votedByMe; })
+        : Number(data.availableCount || 0) > 0;
+      if (!hasVoted && hasUnvoted) openVoteModal('auto', data);
     } catch (e) {}
   }
 

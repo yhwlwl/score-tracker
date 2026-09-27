@@ -713,7 +713,7 @@
       '<div class="modal-head"><div><h3>快速录入</h3><p class="nl-entry-subtitle">输入一段文字，识别后回填到原来的录入表</p></div><button class="close-btn" type="button" aria-label="关闭">×</button></div>' +
       '<div class="modal-body">' +
       '<textarea class="nl-entry-text" aria-label="快速录入内容" spellcheck="false" placeholder="例如：\n考试名称：高一上学期期中考试\n考试日期：2026-09-20\n年级：高一\n语文：目标120，原始112/150，最终112/150，年排36/620，班排8/45\n数学：目标135，真实128/150\n总分年排：36/620，班排：8/45"></textarea>' +
-      '<p class="nl-entry-help">支持考试名称、日期、年级、结束日期、各科目标 / 原始分 / 最终分（赋分后） / 满分 / 年排 / 班排 / 位比、市区排名、总分和图表显示状态。只有一个成绩时默认填入最终分。你也可以复制下面的提示词，并将它和成绩单截图一起发给豆包等 AI，整理后再粘贴回来。</p>' +
+      '<p class="nl-entry-help">支持考试名称、日期、年级、结束日期、各科目标 / 原始分 / 最终分（赋分后） / 满分 / 年排 / 班排 / 位比、市区排名、总分和图表显示状态。只有一个成绩时默认填入最终分。<br><strong>你也可以复制下面的提示词，并将它和成绩单截图一起发给豆包等 AI，整理后再粘贴回来。</strong></p>' +
       '<details class="nl-entry-prompt"><summary>给 AI 的识别提示词（可复制） <span>点击展开并复制</span></summary><div class="nl-entry-prompt-box"><pre class="nl-entry-prompt-text"></pre><button class="secondary nl-entry-copy" type="button">复制提示词</button></div></details>' +
       '<div class="nl-entry-error" role="status"></div>' +
       '<div class="modal-actions"><button class="secondary nl-entry-cancel" type="button">取消</button><button class="primary nl-entry-submit" type="button">识别并填入</button></div>' +
@@ -798,6 +798,7 @@
     '.nl-entry-text{display:block;width:100%;min-height:250px;box-sizing:border-box;resize:vertical;border:1px solid var(--line,#e8ebf0);border-radius:14px;padding:13px 14px;background:var(--panel-solid,#fff);color:var(--text,#18212f);font:inherit;font-size:13px;line-height:1.7;outline:none}',
     '.nl-entry-text:focus{border-color:#98a6f2;box-shadow:0 0 0 3px #eef0ff}',
     '.nl-entry-help{font-size:11px;line-height:1.65;color:var(--muted,#788392);margin:9px 2px 0}',
+    '.nl-entry-help strong{display:block;margin-top:5px;color:var(--text,#18212f);font-weight:750;line-height:1.55}',
     '.nl-entry-prompt{margin-top:12px;border:1px solid var(--line,#e8ebf0);border-radius:12px;background:var(--cell,#f7f9fc);overflow:hidden}',
     '.nl-entry-prompt summary{cursor:pointer;padding:10px 12px;color:var(--text,#18212f);font-size:11.5px;font-weight:700}',
     '.nl-entry-prompt summary span{float:right;color:var(--muted,#788392);font-size:10.5px;font-weight:400}',
