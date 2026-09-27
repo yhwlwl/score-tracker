@@ -53,7 +53,7 @@ async function visionConfig() {
   let row: any = null;
   try {
     const result = await db.from("score_tracker_ai_configs")
-      .select("openrouter_api_key,base_url,model,enabled,daily_limit,global_daily_limit,cooldown_seconds")
+      .select("openrouter_api_key,base_url,model,enabled,beta_only,daily_limit,global_daily_limit,cooldown_seconds")
       .eq("id", "score_vision")
       .maybeSingle();
     if (result.error) throw result.error;
@@ -67,6 +67,7 @@ async function visionConfig() {
     model: String(row?.model || DEFAULT_VISION_MODEL).trim() || DEFAULT_VISION_MODEL,
     configured: !!row?.openrouter_api_key || !!Deno.env.get("OPENROUTER_API_KEY"),
     disabled: row?.enabled === false,
+    betaOnly: row?.beta_only !== false,
     dailyLimit: safeConfigInt(row?.daily_limit, DEFAULT_AI_DAILY_LIMIT, 1, 1000),
     globalDailyLimit: safeConfigInt(row?.global_daily_limit, DEFAULT_AI_GLOBAL_DAILY_LIMIT, 1, 10000),
     cooldownSeconds: safeConfigInt(row?.cooldown_seconds, DEFAULT_AI_COOLDOWN_SECONDS, 0, 86400),
@@ -97,6 +98,17 @@ async function auth(token: string) {
   return data;
 }
 
+async function isVisionBetaUser(username: unknown) {
+  const usernameKey = String(username ?? "").trim().toLowerCase();
+  if (!usernameKey) return false;
+  const result = await db.from("score_tracker_ai_beta_users")
+    .select("username_key")
+    .eq("username_key", usernameKey)
+    .eq("enabled", true)
+    .maybeSingle();
+  if (result.error) throw result.error;
+  return !!result.data;
+}
 
 async function claimAiRequest(userId: string, limits: { dailyLimit: number; globalDailyLimit: number; cooldownSeconds: number }) {
   const result = await db.rpc("claim_score_tracker_ai_request", {
@@ -210,6 +222,21 @@ Deno.serve(async (req) => {
     const user = await auth(String(body.token ?? ""));
     if (!user) return json({ error: "登录已失效，请重新登录" }, 401);
 
+    const config = await visionConfig();
+    if (body.action === "beta_status") {
+      if (config.disabled || !config.configured) {
+        return json({ eligible: false, enabled: !config.disabled, beta_only: config.betaOnly });
+      }
+      let eligible = false;
+      try {
+        eligible = config.betaOnly && await isVisionBetaUser(user.username);
+      } catch (error) {
+        console.error("vision beta status", error instanceof Error ? error.message : error);
+        return json({ error: "识别服务资格检查暂不可用", code: "beta_status_unavailable" }, 503);
+      }
+      return json({ eligible, enabled: !config.disabled, beta_only: config.betaOnly });
+    }
+
     const images = Array.isArray(body.images) ? body.images : [];
     if (!images.length || images.length > 6) return json({ error: "请选择 1～6 张图片" }, 400);
     let totalSize = 0;
@@ -220,9 +247,20 @@ Deno.serve(async (req) => {
     }
     if (totalSize > 18_000_000) return json({ error: "图片总大小过大，请分批识别" }, 400);
 
-    const config = await visionConfig();
     if (config.disabled) return json({ error: "识图功能当前未启用，请联系管理员" }, 503);
     if (!config.apiKey) return json({ error: "识图服务尚未配置识别服务 Key，请联系管理员" }, 503);
+    if (config.betaOnly) {
+      let allowed = false;
+      try {
+        allowed = await isVisionBetaUser(user.username);
+      } catch (error) {
+        console.error("vision beta access", error instanceof Error ? error.message : error);
+        return json({ error: "识别服务资格检查暂不可用，请稍后再试", code: "beta_access_unavailable", request_status: 0 }, 503);
+      }
+      if (!allowed) {
+        return json({ error: "图片识别目前处于内测阶段", code: "vision_beta_only", request_status: 403 }, 403);
+      }
+    }
 
     let quota;
     try {

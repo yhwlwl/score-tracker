@@ -4,6 +4,7 @@
 
   if (window.__studentNaturalEntryV1) return;
   window.__studentNaturalEntryV1 = true;
+  var VISION_ENDPOINT = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-vision-preview';
 
   function trackUsage(eventType, metadata) {
     try {
@@ -943,7 +944,7 @@
       }
       var response;
       try {
-        response = await fetch('https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-vision-preview', {
+        response = await fetch(VISION_ENDPOINT, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token: token, images: images, context: visionContext(modal) })
@@ -1199,7 +1200,18 @@
     '.nl-entry-result b,.nl-entry-result span{display:block}',
     '.nl-entry-warning{color:#9a6a20;margin-top:3px}',
     '.nl-entry-filled{background:#f4f7ff!important;box-shadow:0 0 0 2px rgba(93,114,232,.16)!important;transition:background .2s,box-shadow .2s}',
-    '@media(max-width:620px){.nl-entry-trigger{padding:7px 8px;font-size:10.5px}.nl-entry-modal{border-radius:18px}.nl-entry-text{min-height:230px}}'
+    '.vision-beta-backdrop{position:fixed;inset:0;z-index:500;display:grid;place-items:center;padding:20px;background:rgba(18,25,38,.48);backdrop-filter:blur(5px)}',
+    '.vision-beta-modal{width:min(430px,100%);box-sizing:border-box;border:1px solid rgba(117,135,231,.32);border-radius:24px;padding:26px 24px 22px;background:var(--panel-solid,#fff);box-shadow:0 24px 70px rgba(35,48,88,.22);color:var(--text,#18212f);position:relative}',
+    '.vision-beta-close{position:absolute;top:12px;right:14px;width:30px;height:30px;border:0;border-radius:50%;background:var(--cell,#f7f9fc);color:var(--muted,#788392);font-size:20px;line-height:1;cursor:pointer}',
+    '.vision-beta-kicker{display:inline-flex;align-items:center;border-radius:999px;padding:5px 9px;background:#eef0ff;color:var(--accent,#5d72e8);font-size:10px;font-weight:800;letter-spacing:.04em}',
+    '.vision-beta-modal h3{margin:14px 34px 9px 0;font-size:20px;line-height:1.35}',
+    '.vision-beta-modal p{margin:0;color:var(--muted,#788392);font-size:12px;line-height:1.75}',
+    '.vision-beta-modal p+p{margin-top:10px}',
+    '.vision-beta-note{margin-top:14px!important;padding:11px 12px;border-radius:13px;background:linear-gradient(135deg,#f5f7ff,#fbfcff);color:#5968a8!important}',
+    '.vision-beta-actions{display:grid;gap:9px;margin-top:20px}',
+    '.vision-beta-primary{width:100%;justify-content:center;padding:11px 14px;border-radius:12px;background:linear-gradient(135deg,#5d72e8,#7c6ee8);color:#fff;border:0;font-weight:800;cursor:pointer;box-shadow:0 8px 20px rgba(93,114,232,.2)}',
+    '.vision-beta-secondary{border:0;background:transparent;color:var(--muted,#788392);font-size:11px;cursor:pointer;padding:5px}',
+    '@media(max-width:620px){.nl-entry-trigger{padding:7px 8px;font-size:10.5px}.nl-entry-modal{border-radius:18px}.nl-entry-text{min-height:230px}.vision-beta-backdrop{padding:14px}.vision-beta-modal{border-radius:20px;padding:23px 18px 18px}}'
   ].join('\n');
   (document.head || document.documentElement).appendChild(style);
 
@@ -1207,6 +1219,95 @@
     parse: parseInput,
     apply: applyResult
   };
+
+
+  function visionBetaSeenKey(username) {
+    return 'st_vision_beta_invite_seen_v1:' + encodeURIComponent(String(username || ''));
+  }
+
+  function hasVisionBetaSeen(username) {
+    try { return localStorage.getItem(visionBetaSeenKey(username)) === '1'; } catch (e) { return false; }
+  }
+
+  function markVisionBetaSeen(username) {
+    try { localStorage.setItem(visionBetaSeenKey(username), '1'); } catch (e) {}
+  }
+
+  var visionBetaStatusUser = '';
+  var visionBetaStatusInFlight = false;
+
+  async function checkVisionBetaStatus() {
+    var currentUser = typeof state !== 'undefined' && state.user ? state.user : null;
+    var token = localStorage.getItem('st_token') || '';
+    var username = currentUser && String(currentUser.username || '').trim();
+    if (!username || !token || hasVisionBetaSeen(username) || visionBetaStatusUser === username || visionBetaStatusInFlight) return;
+    visionBetaStatusInFlight = true;
+    try {
+      var response = await fetch(VISION_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'beta_status', token: token })
+      });
+      var payload = await response.json().catch(function () { return {}; });
+      if (!response.ok) return;
+      visionBetaStatusUser = username;
+      if (payload && payload.eligible) showVisionBetaInvite(username);
+    } catch (e) {
+      // 资格检查失败时保持静默，不影响正常登录和录入。
+    } finally {
+      visionBetaStatusInFlight = false;
+    }
+  }
+
+  function showVisionBetaInvite(username) {
+    if (document.querySelector('.vision-beta-backdrop')) return;
+    var backdrop = document.createElement('div');
+    backdrop.className = 'vision-beta-backdrop';
+    backdrop.innerHTML =
+      '<div class="vision-beta-modal" role="dialog" aria-modal="true" aria-labelledby="visionBetaTitle">' +
+      '<button type="button" class="vision-beta-close" aria-label="关闭">×</button>' +
+      '<span class="vision-beta-kicker">图片识别 · 内测邀请</span>' +
+      '<h3 id="visionBetaTitle">感谢你一直使用成绩轨迹</h3>' +
+      '<p>你是近期持续使用成绩轨迹的活跃用户，我们想邀请你优先体验图片识别录入内测。</p>' +
+      '<p class="vision-beta-note">进入“记录考试”，点击“快速录入”，选择“拍照录入”，即可上传成绩单图片。识别结果仍可编辑和确认。</p>' +
+      '<p>如果识别不准确，或遇到任何问题，欢迎通过页面反馈告诉我们，帮助我们在正式上线前继续改进。</p>' +
+      '<div class="vision-beta-actions"><button type="button" class="vision-beta-primary">去记录考试，试试快速录入</button><button type="button" class="vision-beta-secondary">稍后再试</button></div>' +
+      '</div>';
+    document.body.appendChild(backdrop);
+
+    var close = function (eventName) {
+      markVisionBetaSeen(username);
+      trackUsage(eventName, { source: 'vision_beta_invite' });
+      document.removeEventListener('keydown', onKeydown);
+      backdrop.remove();
+    };
+    var onKeydown = function (event) {
+      if (event.key === 'Escape') close('vision_beta_invite_dismissed');
+    };
+    var primary = backdrop.querySelector('.vision-beta-primary');
+    var secondary = backdrop.querySelector('.vision-beta-secondary');
+    var closeButton = backdrop.querySelector('.vision-beta-close');
+    primary.onclick = function () {
+      markVisionBetaSeen(username);
+      trackUsage('vision_beta_invite_cta_clicked', { source: 'vision_beta_invite' });
+      document.removeEventListener('keydown', onKeydown);
+      backdrop.remove();
+      if (typeof state !== 'undefined') {
+        state.page = 'records';
+        if (typeof render === 'function') render();
+        window.setTimeout(function () {
+          if (typeof openExam === 'function') openExam();
+        }, 80);
+      }
+    };
+    secondary.onclick = function () { close('vision_beta_invite_dismissed'); };
+    closeButton.onclick = function () { close('vision_beta_invite_dismissed'); };
+    backdrop.onclick = function (event) {
+      if (event.target === backdrop) close('vision_beta_invite_dismissed');
+    };
+    document.addEventListener('keydown', onKeydown);
+    trackUsage('vision_beta_invite_shown', { source: 'vision_beta_invite' });
+  }
 
   if (typeof document === 'undefined' || typeof openExam !== 'function') return;
 
@@ -1216,4 +1317,19 @@
     decorateModal(state && state.modal ? state.modal : document.querySelector('.modal-backdrop'));
     return result;
   };
+
+  var renderBeforeVisionBeta = typeof render === 'function' ? render : null;
+  var visionBetaCheckTimer = 0;
+  if (renderBeforeVisionBeta) {
+    render = function renderWithVisionBetaInvite() {
+      var result = renderBeforeVisionBeta.apply(this, arguments);
+      if (!visionBetaCheckTimer) {
+        visionBetaCheckTimer = window.setTimeout(function () {
+          visionBetaCheckTimer = 0;
+          checkVisionBetaStatus().catch(function () {});
+        }, 260);
+      }
+      return result;
+    };
+  }
 })();

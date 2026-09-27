@@ -83,7 +83,7 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
   if(action==='feedback_status'&&req.method==='POST'){const b=await req.json(),status=String(b.status||'');if(!['new','reviewing','planned','resolved','closed'].includes(status))return json({error:'bad_status'},400);const {error}=await db.from('score_tracker_feedback_submissions').update({status}).eq('id',String(b.id||''));if(error)throw error;return json({ok:true})}
   if(action==='ai_config_save'&&req.method==='POST'){
     const b=await req.json();
-    const current=await db.from('score_tracker_ai_configs').select('openrouter_api_key,base_url,model,daily_limit,global_daily_limit,cooldown_seconds').eq('id','score_vision').maybeSingle();
+    const current=await db.from('score_tracker_ai_configs').select('openrouter_api_key,base_url,model,beta_only,daily_limit,global_daily_limit,cooldown_seconds').eq('id','score_vision').maybeSingle();
     if(current.error)throw current.error;
     const provided=String(b.apiKey||'').trim();
     const key=b.clearKey?null:(provided&&!provided.includes('••••')?provided:(current.data?.openrouter_api_key||null));
@@ -94,6 +94,7 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
     const dailyLimit=parseAiInt(b.dailyLimit,current.data?.daily_limit??DEFAULT_AI_DAILY_LIMIT,1,1000);
     const globalDailyLimit=parseAiInt(b.globalDailyLimit,current.data?.global_daily_limit??DEFAULT_AI_GLOBAL_DAILY_LIMIT,1,10000);
     const cooldownSeconds=parseAiInt(b.cooldownSeconds,current.data?.cooldown_seconds??DEFAULT_AI_COOLDOWN_SECONDS,0,86400);
+    const betaOnly=b.betaOnly===undefined?current.data?.beta_only!==false:b.betaOnly!==false;
     if(dailyLimit===null)return json({error:'单账号每日上限需为 1～1000 的整数'},400);
     if(globalDailyLimit===null)return json({error:'全站每日上限需为 1～10000 的整数'},400);
     if(cooldownSeconds===null)return json({error:'请求间隔需为 0～86400 秒的整数'},400);
@@ -107,11 +108,12 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
       daily_limit:dailyLimit,
       global_daily_limit:globalDailyLimit,
       cooldown_seconds:cooldownSeconds,
+      beta_only:betaOnly,
       updated_at:new Date().toISOString(),
       updated_by:admin.id
-    },{onConflict:'id'}).select('openrouter_api_key,base_url,model,enabled,daily_limit,global_daily_limit,cooldown_seconds,updated_at').single();
+    },{onConflict:'id'}).select('openrouter_api_key,base_url,model,enabled,beta_only,daily_limit,global_daily_limit,cooldown_seconds,updated_at').single();
     if(saved.error)throw saved.error;
-    return json({ok:true,configured:!!saved.data?.openrouter_api_key,masked_key:maskVisionKey(saved.data?.openrouter_api_key),base_url:saved.data.base_url,model:saved.data.model,enabled:saved.data.enabled,daily_limit:saved.data.daily_limit,global_daily_limit:saved.data.global_daily_limit,cooldown_seconds:saved.data.cooldown_seconds,updated_at:saved.data.updated_at});
+    return json({ok:true,configured:!!saved.data?.openrouter_api_key,masked_key:maskVisionKey(saved.data?.openrouter_api_key),base_url:saved.data.base_url,model:saved.data.model,enabled:saved.data.enabled,beta_only:saved.data.beta_only!==false,daily_limit:saved.data.daily_limit,global_daily_limit:saved.data.global_daily_limit,cooldown_seconds:saved.data.cooldown_seconds,updated_at:saved.data.updated_at});
   }
   if(action==='ai_config_test'&&req.method==='POST'){
     const started=Date.now(),b=await req.json();
@@ -144,7 +146,7 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
     return json({ok:false,status:response.status,latency_ms:Date.now()-started,message:detail||('HTTP '+response.status),code:'upstream_error'});
   }
   if(action==='feature_votes'){
-    const ai=await db.from('score_tracker_ai_configs').select('openrouter_api_key,base_url,model,enabled,daily_limit,global_daily_limit,cooldown_seconds,updated_at').eq('id','score_vision').maybeSingle();
+    const ai=await db.from('score_tracker_ai_configs').select('openrouter_api_key,base_url,model,enabled,beta_only,daily_limit,global_daily_limit,cooldown_seconds,updated_at').eq('id','score_vision').maybeSingle();
     if(ai.error)throw ai.error;
     const [or,vr,sr]=await Promise.all([
       db.from('score_tracker_feature_vote_options').select('id,option_key,label,description,source,is_active,sort_order,created_at,updated_at').order('sort_order').order('created_at'),
@@ -173,6 +175,10 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
         base_url:ai.data?.base_url||DEFAULT_VISION_BASE_URL,
         model:ai.data?.model||DEFAULT_VISION_MODEL,
         enabled:ai.data?.enabled!==false,
+        beta_only:ai.data?.beta_only!==false,
+        daily_limit:ai.data?.daily_limit??DEFAULT_AI_DAILY_LIMIT,
+        global_daily_limit:ai.data?.global_daily_limit??DEFAULT_AI_GLOBAL_DAILY_LIMIT,
+        cooldown_seconds:ai.data?.cooldown_seconds??DEFAULT_AI_COOLDOWN_SECONDS,
         updated_at:ai.data?.updated_at||null
       },
       total_voters:perUser.size,total_votes:votes.length,
