@@ -172,6 +172,9 @@
       body: JSON.stringify({ action: 'track_event', token: localStorage.getItem('st_token') || '', eventType, context: c, metadata }) }).catch(() => undefined);
   }
 
+  // Expose the existing telemetry channel to feature modules without exposing user-entered content.
+  window.__scoreTrackerTrack = track;
+
   window.fetch = async (...args) => {
     let action = '', body = null;
     try {
@@ -804,9 +807,8 @@ function bindPage() {
       toast('复制失败，请手动选择');
     }
   });
-  $$('[data-radar-mode]').forEach((b) => b.onclick = () => {
+  $('[data-radar-mode]').forEach((b) => b.onclick = () => {
     state.radarMode = b.dataset.radarMode;
-    state.radarSelection = [];
     ensureRadarSelection();
     render();
   });
@@ -3290,7 +3292,7 @@ var bindPageBeforeV16=bindPage;
 bindPage=function bindPageV16(){
   bindPageBeforeV16();
   $$('[data-trend-scope-v16]').forEach(function(button){button.onclick=function(){var scope=button.dataset.trendScopeV16;if(scope==='score'){state.trendMetric='score';}else{state.rankScopeV16=scope;if(state.trendMetric!=='rank_raw'&&state.trendMetric!=='rank')state.trendMetric='rank_raw';}render();};});
-  $$('[data-radar-scope-v16]').forEach(function(button){button.onclick=function(){state.rankScopeV16=button.dataset.radarScopeV16;if(state.radarMode!=='rank_raw'&&state.radarMode!=='rank')state.radarMode='rank_raw';state.radarSelection=[];ensureRadarSelection();render();};});
+  $$('[data-radar-scope-v16]').forEach(function(button){button.onclick=function(){state.rankScopeV16=button.dataset.radarScopeV16;if(state.radarMode!=='rank_raw'&&state.radarMode!=='rank')state.radarMode='rank_raw';ensureRadarSelection();render();};});
 };
 /* ===== app-v17.js ===== */
 // v17 / product v1.1: direct position-percent input, statistical subtotal items, newest-first records.
@@ -3369,7 +3371,7 @@ recordHtml=function recordHtmlV17(exam){var subjects=Object.keys(exam.scores||{}
 recordsHtml=function recordsHtmlV17(){var exams=state.allExams||[],hidden=exams.filter(function(e){return e.is_hidden;}).length,order=categoryOptionsV14();function byDateAsc(a,b){var d=String(a.exam_date||'').localeCompare(String(b.exam_date||''));if(d)return d;return String(a.created_at||'').localeCompare(String(b.created_at||''));}var groups=[...order.map(function(v){return{name:v,exams:exams.filter(function(e){return e.grade_level===v;}).sort(byDateAsc)};}),{name:'未分类',exams:exams.filter(function(e){return !e.grade_level;}).sort(byDateAsc)}].filter(function(g){return g.exams.length;});return `<div class="page-head"><div><h2>考试记录</h2><p>按${escapeHtml(categoryLabelV14())}分组，每组按考试时间从早到晚。${hidden?` ${hidden} 次已隐藏。`:''}</p></div><button class="primary" id="addExam">＋ 新建</button></div>${groups.length?groups.map(function(g){return `<section class="grade-section-v13"><div class="grade-section-head-v13"><h3>${escapeHtml(g.name)}</h3><span>${g.exams.length} 次</span></div><div class="card records-card">${g.exams.map(recordHtml).join('')}</div></section>`;}).join(''):`<div class="card records-card"><div class="empty-chart" style="height:260px"><div>还没有考试记录<br><button class="secondary" id="emptyAdd" style="margin-top:14px">记录第一场考试</button></div></div></div>`}`;};
 
 var bindPageBeforeV17=bindPage;
-bindPage=function bindPageV17(){bindPageBeforeV17();document.querySelectorAll('[data-trend-scope-v16]').forEach(function(button){button.onclick=function(){var scope=button.dataset.trendScopeV16;if(scope==='score'){state.trendMetric='score';}else{state.rankScopeV16=scope;if(hasDirectPercentV17(scope)&&!hasRawRankV17(scope))state.trendMetric='rank';else if(state.trendMetric!=='rank_raw'&&state.trendMetric!=='rank')state.trendMetric='rank_raw';}render();};});document.querySelectorAll('[data-radar-scope-v16]').forEach(function(button){button.onclick=function(){var scope=button.dataset.radarScopeV16;state.rankScopeV16=scope;if(hasDirectPercentV17(scope)&&!hasRawRankV17(scope))state.radarMode='rank';else if(state.radarMode!=='rank_raw'&&state.radarMode!=='rank')state.radarMode='rank_raw';state.radarSelection=[];ensureRadarSelection();render();};});};
+bindPage=function bindPageV17(){bindPageBeforeV17();document.querySelectorAll('[data-trend-scope-v16]').forEach(function(button){button.onclick=function(){var scope=button.dataset.trendScopeV16;if(scope==='score'){state.trendMetric='score';}else{state.rankScopeV16=scope;if(hasDirectPercentV17(scope)&&!hasRawRankV17(scope))state.trendMetric='rank';else if(state.trendMetric!=='rank_raw'&&state.trendMetric!=='rank')state.trendMetric='rank_raw';}render();};});document.querySelectorAll('[data-radar-scope-v16]').forEach(function(button){button.onclick=function(){var scope=button.dataset.radarScopeV16;state.rankScopeV16=scope;if(hasDirectPercentV17(scope)&&!hasRawRankV17(scope))state.radarMode='rank';else if(state.radarMode!=='rank_raw'&&state.radarMode!=='rank')state.radarMode='rank_raw';ensureRadarSelection();render();};});};
 /* ===== app-v18.js ===== */
 // v18 / product v1.1: score modules, subtle Study Planner cross-link, optional ranking stays optional.
 state.modulesV18 = state.modulesV18 || [];
@@ -7889,6 +7891,16 @@ function accentRgbV32(){
   return [93,114,232];
 }
 function rgba32(rgb,a){return "rgba("+rgb[0]+","+rgb[1]+","+rgb[2]+","+a+")";}
+function rankHeatColor32(rgb,p){
+  var alpha=clamp32(0.82-(p-8)/46*0.62,0.14,0.85);
+  var night=false;
+  try{night=document.documentElement&&document.documentElement.getAttribute("data-theme")==="night";}catch(e){}
+  if(night){
+    var depth=clamp32((alpha-0.14)/0.71,0,1);
+    return "rgba(5,10,20,"+clamp32(0.18+depth*0.52,0.18,0.70)+")";
+  }
+  return rgba32(rgb,alpha);
+}
 /* 折线:lines=[{vals,color,dash}] labels=[...];tickLabel(v) 自定义纵轴刻度 */
 function lineSvgV32(lines,labels,opts){
   opts=opts||{};
@@ -8429,7 +8441,7 @@ function matrixSectionHtmlV32(f,mode){
       if(mode==="rank"){
         var p=posYearOf32(e,rowV32(e,s));
         if(p===null)return "<td>—</td>";
-        return '<td style="background:'+rgba32(rgb,clamp32(0.82-(p-8)/46*0.62,0.14,0.85))+';color:#fff">'+r32(p)+dot+"</td>";
+        return '<td style="background:'+rankHeatColor32(rgb,p)+';color:#fff">'+r32(p)+dot+"</td>";
       }else{
         var rt=rateOf32(rowV32(e,s));
         if(rt===null)return "<td>—</td>";
@@ -8442,7 +8454,7 @@ function matrixSectionHtmlV32(f,mode){
       /* 合成口径:列值=所选科目位比中位数(与趋势线一致),分数模式=成员得分率中位 */
       var hit=f.totalSeries.filter(function(x){return x.i===i;})[0];
       if(mode==="rank"){
-        totCell=hit?'<td class="sv31-tot" style="background:'+rgba32(rgb,clamp32(0.82-(hit.pos-8)/46*0.62,0.14,0.85))+';color:#fff">'+r32(hit.pos)+"</td>"
+        totCell=hit?'<td class="sv31-tot" style="background:'+rankHeatColor32(rgb,hit.pos)+';color:#fff">'+r32(hit.pos)+"</td>"
           :"<td class='sv31-tot'>—</td>";
       }else{
         var rs=[];subs.forEach(function(s){var rr=rateOf32(rowV32(e,s));if(rr!==null)rs.push(rr);});
@@ -8452,7 +8464,7 @@ function matrixSectionHtmlV32(f,mode){
     }else{
       var tp=totalPosYear32(e);
       totCell=tp===null?"<td class='sv31-tot'>—</td>"
-        :mode==="rank"?'<td class="sv31-tot" style="background:'+rgba32(rgb,clamp32(0.82-(tp-8)/46*0.62,0.14,0.85))+';color:#fff">'+r32(tp)+"</td>"
+        :mode==="rank"?'<td class="sv31-tot" style="background:'+rankHeatColor32(rgb,tp)+';color:#fff">'+r32(tp)+"</td>"
         :'<td class="sv31-tot"><b>'+(examRateV32(e)===null?"—":Math.round(examRateV32(e))+"%")+"</b></td>";
     }
     rowsHtml+="<tr><td>"+esc32(shortName32(e.name))+"</td>"+cells+totCell+"</tr>";

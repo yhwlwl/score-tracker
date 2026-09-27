@@ -524,6 +524,16 @@ function accentRgbV32(){
   return [93,114,232];
 }
 function rgba32(rgb,a){return "rgba("+rgb[0]+","+rgb[1]+","+rgb[2]+","+a+")";}
+function rankHeatColor32(rgb,p){
+  var alpha=clamp32(0.82-(p-8)/46*0.62,0.14,0.85);
+  var night=false;
+  try{night=document.documentElement&&document.documentElement.getAttribute("data-theme")==="night";}catch(e){}
+  if(night){
+    var depth=clamp32((alpha-0.14)/0.71,0,1);
+    return "rgba(5,10,20,"+clamp32(0.18+depth*0.52,0.18,0.70)+")";
+  }
+  return rgba32(rgb,alpha);
+}
 /* 折线:lines=[{vals,color,dash}] labels=[...];tickLabel(v) 自定义纵轴刻度 */
 function lineSvgV32(lines,labels,opts){
   opts=opts||{};
@@ -1064,7 +1074,7 @@ function matrixSectionHtmlV32(f,mode){
       if(mode==="rank"){
         var p=posYearOf32(e,rowV32(e,s));
         if(p===null)return "<td>—</td>";
-        return '<td style="background:'+rgba32(rgb,clamp32(0.82-(p-8)/46*0.62,0.14,0.85))+';color:#fff">'+r32(p)+dot+"</td>";
+        return '<td style="background:'+rankHeatColor32(rgb,p)+';color:#fff">'+r32(p)+dot+"</td>";
       }else{
         var rt=rateOf32(rowV32(e,s));
         if(rt===null)return "<td>—</td>";
@@ -1077,7 +1087,7 @@ function matrixSectionHtmlV32(f,mode){
       /* 合成口径:列值=所选科目位比中位数(与趋势线一致),分数模式=成员得分率中位 */
       var hit=f.totalSeries.filter(function(x){return x.i===i;})[0];
       if(mode==="rank"){
-        totCell=hit?'<td class="sv31-tot" style="background:'+rgba32(rgb,clamp32(0.82-(hit.pos-8)/46*0.62,0.14,0.85))+';color:#fff">'+r32(hit.pos)+"</td>"
+        totCell=hit?'<td class="sv31-tot" style="background:'+rankHeatColor32(rgb,hit.pos)+';color:#fff">'+r32(hit.pos)+"</td>"
           :"<td class='sv31-tot'>—</td>";
       }else{
         var rs=[];subs.forEach(function(s){var rr=rateOf32(rowV32(e,s));if(rr!==null)rs.push(rr);});
@@ -1087,7 +1097,7 @@ function matrixSectionHtmlV32(f,mode){
     }else{
       var tp=totalPosYear32(e);
       totCell=tp===null?"<td class='sv31-tot'>—</td>"
-        :mode==="rank"?'<td class="sv31-tot" style="background:'+rgba32(rgb,clamp32(0.82-(tp-8)/46*0.62,0.14,0.85))+';color:#fff">'+r32(tp)+"</td>"
+        :mode==="rank"?'<td class="sv31-tot" style="background:'+rankHeatColor32(rgb,tp)+';color:#fff">'+r32(tp)+"</td>"
         :'<td class="sv31-tot"><b>'+(examRateV32(e)===null?"—":Math.round(examRateV32(e))+"%")+"</b></td>";
     }
     rowsHtml+="<tr><td>"+esc32(shortName32(e.name))+"</td>"+cells+totCell+"</tr>";
