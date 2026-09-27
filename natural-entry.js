@@ -859,15 +859,49 @@
     }
     async function callVision(images) {
       var token = localStorage.getItem('st_token') || '';
-      if (!token) throw new Error('请先登录后再使用拍照录入。');
-      var response = await fetch('https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-vision-preview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: token, images: images, context: visionContext(modal) })
-      });
+      if (!token) {
+        var authError = new Error('请先登录后再使用拍照录入。（HTTP 401）');
+        authError.requestStatus = 401;
+        authError.upstreamStatus = 0;
+        throw authError;
+      }
+      var response;
+      try {
+        response = await fetch('https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-vision-preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: token, images: images, context: visionContext(modal) })
+        });
+      } catch (cause) {
+        var networkError = new Error('无法连接识别服务，请检查网络后重试。');
+        networkError.requestStatus = 0;
+        networkError.upstreamStatus = 0;
+        networkError.upstreamMessage = cause && cause.message ? String(cause.message).slice(0, 180) : '';
+        throw networkError;
+      }
       var payload = await response.json().catch(function () { return {}; });
-      if (!response.ok) throw new Error(payload.error || '识图服务暂时不可用，请稍后再试。');
+      if (!response.ok) {
+        var requestStatus = Number(response.status || 0);
+        var upstreamStatus = Number(payload.upstream_status || requestStatus || 0);
+        var detail = payload.upstream_message ? String(payload.upstream_message).slice(0, 180) : '';
+        var label = payload.error || '识图服务暂时不可用';
+        var suffix = '（HTTP ' + (upstreamStatus || requestStatus || 0) + (detail ? '：' + detail : '') + '）';
+        var serviceError = new Error(String(label) + suffix);
+        serviceError.requestStatus = requestStatus;
+        serviceError.upstreamStatus = upstreamStatus;
+        serviceError.upstreamMessage = detail;
+        throw serviceError;
+      }
       return payload;
+    }
+    function visionFailureMeta(error) {
+      return {
+        image_count: selectedFiles.length,
+        error_count: 1,
+        request_status: Number(error && (error.requestStatus || error.status) || 0),
+        upstream_status: Number(error && error.upstreamStatus || 0),
+        error_message: String(error && error.message || '识图失败').slice(0, 240)
+      };
     }
     function displayValue(value) {
       return value === null || value === undefined || value === '' ? '-' : String(value);
@@ -931,7 +965,7 @@
         showResult(modal, parsed, count);
         if (typeof toast === 'function') toast('图片已识别并回填，请检查后保存');
       } catch (e) {
-        trackUsage('quick_entry_image_recognition_failed', { image_count: selectedFiles.length, error_count: 1 });
+        trackUsage('quick_entry_image_recognition_failed', visionFailureMeta(e));
         error.textContent = '回填失败：' + (e.message || '请稍后重试');
         visionSubmitButton.disabled = false;
         visionSubmitButton.textContent = '确认并填入';
@@ -959,7 +993,7 @@
         visionSubmitButton.disabled = false;
         visionSubmitButton.textContent = '确认并填入';
       } catch (e) {
-        trackUsage('quick_entry_image_recognition_failed', { image_count: selectedFiles.length, error_count: 1 });
+        trackUsage('quick_entry_image_recognition_failed', visionFailureMeta(e));
         error.textContent = e.message || '识图失败，请稍后重试。';
         visionSubmitButton.disabled = false;
         visionSubmitButton.textContent = '识别图片';

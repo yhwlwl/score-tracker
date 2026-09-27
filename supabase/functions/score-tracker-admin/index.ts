@@ -4,7 +4,21 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const U=Deno.env.get('SUPABASE_URL')||'',S=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||'';
 const db=createClient(U,S,{auth:{persistSession:false,autoRefreshToken:false}});
 const DEFAULT_VISION_MODEL='nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free';
+const DEFAULT_VISION_BASE_URL='https://openrouter.ai/api/v1';
 function maskVisionKey(value){const s=String(value||'').trim();return s?s.slice(0,5)+'••••••••'+s.slice(-4):'';}
+function normalizeVisionBaseUrl(value){
+  const raw=String(value||DEFAULT_VISION_BASE_URL).trim().replace(/\/+$/,'');
+  if(!raw)return'';
+  let u;
+  try{u=new URL(raw)}catch{return''}
+  if(u.protocol!=='https:'||u.username||u.password||u.search||u.hash)return'';
+  let path=u.pathname.replace(/\/+$/,'').replace(/\/(?:chat\/completions|models)$/i,'');
+  u.pathname=path||'/';u.search='';u.hash='';
+  return u.toString().replace(/\/+$/,'');
+}
+function isOpenRouterBase(value){try{const h=new URL(value).hostname.toLowerCase();return h==='openrouter.ai'||h.endsWith('.openrouter.ai')}catch{return false}}
+function upstreamMessage(payload){const value=typeof payload?.error==='string'?payload.error:payload?.error?.message||payload?.message;return String(value||'').trim().slice(0,240)}
+async function fetchWithTimeout(url,init,timeoutMs=15000){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);try{return await fetch(url,{...init,signal:controller.signal})}finally{clearTimeout(timer)}}
 const J={'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow, noarchive'};
 const json=(v,status=200)=>new Response(JSON.stringify(v),{status,headers:J});
 async function sha(v){const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v));return[...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('')}
@@ -65,26 +79,59 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
   if(action==='feedback_status'&&req.method==='POST'){const b=await req.json(),status=String(b.status||'');if(!['new','reviewing','planned','resolved','closed'].includes(status))return json({error:'bad_status'},400);const {error}=await db.from('score_tracker_feedback_submissions').update({status}).eq('id',String(b.id||''));if(error)throw error;return json({ok:true})}
   if(action==='ai_config_save'&&req.method==='POST'){
     const b=await req.json();
-    const current=await db.from('score_tracker_ai_configs').select('openrouter_api_key').eq('id','score_vision').maybeSingle();
+    const current=await db.from('score_tracker_ai_configs').select('openrouter_api_key,base_url,model').eq('id','score_vision').maybeSingle();
     if(current.error)throw current.error;
     const provided=String(b.apiKey||'').trim();
-    const key=b.clearKey?null:(provided&&!/^•+$/.test(provided)?provided:(current.data?.openrouter_api_key||null));
-    const model=String(b.model||DEFAULT_VISION_MODEL).trim().slice(0,160);
+    const key=b.clearKey?null:(provided&&!provided.includes('••••')?provided:(current.data?.openrouter_api_key||null));
+    const baseUrl=normalizeVisionBaseUrl(String(b.baseUrl||current.data?.base_url||DEFAULT_VISION_BASE_URL).trim()||DEFAULT_VISION_BASE_URL);
+    if(!baseUrl)return json({error:'Base URL 必须是 https 开头的地址，且不能包含账号、查询参数或片段'},400);
+    const model=String(b.model||current.data?.model||DEFAULT_VISION_MODEL).trim().slice(0,160);
     if(!/^[A-Za-z0-9._:/-]{3,160}$/.test(model))return json({error:'模型名称格式不正确'},400);
     const saved=await db.from('score_tracker_ai_configs').upsert({
       id:'score_vision',
       provider:'openrouter',
       openrouter_api_key:key,
+      base_url:baseUrl,
       model,
       enabled:b.enabled!==false,
       updated_at:new Date().toISOString(),
       updated_by:admin.id
-    },{onConflict:'id'}).select('openrouter_api_key,model,enabled,updated_at').single();
+    },{onConflict:'id'}).select('openrouter_api_key,base_url,model,enabled,updated_at').single();
     if(saved.error)throw saved.error;
-    return json({ok:true,configured:!!saved.data?.openrouter_api_key,masked_key:maskVisionKey(saved.data?.openrouter_api_key),model:saved.data.model,enabled:saved.data.enabled,updated_at:saved.data.updated_at});
+    return json({ok:true,configured:!!saved.data?.openrouter_api_key,masked_key:maskVisionKey(saved.data?.openrouter_api_key),base_url:saved.data.base_url,model:saved.data.model,enabled:saved.data.enabled,updated_at:saved.data.updated_at});
+  }
+  if(action==='ai_config_test'&&req.method==='POST'){
+    const started=Date.now(),b=await req.json();
+    const current=await db.from('score_tracker_ai_configs').select('openrouter_api_key,base_url,model').eq('id','score_vision').maybeSingle();
+    if(current.error)throw current.error;
+    const provided=String(b.apiKey||'').trim();
+    const key=provided&&!provided.includes('••••')?provided:String(current.data?.openrouter_api_key||'').trim();
+    if(!key)return json({ok:false,status:0,latency_ms:Date.now()-started,message:'请先填写 OpenRouter Key',code:'missing_api_key'},400);
+    const baseUrl=normalizeVisionBaseUrl(String(b.baseUrl||current.data?.base_url||DEFAULT_VISION_BASE_URL).trim()||DEFAULT_VISION_BASE_URL);
+    if(!baseUrl)return json({ok:false,status:0,latency_ms:Date.now()-started,message:'Base URL 必须是 https 开头的地址，且不能包含账号、查询参数或片段',code:'invalid_base_url'},400);
+    const model=String(b.model||current.data?.model||DEFAULT_VISION_MODEL).trim().slice(0,160);
+    if(!/^[A-Za-z0-9._:/-]{3,160}$/.test(model))return json({ok:false,status:0,latency_ms:Date.now()-started,message:'模型名称格式不正确',code:'invalid_model'},400);
+    const requestBody={model,messages:[{role:'user',content:'ping'}],temperature:0,max_tokens:1};
+    const headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'};
+    if(isOpenRouterBase(baseUrl)){
+      headers['HTTP-Referer']='https://score.yhwlwl.xyz';
+      headers['X-Title']='Score Tracker Preview';
+      requestBody.provider={data_collection:'deny'};
+    }
+    let response;
+    try{
+      response=await fetchWithTimeout(baseUrl+'/chat/completions',{method:'POST',headers,body:JSON.stringify(requestBody)},15000);
+    }catch(error){
+      const timedOut=error instanceof Error&&error.name==='AbortError';
+      return json({ok:false,status:0,latency_ms:Date.now()-started,message:timedOut?'请求超时，请检查 Base URL 和网络连接':('无法连接识别服务'+(error instanceof Error&&error.message?'：'+error.message:'')),code:timedOut?'timeout':'network_error'});
+    }
+    const payload=await response.json().catch(()=>({}));
+    const detail=upstreamMessage(payload);
+    if(response.ok)return json({ok:true,status:response.status,latency_ms:Date.now()-started,message:'连接成功，模型已响应'});
+    return json({ok:false,status:response.status,latency_ms:Date.now()-started,message:detail||('HTTP '+response.status),code:'upstream_error'});
   }
   if(action==='feature_votes'){
-    const ai=await db.from('score_tracker_ai_configs').select('openrouter_api_key,model,enabled,updated_at').eq('id','score_vision').maybeSingle();
+    const ai=await db.from('score_tracker_ai_configs').select('openrouter_api_key,base_url,model,enabled,updated_at').eq('id','score_vision').maybeSingle();
     if(ai.error)throw ai.error;
     const [or,vr,sr]=await Promise.all([
       db.from('score_tracker_feature_vote_options').select('id,option_key,label,description,source,is_active,sort_order,created_at,updated_at').order('sort_order').order('created_at'),
@@ -110,6 +157,7 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
       ai_config:{
         configured:!!ai.data?.openrouter_api_key,
         masked_key:maskVisionKey(ai.data?.openrouter_api_key),
+        base_url:ai.data?.base_url||DEFAULT_VISION_BASE_URL,
         model:ai.data?.model||DEFAULT_VISION_MODEL,
         enabled:ai.data?.enabled!==false,
         updated_at:ai.data?.updated_at||null
