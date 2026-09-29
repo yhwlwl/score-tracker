@@ -83,18 +83,24 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
   if(action==='feedback_status'&&req.method==='POST'){const b=await req.json(),status=String(b.status||'');if(!['new','reviewing','planned','resolved','closed'].includes(status))return json({error:'bad_status'},400);const {error}=await db.from('score_tracker_feedback_submissions').update({status}).eq('id',String(b.id||''));if(error)throw error;return json({ok:true})}
   if(action==='ai_config_save'&&req.method==='POST'){
     const b=await req.json();
-    const current=await db.from('score_tracker_ai_configs').select('openrouter_api_key,base_url,model,beta_only,daily_limit,global_daily_limit,cooldown_seconds').eq('id','score_vision').maybeSingle();
+    const current=await db.from('score_tracker_ai_configs').select('openrouter_api_key,base_url,model,enabled,beta_only,daily_limit,global_daily_limit,cooldown_seconds').eq('id','score_vision').maybeSingle();
     if(current.error)throw current.error;
     const provided=String(b.apiKey||'').trim();
     const key=b.clearKey?null:(provided&&!provided.includes('••••')?provided:(current.data?.openrouter_api_key||null));
-    const baseUrl=normalizeVisionBaseUrl(String(b.baseUrl||current.data?.base_url||DEFAULT_VISION_BASE_URL).trim()||DEFAULT_VISION_BASE_URL);
+    const hasBaseUrl=Object.prototype.hasOwnProperty.call(b,'baseUrl');
+    const rawBaseUrl=hasBaseUrl?String(b.baseUrl??'').trim():String(current.data?.base_url||DEFAULT_VISION_BASE_URL).trim();
+    if(hasBaseUrl&&!rawBaseUrl)return json({error:'Base URL 不能为空'},400);
+    const baseUrl=normalizeVisionBaseUrl(rawBaseUrl||DEFAULT_VISION_BASE_URL);
     if(!baseUrl)return json({error:'Base URL 必须是 https 开头的地址，且不能包含账号、查询参数或片段'},400);
-    const model=String(b.model||current.data?.model||DEFAULT_VISION_MODEL).trim().slice(0,160);
+    const hasModel=Object.prototype.hasOwnProperty.call(b,'model');
+    const model=String(hasModel?b.model:(current.data?.model||DEFAULT_VISION_MODEL)).trim().slice(0,160);
+    if(hasModel&&!model)return json({error:'模型名称不能为空'},400);
     if(!/^[A-Za-z0-9._:/-]{3,160}$/.test(model))return json({error:'模型名称格式不正确'},400);
     const dailyLimit=parseAiInt(b.dailyLimit,current.data?.daily_limit??DEFAULT_AI_DAILY_LIMIT,1,1000);
     const globalDailyLimit=parseAiInt(b.globalDailyLimit,current.data?.global_daily_limit??DEFAULT_AI_GLOBAL_DAILY_LIMIT,1,10000);
     const cooldownSeconds=parseAiInt(b.cooldownSeconds,current.data?.cooldown_seconds??DEFAULT_AI_COOLDOWN_SECONDS,0,86400);
     const betaOnly=b.betaOnly===undefined?current.data?.beta_only!==false:b.betaOnly!==false;
+    const enabled=b.enabled===undefined?current.data?.enabled!==false:b.enabled!==false;
     if(dailyLimit===null)return json({error:'单账号每日上限需为 1～1000 的整数'},400);
     if(globalDailyLimit===null)return json({error:'全站每日上限需为 1～10000 的整数'},400);
     if(cooldownSeconds===null)return json({error:'请求间隔需为 0～86400 秒的整数'},400);
@@ -104,7 +110,7 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
       openrouter_api_key:key,
       base_url:baseUrl,
       model,
-      enabled:b.enabled!==false,
+      enabled,
       daily_limit:dailyLimit,
       global_daily_limit:globalDailyLimit,
       cooldown_seconds:cooldownSeconds,
@@ -122,9 +128,14 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
     const provided=String(b.apiKey||'').trim();
     const key=provided&&!provided.includes('••••')?provided:String(current.data?.openrouter_api_key||'').trim();
     if(!key)return json({ok:false,status:0,latency_ms:Date.now()-started,message:'请先填写 OpenRouter Key',code:'missing_api_key'},400);
-    const baseUrl=normalizeVisionBaseUrl(String(b.baseUrl||current.data?.base_url||DEFAULT_VISION_BASE_URL).trim()||DEFAULT_VISION_BASE_URL);
+    const hasBaseUrl=Object.prototype.hasOwnProperty.call(b,'baseUrl');
+    const rawBaseUrl=hasBaseUrl?String(b.baseUrl??'').trim():String(current.data?.base_url||DEFAULT_VISION_BASE_URL).trim();
+    if(hasBaseUrl&&!rawBaseUrl)return json({ok:false,status:0,latency_ms:Date.now()-started,message:'Base URL 不能为空',code:'invalid_base_url'},400);
+    const baseUrl=normalizeVisionBaseUrl(rawBaseUrl||DEFAULT_VISION_BASE_URL);
     if(!baseUrl)return json({ok:false,status:0,latency_ms:Date.now()-started,message:'Base URL 必须是 https 开头的地址，且不能包含账号、查询参数或片段',code:'invalid_base_url'},400);
-    const model=String(b.model||current.data?.model||DEFAULT_VISION_MODEL).trim().slice(0,160);
+    const hasModel=Object.prototype.hasOwnProperty.call(b,'model');
+    const model=String(hasModel?b.model:(current.data?.model||DEFAULT_VISION_MODEL)).trim().slice(0,160);
+    if(hasModel&&!model)return json({ok:false,status:0,latency_ms:Date.now()-started,message:'模型名称不能为空',code:'invalid_model'},400);
     if(!/^[A-Za-z0-9._:/-]{3,160}$/.test(model))return json({ok:false,status:0,latency_ms:Date.now()-started,message:'模型名称格式不正确',code:'invalid_model'},400);
     const requestBody={model,messages:[{role:'user',content:'ping'}],temperature:0,max_tokens:1};
     const headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'};
