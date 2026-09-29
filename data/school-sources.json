@@ -1,0 +1,24 @@
+{
+  "sources": [
+    {
+      "repository": "https://github.com/pg7go/The-Location-Data-of-Schools-in-China",
+      "commit": "e0a696e26b3b388ce1ef26938d002f156b42c983",
+      "path": "学校-28610-只有省市区.json",
+      "processing": "仅提取校名明确含高中或高级中学的名称与省市区，排除职业学校等条目。"
+    },
+    {
+      "repository": "https://github.com/yansheng836/guangdong-schools",
+      "commit": "f69098f1b948697ac68b7948dcc45bdf01704a4a",
+      "path": "高中/",
+      "processing": "提取高中目录学校名称与城市、区县。"
+    }
+  ],
+  "count": 1763,
+  "coverage": "部分高中名单，非全国完整名录。名称可能存在变更或遗漏，支持手动填写。",
+  "fields": [
+    "name",
+    "province",
+    "city",
+    "area"
+  ]
+}

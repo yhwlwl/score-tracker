@@ -11,6 +11,10 @@ const FILES = [
   "styles.css",
   "mobile-fix.css",
   "app-bundle.js",
+  "first-run-setup.js",
+  "first-run-setup.css",
+  "data/high-schools.json",
+  "data/school-sources.json",
   "study-planner-promo.webp",
   "robots.txt",
   "_headers",
@@ -28,7 +32,10 @@ fs.mkdirSync(OUT, { recursive: true });
 fs.mkdirSync(path.join(OUT, "functions"), { recursive: true });
 fs.mkdirSync(path.join(OUT, "api"), { recursive: true });
 
-for (const f of FILES) fs.copyFileSync(path.join(ROOT, f), path.join(OUT, f));
+for (const f of FILES) {
+  fs.mkdirSync(path.dirname(path.join(OUT, f)), { recursive: true });
+  fs.copyFileSync(path.join(ROOT, f), path.join(OUT, f));
+}
 fs.copyFileSync(path.join(ROOT, "functions/mg.js"), path.join(OUT, "functions/mg.js"));
 fs.copyFileSync(path.join(ROOT, "api/mg.js"), path.join(OUT, "api/mg.js"));
 fs.copyFileSync(path.join(ROOT, "api/mg-ui.js"), path.join(OUT, "api/mg-ui.js"));

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>首次设置 · 交互样例</title><link rel="stylesheet" href="../first-run-setup.css"></head><body><main id="app"></main>
+<script>
+// Isolated visual fixture. Every account API is replaced; no account is created.
+const CORE=['语文','数学','英语'];
+let modules=['语数外','语数外 + 物理/历史（四科）','语数外 + 所选科（六科）'].map((name,i)=>({id:'fixture-'+i,name,isBuiltin:true,subjects:CORE.concat(i===0?[]:i===1?['物理']:['物理','化学','生物'])}));
+let subjects=CORE.concat(['物理','化学','生物','历史','地理','政治']).map(name=>({name,defaultMax:CORE.includes(name)?150:100}));
+let classification={label:'年级',options:['高一','高二','高三']};
+let profile=null;
+var state={user:{id:'fixture-only',username:'bright-panda-4821'},token:'fixture-only',exams:[],modulesV18:modules,subjectConfigs:subjects,classification,onboarding:{username:'bright-panda-4821',password:'1234567890'}};
+function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function startRegister(){} function showOnboarding(){} function renderPage(){} function bindPage(){} function accountHtml(){return ''} function renderLogin(){} function toast(){} function applyExamSubjectsV10(){}
+function render(){document.getElementById('app').innerHTML='<div style="font-family:system-ui;text-align:center;padding:15vh 24px"><h1>准备好了</h1><p>这是交互样例，没有保存到你的账号。</p><button onclick="location.reload()">再看一次</button></div>'}
+async function loadExams(){state.modulesV18=modules;state.subjectConfigs=subjects;state.classification=classification}
+async function usernameApiV19(a,b){return{user:{username:b.username}}}async function changePasswordApiV15(){}
+async function modulesApiV18(a,b){modules=b.modules;return{modules}}
+async function dataApiV7(a,b){if(a==='save_subjects'){subjects=b.subjects;return{subjects}}classification=b.classification;return{classification}}
+const nativeFetch=window.fetch.bind(window);
+window.fetch=async(url,options)=>{
+ if(String(url).startsWith('./data/'))return nativeFetch('../'+String(url).slice(2),options);
+ if(String(url).includes('score-tracker-setup')){
+  const b=JSON.parse(options.body);
+  if(b.action==='start')profile=profile||{step:0,selected_subjects:[],school:null,completed_at:null};
+  if(b.action==='save'){profile={...profile,...b};if(b.completed)profile.completed_at=new Date().toISOString()}
+  return new Response(JSON.stringify({profile}),{headers:{'Content-Type':'application/json'}});
+ }
+ throw Error('Fixture blocks external API calls');
+};
+</script><script src="../first-run-setup.js"></script><script>showOnboarding();</script></body></html>
