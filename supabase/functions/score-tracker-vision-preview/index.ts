@@ -321,6 +321,72 @@ Deno.serve(async (req) => {
       }
       return json({ eligible, enabled: !config.disabled, beta_only: config.betaOnly });
     }
+    if (body.action === "connectivity_test") {
+      const connectivityStartedAt = Date.now();
+      if (config.disabled) return json({ error: "识图功能当前未启用，请联系管理员", code: "vision_disabled", request_status: 503 }, 503);
+      if (!config.apiKey) return json({ error: "识图服务尚未配置识别服务 Key，请联系管理员", code: "missing_api_key", request_status: 503 }, 503);
+      if (!config.baseUrl) return json({ error: "识别服务 Base URL 配置无效，请联系管理员", code: "invalid_base_url", request_status: 503 }, 503);
+      if (config.betaOnly) {
+        let allowed = false;
+        try {
+          allowed = await isVisionBetaUser(user.username);
+        } catch (error) {
+          console.error("vision beta connectivity", error instanceof Error ? error.message : error);
+          return json({ error: "识别服务资格检查暂不可用，请稍后再试", code: "beta_access_unavailable", request_status: 0 }, 503);
+        }
+        if (!allowed) return json({ error: "图片识别目前处于内测阶段", code: "vision_beta_only", request_status: 403 }, 403);
+      }
+
+      const requestBody: Record<string, unknown> = {
+        model: config.model,
+        messages: [{ role: "user", content: "ping" }],
+        temperature: 0,
+        max_tokens: 1,
+      };
+      if (isOpenRouterBase(config.baseUrl)) requestBody.provider = { data_collection: "deny" };
+      const requestHeaders: Record<string, string> = {
+        "Authorization": `Bearer ${config.apiKey}`,
+        "Content-Type": "application/json",
+      };
+      if (isOpenRouterBase(config.baseUrl)) {
+        requestHeaders["HTTP-Referer"] = "https://score.yhwlwl.xyz";
+        requestHeaders["X-Title"] = "Score Tracker Preview";
+      }
+      mark("connectivity_test_start");
+      try {
+        const upstream = await fetchWithTimeout(config.baseUrl + "/chat/completions", {
+          method: "POST",
+          headers: requestHeaders,
+          body: JSON.stringify(requestBody),
+        }, 10000);
+        const latencyMs = Date.now() - connectivityStartedAt;
+        mark("connectivity_test_response", { status: upstream.response.status, latency_ms: latencyMs });
+        if (!upstream.response.ok) {
+          const detail = upstreamMessage(upstream.payload);
+          return json({
+            error: "识别服务连接测试失败",
+            code: "connectivity_upstream_error",
+            request_status: 502,
+            upstream_status: upstream.response.status,
+            upstream_message: detail || ("HTTP " + upstream.response.status),
+            latency_ms: latencyMs,
+          }, 502);
+        }
+        return json({ ok: true, status: upstream.response.status, latency_ms: latencyMs, model: config.model });
+      } catch (error) {
+        const timedOut = error instanceof Error && error.name === "AbortError";
+        const latencyMs = Date.now() - connectivityStartedAt;
+        mark("connectivity_test_failed", { status: timedOut ? 504 : 502, latency_ms: latencyMs });
+        return json({
+          error: timedOut ? "识别服务连接测试超时，请稍后再试" : "识别服务连接测试失败",
+          code: timedOut ? "connectivity_timeout" : "connectivity_network_error",
+          request_status: 0,
+          upstream_status: 0,
+          upstream_message: cleanText(error instanceof Error ? error.message : error, 240),
+          latency_ms: latencyMs,
+        }, timedOut ? 504 : 502);
+      }
+    }
 
     const images = Array.isArray(body.images) ? body.images : [];
     if (!images.length || images.length > 6) return json({ error: "请选择 1～6 张图片" }, 400);
