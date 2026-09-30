@@ -206,5 +206,11 @@
   accountHtml = function () { return previousAccount() + '<section class="card setup-school-account"><h3 class="card-title">我的学校</h3><p>' + esc(state.setupProfile?.school?.name || '还没有选择学校') + '</p><button class="secondary" id="setup-edit-school">' + (state.setupProfile?.school ? '修改学校' : '选择学校') + '</button></section>'; };
   const previousBind = bindPage;
   bindPage = function () { previousBind(); document.getElementById('setup-edit-school')?.addEventListener('click', () => showOnboarding(state.setupProfile, true)); };
+  // compat.js has a DOMContentLoaded fallback for older builds. Reclaim the
+  // registration entry after that fallback runs so this flow stays active.
+  const firstRunRegister = startRegister;
+  const reclaimRegister = () => { window.startRegister = firstRunRegister; };
+  if (document.readyState === 'complete') reclaimRegister();
+  else window.addEventListener('DOMContentLoaded', reclaimRegister, { once: true });
   if (state.user && !state.onboarding) render();
 })();
