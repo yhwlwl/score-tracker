@@ -1,6 +1,7 @@
 import { MG_HTML } from './mg-ui.js';
 
 const ADMIN_UPSTREAM = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-admin';
+const NOTICES_UPSTREAM = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-notices';
 const METRICS_UPSTREAM = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-admin-metrics';
 const REPLY_UPSTREAM = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-admin-reply';
 
@@ -116,7 +117,7 @@ export default async function handler(req, res) {
       return res.send(JSON.stringify(upstream.ok ? overviewFromMetrics(data) : data));
     }
 
-    const target = action === 'feedback_reply' && req.method === 'POST' ? REPLY_UPSTREAM : ADMIN_UPSTREAM + query;
+    const target = ['notification_config','notification_config_save','notification_event'].includes(action) ? NOTICES_UPSTREAM + query : action === 'feedback_reply' && req.method === 'POST' ? REPLY_UPSTREAM : ADMIN_UPSTREAM + query;
     const upstream = await fetch(target, {
       method: req.method,
       headers,

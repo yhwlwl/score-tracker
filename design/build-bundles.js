@@ -27,7 +27,7 @@ fs.writeFileSync(path.join(ROOT, "app-bundle.js"), bundle);
 
 const htmlPath = path.join(ROOT, "index.html");
 let html = fs.readFileSync(htmlPath, "utf8");
-html = html.replace(/<script src="\.\/app-bundle\.js\?v=[0-9a-f]+"/, '<script src="./app-bundle.js?v=' + hash + '"');
+html = html.replace(/<script src="\.\/app-bundle\.js\?v=[^"\s]+"/, '<script src="./app-bundle.js?v=' + hash + '"');
 fs.writeFileSync(htmlPath, html);
 
 console.log("app-bundle.js 已生成 (" + Math.round(bundle.length / 1024) + " KB)，hash=" + hash);

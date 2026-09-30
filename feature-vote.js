@@ -119,7 +119,7 @@
 
   function hasBlockingModal() {
     try { if (state && state.onboarding) return true; } catch (e) {}
-    return !!document.querySelector('.modal.onboard,.modal-backdrop .onboard');
+    return !!document.querySelector('.modal-backdrop,.rn-back,.st-fb-back,.gmodal-backdrop.open');
   }
   function queueAutoCheck(delay) {
     clearTimeout(openTimer);
@@ -139,7 +139,10 @@
       var hasUnvoted = options.length
         ? options.some(function (item) { return item && item.isActive !== false && !item.votedByMe; })
         : Number(data.availableCount || 0) > 0;
-      if (!hasVoted && hasUnvoted) openVoteModal('auto', data);
+      if (!hasVoted && hasUnvoted) {
+        if (hasBlockingModal()) { queueAutoCheck(320); return; }
+        openVoteModal('auto', data);
+      }
     } catch (e) {}
   }
 
@@ -161,6 +164,7 @@
       try { if (typeof toast === 'function') toast(e.message || '投票暂时无法打开'); } catch (_) {}
       return;
     }
+    if (source === 'auto' && hasBlockingModal()) { queueAutoCheck(320); return; }
     var options = Array.isArray(data.options) ? data.options : [];
     var back = document.createElement('div');
     back.id = 'featureVoteV36';

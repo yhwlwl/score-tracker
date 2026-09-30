@@ -1,6 +1,6 @@
 /* app-v31.js · v4.1 交互与运营层
    1) 图例换色提示升级：一次性 toast → 手动关闭的提示条；图例旁常驻小灰字
-   2) 版本落后检测：同源比对 meta 版本号，弹一句话更新条 + 立即刷新
+   2) 版本通知由 release-notices.js 管理
    3) 关键行为埋点：换色/主题/导出/更新，复用 track_event 通道 */
 (function(){
 
@@ -16,7 +16,7 @@ function currentPageV31(){
 }
 /* 委托优先:telemetry-feedback 已提供富上下文追踪器(visitor/utm/屏幕等),直接复用;
    仅当其不存在时才用这里的精简兜底。此前本文件直接覆盖 __stTrack,导致埋点上下文变瘦 */
-var __stTrackPrevV31=(typeof window.__stTrack==='function')?window.__stTrack:null;
+var __stTrackPrevV31=window.__scoreTrackerTrack||window.__stTrack||null;
 window.__stTrack=function stTrackV31(eventType,metadata){
   if(__stTrackPrevV31){try{return __stTrackPrevV31(eventType,metadata);}catch(e){}}
   try{
@@ -81,21 +81,6 @@ function injectStylesV31(){
   (document.head||document.documentElement).appendChild(st);
 }
 
-/* ================= 提示条（手动关闭）================= */
-function showQuickEntryTipBannerV64(){
-  if(document.getElementById('quickEntryTipBannerV64'))return;
-  var b=document.createElement('div');
-  b.className='tip-banner-v31';b.id='quickEntryTipBannerV64';
-  b.innerHTML='<span class="t-ico">✨</span><span>自然语言快速录入功能已上线（图片识别也很快会更新），欢迎前往录入考试中体验</span>'
-    +'<button type="button" class="t-x" aria-label="关闭">×</button>';
-  document.body.appendChild(b);
-  b.querySelector('.t-x').addEventListener('click',function(){
-    b.remove();
-    try{localStorage.setItem('st_tip_quick_entry_v64','dismissed');}catch(e){}
-    window.__stTrack('quick_entry_tip_v64_dismissed',{});
-  });
-}
-
 /* ================= 图例旁小灰字 ================= */
 function injectLegendHintsV31(){
   var sel='.legend:not(.sv31-nopalette),.overview-legend:not(.sv31-nopalette),.rank-legend-v7:not(.sv31-nopalette)';
@@ -107,89 +92,6 @@ function injectLegendHintsV31(){
     hint.textContent='点击可换颜色';
     lg.appendChild(hint);
   });
-}
-
-/* ================= 版本检测 ================= */
-var RELEASE_NOTES_V31={
-  'v4.1':'新增数据导出：Excel 表格 / TXT 成绩单 / JSON 备份 / PDF 打印报告',
-  'v5.0':'全新「统计分析」页：排名走势、强弱科定位、个人最佳殿堂、目标校准与试卷难度信号',
-  'v5.1':'长期目标系统：各科目标分数、理想学校与考试倒计时；首页逐科差距卡、趋势图目标线与统计页联动；新增市/区排名（总分层面，选填）；修复成绩加载与移动端排版问题；全部脚本合并单文件，打开更快更省流量',
-  'v5.2':'统计分析页增强：单场大跌自动提醒、总分连续进退提醒、参考人数口径变化提醒（人数不同的考试不再直接比名次）；修复个人最佳、连续退步等文案口径与样本门槛',
-  'v6.0':'统计分析页 v6.0：「深度分析」Beta 板块，提供下场名次预测与95%区间、趋势/变点检验和异常提醒，附每步计算过程；分布图支持三视图(名次段/发挥标尺/累计概率)，名次段与发挥标尺均可调整细度，状态模型中心直接标出；顶部科目/组合口径全页联动,组合排名只认你填写的「组合年排/班排」,六科组合直接沿用总分排名,没填排名不显示合成数据；①总览「最近一次」标注考试；趋势图例可点击显隐；修复组合chip与板块顺序',
-  'v6.1':'记录考试支持自动草稿和一键清空，保存后保持页面位置；结束日期从开始日期定位并随考试保存；首页分类可多选叠加趋势；目标卡支持顺畅横滑；修复市/区排名保存后不显示、编辑回填空白；考试记录默认按时间从早到晚；趋势图片与打印报告同步当前配色并包含图例。',
-  'v6.3':'自然语言快速录入功能已上线（图片识别也很快会更新），欢迎前往录入考试中体验',
-  'v6.4':{title:'v6.4 发布',sections:[
-    {title:'功能新增',items:['支持以自然语言，以及复制提示词给豆包识别再粘贴回来录入','新增图标折叠按钮']},
-    {title:'优化修复',items:['提示显示优化','目标线修复','细节优化']}
-  ]}
-};
-function updateNoteKeyV31(v){
-  var s=String(v||'').trim();
-  if(RELEASE_NOTES_V31[s])return s;
-  var k='v'+s.replace(/^v/i,'');
-  return RELEASE_NOTES_V31[k]?k:s;
-}
-function updateNoteHtmlV31(note){
-  if(note&&typeof note==='object'&&Array.isArray(note.sections)){
-    return note.sections.map(function(sec){
-      var items=Array.isArray(sec.items)?sec.items:[];
-      return '<span class="update-section-v31"><b>'+escV31(sec.title)+'</b><span class="update-items-v31">'+items.map(function(item,i){return (i+1)+'.'+escV31(item);}).join('<br>')+'</span></span>';
-    }).join('');
-  }
-  return '<span class="update-items-v31">'+escV31(note||'体验优化与新功能')+'</span>';
-}
-function updateSeenKeyV31(v){return 'st_update_seen_'+v;}
-function markUpdateSeenV31(v){try{localStorage.setItem(updateSeenKeyV31(v),'1');}catch(e){}}
-function dismissKeyV31(v){return 'st_update_dismissed_'+appVersionV31()+'_'+v;}
-function showUpdateBarV31(latest,manual){
-  if(document.getElementById('updateBarV31'))return;
-  var key=updateNoteKeyV31(latest);
-  var note=RELEASE_NOTES_V31[key]||'体验优化与新功能';
-  var titleText=(note&&typeof note==='object'&&note.title)?note.title:(key?key+' 发布':String(latest||'')+' 发布');
-  var b=document.createElement('div');
-  b.className='update-bar-v31';b.id='updateBarV31';
-  b.innerHTML='<span>🚀</span><span class="update-copy-v31"><b>'+escV31(titleText)+'</b>'+updateNoteHtmlV31(note)+'</span>'
-    +'<button type="button" class="primary u-go" style="flex:none">立即更新</button>'
-    +'<button type="button" class="u-x" aria-label="关闭">×</button>';
-  document.body.appendChild(b);
-  if(!manual&&key===appVersionV31())markUpdateSeenV31(key);
-  window.__stTrack('update_prompt_shown',{from:appVersionV31(),to:key,manual:!!manual});
-  b.querySelector('.u-go').addEventListener('click',function(){
-    window.__stTrack('update_apply',{from:appVersionV31(),to:key});
-    try{sessionStorage.setItem('st_force_reload','1');}catch(e){}
-    location.replace(location.pathname+'?v='+Date.now()+location.hash);
-  });
-  b.querySelector('.u-x').addEventListener('click',function(){
-    b.remove();
-    if(key===appVersionV31())markUpdateSeenV31(key);
-    try{localStorage.setItem(dismissKeyV31(key),'1');}catch(e){}
-  });
-}
-function checkUpdateV31(){
-  try{
-    var cur=appVersionV31();
-    if(!cur)return;
-    var f=window.fetch.bind(window);
-    f('index.html?__cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.text();}).then(function(txt){
-      var m=txt.match(/application-version"\s*content="([^"]+)"/);
-      if(!m)return;
-      var latest=updateNoteKeyV31(m[1]);
-      if(latest!==cur){
-        try{if(localStorage.getItem(dismissKeyV31(latest))==='1')return;}catch(e){}
-        showUpdateBarV31(latest,false);
-        return;
-      }
-      try{if(localStorage.getItem(updateSeenKeyV31(cur))==='1')return;}catch(e){}
-      showUpdateBarV31(cur,false);
-    }).catch(function(){});
-  }catch(e){}
-}
-var updateChecksInstalledV31=false;
-function installUpdateChecksV31(){
-  if(updateChecksInstalledV31)return;
-  updateChecksInstalledV31=true;
-  checkUpdateV31();
-  setInterval(checkUpdateV31,30*60*1000);
 }
 
 /* ================= 埋点挂接 ================= */
@@ -278,46 +180,21 @@ patchLatestHeroV20=function(){
 };
 
 /* ================= 渲染钩子 ================= */
-function installVersionFooterV31(){
-  var footer=document.getElementById('app-version-v17');
-  if(!footer||footer.dataset.updateTriggerV31==='1')return;
-  footer.dataset.updateTriggerV31='1';
-  footer.classList.add('version-trigger-v31');
-  footer.setAttribute('role','button');
-  footer.setAttribute('tabindex','0');
-  footer.setAttribute('title','查看版本更新');
-  var open=function(){
-    showUpdateBarV31(appVersionV31(),true);
-    window.__stTrack('version_update_opened',{version:appVersionV31()});
-  };
-  footer.addEventListener('click',open);
-  footer.addEventListener('keydown',function(e){
-    if(e.key==='Enter'||e.key===' '){e.preventDefault();open();}
-  });
-}
-
 var bindPageBeforeV31=(typeof bindPage==='function')?bindPage:null;
 bindPage=function bindPageV31(){
   if(bindPageBeforeV31)bindPageBeforeV31();
   try{
     installTrackingV31();
-    installVersionFooterV31();
-    if(!localStorage.getItem('st_tip_quick_entry_v64'))showQuickEntryTipBannerV64();
-    installUpdateChecksV31();
   }catch(e){}
 };
 function escV31(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 /* 启动 */
 injectStylesV31();
-installVersionFooterV31();
 
 /* 测试钩子 */
 window.__v31={
-  showQuickEntryTipBanner:showQuickEntryTipBannerV64,
   injectLegendHints:injectLegendHintsV31,
-  checkUpdate:checkUpdateV31,
-  releaseNotes:RELEASE_NOTES_V31,
   rankLine:rankLineV31,
   track:window.__stTrack
 };
