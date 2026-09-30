@@ -1,5 +1,5 @@
 /*! app-bundle.js · 自动生成,勿手改 —— 改源码后运行: node design/build-bundles.js
-   来源顺序: compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js */
+   来源顺序: compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js, release-notices.js */
 /* ===== compat.js ===== */
 // Compatibility helpers for older iOS Safari/WebViews.
 // Keep this file tiny and load it before the application scripts.
@@ -7099,7 +7099,7 @@ window.__v30={
 /* ===== app-v31.js ===== */
 /* app-v31.js · v4.1 交互与运营层
    1) 图例换色提示升级：一次性 toast → 手动关闭的提示条；图例旁常驻小灰字
-   2) 版本落后检测：同源比对 meta 版本号，弹一句话更新条 + 立即刷新
+   2) 版本通知由 release-notices.js 管理
    3) 关键行为埋点：换色/主题/导出/更新，复用 track_event 通道 */
 (function(){
 
@@ -7115,7 +7115,7 @@ function currentPageV31(){
 }
 /* 委托优先:telemetry-feedback 已提供富上下文追踪器(visitor/utm/屏幕等),直接复用;
    仅当其不存在时才用这里的精简兜底。此前本文件直接覆盖 __stTrack,导致埋点上下文变瘦 */
-var __stTrackPrevV31=(typeof window.__stTrack==='function')?window.__stTrack:null;
+var __stTrackPrevV31=window.__scoreTrackerTrack||window.__stTrack||null;
 window.__stTrack=function stTrackV31(eventType,metadata){
   if(__stTrackPrevV31){try{return __stTrackPrevV31(eventType,metadata);}catch(e){}}
   try{
@@ -7180,21 +7180,6 @@ function injectStylesV31(){
   (document.head||document.documentElement).appendChild(st);
 }
 
-/* ================= 提示条（手动关闭）================= */
-function showQuickEntryTipBannerV64(){
-  if(document.getElementById('quickEntryTipBannerV64'))return;
-  var b=document.createElement('div');
-  b.className='tip-banner-v31';b.id='quickEntryTipBannerV64';
-  b.innerHTML='<span class="t-ico">✨</span><span>自然语言快速录入功能已上线（图片识别也很快会更新），欢迎前往录入考试中体验</span>'
-    +'<button type="button" class="t-x" aria-label="关闭">×</button>';
-  document.body.appendChild(b);
-  b.querySelector('.t-x').addEventListener('click',function(){
-    b.remove();
-    try{localStorage.setItem('st_tip_quick_entry_v64','dismissed');}catch(e){}
-    window.__stTrack('quick_entry_tip_v64_dismissed',{});
-  });
-}
-
 /* ================= 图例旁小灰字 ================= */
 function injectLegendHintsV31(){
   var sel='.legend:not(.sv31-nopalette),.overview-legend:not(.sv31-nopalette),.rank-legend-v7:not(.sv31-nopalette)';
@@ -7206,89 +7191,6 @@ function injectLegendHintsV31(){
     hint.textContent='点击可换颜色';
     lg.appendChild(hint);
   });
-}
-
-/* ================= 版本检测 ================= */
-var RELEASE_NOTES_V31={
-  'v4.1':'新增数据导出：Excel 表格 / TXT 成绩单 / JSON 备份 / PDF 打印报告',
-  'v5.0':'全新「统计分析」页：排名走势、强弱科定位、个人最佳殿堂、目标校准与试卷难度信号',
-  'v5.1':'长期目标系统：各科目标分数、理想学校与考试倒计时；首页逐科差距卡、趋势图目标线与统计页联动；新增市/区排名（总分层面，选填）；修复成绩加载与移动端排版问题；全部脚本合并单文件，打开更快更省流量',
-  'v5.2':'统计分析页增强：单场大跌自动提醒、总分连续进退提醒、参考人数口径变化提醒（人数不同的考试不再直接比名次）；修复个人最佳、连续退步等文案口径与样本门槛',
-  'v6.0':'统计分析页 v6.0：「深度分析」Beta 板块，提供下场名次预测与95%区间、趋势/变点检验和异常提醒，附每步计算过程；分布图支持三视图(名次段/发挥标尺/累计概率)，名次段与发挥标尺均可调整细度，状态模型中心直接标出；顶部科目/组合口径全页联动,组合排名只认你填写的「组合年排/班排」,六科组合直接沿用总分排名,没填排名不显示合成数据；①总览「最近一次」标注考试；趋势图例可点击显隐；修复组合chip与板块顺序',
-  'v6.1':'记录考试支持自动草稿和一键清空，保存后保持页面位置；结束日期从开始日期定位并随考试保存；首页分类可多选叠加趋势；目标卡支持顺畅横滑；修复市/区排名保存后不显示、编辑回填空白；考试记录默认按时间从早到晚；趋势图片与打印报告同步当前配色并包含图例。',
-  'v6.3':'自然语言快速录入功能已上线（图片识别也很快会更新），欢迎前往录入考试中体验',
-  'v6.4':{title:'v6.4 发布',sections:[
-    {title:'功能新增',items:['支持以自然语言，以及复制提示词给豆包识别再粘贴回来录入','新增图标折叠按钮']},
-    {title:'优化修复',items:['提示显示优化','目标线修复','细节优化']}
-  ]}
-};
-function updateNoteKeyV31(v){
-  var s=String(v||'').trim();
-  if(RELEASE_NOTES_V31[s])return s;
-  var k='v'+s.replace(/^v/i,'');
-  return RELEASE_NOTES_V31[k]?k:s;
-}
-function updateNoteHtmlV31(note){
-  if(note&&typeof note==='object'&&Array.isArray(note.sections)){
-    return note.sections.map(function(sec){
-      var items=Array.isArray(sec.items)?sec.items:[];
-      return '<span class="update-section-v31"><b>'+escV31(sec.title)+'</b><span class="update-items-v31">'+items.map(function(item,i){return (i+1)+'.'+escV31(item);}).join('<br>')+'</span></span>';
-    }).join('');
-  }
-  return '<span class="update-items-v31">'+escV31(note||'体验优化与新功能')+'</span>';
-}
-function updateSeenKeyV31(v){return 'st_update_seen_'+v;}
-function markUpdateSeenV31(v){try{localStorage.setItem(updateSeenKeyV31(v),'1');}catch(e){}}
-function dismissKeyV31(v){return 'st_update_dismissed_'+appVersionV31()+'_'+v;}
-function showUpdateBarV31(latest,manual){
-  if(document.getElementById('updateBarV31'))return;
-  var key=updateNoteKeyV31(latest);
-  var note=RELEASE_NOTES_V31[key]||'体验优化与新功能';
-  var titleText=(note&&typeof note==='object'&&note.title)?note.title:(key?key+' 发布':String(latest||'')+' 发布');
-  var b=document.createElement('div');
-  b.className='update-bar-v31';b.id='updateBarV31';
-  b.innerHTML='<span>🚀</span><span class="update-copy-v31"><b>'+escV31(titleText)+'</b>'+updateNoteHtmlV31(note)+'</span>'
-    +'<button type="button" class="primary u-go" style="flex:none">立即更新</button>'
-    +'<button type="button" class="u-x" aria-label="关闭">×</button>';
-  document.body.appendChild(b);
-  if(!manual&&key===appVersionV31())markUpdateSeenV31(key);
-  window.__stTrack('update_prompt_shown',{from:appVersionV31(),to:key,manual:!!manual});
-  b.querySelector('.u-go').addEventListener('click',function(){
-    window.__stTrack('update_apply',{from:appVersionV31(),to:key});
-    try{sessionStorage.setItem('st_force_reload','1');}catch(e){}
-    location.replace(location.pathname+'?v='+Date.now()+location.hash);
-  });
-  b.querySelector('.u-x').addEventListener('click',function(){
-    b.remove();
-    if(key===appVersionV31())markUpdateSeenV31(key);
-    try{localStorage.setItem(dismissKeyV31(key),'1');}catch(e){}
-  });
-}
-function checkUpdateV31(){
-  try{
-    var cur=appVersionV31();
-    if(!cur)return;
-    var f=window.fetch.bind(window);
-    f('index.html?__cb='+Date.now(),{cache:'no-store'}).then(function(r){return r.text();}).then(function(txt){
-      var m=txt.match(/application-version"\s*content="([^"]+)"/);
-      if(!m)return;
-      var latest=updateNoteKeyV31(m[1]);
-      if(latest!==cur){
-        try{if(localStorage.getItem(dismissKeyV31(latest))==='1')return;}catch(e){}
-        showUpdateBarV31(latest,false);
-        return;
-      }
-      try{if(localStorage.getItem(updateSeenKeyV31(cur))==='1')return;}catch(e){}
-      showUpdateBarV31(cur,false);
-    }).catch(function(){});
-  }catch(e){}
-}
-var updateChecksInstalledV31=false;
-function installUpdateChecksV31(){
-  if(updateChecksInstalledV31)return;
-  updateChecksInstalledV31=true;
-  checkUpdateV31();
-  setInterval(checkUpdateV31,30*60*1000);
 }
 
 /* ================= 埋点挂接 ================= */
@@ -7377,46 +7279,21 @@ patchLatestHeroV20=function(){
 };
 
 /* ================= 渲染钩子 ================= */
-function installVersionFooterV31(){
-  var footer=document.getElementById('app-version-v17');
-  if(!footer||footer.dataset.updateTriggerV31==='1')return;
-  footer.dataset.updateTriggerV31='1';
-  footer.classList.add('version-trigger-v31');
-  footer.setAttribute('role','button');
-  footer.setAttribute('tabindex','0');
-  footer.setAttribute('title','查看版本更新');
-  var open=function(){
-    showUpdateBarV31(appVersionV31(),true);
-    window.__stTrack('version_update_opened',{version:appVersionV31()});
-  };
-  footer.addEventListener('click',open);
-  footer.addEventListener('keydown',function(e){
-    if(e.key==='Enter'||e.key===' '){e.preventDefault();open();}
-  });
-}
-
 var bindPageBeforeV31=(typeof bindPage==='function')?bindPage:null;
 bindPage=function bindPageV31(){
   if(bindPageBeforeV31)bindPageBeforeV31();
   try{
     installTrackingV31();
-    installVersionFooterV31();
-    if(!localStorage.getItem('st_tip_quick_entry_v64'))showQuickEntryTipBannerV64();
-    installUpdateChecksV31();
   }catch(e){}
 };
 function escV31(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 /* 启动 */
 injectStylesV31();
-installVersionFooterV31();
 
 /* 测试钩子 */
 window.__v31={
-  showQuickEntryTipBanner:showQuickEntryTipBannerV64,
   injectLegendHints:injectLegendHintsV31,
-  checkUpdate:checkUpdateV31,
-  releaseNotes:RELEASE_NOTES_V31,
   rankLine:rankLineV31,
   track:window.__stTrack
 };
@@ -12357,3 +12234,116 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   window.__v61={captureDraft:captureExam61,readDraft:readDraft61,clearDraft:clearDraft61,filters:function(){return(state.gradeFiltersV61||[]).slice();}};
 })();
 
+/* ===== release-notices.js ===== */
+/* Release notifications: deployed version stays immutable; content is managed remotely. */
+(function () {
+  'use strict';
+  var API = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-notices';
+  var CURRENT = (document.querySelector('meta[name="application-version"]') || {}).content || 'v7.0';
+  var PERIOD = 30 * 60 * 1000;
+  var DEFAULT = {version:'v7.0',enabled:true,title:'v7.0 更新内容',content:'我们好高兴地告诉大家，图片识别功能正式上线了！\n\n新建考试时，进入「快速录入」，选择「图片识别」模式，上传图片即可自动解析。\n\n功能刚刚上线，还有些不稳定。如果遇到识别错误等情况，欢迎大家及时反馈哦。',tip_enabled:false,tip_content:'自然语言快速录入功能已上线，欢迎在新建考试时体验。',announcement_enabled:false,announcement_title:'公告',announcement_content:'',revision:1};
+  var active = '', lastCheck = 0, busy = null, pending = [], memory = {}, latestConfig = DEFAULT;
+  var modal = null, lastFocus = null, pumpTimer = null, loginTimer = null;
+  function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function version(v) { var parts=String(v || '').trim().replace(/^v/i,'').split('.').map(Number);while(parts.length>2&&parts[parts.length-1]===0)parts.pop();if(parts.length===1)parts.push(0);return 'v'+parts.join('.'); }
+  function compare(a,b) { var x=version(a).slice(1).split('.').map(Number), y=version(b).slice(1).split('.').map(Number); for(var i=0;i<Math.max(x.length,y.length);i++){var d=(x[i]||0)-(y[i]||0);if(d)return d;}return 0; }
+  function track(type,data) { try { return (window.__scoreTrackerTrack || window.__stTrack || function(){})(type,Object.assign({current_version:CURRENT},data||{})); } catch (_) {} }
+  function user() { try { return state.user && state.token ? {id:String(state.user.id),token:state.token} : null; } catch (_) { return null; } }
+  function key(u,kind,id) { return 'st_notice_seen:'+u.id+':'+kind+':'+id; }
+  function seen(u,kind,id) { var k=key(u,kind,id);try{return memory[k] || localStorage.getItem(k)==='1';}catch(_){return !!memory[k];} }
+  function mark(u,kind,id) { var k=key(u,kind,id);memory[k]=true;try{localStorage.setItem(k,'1');}catch(_){} }
+  function context() { var id=function(k,storage){try{return storage.getItem(k)||null;}catch(_){return null;}};return {session_id:id('st_session_id',sessionStorage),visitor_id:id('st_visitor_id',localStorage),app_version:CURRENT,pathname:location.pathname,app_page:(typeof state!=='undefined'&&state.page)||'unknown'}; }
+  async function call(action,payload,u) {
+    var controller=new AbortController(),timeout=setTimeout(function(){controller.abort();},10000);
+    try {
+      var r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,cache:'no-store',body:JSON.stringify(Object.assign({action:action,token:(u||user()||{}).token||'',context:context()},payload||{}))});
+      var data=await r.json();if(!r.ok){var e=new Error(data.error||'暂时无法读取更新内容');e.status=r.status;throw e;}return data;
+    } finally {clearTimeout(timeout);}
+  }
+  async function deployed() {
+    var controller=new AbortController(),timeout=setTimeout(function(){controller.abort();},10000);
+    try { var url=new URL('index.html',location.href);url.searchParams.set('__cb',Date.now());var r=await fetch(url.href,{cache:'no-store',signal:controller.signal});if(!r.ok)throw new Error('版本检查失败');var doc=new DOMParser().parseFromString(await r.text(),'text/html'),m=doc.querySelector('meta[name="application-version"]');if(!m||!/^v?\d+(\.\d+){0,2}$/i.test(m.content))throw new Error('暂时未找到版本信息');return version(m.content); } finally {clearTimeout(timeout);}
+  }
+  function blocking() { try{if(state.onboarding)return true;}catch(_){}return document.visibilityState!=='visible'||!!document.querySelector('.modal-backdrop,.fv36-back,.st-fb-back,.gmodal-backdrop.open'); }
+  function injectStyle() {
+    if(document.getElementById('release-notices-style'))return;
+    var s=document.createElement('style');s.id='release-notices-style';s.textContent=
+      '.rn-back{position:fixed;inset:0;z-index:171;display:grid;place-items:center;padding:18px;background:rgba(20,27,39,.42);backdrop-filter:blur(9px)}'+
+      '.rn-modal{width:min(540px,100%);max-height:90vh;max-height:90dvh;overflow:auto;border:1px solid var(--line,#e7eaf0);border-radius:24px;background:var(--panel-solid,#fff);color:var(--text,#18212f);box-shadow:0 30px 90px rgba(17,24,39,.26);padding:24px;animation:rn-enter .24s ease-out}'+
+      '.rn-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.rn-icon{width:48px;height:48px;display:grid;place-items:center;border-radius:16px;background:var(--accent-soft,#eef1ff);color:var(--accent,#5d72e8);font-size:25px;margin-bottom:17px}.rn-close{border:0;border-radius:11px;background:var(--cell,#f3f5f8);color:var(--muted,#6f7988);width:34px;height:34px;font-size:22px;cursor:pointer}'+
+      '.rn-kicker{color:var(--accent,#5d72e8);font-size:11px;font-weight:750;letter-spacing:.04em}.rn-title{font-size:23px;line-height:1.4;margin:7px 0 17px}.rn-content{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.9}.rn-status{background:var(--cell,#f7f8fb);color:var(--muted,#7a8494);border-radius:13px;padding:11px 13px;margin-top:20px;font-size:12px;line-height:1.65}.rn-actions{display:flex;justify-content:flex-end;margin-top:21px}.rn-action{border:0;border-radius:12px;background:var(--accent,#5d72e8);color:var(--on-surface,#fff);padding:12px 22px;font-family:inherit;font-weight:700;font-size:14px;cursor:pointer}.rn-action:disabled{opacity:.6}.rn-modal button:focus-visible,.rn-banner button:focus-visible{outline:2px solid var(--accent,#5d72e8);outline-offset:3px}'+
+      '.rn-banner{position:fixed;top:calc(14px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(620px,calc(100vw - 24px));padding:13px 15px;display:flex;gap:12px;align-items:center;border:1px solid var(--line,#e7eaf0);border-radius:16px;background:var(--panel-solid,#fff);color:var(--text,#18212f);box-shadow:var(--nav-shadow);z-index:95;font-size:13px;line-height:1.6}.rn-banner span{flex:1;white-space:pre-wrap;overflow-wrap:anywhere}'+
+      '@keyframes rn-enter{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){.rn-modal{animation:none}}@media(max-width:620px){.rn-back{padding:12px}.rn-modal{padding:20px 18px;border-radius:21px}.rn-title{font-size:21px}.rn-content{font-size:13px}.rn-actions .rn-action{width:100%}}';
+    document.head.appendChild(s);
+  }
+  function close(reason) {
+    if(!modal)return;var old=modal;modal=null;
+    track(old.kind==='release'?'update_prompt_dismissed':'announcement_dismissed',{target_version:old.id,source:old.source,reason:reason,duration_ms:Date.now()-old.started,needs_update:old.outdated});
+    old.back.remove();document.body.style.overflow=old.overflow;
+    if(lastFocus&&lastFocus.isConnected)lastFocus.focus();lastFocus=null;queuePump();
+  }
+  function show(item) {
+    injectStyle();if(item.kind==='tip')return showTip(item);
+    var outdated=item.kind==='release'&&compare(item.id,CURRENT)>0,back=document.createElement('div');back.className='rn-back';back.id='releaseNotice';
+    back.innerHTML='<section class="rn-modal" role="dialog" aria-modal="true" aria-labelledby="rnTitle" aria-describedby="rnContent"><div class="rn-head"><div class="rn-icon" aria-hidden="true">'+(item.kind==='release'?'✦':'↗')+'</div><button class="rn-close" type="button" aria-label="关闭">×</button></div><div class="rn-kicker">'+(item.kind==='release'?'成绩轨迹 · '+esc(item.id):'成绩轨迹')+'</div><h2 class="rn-title" id="rnTitle">'+esc(item.title)+'</h2><div class="rn-content" id="rnContent">'+esc(item.content)+'</div>'+(item.kind==='release'?'<div class="rn-status">'+(outdated?'你正在使用 '+esc(CURRENT)+'，更新后就能体验新功能。':'你已经在使用 '+esc(CURRENT)+'，快去试试吧。')+'</div>':'')+'<div class="rn-actions"><button class="rn-action" type="button">'+(outdated?'现在更新':'我知道了')+'</button></div></section>';
+    lastFocus=document.activeElement;modal=Object.assign({},item,{back:back,outdated:outdated,started:Date.now(),overflow:document.body.style.overflow});document.body.style.overflow='hidden';document.body.appendChild(back);
+    mark(item.user,item.kind,item.id);
+    if(item.manual&&item.user.id!=='guest')call('notice_claim',{kind:item.kind,notice_id:item.id},item.user).catch(function(e){track('notice_claim_failed',{kind:item.kind,notice_id:item.id,status:e.status||0});});
+    track(item.kind==='release'?'update_prompt_shown':'announcement_shown',{target_version:item.id,source:item.source,manual:item.manual,needs_update:outdated});
+    var button=back.querySelector('.rn-action');button.focus();back.querySelector('.rn-close').onclick=function(){close('close_button');};back.onclick=function(e){if(e.target===back)close('backdrop');};
+    back.onkeydown=function(e){if(e.key==='Escape'){e.preventDefault();close('escape');}if(e.key==='Tab'){var buttons=back.querySelectorAll('button'),first=buttons[0],last=buttons[buttons.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}};
+    button.onclick=async function(){if(!outdated){track(item.kind==='release'?'update_acknowledged':'announcement_acknowledged',{target_version:item.id,source:item.source});close('acknowledged');return;}button.disabled=true;button.textContent='正在更新…';try{sessionStorage.setItem('st_notice_update_pending',JSON.stringify({user_id:item.user.id,from:CURRENT,to:item.id}));}catch(_){}await Promise.race([Promise.resolve(track('update_apply',{from:CURRENT,to:item.id,source:item.source})),new Promise(function(resolve){setTimeout(resolve,500);})]);var url=new URL(location.href);url.searchParams.set('__update',Date.now());location.replace(url.href);};
+  }
+  function showTip(item) {
+    var existing=document.getElementById('releaseTip');if(existing)existing.remove();var b=document.createElement('div');b.className='rn-banner';b.id='releaseTip';b.innerHTML='<span>'+esc(item.content)+'</span><button class="rn-close" type="button" aria-label="关闭提示">×</button>';document.body.appendChild(b);mark(item.user,item.kind,item.id);track('tip_shown',{notice_id:item.id,source:item.source});b.querySelector('button').onclick=function(){b.remove();track('tip_dismissed',{notice_id:item.id,reason:'close_button'});};
+  }
+  function queuePump() { clearTimeout(pumpTimer);if(pending.length)pumpTimer=setTimeout(pump,350); }
+  async function pump() {
+    if(modal||!pending.length)return;
+    if(blocking()){queuePump();return;}
+    var item=pending[0],u=user()||(item.manual&&item.user.id==='guest'?item.user:null);if(!u||u.id!==item.user.id||u.token!==item.user.token){pending.shift();queuePump();return;}
+    if(!item.manual&&!item.claimed){
+      if(seen(u,item.kind,item.id)){pending.shift();queuePump();return;}
+      if(item.claiming)return;item.claiming=true;
+      try{var claim=await call('notice_claim',{kind:item.kind,notice_id:item.id},u);if(!user()||user().id!==u.id||user().token!==u.token||pending[0]!==item)return;if(!claim.claimed){mark(u,item.kind,item.id);pending.shift();track('notice_suppressed',{kind:item.kind,notice_id:item.id,reason:'already_seen'});queuePump();return;}item.claimed=true;}
+      catch(e){track('notice_claim_failed',{kind:item.kind,notice_id:item.id,status:e.status||0,error:String(e.message).slice(0,180)});if(pending[0]===item)pending.shift();queuePump();return;}
+      finally{item.claiming=false;}
+      if(!user()||user().id!==u.id||user().token!==u.token)return;if(blocking()){queuePump();return;}
+    }
+    pending.shift();show(item);queuePump();
+  }
+  function enqueue(item) {if((modal&&modal.kind===item.kind&&modal.id===item.id)||pending.some(function(x){return x.kind===item.kind&&x.id===item.id;}))return;pending.push(item);pump();}
+  async function check(source,manual) {
+    var u=user();if((!u&&!manual)||(!manual&&document.querySelector('.auth-page'))||(!manual&&(document.visibilityState!=='visible'||navigator.onLine===false)))return;
+    if(busy){await busy;if(manual)return check(source,true);return;}
+    u=u||{id:'guest',token:''};var start=Date.now();lastCheck=start;
+    busy=(async function(){
+      track('update_check_started',{source:source});
+      var results=await Promise.allSettled([call(u.id==='guest'?'notice_public':'notice_check',{},u),deployed()]);
+      if(u.id!=='guest'&&(!user()||user().id!==u.id||user().token!==u.token))return;
+      var config=results[0].status==='fulfilled'?results[0].value.config:null,html=results[1].status==='fulfilled'?results[1].value:CURRENT;
+      if(config)latestConfig=config;
+      var c=config||latestConfig,target=compare(c.version,html)>=0?version(c.version):html;if(compare(target,CURRENT)<0)target=version(CURRENT);
+      var receipts=results[0].status==='fulfilled'?results[0].value.seen||[]:[];receipts.forEach(function(r){mark(u,r.kind,r.notice_id);});
+      track('update_check_completed',{source:source,target_version:target,duration_ms:Date.now()-start,config_ok:!!config,version_ok:results[1].status==='fulfilled'});
+      if(results.some(function(r){return r.status==='rejected';}))track('update_check_failed',{source:source,status:results[0].status==='rejected'?results[0].reason.status||0:0,error:results.filter(function(r){return r.status==='rejected';}).map(function(r){return String(r.reason.message);}).join('; ').slice(0,180)});
+      var known=target===version(c.version),content=known?c.content:(target==='v7.0'?DEFAULT.content:'新版本已准备好了，欢迎更新体验。'),title=known?c.title:target+' 更新内容';
+      if(manual||c.enabled!==false){if(manual||!seen(u,'release',target))enqueue({user:u,kind:'release',id:target,title:title,content:content,source:source,manual:!!manual});else track('notice_suppressed',{kind:'release',notice_id:target,reason:'already_seen',source:source});}
+      if(!manual&&config){['announcement','tip'].forEach(function(kind){if(!c[kind+'_enabled']||!c[kind+'_content']||seen(u,kind,String(c[kind+'_id'])))return;enqueue({user:u,kind:kind,id:String(c[kind+'_id']),title:c.announcement_title,content:c[kind+'_content'],source:source,manual:false});});}
+    })().finally(function(){busy=null;});return busy;
+  }
+  function sync() {
+    mountFooter();var u=user(),id=u?u.id+':'+u.token:'';if(id===active)return;
+    active=id;pending=[];latestConfig=DEFAULT;clearTimeout(loginTimer);if(modal)close('account_changed');var tip=document.getElementById('releaseTip');if(tip)tip.remove();
+    if(u){try{var info=JSON.parse(sessionStorage.getItem('st_notice_update_pending')||'null');if(info&&info.user_id===u.id){track(compare(CURRENT,info.to)>=0?'update_completed':'update_reload_still_old',{from:info.from,to:info.to});sessionStorage.removeItem('st_notice_update_pending');}}catch(_){}loginTimer=setTimeout(function(){check('login',false);},120);}
+  }
+  function mountFooter() {var f=document.getElementById('app-version-v17');if(!f)return;f.textContent='Score Tracker · '+CURRENT;if(f.dataset.noticeTrigger)return;f.dataset.noticeTrigger='1';f.classList.add('version-trigger-v31');f.setAttribute('role','button');f.setAttribute('tabindex','0');f.setAttribute('title','查看版本更新');var open=function(){track('version_update_opened',{version:CURRENT});check('manual',true);};f.addEventListener('click',open);f.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();open();}});}
+  var oldRender=typeof render==='function'?render:null;if(oldRender)render=function(){var r=oldRender.apply(this,arguments);sync();return r;};
+  var oldLogin=typeof renderLogin==='function'?renderLogin:null;if(oldLogin)renderLogin=function(){var r=oldLogin.apply(this,arguments);sync();return r;};
+  setInterval(function(){sync();if(Date.now()-lastCheck>=PERIOD)check('interval',false);},PERIOD);
+  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'){sync();pump();if(Date.now()-lastCheck>=PERIOD)check('resume',false);}});
+  window.addEventListener('online',function(){if(Date.now()-lastCheck>=PERIOD)check('online',false);});
+  window.addEventListener('storage',function(e){if(e.key==='st_token'&&user()&&e.newValue!==user().token){pending=[];if(modal)close('account_changed');}});
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',sync,{once:true});else sync();
+  window.__releaseNotices={check:check,compareVersions:compare};
+})();
