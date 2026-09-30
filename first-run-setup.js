@@ -10,46 +10,23 @@
   const LEADS = ['先保存用户名和密码，以后用它们登录。', '可以只改一项，也可以先用现在的。', '语文、数学、英语已选好，再选 3 门。', '已按你的选科准备好，也可以调整。', '科目和满分都能改，以后也能再调整。', '按年级整理，或换成你习惯的方式。', '搜索学校名称，或直接填写。'];
   const clone = value => JSON.parse(JSON.stringify(value));
   const esc = value => escapeHtml(String(value ?? ''));
-  let active = null, checkedUser = '', schoolData = null, schoolPromise = null, schoolIndex = [];
+  let active = null, checkedUser = '', schoolRegions = null, regionPromise = null;
+  const schoolCache = new Map();
   const pendingKey = () => 'st_setup_pending_' + state.user.id;
   function pending(value) { try { if (value) localStorage.setItem(pendingKey(), '1'); else localStorage.removeItem(pendingKey()); } catch (_) {} }
   function isPending() { try { return localStorage.getItem(pendingKey()) === '1'; } catch (_) { return false; } }
-  async function setupApi(action, payload = {}) {
-    const response = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, token: state.token, ...payload }), signal: AbortSignal.timeout(20000) });
+  async function setupRequest(action, payload = {}, signal = AbortSignal.timeout(20000)) {
+    const response = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, token: state.token, ...payload }), signal });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || '暂时没有保存成功，请再试一次');
-    return data.profile;
+    return data;
   }
+  async function setupApi(action, payload = {}) { return (await setupRequest(action, payload)).profile; }
   function track(event, step) { if (typeof window.__scoreTrackerTrack === 'function') window.__scoreTrackerTrack(event, { step }, 'account'); }
-  function schoolText(value) { return String(value).normalize('NFKC').toLowerCase().replace(/[\s·•()_-]/g, ''); }
-  function schoolSearchKey(value) {
-    const digits = { 零: 0, 〇: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
-    const units = { 十: 10, 百: 100, 千: 1000 };
-    return schoolText(value).replace(/[零〇一二两三四五六七八九十百千]+/g, number => {
-      if (!/[十百千]/.test(number)) return [...number].map(n => digits[n]).join('');
-      let total = 0, digit = 0;
-      for (const n of number) { if (units[n]) { total += (digit || 1) * units[n]; digit = 0; } else digit = digits[n]; }
-      return String(total + digit);
-    }).replace(/第(?=\d)/g, '').replace(/附属中(?:学校|学)/g, '附中').replace(/中(?:学校|學校|学|學)/g, '中').replace(/[省市]/g, '');
-  }
-  function matchingSchools(query, province, city) {
-    const text = schoolText(query), key = schoolSearchKey(query);
-    const found = [];
-    for (const entry of schoolIndex) {
-      const s = entry.school;
-      if ((province && s[1] !== province) || (city && s[2] !== city)) continue;
-      const direct = text && entry.text.includes(text), abbreviated = key && entry.key.includes(key);
-      if (text && !direct && !abbreviated) continue;
-      const rank = entry.text === text ? 0 : entry.key === key ? 1 : direct ? 2 : 3;
-      found.push({ school: s, rank });
-    }
-    if (text) found.sort((a, b) => a.rank - b.rank);
-    return { total: found.length, matches: found.slice(0, 30).map(entry => entry.school) };
-  }
-  async function schools() {
-    if (schoolData) return schoolData;
-    if (!schoolPromise) schoolPromise = fetch('./data/high-schools.json?v=schools-v2', { signal: AbortSignal.timeout(12000) }).then(r => { if (!r.ok) throw new Error('学校列表暂时没加载出来，可以直接填写'); return r.json(); }).then(d => { schoolIndex = d.schools.map(school => ({ school, text: schoolText(school[0]), key: schoolSearchKey(school[0]) })); schoolData = d.schools; return schoolData; }).finally(() => { schoolPromise = null; });
-    return schoolPromise;
+  async function regions() {
+    if (schoolRegions) return schoolRegions;
+    if (!regionPromise) regionPromise = setupRequest('school_regions', {}, AbortSignal.timeout(20000)).then(d => { schoolRegions = d.regions; return schoolRegions; }).finally(() => { regionPromise = null; });
+    return regionPromise;
   }
   startRegister = async function () {
     if (state.setupRegisterBusy) return;
@@ -72,6 +49,8 @@
     let step = schoolOnly ? 6 : credentials ? 0 : Math.max(1, Number(profile?.step || 1));
     let selected = [...(profile?.selected_subjects || [])], subjectDraft = [], moduleDraft = [], categoryDraft = null;
     let savedProfile = profile || null, loaded = false, busy = false, loadingError = '', schoolError = '';
+    let schoolMatches = [], hasMore = false, schoolLoading = false, regionError = '', regionLoading = false;
+    let searchTimer = null, searchController = null, searchVersion = 0, resultKey = '';
     let username = state.user.username, password = '', confirmPassword = '', showPassword = false;
     let school = clone(profile?.school || null), schoolQuery = school?.name || '', province = school?.province || '', city = school?.city || '';
     let pickedKey = selected.join('|');
@@ -88,7 +67,7 @@
       if (e.shiftKey && (document.activeElement === first || !items.includes(document.activeElement))) { e.preventDefault(); last?.focus(); }
       else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
     });
-    function close() { root.remove(); active = null; app.inert = wasInert; document.body.style.overflow = oldOverflow; password = confirmPassword = ''; state.onboarding = null; previousFocus?.isConnected && previousFocus.focus(); }
+    function close() { clearTimeout(searchTimer); searchVersion++; searchController?.abort(); root.remove(); active = null; app.inert = wasInert; document.body.style.overflow = oldOverflow; password = confirmPassword = ''; state.onboarding = null; previousFocus?.isConnected && previousFocus.focus(); }
     function error(message) { const node = root.querySelector('.setup-error'); if (node) node.textContent = message; }
     function bodyHtml() {
       if (step === 0) return '<div class="setup-icon" aria-hidden="true">✓</div>' + heading() + ['username', 'password'].map((key, i) => '<div class="setup-credential"><small>' + (i ? '密码' : '用户名') + '</small><div><code>' + esc(credentials?.[key] || '') + '</code><button class="setup-text-btn" data-copy-credential="' + key + '">复制</button></div></div>').join('') + '<p class="setup-note">请截图或复制保存。关闭后，密码不会再显示。</p>';
@@ -98,17 +77,18 @@
       if (step === 3) return heading() + moduleDraft.map((m, i) => '<section class="setup-card"><div class="setup-card-head">' + (m.isBuiltin ? '<b>' + (i === 0 ? '语数外' : i === 1 ? '四科组合' : '六科组合') + '</b>' : '<input aria-label="模块名称" data-module-name="' + i + '" maxlength="30" value="' + esc(m.name) + '"><button class="setup-remove" data-remove-module="' + i + '" aria-label="删除模块">×</button>') + '</div><div class="setup-chips">' + [...new Set([...CORE, ...EXTRAS, ...subjectDraft.map(s => s.name)])].filter(n => m.name !== NAMES[1] || CORE.includes(n) || ['物理', '历史'].includes(n)).map(n => '<button class="setup-chip" data-module="' + i + '" data-member="' + esc(n) + '" aria-pressed="' + m.subjects.includes(n) + '" ' + (m.isBuiltin && (CORE.includes(n) || m.name === NAMES[0]) ? 'disabled' : '') + '>' + esc(n) + '</button>').join('') + '</div></section>').join('') + '<button class="setup-text-btn" id="setup-add-module">＋ 添加模块</button>';
       if (step === 4) return heading() + '<div class="setup-row setup-row-label"><span>科目</span><span>默认满分</span><span></span></div>' + subjectDraft.map((s, i) => '<div class="setup-row"><input data-subject-name="' + i + '" aria-label="科目 ' + (i + 1) + '" maxlength="40" value="' + esc(s.name) + '"><input data-subject-max="' + i + '" aria-label="' + esc(s.name) + '满分" type="number" min="1" max="99999" step="0.01" inputmode="decimal" value="' + esc(s.defaultMax) + '"><button class="setup-remove" data-remove-subject="' + i + '" aria-label="删除' + esc(s.name) + '">×</button></div>').join('') + '<button class="setup-text-btn" id="setup-add-subject">＋ 添加科目</button>';
       if (step === 5) return heading() + '<label class="setup-field">分类名称<input id="setup-category-label" maxlength="16" value="' + esc(categoryDraft.label) + '"></label>' + categoryDraft.options.map((n, i) => '<div class="setup-row category"><input data-category="' + i + '" aria-label="分类 ' + (i + 1) + '" maxlength="20" value="' + esc(n) + '"><button class="setup-remove" data-remove-category="' + i + '" aria-label="删除分类">×</button></div>').join('') + '<button class="setup-text-btn" id="setup-add-category">＋ 添加分类</button>';
-      return heading() + '<div class="setup-school-filters"><select id="setup-province" aria-label="省份"><option value="">全部省份</option>' + [...new Set((schoolData || []).map(s => s[1]))].map(n => '<option ' + (n === province ? 'selected' : '') + '>' + esc(n) + '</option>').join('') + '</select><select id="setup-city" aria-label="城市"><option value="">全部城市</option>' + [...new Set((schoolData || []).filter(s => !province || s[1] === province).map(s => s[2]))].map(n => '<option ' + (n === city ? 'selected' : '') + '>' + esc(n) + '</option>').join('') + '</select></div><label class="setup-field">学校名称<input id="setup-school-query" maxlength="100" autocomplete="off" placeholder="搜索或填写学校名称" value="' + esc(schoolQuery) + '"></label><div id="setup-school-results" class="setup-school-list"></div><p class="setup-inline-note">找不到？直接填写学校全名即可。<a href="https://github.com/pg7go/The-Location-Data-of-Schools-in-China" target="_blank" rel="noopener">名单来源</a></p>';
+      return heading() + '<div class="setup-school-filters"><select id="setup-province" aria-label="省份"><option value="">全部省份</option>' + [...new Set([...(schoolRegions || []).map(s => s[0]), ...(province ? [province] : [])])].map(n => '<option ' + (n === province ? 'selected' : '') + '>' + esc(n) + '</option>').join('') + '</select><select id="setup-city" aria-label="城市"><option value="">全部城市</option>' + [...new Set([...(schoolRegions || []).filter(s => !province || s[0] === province).map(s => s[1]), ...(city ? [city] : [])])].map(n => '<option ' + (n === city ? 'selected' : '') + '>' + esc(n) + '</option>').join('') + '</select></div><label class="setup-field">学校名称<input id="setup-school-query" maxlength="100" autocomplete="off" placeholder="搜索或填写学校名称" value="' + esc(schoolQuery) + '"></label><div id="setup-school-results" class="setup-school-list" aria-live="polite"></div><p class="setup-inline-note">找不到？直接填写学校全名即可。<a href="https://github.com/pg7go/The-Location-Data-of-Schools-in-China" target="_blank" rel="noopener">名单来源</a></p>';
     }
     function heading() { return '<h2 id="setup-title" tabindex="-1">' + TITLES[step] + '</h2><p class="setup-lead">' + LEADS[step] + '</p>'; }
     function draw(focus = true) {
+      if (step !== 6) { clearTimeout(searchTimer); searchVersion++; searchController?.abort(); schoolLoading = false; resultKey = ''; }
       root.innerHTML = '<div class="setup-shell"><aside class="setup-aside"><div class="setup-brand"><span class="setup-mark">↗</span>成绩轨迹</div><p>从这里开始，<br>记录你的每一次进步。</p><ol class="setup-steps">' + STEPS.map((s, i) => '<li class="' + (i === step ? 'current' : i < step ? 'done' : '') + '" ' + (i === step ? 'aria-current="step"' : '') + '><span>' + (i < step ? '✓' : i + 1) + '</span>' + s + '</li>').join('') + '</ol><small>以后也可以在账号页调整</small></aside><div class="setup-main"><div class="setup-top"><span>' + (schoolOnly ? '我的学校' : '首次设置 · ' + (step + 1) + ' / 7') + '</span><div class="setup-track"><i style="width:' + ((step + 1) / 7 * 100) + '%"></i></div></div><div class="setup-body">' + bodyHtml() + '</div><p class="setup-error" role="alert"></p><footer class="setup-footer">' + ((step > 0 && !schoolOnly) ? '<button class="setup-back" id="setup-back">← 上一步</button>' : schoolOnly ? '<button class="setup-back" id="setup-cancel">取消</button>' : '') + ([1, 2, 6].includes(step) && !schoolOnly ? '<button class="setup-text-btn" id="setup-skip">' + (step === 6 ? '跳过并完成' : '先跳过') + '</button>' : '') + '<button class="setup-next" id="setup-next">' + (step === 0 ? '已保存，继续 →' : step === 6 ? schoolOnly ? '保存学校' : '完成设置 →' : step === 1 ? '保存并继续 →' : '下一步 →') + '</button></footer></div></div>';
       if (!loaded && step < 2) {
         const note = document.createElement('p'); note.className = 'setup-note'; note.textContent = loadingError || '正在准备设置…'; root.querySelector('.setup-body').appendChild(note);
         if (loadingError) { const retry = document.createElement('button'); retry.className = 'setup-text-btn'; retry.id = 'setup-retry'; retry.textContent = '重新加载'; root.querySelector('.setup-body').appendChild(retry); }
       }
       bind();
-      if (step === 6 && loaded) { showResults(); if (!schoolData) schools().then(() => { if (active === root && step === 6) draw(false); }).catch(e => { schoolError = e.message; if (active === root && step === 6) showResults(); }); }
+      if (step === 6 && loaded) { showResults(); loadRegions(); if (resultKey !== searchKey()) queueSearch(0); }
       setBusy(busy);
       if (focus) root.querySelector('#setup-title')?.focus({ preventScroll: true });
     }
@@ -122,9 +102,49 @@
     function showResults() {
       const list = root.querySelector('#setup-school-results'); if (!list) return;
       const q = schoolQuery.trim();
-      const { matches, total } = matchingSchools(q, province, city);
-      list.innerHTML = (school ? '<div class="setup-success">已选择：' + esc(school.name) + '</div>' : '') + (!schoolData ? '<p class="setup-note">' + esc(schoolError || '正在加载学校…') + '</p>' : '') + matches.map((s, i) => '<button class="setup-school" data-school-index="' + i + '" aria-pressed="' + (school?.name === s[0] && school?.province === s[1] && school?.city === s[2] && school?.area === s[3]) + '"><strong>' + esc(s[0]) + '</strong><small>' + esc([s[1], s[2], s[3]].filter(Boolean).join(' · ')) + '</small></button>').join('') + (total > 30 ? '<p class="setup-note">还有更多结果，试试学校全名或选择省市。</p>' : '') + (q && schoolData && !matches.length ? '<p class="setup-note">可以直接保存「' + esc(q) + '」</p>' : '');
-      list.querySelectorAll('[data-school-index]').forEach(b => b.onclick = () => { const s = matches[Number(b.dataset.schoolIndex)]; school = { name: s[0], province: s[1], city: s[2], area: s[3], source: 'github' }; schoolQuery = s[0]; root.querySelector('#setup-school-query').value = schoolQuery; showResults(); });
+      list.innerHTML = (school ? '<div class="setup-success">已选择：' + esc(school.name) + '</div>' : '') + (schoolLoading ? '<p class="setup-note">正在查找学校…</p>' : schoolError ? '<p class="setup-note">' + esc(schoolError) + '，可以直接填写。<button class="setup-text-btn" id="setup-school-retry">重试</button></p>' : '') + (regionError ? '<p class="setup-note">省市暂时没加载出来，仍可搜索学校。<button class="setup-text-btn" id="setup-region-retry">重试</button></p>' : '') + schoolMatches.map((s, i) => '<button class="setup-school" data-school-index="' + i + '" aria-pressed="' + (school?.name === s[0] && school?.province === s[1] && school?.city === s[2] && school?.area === s[3]) + '"><strong>' + esc(s[0]) + '</strong><small>' + esc([s[1], s[2], s[3]].filter(Boolean).join(' · ')) + '</small></button>').join('') + (hasMore ? '<p class="setup-note">还有更多结果，试试学校全名或选择省市。</p>' : '') + (q && !schoolLoading && !schoolError && !schoolMatches.length ? '<p class="setup-note">可以直接保存「' + esc(q) + '」</p>' : '');
+      list.querySelector('#setup-school-retry')?.addEventListener('click', () => { regionError = ''; loadRegions(); queueSearch(0); });
+      list.querySelector('#setup-region-retry')?.addEventListener('click', () => { regionError = ''; loadRegions(); showResults(); });
+      list.querySelectorAll('[data-school-index]').forEach(b => b.onclick = () => { const s = schoolMatches[Number(b.dataset.schoolIndex)]; clearTimeout(searchTimer); searchVersion++; searchController?.abort(); schoolLoading = false; school = { name: s[0], province: s[1], city: s[2], area: s[3], source: 'github' }; schoolQuery = s[0]; resultKey = searchKey(); root.querySelector('#setup-school-query').value = schoolQuery; showResults(); });
+      list.querySelectorAll('button').forEach(b => { b.disabled = busy; });
+    }
+    function searchKey() { return JSON.stringify([schoolQuery.trim(), province, city]); }
+    async function loadRegions() {
+      if (schoolRegions || regionLoading || regionError) return;
+      regionLoading = true;
+      try {
+        await regions();
+        if (active === root && step === 6) {
+          const options = (values, selected, label) => '<option value="">' + label + '</option>' + [...new Set(values)].map(n => '<option ' + (n === selected ? 'selected' : '') + '>' + esc(n) + '</option>').join('');
+          root.querySelector('#setup-province').innerHTML = options([...schoolRegions.map(s => s[0]), ...(province ? [province] : [])], province, '全部省份');
+          root.querySelector('#setup-city').innerHTML = options([...schoolRegions.filter(s => !province || s[0] === province).map(s => s[1]), ...(city ? [city] : [])], city, '全部城市');
+        }
+      } catch (_) { regionError = '省市暂时没加载出来'; if (active === root && step === 6) showResults(); }
+      finally { regionLoading = false; }
+    }
+    function queueSearch(delay = 250) {
+      clearTimeout(searchTimer); searchController?.abort();
+      const version = ++searchVersion, key = searchKey();
+      schoolError = ''; schoolMatches = []; hasMore = false; resultKey = key;
+      const cached = schoolCache.get(key);
+      if (cached) { schoolMatches = cached.schools; hasMore = cached.has_more; schoolLoading = false; showResults(); return; }
+      schoolLoading = true; showResults();
+      searchTimer = setTimeout(async () => {
+        const controller = new AbortController(); searchController = controller;
+        const timeout = setTimeout(() => controller.abort(), 20000);
+        try {
+          const data = await setupRequest('school_search', { query: schoolQuery.trim(), province, city }, controller.signal);
+          if (version !== searchVersion || active !== root || step !== 6) return;
+          schoolMatches = data.schools; hasMore = data.has_more; schoolCache.set(key, data);
+          if (schoolCache.size > 60) schoolCache.delete(schoolCache.keys().next().value);
+        } catch (e) {
+          if (version !== searchVersion || active !== root || step !== 6) return;
+          schoolError = controller.signal.aborted ? '查找超时了' : '学校暂时没查到';
+        } finally {
+          clearTimeout(timeout);
+          if (version === searchVersion && active === root && step === 6) { schoolLoading = false; searchController = null; showResults(); }
+        }
+      }, delay);
     }
     function capture() {
       if (step === 1) { username = root.querySelector('#setup-username').value.trim(); password = root.querySelector('#setup-password').value; confirmPassword = root.querySelector('#setup-confirm').value; }
@@ -151,8 +171,8 @@
       root.querySelector('#setup-add-category')?.addEventListener('click', () => { capture(); if (categoryDraft.options.length >= 12) return error('最多 12 个分类'); categoryDraft.options.push(''); draw(false); root.querySelector('[data-category="' + (categoryDraft.options.length - 1) + '"]').focus(); });
       root.querySelectorAll('[data-remove-category]').forEach(b => b.onclick = () => { capture(); if (categoryDraft.options.length <= 1) return error('至少保留 1 个分类'); categoryDraft.options.splice(Number(b.dataset.removeCategory), 1); draw(false); });
       root.querySelector('#setup-province')?.addEventListener('change', e => { province = e.target.value; city = ''; school = null; draw(false); });
-      root.querySelector('#setup-city')?.addEventListener('change', e => { city = e.target.value; school = null; showResults(); });
-      root.querySelector('#setup-school-query')?.addEventListener('input', e => { schoolQuery = e.target.value; school = null; showResults(); });
+      root.querySelector('#setup-city')?.addEventListener('change', e => { city = e.target.value; school = null; queueSearch(0); });
+      root.querySelector('#setup-school-query')?.addEventListener('input', e => { schoolQuery = e.target.value; school = null; queueSearch(); });
     }
     function applySelection() {
       if (pickedKey === selected.join('|')) return;

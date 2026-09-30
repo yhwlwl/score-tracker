@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { schoolText, schoolSearchKey } from "./school-search.mjs";
 
 const db = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "", { auth: { persistSession: false, autoRefreshToken: false } });
 const headers = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS", "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
@@ -41,6 +42,22 @@ Deno.serve(async req => {
     const { data: user, error } = await db.from("score_tracker_users").select("id,session_expires_at").eq("session_token_hash", hash).maybeSingle();
     if (error) throw error;
     if (!user?.session_expires_at || new Date(user.session_expires_at).getTime() <= Date.now()) return reply({ error: "登录已失效，请重新登录" }, 401);
+    if (body.action === "school_regions") {
+      const r = await db.rpc("score_tracker_school_regions");
+      if (r.error) throw r.error;
+      return reply({ regions: (r.data || []).map((s: any) => [s.province, s.city]) });
+    }
+    if (body.action === "school_search") {
+      const params: Record<string, string> = {};
+      for (const key of ["query", "province", "city"]) {
+        if (body[key] != null && (typeof body[key] !== "string" || body[key].length > (key === "query" ? 100 : 50))) return reply({ error: "学校搜索内容不正确" }, 400);
+        params[key] = String(body[key] || "").trim();
+      }
+      const r = await db.rpc("score_tracker_search_schools", { p_text: schoolText(params.query), p_key: schoolSearchKey(params.query), p_province: params.province, p_city: params.city });
+      if (r.error) throw r.error;
+      const rows = r.data || [];
+      return reply({ schools: rows.slice(0, 30).map((s: any) => [s.name, s.province, s.city, s.area]), has_more: rows.length > 30 });
+    }
     if (body.action === "get") return reply({ profile: await profile(user.id) });
     if (body.action === "start") {
       const row: Record<string, unknown> = { user_id: user.id };
@@ -66,6 +83,6 @@ Deno.serve(async req => {
     return reply({ profile: r.data });
   } catch (e) {
     console.error("setup_request_failed", e instanceof Error ? e.name : "database_error");
-    return reply({ error: "暂时没有保存成功，请稍后重试" }, 503);
+    return reply({ error: "服务暂时没响应，请稍后重试" }, 503);
   }
 });

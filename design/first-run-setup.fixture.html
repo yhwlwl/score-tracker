@@ -15,11 +15,15 @@ async function loadExams(){state.modulesV18=modules;state.subjectConfigs=subject
 async function usernameApiV19(a,b){return{user:{username:b.username}}}async function changePasswordApiV15(){}
 async function modulesApiV18(a,b){modules=b.modules;return{modules}}
 async function dataApiV7(a,b){if(a==='save_subjects'){subjects=b.subjects;return{subjects}}classification=b.classification;return{classification}}
-const nativeFetch=window.fetch.bind(window);
+const fixtureSchools=[['深圳中学','广东省','深圳市','罗湖区'],['河北衡水中学','河北省','衡水市','桃城区'],['北京市第二中学','北京市','北京市','东城区'],['上海中学','上海市','上海市','徐汇区']];
 window.fetch=async(url,options)=>{
- if(String(url).startsWith('./data/'))return nativeFetch('../'+String(url).slice(2),options);
  if(String(url).includes('score-tracker-setup')){
   const b=JSON.parse(options.body);
+  if(b.action==='school_regions')return new Response(JSON.stringify({regions:fixtureSchools.map(s=>[s[1],s[2]])}));
+  if(b.action==='school_search'){
+   const q=b.query.normalize('NFKC').replace(/北京[二2]中/,'北京市第二中学');
+   return new Response(JSON.stringify({schools:fixtureSchools.filter(s=>(!b.province||s[1]===b.province)&&(!b.city||s[2]===b.city)&&s[0].includes(q)),has_more:false}));
+  }
   if(b.action==='start')profile=profile||{step:0,selected_subjects:[],school:null,completed_at:null};
   if(b.action==='save'){profile={...profile,...b};if(b.completed)profile.completed_at=new Date().toISOString()}
   return new Response(JSON.stringify({profile}),{headers:{'Content-Type':'application/json'}});
