@@ -7,10 +7,10 @@
   const NAMES = ['语数外', '语数外 + 物理/历史（四科）', '语数外 + 所选科（六科）'];
   const STEPS = ['保存账号', '账号与密码', '选择选科', '成绩模块', '考试科目', '考试分类', '我的学校'];
   const TITLES = ['账号准备好了', '换成更好记的账号', '你在学哪几科？', '把相关科目放在一起', '看看你的考试科目', '考试怎么分类？', '你在哪所学校？'];
-  const LEADS = ['先保存用户名和密码，以后用它们登录。', '可以只改一项，也可以先用现在的。', '语文、数学、英语已选好，再选 3 门。', '已按你的选科准备好，也可以调整。', '科目和满分都能改，以后也能再调整。', '按年级整理，或换成你习惯的方式。', '搜索高中名称，或直接填写。'];
+  const LEADS = ['先保存用户名和密码，以后用它们登录。', '可以只改一项，也可以先用现在的。', '语文、数学、英语已选好，再选 3 门。', '已按你的选科准备好，也可以调整。', '科目和满分都能改，以后也能再调整。', '按年级整理，或换成你习惯的方式。', '搜索学校名称，或直接填写。'];
   const clone = value => JSON.parse(JSON.stringify(value));
   const esc = value => escapeHtml(String(value ?? ''));
-  let active = null, checkedUser = '', schoolData = null, schoolPromise = null;
+  let active = null, checkedUser = '', schoolData = null, schoolPromise = null, schoolIndex = [];
   const pendingKey = () => 'st_setup_pending_' + state.user.id;
   function pending(value) { try { if (value) localStorage.setItem(pendingKey(), '1'); else localStorage.removeItem(pendingKey()); } catch (_) {} }
   function isPending() { try { return localStorage.getItem(pendingKey()) === '1'; } catch (_) { return false; } }
@@ -21,9 +21,34 @@
     return data.profile;
   }
   function track(event, step) { if (typeof window.__scoreTrackerTrack === 'function') window.__scoreTrackerTrack(event, { step }, 'account'); }
+  function schoolText(value) { return String(value).normalize('NFKC').toLowerCase().replace(/[\s·•()_-]/g, ''); }
+  function schoolSearchKey(value) {
+    const digits = { 零: 0, 〇: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+    const units = { 十: 10, 百: 100, 千: 1000 };
+    return schoolText(value).replace(/[零〇一二两三四五六七八九十百千]+/g, number => {
+      if (!/[十百千]/.test(number)) return [...number].map(n => digits[n]).join('');
+      let total = 0, digit = 0;
+      for (const n of number) { if (units[n]) { total += (digit || 1) * units[n]; digit = 0; } else digit = digits[n]; }
+      return String(total + digit);
+    }).replace(/第(?=\d)/g, '').replace(/附属中(?:学校|学)/g, '附中').replace(/中(?:学校|學校|学|學)/g, '中').replace(/[省市]/g, '');
+  }
+  function matchingSchools(query, province, city) {
+    const text = schoolText(query), key = schoolSearchKey(query);
+    const found = [];
+    for (const entry of schoolIndex) {
+      const s = entry.school;
+      if ((province && s[1] !== province) || (city && s[2] !== city)) continue;
+      const direct = text && entry.text.includes(text), abbreviated = key && entry.key.includes(key);
+      if (text && !direct && !abbreviated) continue;
+      const rank = entry.text === text ? 0 : entry.key === key ? 1 : direct ? 2 : 3;
+      found.push({ school: s, rank });
+    }
+    if (text) found.sort((a, b) => a.rank - b.rank);
+    return { total: found.length, matches: found.slice(0, 30).map(entry => entry.school) };
+  }
   async function schools() {
     if (schoolData) return schoolData;
-    if (!schoolPromise) schoolPromise = fetch('./data/high-schools.json', { signal: AbortSignal.timeout(12000) }).then(r => { if (!r.ok) throw new Error('学校列表暂时没加载出来，可以直接填写'); return r.json(); }).then(d => { schoolData = d.schools; return schoolData; }).finally(() => { schoolPromise = null; });
+    if (!schoolPromise) schoolPromise = fetch('./data/high-schools.json?v=schools-v2', { signal: AbortSignal.timeout(12000) }).then(r => { if (!r.ok) throw new Error('学校列表暂时没加载出来，可以直接填写'); return r.json(); }).then(d => { schoolIndex = d.schools.map(school => ({ school, text: schoolText(school[0]), key: schoolSearchKey(school[0]) })); schoolData = d.schools; return schoolData; }).finally(() => { schoolPromise = null; });
     return schoolPromise;
   }
   startRegister = async function () {
@@ -97,8 +122,8 @@
     function showResults() {
       const list = root.querySelector('#setup-school-results'); if (!list) return;
       const q = schoolQuery.trim();
-      const matches = (schoolData || []).filter(s => (!province || s[1] === province) && (!city || s[2] === city) && (!q || s[0].includes(q))).slice(0, 30);
-      list.innerHTML = (school ? '<div class="setup-success">已选择：' + esc(school.name) + '</div>' : '') + (!schoolData ? '<p class="setup-note">' + esc(schoolError || '正在加载学校…') + '</p>' : '') + matches.map((s, i) => '<button class="setup-school" data-school-index="' + i + '" aria-pressed="' + (school?.name === s[0] && school?.province === s[1] && school?.city === s[2]) + '"><strong>' + esc(s[0]) + '</strong><small>' + esc([s[1], s[2], s[3]].filter(Boolean).join(' · ')) + '</small></button>').join('') + (q && !matches.length ? '<p class="setup-note">可以直接保存「' + esc(q) + '」</p>' : '');
+      const { matches, total } = matchingSchools(q, province, city);
+      list.innerHTML = (school ? '<div class="setup-success">已选择：' + esc(school.name) + '</div>' : '') + (!schoolData ? '<p class="setup-note">' + esc(schoolError || '正在加载学校…') + '</p>' : '') + matches.map((s, i) => '<button class="setup-school" data-school-index="' + i + '" aria-pressed="' + (school?.name === s[0] && school?.province === s[1] && school?.city === s[2] && school?.area === s[3]) + '"><strong>' + esc(s[0]) + '</strong><small>' + esc([s[1], s[2], s[3]].filter(Boolean).join(' · ')) + '</small></button>').join('') + (total > 30 ? '<p class="setup-note">还有更多结果，试试学校全名或选择省市。</p>' : '') + (q && schoolData && !matches.length ? '<p class="setup-note">可以直接保存「' + esc(q) + '」</p>' : '');
       list.querySelectorAll('[data-school-index]').forEach(b => b.onclick = () => { const s = matches[Number(b.dataset.schoolIndex)]; school = { name: s[0], province: s[1], city: s[2], area: s[3], source: 'github' }; schoolQuery = s[0]; root.querySelector('#setup-school-query').value = schoolQuery; showResults(); });
     }
     function capture() {
