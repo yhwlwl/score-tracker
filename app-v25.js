@@ -479,6 +479,10 @@
       clone.appendChild(group);
       clone.setAttribute('viewBox',[box[0]||0,box[1]||0,w,y-h+18+h].join(' '));
     }
+    // Export the whole coordinate canvas, including the legend, without inheriting viewport sizing.
+    var exportBox=clone.getAttribute('viewBox').trim().split(/\s+/).map(Number);
+    clone.setAttribute('width',String(exportBox[2]));clone.setAttribute('height',String(exportBox[3]));
+    clone.style.removeProperty('width');clone.style.removeProperty('height');clone.style.removeProperty('min-width');
     return new XMLSerializer().serializeToString(clone);
   }
   function downloadSvgAsPngV25(svgText,filename){

@@ -537,13 +537,13 @@ function rankHeatColor32(rgb,p){
 /* 折线:lines=[{vals,color,dash}] labels=[...];tickLabel(v) 自定义纵轴刻度 */
 function lineSvgV32(lines,labels,opts){
   opts=opts||{};
-  var W=520,H=230,L=52,R=14,T=16,B=30,cw=W-L-R,chh=H-T-B;
+  var n=Math.max(labels.length,lines.reduce(function(size,line){return Math.max(size,line.vals.length);},0));
+  var W=Math.max(520,96+Math.max(0,n-1)*84),H=230,L=52,R=44,T=16,B=30,cw=W-L-R,chh=H-T-B;
   var all=[];
   lines.forEach(function(s){s.vals.forEach(function(v){if(v!==null&&v!==undefined&&v===v)all.push(v);});});
   if(!all.length)return "";
   var lo=Math.min.apply(null,all),hi=Math.max.apply(null,all);
   var pad=(hi-lo)*.25||10;lo=lo-pad;hi=hi+pad;
-  var n=lines[0].vals.length;
   function X(i){return L+(n===1?cw/2:cw*i/(n-1));}
   function Y(v){return T+chh*(1-(v-lo)/(hi-lo));}
   var g="";
@@ -552,7 +552,8 @@ function lineSvgV32(lines,labels,opts){
     g+='<line x1="'+L+'" y1="'+y+'" x2="'+(W-R)+'" y2="'+y+'" stroke="var(--line,#e8ebf0)"/>'+
        '<text x="'+(L-6)+'" y="'+(y+3.5)+'" text-anchor="end" font-size="9.5" fill="var(--muted,#788392)">'+lbl+"</text>";}
   for(var j=0;j<n;j++){
-    g+='<text x="'+X(j)+'" y="'+(H-8)+'" text-anchor="middle" font-size="9.5" fill="var(--muted,#788392)">'+esc32(labels[j]||"")+"</text>";
+    var label=String(labels[j]||''),shortLabel=Array.from(label).length>7?Array.from(label).slice(0,6).join('')+'…':label;
+    g+='<text x="'+X(j)+'" y="'+(H-8)+'" text-anchor="middle" font-size="10" fill="var(--muted,#788392)"><title>'+esc32(label)+'</title>'+esc32(shortLabel)+"</text>";
   }
   lines.forEach(function(s){
     /* null=该场没录这个口径:断线分段,绝不拿另一条线的值造假填充 */
@@ -569,11 +570,12 @@ function lineSvgV32(lines,labels,opts){
     });
     s.vals.forEach(function(v,i){
       if(v===null||v===undefined||v!==v)return;
-      g+='<circle cx="'+X(i)+'" cy="'+Y(v)+'" r="3.6" fill="var(--panel-solid,#fff)" stroke="'+s.color+'" stroke-width="2.2"/>';
+      var description=String(labels[i]||'')+' · '+(opts.tickLabel?opts.tickLabel(v):Math.round(v)+(opts.unit||''));
+      g+='<circle cx="'+X(i)+'" cy="'+Y(v)+'" r="3.6" fill="var(--panel-solid,#fff)" stroke="'+s.color+'" stroke-width="2.2"><title>'+esc32(description)+'</title></circle>';
     });
   });
   if(opts.marks)g+=opts.marks(X,Y,W,H,B);
-  return '<svg viewBox="0 0 '+W+" "+H+'" style="width:100%;height:auto;display:block">'+g+"</svg>";
+  return '<div class="sv32-trend-scroll" tabindex="0" role="region" aria-label="考试趋势，可左右滚动查看"><svg viewBox="0 0 '+W+" "+H+'" width="'+W+'" height="'+H+'" preserveAspectRatio="xMinYMin meet" style="width:100%;height:auto;min-width:'+W+'px;max-width:none;display:block">'+g+'</svg></div>'+(n>6?'<div class="sv32-trend-hint">左右滑动查看全部 '+n+' 次考试</div>':'');
 }
 function sparkSvg32(vals,color){
   if(!vals||vals.length<2)return '<span style="font-size:10px;color:var(--muted)">数据不足</span>';
@@ -1299,6 +1301,9 @@ function injectStylesV32(){
     ".sv31-page .card{padding:20px 22px;margin-bottom:16px}",
     "@media(max-width:620px){.sv31-page .card{padding:15px 14px;margin-bottom:12px}}",
     ".sv31-chart{margin-top:10px}",
+    ".sv32-trend-scroll{max-width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;overscroll-behavior-x:contain;scrollbar-width:thin;scrollbar-color:var(--line,#e8ebf0) transparent}",
+    ".sv32-trend-scroll:focus-visible{outline:2px solid var(--accent,#5d72e8);outline-offset:3px;border-radius:8px}",
+    ".sv32-trend-hint{font-size:11px;color:var(--muted,#788392);text-align:right;margin-top:6px}",
     ".sv31-page table{width:100%;border-collapse:collapse;font-size:12px}",
     ".sv31-page th{text-align:center;font-size:10.5px;color:var(--muted,#788392);font-weight:700;border-bottom:1.5px solid var(--line,#e8ebf0);padding:7px 8px;white-space:nowrap}",
     ".sv31-page th:first-child{text-align:left}",
@@ -1361,7 +1366,7 @@ function injectStylesV32(){
     ".sv31-legend-t:hover{background:var(--chip-bg,#f1f3f8)}",
     ".sv31-legend-t.lg-hide-v29{text-decoration:line-through}",
     ".sv31-evib[hidden],.sv31-evbody[hidden]{display:none!important}",
-    ".sv31-g2{display:grid;grid-template-columns:1fr;gap:16px}@media(min-width:900px){.sv31-g2{grid-template-columns:1fr 1fr}}",
+    ".sv31-g2{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}.sv31-g2>div{min-width:0}@media(min-width:900px){.sv31-g2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}",
     ".sv31-ext-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}@media(min-width:760px){.sv31-ext-grid{grid-template-columns:repeat(4,1fr)}}",
     ".sv31-ext{border:1px solid var(--line,#e8ebf0);border-radius:14px;padding:13px;background:var(--panel-solid,#fff)}",
     ".sv31-ext .t{font-size:10.5px;color:var(--muted,#788392);font-weight:700}.sv31-ext .v{font-size:15.5px;font-weight:800;margin-top:5px}.sv31-ext .s{font-size:10.5px;color:var(--muted,#98a1ae);margin-top:3px;line-height:1.5}",
@@ -1539,6 +1544,11 @@ function rerenderStatsV32(){
   if(typeof state!=="undefined"&&state.page==="stats")routeStatsV32();
 }
 function bindStatsV32(f,root){
+  requestAnimationFrame(function(){root.querySelectorAll('.sv32-trend-scroll').forEach(function(stage){
+    if(!stage.clientWidth)return;
+    stage.scrollLeft=Math.max(0,stage.scrollWidth-stage.clientWidth);
+    var hint=stage.nextElementSibling;if(hint&&hint.classList.contains('sv32-trend-hint'))hint.hidden=stage.scrollWidth<=stage.clientWidth+4;
+  });});
   root.addEventListener("click",function(e){
     var t=e.target;
     var sc=t.closest("[data-sv31-scope]");
