@@ -69,9 +69,9 @@
   function friendlyNetErrorV28(e){
     if(!isNetworkErrorV28(e))return e;
     try{
-      if(navigator.onLine===false)return new Error('当前无网络连接，请联网后重试');
+      if(navigator.onLine===false)return Object.assign(new Error('当前无网络连接，请联网后重试'),e);
     }catch(_){}
-    return new Error('网络连接失败：请检查网络后重试；如果浏览器安装了广告拦截类插件，请允许本站请求后再试');
+    return Object.assign(new Error('暂时无法连接，请稍后重试或切换网络'),e);
   }
   var apiBeforeV28=(typeof api==='function')?api:null;
   if(apiBeforeV28){

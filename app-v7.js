@@ -69,7 +69,7 @@ async function dataApiV7(action, payload = {}) {
       state.user = null;
       renderLogin();
     }
-    throw new Error(data.error || '请求失败');
+    throw window.__scoreTrackerResponseError ? window.__scoreTrackerResponseError(res, data, action) : new Error(data.error || '请求失败');
   }
   return data;
 }

@@ -40,9 +40,9 @@
     if (!r.ok) throw new Error(j.error || '请求失败');
     return j;
   }
-  function track(eventType, metadata = {}, overridePage) {
-    const c = context(); if (overridePage) c.appPage = overridePage;
-    return nativeFetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+  function track(eventType, metadata = {}, overridePage, originalContext, options = {}) {
+    const c = Object.assign(context(), originalContext || {}); if (overridePage) c.appPage = overridePage;
+    return nativeFetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true, signal: options.signal,
       body: JSON.stringify({ action: 'track_event', token: localStorage.getItem('st_token') || '', eventType, context: c, metadata }) }).catch(() => undefined);
   }
 
@@ -60,7 +60,7 @@
       response = await nativeFetch(...args);
     } catch (err) {
       // 网络层失败（断网/被插件拦截/DNS 等）此前完全不可观测：这里上报后原样抛出
-      if (action && action !== 'track_event' && !String(action).startsWith('feedback_')) {
+      if (!window.__scoreTrackerRequestDiagnosticsV37 && action && action !== 'track_event' && !String(action).startsWith('feedback_')) {
         try {
           nativeFetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
             body: JSON.stringify({ action: 'track_event', token: localStorage.getItem('st_token') || '', eventType: 'api_fetch_error',
