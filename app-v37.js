@@ -7,8 +7,7 @@
   if (window.__scoreTrackerRequestDiagnosticsV37) return;
   window.__scoreTrackerRequestDiagnosticsV37 = true;
 
-  var PRIMARY_API = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-api';
-  var DATA_API = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-data-api';
+  var PRIMARY_API = '/api/score-tracker-api';
   var TELEMETRY_EVENT = 'api_fetch_error';
   var nativeFetch = window.fetch && window.fetch.bind(window);
   var sequence = 0;
@@ -25,11 +24,10 @@
   }
 
   function isWatchedTarget(target) {
-    return target.indexOf(PRIMARY_API) === 0 || target.indexOf(DATA_API) === 0;
-  }
-
-  function isPrimaryTarget(target) {
-    return target.indexOf(PRIMARY_API) === 0;
+    try {
+      var url = new URL(target, location.href);
+      return url.origin === location.origin && /^\/api\/score-tracker-(api|data-api|modules-api|username-api|notices|recovery|vision-preview)$/.test(url.pathname);
+    } catch (e) { return false; }
   }
 
   function actionOf(input, init) {
@@ -38,7 +36,7 @@
     if (body == null) return '';
     try {
       var parsed = JSON.parse(String(body));
-      return String(parsed && parsed.action || '');
+      return String(parsed && parsed.action || (endpointOf(targetOf(input)) === '/api/score-tracker-vision-preview' ? 'recognize' : ''));
     } catch (e) {
       return '';
     }
@@ -64,7 +62,7 @@
   function makeDiagnostic(meta) {
     var status = meta.status == null ? null : Number(meta.status);
     var record = {
-      request_id: 'st-' + Date.now().toString(36) + '-' + (++sequence),
+      request_id: meta.requestId || 'st-' + Date.now().toString(36) + '-' + (++sequence),
       request_state: meta.state,
       request_status: status,
       request_status_text: safeMessage(meta.statusText, meta.state === 'network_error' ? 'fetch_rejected' : ''),
@@ -146,19 +144,21 @@
       action: meta.action,
       startedAt: meta.startedAt,
       message: response.statusText || '请求失败',
-      errorName: 'HttpError'
+      errorName: 'HttpError',
+      requestId: response.headers.get('x-score-request-id') || meta.requestId
     });
     remember(record);
     var clone;
     try { clone = response.clone(); } catch (e) { clone = null; }
     var parse = clone ? clone.json().catch(function () { return {}; }) : Promise.resolve({});
-    parse.then(function (payload) {
+    return parse.then(function (payload) {
       var serverMessage = payload && (payload.error || payload.message || payload.detail);
       if (serverMessage) {
         record.error_status = record.request_status;
         record.error_message = safeMessage(serverMessage, record.error_message);
         record.error.message = record.error_message;
       }
+      if (payload && payload.code) record.error_code = safeMessage(payload.code);
       sendDiagnostic(record);
     });
   }
@@ -171,11 +171,17 @@
       target: target,
       method: methodOf(input, init),
       action: actionOf(input, init),
-      startedAt: Date.now()
+      startedAt: Date.now(),
+      requestId: 'st-' + Date.now().toString(36) + '-' + (++sequence)
     };
+    var headers = new Headers((init && init.headers) || (input && input.headers) || {});
+    headers.set('X-Score-Request-Id', meta.requestId);
+    var options = Object.assign({}, init || {}, { headers: headers });
 
-    return nativeFetch(input, init).then(function (response) {
-      if (!response.ok && reportableAction(meta.action)) inspectHttpError(response, meta);
+    return nativeFetch(input, options).then(function (response) {
+      if (!response.ok && reportableAction(meta.action)) {
+        return inspectHttpError(response, meta).then(function () { return response; });
+      }
       return response;
     }, function (error) {
       if (reportableAction(meta.action)) {
@@ -188,12 +194,11 @@
           action: meta.action,
           startedAt: meta.startedAt,
           message: errorMessage(error),
-          errorName: error && error.name
+          errorName: error && error.name,
+          requestId: meta.requestId
         });
         remember(record);
-        // telemetry-feedback.js already records network failures for the primary API.
-        // data-api requests are not covered there, so report those here.
-        if (!isPrimaryTarget(target)) sendDiagnostic(record);
+        sendDiagnostic(record);
       }
       throw error;
     });
@@ -210,6 +215,7 @@
       error.requestStatusText = record.request_status_text;
       error.requestId = record.request_id;
       error.requestUrl = record.request_url;
+      if (record.error_code) error.code = record.error_code;
       error.diagnostics = record;
     } catch (e) {}
     return error;

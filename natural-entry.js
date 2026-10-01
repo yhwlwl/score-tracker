@@ -4,7 +4,7 @@
 
   if (window.__studentNaturalEntryV1) return;
   window.__studentNaturalEntryV1 = true;
-  var VISION_ENDPOINT = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-vision-preview';
+  var VISION_ENDPOINT = '/api/score-tracker-vision-preview';
 
   function trackUsage(eventType, metadata) {
     try {

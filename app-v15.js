@@ -7,7 +7,7 @@
   document.head.appendChild(style);
 })();
 
-var PASSWORD_API_V15='https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-data-api';
+var PASSWORD_API_V15='/api/score-tracker-data-api';
 
 async function changePasswordApiV15(newPassword){
   var response=await fetch(PASSWORD_API_V15,{

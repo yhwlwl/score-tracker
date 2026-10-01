@@ -20,7 +20,7 @@ var __stTrackPrevV31=window.__scoreTrackerTrack||window.__stTrack||null;
 window.__stTrack=function stTrackV31(eventType,metadata){
   if(__stTrackPrevV31){try{return __stTrackPrevV31(eventType,metadata);}catch(e){}}
   try{
-    var API='https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-api';
+    var API='/api/score-tracker-api';
     var c={
       eventId:(crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random())),
       sessionId:sessionStorage.getItem('st_session_id')||'',

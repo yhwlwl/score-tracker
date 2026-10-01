@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const API = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-api';
+  const API = '/api/score-tracker-api';
   const APP_VERSION = (document.querySelector('meta[name="application-version"]') || {}).content || 'unknown';
   const nativeFetch = window.fetch.bind(window);
   const $ = (s, root = document) => root.querySelector(s);
@@ -53,14 +53,15 @@
     let action = '', body = null;
     try {
       const target = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
-      if (target.startsWith(API) && args[1]?.body) { body = JSON.parse(String(args[1].body)); action = body?.action || ''; }
+      const endpoint = new URL(target, location.href);
+      if (endpoint.origin === location.origin && endpoint.pathname === API && args[1]?.body) { body = JSON.parse(String(args[1].body)); action = body?.action || ''; }
     } catch {}
     let response;
     try {
       response = await nativeFetch(...args);
     } catch (err) {
       // 网络层失败（断网/被插件拦截/DNS 等）此前完全不可观测：这里上报后原样抛出
-      if (action && action !== 'track_event' && !String(action).startsWith('feedback_')) {
+      if (!window.__scoreTrackerRequestDiagnosticsV37 && action && action !== 'track_event' && !String(action).startsWith('feedback_')) {
         try {
           nativeFetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
             body: JSON.stringify({ action: 'track_event', token: localStorage.getItem('st_token') || '', eventType: 'api_fetch_error',

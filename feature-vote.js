@@ -4,7 +4,7 @@
   if (window.__featureVoteV36) return;
   window.__featureVoteV36 = 1;
 
-  var DATA_API = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-data-api';
+  var DATA_API = '/api/score-tracker-data-api';
   var COMPLETION_API = DATA_API.replace('score-tracker-data-api', 'score-tracker-notices');
   var completionSeen = new Set();
   var completionPending = new Set();

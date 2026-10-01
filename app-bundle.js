@@ -75,7 +75,7 @@
 /* ===== request-budget-v24.js ===== */
 // v24: small client request budget. Loaded before telemetry so background polling can be coalesced.
 (function(){
-  var API='https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-api';
+  var API='/api/score-tracker-api';
   /* 版本唯一来源:index.html 的 <meta name="application-version">。
      此前这里硬编码 'v2.4',把 telemetry 读到的真实版本在发送前覆盖掉了。 */
   function currentVersion(){
@@ -94,7 +94,8 @@
   }
   window.fetch=async function requestBudgetFetch(input,init){
     var target=typeof input==='string'?input:(input&&input.url)||'';
-    if(!target.startsWith(API)||!init||!init.body)return nativeFetch(input,init);
+    try{var endpoint=new URL(target,location.href);if(endpoint.origin!==location.origin||endpoint.pathname!==API)return nativeFetch(input,init);}catch(e){return nativeFetch(input,init);}
+    if(!init||!init.body)return nativeFetch(input,init);
     var body=null;
     try{body=JSON.parse(String(init.body));}catch(e){return nativeFetch(input,init);}
 
@@ -122,11 +123,10 @@
     return nativeFetch(input,Object.assign({},init,{body:JSON.stringify(body)}));
   };
 })();
-
 /* ===== telemetry-feedback.js ===== */
 (() => {
   'use strict';
-  const API = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-api';
+  const API = '/api/score-tracker-api';
   const APP_VERSION = (document.querySelector('meta[name="application-version"]') || {}).content || 'unknown';
   const nativeFetch = window.fetch.bind(window);
   const $ = (s, root = document) => root.querySelector(s);
@@ -179,14 +179,15 @@
     let action = '', body = null;
     try {
       const target = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
-      if (target.startsWith(API) && args[1]?.body) { body = JSON.parse(String(args[1].body)); action = body?.action || ''; }
+      const endpoint = new URL(target, location.href);
+      if (endpoint.origin === location.origin && endpoint.pathname === API && args[1]?.body) { body = JSON.parse(String(args[1].body)); action = body?.action || ''; }
     } catch {}
     let response;
     try {
       response = await nativeFetch(...args);
     } catch (err) {
       // 网络层失败（断网/被插件拦截/DNS 等）此前完全不可观测：这里上报后原样抛出
-      if (action && action !== 'track_event' && !String(action).startsWith('feedback_')) {
+      if (!window.__scoreTrackerRequestDiagnosticsV37 && action && action !== 'track_event' && !String(action).startsWith('feedback_')) {
         try {
           nativeFetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
             body: JSON.stringify({ action: 'track_event', token: localStorage.getItem('st_token') || '', eventType: 'api_fetch_error',
@@ -282,7 +283,6 @@
   }
   function escapeHtml(v = '') { return String(v).replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 })();
-
 /* ===== feedback-statuses.js ===== */
 (() => {
   'use strict';
@@ -345,7 +345,7 @@
 })();
 
 /* ===== app-v3.js ===== */
-const API = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-api';
+const API = '/api/score-tracker-api';
 const SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治'];
 const SUBJECT_SHORT = { 语文: '语', 数学: '数', 英语: '英', 物理: '物', 化学: '化', 生物: '生', 历史: '史', 地理: '地', 政治: '政' };
 const SUBJECT_MAX = { 语文: 150, 数学: 150, 英语: 150, 物理: 100, 化学: 100, 生物: 100, 历史: 100, 地理: 100, 政治: 100 };
@@ -964,7 +964,7 @@ async function login() {
   } catch (e) {
     // v2 自定义密码登录回退：旧密码体系查不到时，尝试 data-api 的 v2 口令
     try {
-      const v2res = await fetch('https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-data-api', {
+      const v2res = await fetch('/api/score-tracker-data-api', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'login_v2', username: $('#loginUser').value.trim(), password: $('#loginPass').value })
@@ -1430,7 +1430,7 @@ if (typeof radarChartHtml === 'function') {
 
 /* ===== app-v7.js ===== */
 // v7: customizable subjects + scientifically normalized rank trends
-const DATA_API_V7 = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-data-api';
+const DATA_API_V7 = '/api/score-tracker-data-api';
 state.subjectConfigs = state.subjectConfigs || [];
 state.trendMetric = state.trendMetric || 'score';
 
@@ -2973,7 +2973,7 @@ bindPage=function bindPageV14(){bindPageBeforeV14();$('#manageCategoriesV14')?.a
   document.head.appendChild(style);
 })();
 
-var PASSWORD_API_V15='https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-data-api';
+var PASSWORD_API_V15='/api/score-tracker-data-api';
 
 async function changePasswordApiV15(newPassword){
   var response=await fetch(PASSWORD_API_V15,{
@@ -3376,7 +3376,7 @@ bindPage=function bindPageV17(){bindPageBeforeV17();document.querySelectorAll('[
 // v18 / product v1.1: score modules, subtle Study Planner cross-link, optional ranking stays optional.
 state.modulesV18 = state.modulesV18 || [];
 
-var MODULE_API_V18='https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-modules-api';
+var MODULE_API_V18='/api/score-tracker-modules-api';
 var STUDY_PLANNER_URL_V18='https://study-planner.yhwlwl.xyz/?utm_source=score-tracker&utm_campaign=tool-crosslink';
 var STUDY_PLANNER_PROMO_V18='./study-planner-promo.webp';
 
@@ -3573,7 +3573,7 @@ homeHtml=function homeHtmlV18(){
 function uuidV18(){try{return crypto.randomUUID()}catch(e){return 'v18-'+Date.now()+'-'+Math.random().toString(16).slice(2)}}
 function trackStudyPlannerV18(){
   var context={eventId:uuidV18(),sessionId:sessionStorage.getItem('st_session_id')||'',visitorId:localStorage.getItem('st_visitor_id')||'',clientTime:new Date().toISOString(),pathname:location.pathname,appPage:'home',referrerOrigin:document.referrer||'',firstReferrer:localStorage.getItem('st_first_referrer')||'',utmSource:localStorage.getItem('st_utm_source')||'',utmCampaign:localStorage.getItem('st_utm_campaign')||'',userAgent:navigator.userAgent,browserLanguage:navigator.language,clientTimezone:(Intl.DateTimeFormat().resolvedOptions().timeZone||''),screenWidth:screen.width,screenHeight:screen.height,viewportWidth:innerWidth,viewportHeight:innerHeight,isPwa:matchMedia('(display-mode: standalone)').matches||navigator.standalone===true,appVersion:(function(){var m=document.querySelector('meta[name="application-version"]');return (m&&m.getAttribute('content'))||'';})()};
-  fetch('https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-api',{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,body:JSON.stringify({action:'track_event',token:state.token||'',eventType:'study_planner_opened',context:context,metadata:{source:'home_tool_card',destination:'https://study-planner.yhwlwl.xyz/'}})}).catch(function(){});
+  fetch('/api/score-tracker-api',{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,body:JSON.stringify({action:'track_event',token:state.token||'',eventType:'study_planner_opened',context:context,metadata:{source:'home_tool_card',destination:'https://study-planner.yhwlwl.xyz/'}})}).catch(function(){});
 }
 var bindPageBeforeV18=bindPage;
 bindPage=function bindPageV18(){
@@ -3586,7 +3586,7 @@ bindPage=function bindPageV18(){
 // v19 / product v1.1: readable long trends + username rename while preserving original account name.
 state.originalUsernameV19 = state.originalUsernameV19 || '';
 
-var USERNAME_API_V19='https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-username-api';
+var USERNAME_API_V19='/api/score-tracker-username-api';
 
 (function injectV19Styles(){
   if(document.getElementById('app-v19-style'))return;
@@ -7158,7 +7158,7 @@ var __stTrackPrevV31=window.__scoreTrackerTrack||window.__stTrack||null;
 window.__stTrack=function stTrackV31(eventType,metadata){
   if(__stTrackPrevV31){try{return __stTrackPrevV31(eventType,metadata);}catch(e){}}
   try{
-    var API='https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-api';
+    var API='/api/score-tracker-api';
     var c={
       eventId:(crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random())),
       sessionId:sessionStorage.getItem('st_session_id')||'',
@@ -12287,7 +12287,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
 /* Release notifications: deployed version stays immutable; content is managed remotely. */
 (function () {
   'use strict';
-  var API = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-notices';
+  var API = '/api/score-tracker-notices';
   var CURRENT = (document.querySelector('meta[name="application-version"]') || {}).content || 'v7.0';
   var PERIOD = 30 * 60 * 1000;
   var DEFAULT = {version:'v7.0',enabled:true,title:'v7.0 更新内容',content:'我们好高兴地告诉大家，图片识别功能正式上线了！\n\n新建考试时，进入「快速录入」，选择「图片识别」模式，上传图片即可自动解析。\n\n功能刚刚上线，还有些不稳定。如果遇到识别错误等情况，欢迎大家及时反馈哦。',tip_enabled:false,tip_content:'自然语言快速录入功能已上线，欢迎在新建考试时体验。',announcement_enabled:false,announcement_title:'公告',announcement_content:'',revision:1};
@@ -12401,7 +12401,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
 /* Account recovery: anonymous tickets, private lookup, and new-account pickup. */
 (function () {
   'use strict';
-  var ENDPOINT = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-recovery';
+  var ENDPOINT = '/api/score-tracker-recovery';
   var LABELS = {pending:'等待审核',reviewing:'正在核验',needs_info:'需要补充信息',approved:'审核通过',rejected:'未通过审核',claimed:'已领取新账号'};
   var active = null, draft = {}, mode = 'password', screen = 'apply', current = null;
   function esc(v) { return escapeHtml(String(v == null ? '' : v)); }

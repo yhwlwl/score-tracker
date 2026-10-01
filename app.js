@@ -1,4 +1,4 @@
-const API = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-api';
+const API = '/api/score-tracker-api';
 const SUBJECTS = ['语文','数学','英语','物理','化学','生物'];
 const SUBJECT_SHORT = {语文:'语',数学:'数',英语:'英',物理:'物',化学:'化',生物:'生'};
 const state = { token: localStorage.getItem('st_token') || '', user:null, exams:[], page:'home', subject:'总分', modal:null, onboarding:null };

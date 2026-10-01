@@ -1,7 +1,7 @@
 // v18 / product v1.1: score modules, subtle Study Planner cross-link, optional ranking stays optional.
 state.modulesV18 = state.modulesV18 || [];
 
-var MODULE_API_V18='https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-modules-api';
+var MODULE_API_V18='/api/score-tracker-modules-api';
 var STUDY_PLANNER_URL_V18='https://study-planner.yhwlwl.xyz/?utm_source=score-tracker&utm_campaign=tool-crosslink';
 var STUDY_PLANNER_PROMO_V18='./study-planner-promo.webp';
 
@@ -198,7 +198,7 @@ homeHtml=function homeHtmlV18(){
 function uuidV18(){try{return crypto.randomUUID()}catch(e){return 'v18-'+Date.now()+'-'+Math.random().toString(16).slice(2)}}
 function trackStudyPlannerV18(){
   var context={eventId:uuidV18(),sessionId:sessionStorage.getItem('st_session_id')||'',visitorId:localStorage.getItem('st_visitor_id')||'',clientTime:new Date().toISOString(),pathname:location.pathname,appPage:'home',referrerOrigin:document.referrer||'',firstReferrer:localStorage.getItem('st_first_referrer')||'',utmSource:localStorage.getItem('st_utm_source')||'',utmCampaign:localStorage.getItem('st_utm_campaign')||'',userAgent:navigator.userAgent,browserLanguage:navigator.language,clientTimezone:(Intl.DateTimeFormat().resolvedOptions().timeZone||''),screenWidth:screen.width,screenHeight:screen.height,viewportWidth:innerWidth,viewportHeight:innerHeight,isPwa:matchMedia('(display-mode: standalone)').matches||navigator.standalone===true,appVersion:(function(){var m=document.querySelector('meta[name="application-version"]');return (m&&m.getAttribute('content'))||'';})()};
-  fetch('https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-api',{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,body:JSON.stringify({action:'track_event',token:state.token||'',eventType:'study_planner_opened',context:context,metadata:{source:'home_tool_card',destination:'https://study-planner.yhwlwl.xyz/'}})}).catch(function(){});
+  fetch('/api/score-tracker-api',{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,body:JSON.stringify({action:'track_event',token:state.token||'',eventType:'study_planner_opened',context:context,metadata:{source:'home_tool_card',destination:'https://study-planner.yhwlwl.xyz/'}})}).catch(function(){});
 }
 var bindPageBeforeV18=bindPage;
 bindPage=function bindPageV18(){
