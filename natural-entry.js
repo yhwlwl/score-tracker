@@ -734,9 +734,9 @@
       '</div>' +
       '<div class="modal-body">' +
       '<section class="nl-entry-pane nl-entry-image-pane" data-entry-pane="image" hidden>' +
-      '<div class="nl-entry-upload-card"><label class="nl-entry-file-button"><span>选择成绩单图片</span><small>支持多选，最多 6 张</small><input class="nl-entry-files" type="file" accept="image/*" multiple></label><p>可按成绩单顺序选择多张截图，系统会合并识别同一次考试。</p></div>' +
+      '<div class="nl-entry-upload-card"><label class="nl-entry-file-button"><span>选择成绩单图片</span><small>支持多选，最多 6 张</small><input class="nl-entry-files" type="file" accept="image/*" multiple></label><p>可按成绩单顺序选择多张截图，系统会合并识别同一次考试。长图会自动分段，保留小字细节。</p></div>' +
       '<div class="nl-entry-image-list" aria-live="polite"><span class="nl-entry-empty">还没有选择图片</span></div>' +
-      '<div class="nl-entry-progress" hidden aria-live="polite"><div class="nl-entry-progress-head"><span>识别进度 · 总计</span><strong class="nl-entry-elapsed">0.0s</strong></div><ol class="nl-entry-progress-steps"><li class="nl-entry-progress-step" data-progress-step="0"><span class="nl-entry-progress-dot">1</span><span class="nl-entry-progress-step-label">测试连接性</span><strong class="nl-entry-progress-step-time" data-progress-time="0">—</strong></li><li class="nl-entry-progress-step" data-progress-step="1"><span class="nl-entry-progress-dot">2</span><span class="nl-entry-progress-step-label">读取并压缩图片</span><strong class="nl-entry-progress-step-time" data-progress-time="1">—</strong></li><li class="nl-entry-progress-step" data-progress-step="2"><span class="nl-entry-progress-dot">3</span><span class="nl-entry-progress-step-label">发送图片与请求</span><strong class="nl-entry-progress-step-time" data-progress-time="2">—</strong></li><li class="nl-entry-progress-step" data-progress-step="3"><span class="nl-entry-progress-dot">4</span><span class="nl-entry-progress-step-label">等待 AI 识别</span><strong class="nl-entry-progress-step-time" data-progress-time="3">—</strong></li><li class="nl-entry-progress-step" data-progress-step="4"><span class="nl-entry-progress-dot">5</span><span class="nl-entry-progress-step-label">整理可编辑结果</span><strong class="nl-entry-progress-step-time" data-progress-time="4">—</strong></li></ol></div>' +
+      '<div class="nl-entry-progress" hidden aria-live="polite"><div class="nl-entry-progress-head"><span>识别进度 · 总计</span><strong class="nl-entry-elapsed">0.0s</strong></div><ol class="nl-entry-progress-steps"><li class="nl-entry-progress-step" data-progress-step="0"><span class="nl-entry-progress-dot">1</span><span class="nl-entry-progress-step-label">测试连接性</span><strong class="nl-entry-progress-step-time" data-progress-time="0">—</strong></li><li class="nl-entry-progress-step" data-progress-step="1"><span class="nl-entry-progress-dot">2</span><span class="nl-entry-progress-step-label">准备清晰图片</span><strong class="nl-entry-progress-step-time" data-progress-time="1">—</strong></li><li class="nl-entry-progress-step" data-progress-step="2"><span class="nl-entry-progress-dot">3</span><span class="nl-entry-progress-step-label">发送图片与请求</span><strong class="nl-entry-progress-step-time" data-progress-time="2">—</strong></li><li class="nl-entry-progress-step" data-progress-step="3"><span class="nl-entry-progress-dot">4</span><span class="nl-entry-progress-step-label">等待 AI 识别</span><strong class="nl-entry-progress-step-time" data-progress-time="3">—</strong></li><li class="nl-entry-progress-step" data-progress-step="4"><span class="nl-entry-progress-dot">5</span><span class="nl-entry-progress-step-label">整理可编辑结果</span><strong class="nl-entry-progress-step-time" data-progress-time="4">—</strong></li></ol></div>' +
       '<p class="nl-entry-vision-edit-hint" hidden>识别结果可直接编辑，确认无误后再点击“确认并填入”。</p>' +
       '<textarea class="nl-entry-vision-output" aria-label="识别结果，可编辑" spellcheck="false" hidden></textarea>' +
       '<div class="modal-actions"><button class="primary nl-entry-vision-submit" type="button" disabled>识别图片</button></div>' +
@@ -950,34 +950,6 @@
       trackUsage('quick_entry_images_selected', { image_count: selectedFiles.length });
     };
 
-    function fileDataUrl(file) {
-      return new Promise(function (resolve, reject) {
-        var reader = new FileReader();
-        reader.onload = function () { resolve(String(reader.result || '')); };
-        reader.onerror = function () { reject(new Error('读取图片失败')); };
-        reader.readAsDataURL(file);
-      });
-    }
-    function compactImage(dataUrl) {
-      return new Promise(function (resolve) {
-        var image = new Image();
-        image.onload = function () {
-          var maxSide = 1800;
-          var scale = Math.min(1, maxSide / Math.max(image.naturalWidth || image.width, image.naturalHeight || image.height));
-          var canvas = document.createElement('canvas');
-          canvas.width = Math.max(1, Math.round((image.naturalWidth || image.width) * scale));
-          canvas.height = Math.max(1, Math.round((image.naturalHeight || image.height) * scale));
-          var context = canvas.getContext('2d');
-          if (!context) { resolve(dataUrl); return; }
-          context.fillStyle = '#fff';
-          context.fillRect(0, 0, canvas.width, canvas.height);
-          context.drawImage(image, 0, 0, canvas.width, canvas.height);
-          try { resolve(canvas.toDataURL('image/jpeg', 0.84)); } catch (e) { resolve(dataUrl); }
-        };
-        image.onerror = function () { resolve(dataUrl); };
-        image.src = dataUrl;
-      });
-    }
     function visionContext() {
       var grade = modal.querySelector('#gradeLevelV14');
       var classificationOptions = grade
@@ -985,7 +957,7 @@
         : [];
       return { classificationOptions: classificationOptions, subjectNames: modalSubjectNames(modal) };
     }
-    async function callVision(images, onResponse) {
+    async function callVision(prepared, onResponse) {
       var token = localStorage.getItem('st_token') || '';
       if (!token) {
         var authError = new Error('请先登录后再使用拍照录入。（HTTP 401）');
@@ -998,8 +970,8 @@
         response = await requestWithTimeout(VISION_ENDPOINT, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: token, images: images, context: visionContext(modal) })
-        }, 36000);
+          body: JSON.stringify({ token: token, images: prepared.images, image_parts: prepared.parts, context: visionContext(modal) })
+        }, 60000);
       } catch (cause) {
         var timedOut = cause && (cause.name === 'AbortError' || cause.name === 'TimeoutError');
         var networkError = new Error(timedOut ? '识别服务响应超时，请稍后重试。' : '无法连接识别服务，请检查网络后重试。');
@@ -1019,6 +991,7 @@
         var label = payload.error || '识图服务暂时不可用';
         var suffix = '（HTTP ' + (upstreamStatus || requestStatus || 0) + (detail ? '：' + detail : '') + '）';
         var serviceError = new Error(String(label) + suffix);
+        serviceError.code = payload.code || 'vision_service_error';
         serviceError.requestStatus = requestStatus;
         serviceError.upstreamStatus = upstreamStatus;
         serviceError.upstreamMessage = detail;
@@ -1057,6 +1030,7 @@
         var label = payload.error || '识图服务连接测试失败';
         var suffix = '（HTTP ' + (upstreamStatus || requestStatus || 0) + (detail ? '：' + detail : '') + '）';
         var serviceError = new Error(String(label) + suffix);
+        serviceError.code = payload.code || 'vision_service_error';
         serviceError.requestStatus = requestStatus;
         serviceError.upstreamStatus = upstreamStatus;
         serviceError.upstreamMessage = detail;
@@ -1068,6 +1042,8 @@
       return {
         image_count: selectedFiles.length,
         error_count: 1,
+        code: String(error && error.code || ''),
+        stage: String(error && error.stage || ''),
         request_status: Number(error && (error.requestStatus || error.status) || 0),
         upstream_status: Number(error && error.upstreamStatus || 0),
         recognition_duration_ms: visionRecognitionDurationMs === null ? null : Math.round(visionRecognitionDurationMs),
@@ -1113,13 +1089,9 @@
       });
       return lines.join('\n');
     }
-    async function encodeImages() {
-      var images = [];
-      for (var i = 0; i < selectedFiles.length; i += 1) {
-        var source = await fileDataUrl(selectedFiles[i]);
-        images.push(await compactImage(source));
-      }
-      return images;
+    async function encodeImages(files) {
+      if (!window.__stVisionImages) throw new Error('图片处理还没准备好，请刷新页面再试。');
+      return window.__stVisionImages.prepare(files);
     }
     async function applyVisionResult() {
       if (visionOutput && !visionOutput.hidden) visionText = visionOutput.value;
@@ -1138,6 +1110,7 @@
           field_count: parsed.fieldCount,
           applied_count: count,
           recognition_duration_ms: visionRecognitionDurationMs === null ? null : Math.round(visionRecognitionDurationMs),
+          subject_count: visionPayload && Array.isArray(visionPayload.subjects) ? visionPayload.subjects.length : 0,
           step_durations_ms: visionStepDurationsMs.map(function (value) { return value === null || value === undefined ? null : Math.round(value); })
         });
         close();
@@ -1165,28 +1138,40 @@
         error.textContent = '请先选择至少 1 张成绩单图片。';
         return;
       }
+      var files = selectedFiles.slice();
       visionSubmitButton.disabled = true;
+      fileInput.disabled = true;
+      imageList.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
       visionSubmitButton.textContent = '识别中…';
       startVisionProgress();
       trackUsage('quick_entry_image_recognition_started', { image_count: selectedFiles.length });
       try {
         await callVisionConnectivity();
+        if (!backdrop.isConnected) return;
         setVisionProgress(1);
         trackUsage('quick_entry_image_connectivity_test_succeeded', {
           image_count: selectedFiles.length,
           duration_ms: visionStepDurationsMs[0] === null ? null : Math.round(visionStepDurationsMs[0])
         });
-        var images = await encodeImages();
+        var prepared = await encodeImages(files);
+        if (!backdrop.isConnected) return;
+        trackUsage('quick_entry_images_prepared', {image_count:files.length, prepared_image_count:prepared.images.length, total_bytes:prepared.total_bytes, images:prepared.stats});
         setVisionProgress(2);
-        visionPayload = await callVision(images, function () { setVisionProgress(3); });
+        visionPayload = await callVision(prepared, function () { setVisionProgress(3); });
+        if (!backdrop.isConnected) return;
         setVisionProgress(4);
         visionText = visionToText(visionPayload);
         visionOutput.value = visionText;
         visionOutput.hidden = false;
-        if (visionEditHint) visionEditHint.hidden = false;
+        if (visionEditHint) {
+          visionEditHint.hidden = false;
+          visionEditHint.textContent = '识别结果可直接编辑，确认无误后再点击“确认并填入”。' + (Array.isArray(visionPayload.warnings) ? visionPayload.warnings.slice(0, 3).join(' ') : '');
+        }
         finishVisionProgress(true);
         trackUsage('quick_entry_image_recognition_completed', {
-          image_count: selectedFiles.length,
+          image_count: files.length,
+          prepared_image_count: prepared.images.length,
+          subject_count: visionPayload && Array.isArray(visionPayload.subjects) ? visionPayload.subjects.length : 0,
           recognition_duration_ms: visionRecognitionDurationMs === null ? null : Math.round(visionRecognitionDurationMs),
           step_durations_ms: visionStepDurationsMs.map(function (value) { return value === null || value === undefined ? null : Math.round(value); })
         });
@@ -1198,6 +1183,9 @@
         error.textContent = e.message || '识图失败，请稍后重试。';
         visionSubmitButton.disabled = false;
         visionSubmitButton.textContent = '识别图片';
+      } finally {
+        fileInput.disabled = false;
+        imageList.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
       }
     };
 

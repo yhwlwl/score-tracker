@@ -11,6 +11,7 @@ const FILES = [
   "styles.css",
   "mobile-fix.css",
   "app-bundle.js",
+  "vision-image-prep.js",
   "natural-entry.js",
   "feature-vote.js",
   "app-v36.js",

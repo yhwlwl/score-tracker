@@ -39,6 +39,8 @@ export const MG_HTML = String.raw`<!doctype html>
   var depthLabels={new:'初次使用',casual:'轻度使用',returning:'持续使用',engaged:'深度使用',power:'核心用户'};
   var eventLabels={app_page_view:'浏览页面',page_view:'浏览页面',exam_created:'新建考试',exam_updated:'更新考试',exam_deleted:'删除考试',score_updated:'录入成绩',score_saved:'保存成绩',chart_interaction:'查看图表',chart_subject_changed:'切换图表科目',radar_interaction:'查看雷达图',radar_exam_selected:'选择雷达考试',radar_mode_changed:'切换雷达模式',stats_open:'打开统计分析',deep_stats_view:'查看深度分析',register_started:'开始注册',register_completed:'注册完成',login:'登录',login_success:'登录成功',logout:'退出登录',feedback_submitted:'提交反馈',feedback_opened:'打开反馈',feedback_read:'阅读反馈',goal_saved:'保存目标',goal_editor_open:'打开目标编辑',study_planner_opened:'打开学习计划',export_done:'完成导出',heartbeat:'在线心跳',session_start:'开始访问',quick_entry_opened:'打开快速录入',quick_entry_mode_changed:'切换录入方式',quick_entry_images_selected:'选择成绩单图片',quick_entry_image_recognition_started:'开始识图录入',quick_entry_image_recognition_succeeded:'完成识图录入',quick_entry_image_recognition_failed:'识图录入失败',quick_entry_natural_recognition_started:'开始自然语言录入',quick_entry_natural_recognition_succeeded:'完成自然语言录入',quick_entry_natural_recognition_failed:'自然语言录入失败'};
   var pageLabels={admin_notifications:'公告与更新',dashboard:'首页',exams:'考试记录',scores:'成绩管理',analytics:'深度分析',settings:'设置'};
+  eventLabels.quick_entry_images_prepared='成绩单图片准备完成';
+  eventLabels.quick_entry_image_recognition_completed='识图结果已返回';
   eventLabels.quick_entry_image_connectivity_test_succeeded='识图服务连通性测试成功';
   var REPLY_FILES=[];
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
