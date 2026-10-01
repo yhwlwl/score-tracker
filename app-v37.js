@@ -74,7 +74,7 @@
       error_message: safeMessage(meta.message, '请求失败'),
       error_name: safeMessage(meta.errorName, meta.state === 'network_error' ? 'NetworkError' : 'HttpError'),
       online: navigator.onLine !== false,
-      app_version: (document.querySelector('meta[name="application-version"]') || {}).content || 'unknown',
+      app_version: window.__releaseNotices?.currentVersion?.() || (document.querySelector('meta[name="application-version"]') || {}).content || 'unknown',
       occurred_at: new Date().toISOString()
     };
     record.error = {
