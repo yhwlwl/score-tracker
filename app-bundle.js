@@ -1,5 +1,5 @@
 /*! app-bundle.js · 自动生成,勿手改 —— 改源码后运行: node design/build-bundles.js
-   来源顺序: compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js, release-notices.js, account-recovery.js */
+   来源顺序: compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js, score-worth-model.js, score-worth.js, release-notices.js, account-recovery.js */
 /* ===== compat.js ===== */
 // Compatibility helpers for older iOS Safari/WebViews.
 // Keep this file tiny and load it before the application scripts.
@@ -8395,38 +8395,39 @@ function compHtmlV32(f,mode){
 /* ---------- ⑧ 热力矩阵 + 分布带 + 个人纪录 ---------- */
 function matrixSectionHtmlV32(f,mode){
   var rgb=accentRgbV32();
+  var difficultyView=!!(window.__stScoreWorth&&state.sv31&&state.sv31.matrixWorth==="difficulty");
+  var difficultyCells=difficultyView?window.__stScoreWorth.difficultyCells(f.exams,f.subjects):{};
   var subs=f.subjects.filter(function(s){
-    return f.series[s]&&f.series[s].some(function(x){return mode==="rank"?x.pos!==null:x.rate!==null;});
+    return f.series[s]&&f.series[s].some(function(x){return difficultyView?x.rate!==null:mode==="rank"?x.pos!==null:x.rate!==null;});
   });
   var rowsHtml="";
   f.exams.forEach(function(e,i){
     var cells=subs.map(function(s){
       var key=i+"|"+s,fl=f.flags[key];
-      /* 难度分标注:P(难)/P(易) 百分数,与深度分析板块同源 */
+      if(difficultyView){
+        var dc=difficultyCells[key];
+        if(!dc)return '<td class="worth-heat-missing">'+worthCellV32(i,s,'—',(e.name||'未命名考试')+'，'+s+'，暂时没有可比较的难度，查看成绩含金量')+'</td>';
+        return '<td data-worth-heat="'+dc.index+'" style="'+window.__stScoreWorth.heatStyle(dc.index)+'">'+worthCellV32(i,s,r32(dc.index)+(dc.limited?'<span class="worth-heat-limited" aria-hidden="true">†</span>':''),(e.name||'未命名考试')+'，'+s+'，难度参考 '+r32(dc.index)+(dc.limited?'，暂时只作粗略参考':'')+'，查看成绩含金量')+'</td>';
+      }
       var dot="";
       if(fl){
         var col=fl.lvl===2?"#d95c5c":fl.lvl===1?"#e59b45":"#32a77a";
         dot='<span class="sv31-dot" style="background:'+col+'"></span>';
-        if(fl.pH!=null){
-          var isHard=fl.lvl>0,pv=Math.round((isHard?fl.pH:fl.pE)*100);
-          dot+='<span style="font-size:9px;font-weight:700;opacity:.85;margin-left:3px;'+
-            'vertical-align:1px;color:'+(isHard?"#ffd9d9":"#d6f5e5")+'">'+
-            (isHard?"难":"易")+pv+"%</span>";
-        }
       }
       if(mode==="rank"){
         var p=posYearOf32(e,rowV32(e,s));
         if(p===null)return "<td>—</td>";
-        return '<td style="background:'+rankHeatColor32(rgb,p)+';color:#fff">'+r32(p)+dot+"</td>";
+        return '<td style="background:'+rankHeatColor32(rgb,p)+';color:#fff">'+worthCellV32(i,s,r32(p)+dot)+"</td>";
       }else{
         var rt=rateOf32(rowV32(e,s));
         if(rt===null)return "<td>—</td>";
-        var hl=fl&&fl.lvl>0?"background:#fdf3e4;":"";
-        return '<td style="'+hl+'border-radius:6px">'+Math.round(rt)+"%"+dot+"</td>";
+        var hl=fl&&fl.lvl>0?"background:var(--accent-soft);":"";
+        return '<td style="'+hl+'border-radius:6px">'+worthCellV32(i,s,Math.round(rt)+"%"+dot)+"</td>";
       }
     }).join("");
     var totCell;
-    if(f.totalSynthetic){
+    if(difficultyView){totCell='';}
+    else if(f.totalSynthetic){
       /* 合成口径:列值=所选科目位比中位数(与趋势线一致),分数模式=成员得分率中位 */
       var hit=f.totalSeries.filter(function(x){return x.i===i;})[0];
       if(mode==="rank"){
@@ -8443,9 +8444,10 @@ function matrixSectionHtmlV32(f,mode){
         :mode==="rank"?'<td class="sv31-tot" style="background:'+rankHeatColor32(rgb,tp)+';color:#fff">'+r32(tp)+"</td>"
         :'<td class="sv31-tot"><b>'+(examRateV32(e)===null?"—":Math.round(examRateV32(e))+"%")+"</b></td>";
     }
-    rowsHtml+="<tr><td>"+esc32(shortName32(e.name))+"</td>"+cells+totCell+"</tr>";
+    rowsHtml+='<tr><th scope="row"><span class="worth-exam-name" title="'+esc32(e.name||'未命名考试')+'">'+esc32(e.name||'未命名考试')+'</span>'+(e.exam_date?'<small class="worth-exam-date">'+esc32(e.exam_date)+'</small>':'')+'</th>'+cells+totCell+'</tr>';
   });
-  var head="<tr><th>考试</th>"+subs.map(function(s){return "<th>"+esc32(s)+"</th>";}).join("")+"<th>"+esc32(f.totalLabel||"总分")+"</th></tr>";
+  var head='<tr><th scope="col">考试</th>'+subs.map(function(s){return '<th scope="col">'+esc32(s)+'</th>';}).join('')+(difficultyView?'':'<th scope="col">'+esc32(f.totalLabel||'总分')+'</th>')+'</tr>';
+  var colCount=subs.length+(difficultyView?0:1), matrixCols='<colgroup><col style="width:136px">'+Array.from({length:colCount},function(){return '<col style="width:76px">';}).join('')+'</colgroup>';
   /* 分布带 */
   var bands=[{l:"前10%内",a:0,b:10,c:"rgba(93,114,232,.9)"},{l:"前10–20%",a:10,b:20,c:"rgba(93,114,232,.7)"},
     {l:"前20–30%",a:20,b:30,c:"rgba(93,114,232,.5)"},{l:"前30–50%",a:30,b:50,c:"rgba(93,114,232,.32)"},
@@ -8549,14 +8551,16 @@ function matrixSectionHtmlV32(f,mode){
   var extHtml=recs.map(function(r){
     return '<div class="sv31-ext"><div class="t">'+r.t+'</div><div class="v">'+r.v+'</div><div class="s">'+r.s+"</div>"+eviHtmlV32(r.ev)+"</div>";
   }).join("");
-  return '<div class="card"><div class="card-title-row">'
+  return '<div class="card worth-matrix-card"><div class="card-title-row">'
     +'<div><h3 class="card-title">⑧ 全量统计矩阵</h3><p class="card-sub" id="sv31HeatSub">'
-    +(mode==="rank"?"数字越小、颜色越深 = 名次越好":"得分率仅在同一张卷子内可比;圆点 = 这科这次偏难/偏易")
-    +'</p></div><div class="legend sv31-nopalette"><span><span class="sv31-dot" style="background:#d95c5c"></span>这科这次偏难</span>'
-    +'<span><span class="sv31-dot" style="background:#e59b45"></span>偏难(关注)</span>'
-    +'<span><span class="sv31-dot" style="background:#32a77a"></span>偏易</span></div></div>'
-    +(rowsHtml?'<div class="sv31-scroll"><table class="sv31-heat"><thead>'+head+"</thead><tbody>"+rowsHtml+"</tbody></table></div>"
-      +'<p class="card-sub" style="margin-top:8px">圆点由「难度贝叶斯分档」模型推断（与深度分析板块同一算法），详见页底方法论。</p>':'<p class="card-sub">还没有可展示的成绩。</p>')
+    +(difficultyView?"颜色越浓，估计相对越难；50 表示这组考试的平均难度。":"格子显示"+(mode==="rank"?"排名位置，数字越小越好":"得分率")+"。点击单科格子，查看成绩含金量。")
+    +'</p></div>'+(difficultyView?'':'<div class="legend sv31-nopalette"><span><span class="sv31-dot" style="background:#d95c5c"></span>偏难信号</span>'
+    +'<span><span class="sv31-dot" style="background:#e59b45"></span>可能偏难</span>'
+    +'<span><span class="sv31-dot" style="background:#32a77a"></span>偏易信号</span></div>')+'</div>'
+    +(window.__stScoreWorth?'<div class="worth-matrix-controls" role="group" aria-label="矩阵显示内容"><button type="button" class="chip'+(!difficultyView?' active':'')+'" aria-pressed="'+!difficultyView+'" data-worth-matrix-mode="original">原始表现</button><button type="button" class="chip'+(difficultyView?' active':'')+'" aria-pressed="'+difficultyView+'" data-worth-matrix-mode="difficulty">难度参考</button></div>':'')
+    +(difficultyView?'<div class="worth-heat-legend" aria-label="难度参考色阶，0 到 100，50 为平均难度"><div class="worth-heat-ramp" data-worth-heat-ramp style="background:'+window.__stScoreWorth.heatRamp()+'" aria-hidden="true"></div><div class="worth-heat-labels"><span>0 · 较易</span><span>50 · 平均</span><span>100 · 较难</span></div></div>':'')
+    +(rowsHtml?'<p class="worth-matrix-hint">左右滑动看科目，上下滑动看考试。'+(difficultyView?' † 暂时只作粗略参考，点格子查看原因；— 表示数据不足。':'')+'</p><div class="sv31-scroll worth-matrix-scroll" tabindex="0" role="region" aria-label="全部考试'+(difficultyView?'难度参考热力图':'成绩矩阵')+'"><table class="sv31-heat worth-matrix-table" style="min-width:'+(136+76*colCount)+'px">'+matrixCols+'<thead>'+head+'</thead><tbody>'+rowsHtml+'</tbody></table></div>'
+      +'<p class="card-sub" style="margin-top:8px">'+(difficultyView?"与成绩含金量用同一把尺子。只比较同一科目、同分类且参考人数相近的考试，不同组不直接比较，也不合成总分难度。点击格子，看看换到历史平均或某次考试的难度下，相当于多少分。":"圆点是逐场异常提示，也可能受个人状态影响；难度参考视图则使用完整历史建立统一尺子，两者用途不同，都不是试卷难度的确定结论。")+'</p>':'<p class="card-sub">还没有可展示的成绩。</p>')
     +(dom?'<div style="margin-top:18px">'+dom+"</div>":"")
     +(extHtml?'<div style="margin-top:18px"><b style="font-size:13px">个人纪录 <span style="color:var(--muted);font-weight:600">(分数项只和自己那张卷子比)</span></b>'
       +'<div class="sv31-ext-grid" style="margin-top:8px">'+extHtml+"</div></div>":"")
@@ -8566,8 +8570,8 @@ function matrixSectionHtmlV32(f,mode){
 var METHOD_MATH_V32='<div class="formula">'
   +'排名位置:<span class="mth"><i>p</i><sub>i</sub> = <span class="frac"><span class="num"><i>r</i><sub>i</sub></span><span class="den"><i>N</i><sub>i</sub></span></span> × 100</span>(第 r<sub>i</sub> 名 / 共 N<sub>i</sub> 人,记作「前 p<sub>i</sub>%」)<br>'
   +'进步速度:<span class="mth"><i>v</i> = med<sub>j</sub>(<i>p</i><sub>j</sub> − <i>p</i><sub>j+1</sub>)</span>,正为前进;折算名次 = <span class="mth"><i>v</i>·N/100</span>;单场进步/退步卡仅在两场参考人数相近(差&lt;30%)时入选,并附前后位比与折算式<br>'
-  +'难度信号(与深度分析板块统一):对每科位比序列做<b>贝叶斯分档推断</b>——把「这场卷子偏难/偏易」当作隐变量,用逐场位比的意外幅度 + 参考人数的抽样噪声宽度联合推断,输出每场 P(难) / P(易);P(难)≥0.6 → 偏难(红点),0.4~0.6 → 关注(橙点),P(易)≥0.4 → 偏易(绿点)<br>'
-  +'难度置信差: <span class="mth">e = −100×(P(难)−P(易))</span>,负值越负越像难卷;该概率已按参考人数自动校准——小池子的位比波动天然更宽,不会误报</div>';
+  +'难度信号：用此前的分数与排名关系，检查本次分数是否明显偏离历史表现。红、橙、绿点分别表示偏难、可能偏难、偏易信号；它们是模型提示，不是试卷难度概率。历史不足时不作判断，旧环境可能使用简化规则。<br>'
+  +'含金量尺子：用同分类、同参考人群阶段的完整分数与排名关系建立稳健模型，估计每场单科成绩相对平均的难度偏移。至少 3 场起提供估计；样本少、关系较弱或边界分数时提示参考较弱。可换算到历史平均、日期范围或某次考试的难度。不同满分先用得分率统一，回看旧考试使用当前已有记录。少用一场记录重算后的范围表示样本敏感性，不是置信区间或预测区间。</div>';
 function qualityHtmlV32(f){
   var q=f.quality,items=[];
   q.pending.forEach(function(e){items.push("<li>有 1 场还没录成绩:"+esc32(shortName32(e.name))+' <a href="javascript:void(0)" data-sv31-edit="'+esc32(e.id||"")+'" data-date="'+esc32(e.exam_date||"")+'" data-name="'+esc32(e.name||"")+'">去补录</a></li>');});
@@ -8581,14 +8585,18 @@ function qualityHtmlV32(f){
     +(items.length?'<ul style="margin:0;padding-left:18px">'+items.join("")+"</ul>":'<p class="card-sub">当前范围内没有发现缺口,数据很完整。</p>')
     +'<details class="sv31-method"><summary>这些结论是怎么算出来的?(方法论与局限声明)</summary><div class="m-body">'
     +'<b>名词对照</b>:「排名」指名次÷参考人数(第57名/310人=前18%,专业术语叫位比);「个百分点」即 pp。<br>'
-    +'<b>口径纪律</b>:跨考试比较一律使用排名位置;分数与得分率只在同一张卷子内使用。手动填写过总分时以手动值为准;不计总分的科目不参与总分口径。<br>'
+    +'<b>比较口径</b>:跨考试主要比较排名位置，不直接把卷面分数当作能力变化。「成绩含金量」用相对难度模型提供换算参考，不是正式等值分。手动填写过总分时以手动值为准;不计总分的科目不参与总分口径。<br>'
     +'<b>序数性声明</b>:排名位置是序数指标,前10%区每1个百分点的难度大于中段,规则阈值按分段收紧。<br>'
-    +'<b>科目级难度信号(统一版)</b>:排名对卷面难度天然免疫,分数不是。与「深度分析」板块使用同一难度算法(贝叶斯分档推断,输出 P(难)/P(易)),矩阵圆点、难度卡、退步卡三处结论同源;需≥3场有效位比,不足时自动降级为旧启发式或不出点。'
+    +'<b>科目级难度信号</b>:分数与排名一起看，能为理解成绩提供线索。矩阵与深度分析使用同一难度内核；单人历史不能确定整张试卷的真实难度，也不能保证不同参考人群之间可比。'
     +METHOD_MATH_V32
     +'<b>局限声明</b>:① 难度信号是推断,也可能是临场失误,仅用于解读,不改变排名结论;② 无法区分「卷易」与「你该科突然开窍」;③ 无他人分数,分布类结论仅基于你自己的等位线。<br>'
     +'<b>样本门槛</b>:进步速度与稳定性≥3场;离群检测≥5场,不足时降级措辞。</div></details></div>';
 }
 /* ---------- 页面装配 ---------- */
+function worthCellV32(i,s,content,label){
+  if(!window.__stScoreWorth)return content;
+  return '<button type="button" class="worth-matrix-button" data-worth-matrix="'+i+'" data-worth-subject="'+esc32(s)+'" aria-label="'+esc32(label||s+'，查看这次考试的成绩含金量')+'">'+content+'</button>';
+}
 function statsPageV32(f){
   var scope=(typeof state!=="undefined"&&state.sv31)||{};
   var mode=scope.mode||"rank";
@@ -8624,6 +8632,7 @@ function statsPageV32(f){
   var ins=buildInsightsV32(f);
   return '<div class="sv31-page">'+head+modBar+controlsHtmlV32(f)
     +kpiHtmlV32(f,mode)
+    +(window.__stScoreWorth?window.__stScoreWorth.html(f):"")
     +insightsHtmlV32(ins)
     +trendHtmlV32(f,mode)
     +structureHtmlV32(f,mode)
@@ -8877,6 +8886,7 @@ function routeStatsV32(){
   var sy=window.pageYOffset||0;
   c.innerHTML=statsPageV32(f);
   try{bindStatsV32(f,c.firstElementChild);}catch(e){}
+  if(window.__stScoreWorth)window.__stScoreWorth.bind(c.firstElementChild,f);
   /* 渲染后让 v29 图例取色/显隐对统计页图表生效(图二/图三换色与勾选显示) */
   try{if(window.__v29&&window.__v29.afterRender)window.__v29.afterRender();}catch(e){}
   window.scrollTo(0,sy);
@@ -12281,6 +12291,338 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
 
   var style=document.createElement('style');style.id='app-v35-style';style.textContent='.grade-filter-v61{align-items:center}.grade-filter-v61 .label{white-space:nowrap}.draft-note-v61{border:1px solid var(--line,#e5e9ef);background:var(--cell,#f7f9fc);color:var(--muted,#687386);border-radius:11px;padding:9px 11px;margin-bottom:12px;font-size:11px;line-height:1.6}.draft-clear-v61{margin-right:auto}.gh-chips{touch-action:pan-y!important}';document.head.appendChild(style);
   window.__v61={captureDraft:captureExam61,readDraft:readDraft61,clearDraft:clearDraft61,filters:function(){return(state.gradeFiltersV61||[]).slice();}};
+})();
+
+/* ===== score-worth-model.js ===== */
+/* A retrospective, personal score/rank scale. Not population test equating. */
+(function () {
+  'use strict';
+  var cache = new WeakMap();
+  function present(v) { return v != null && !(typeof v === 'string' && v.trim() === ''); }
+  function num(v) { if (!present(v) || (typeof v !== 'string' && typeof v !== 'number')) return null; var n = Number(v); return Number.isFinite(n) ? n : null; }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function mean(a) { return a.reduce(function (s, x) { return s + x; }, 0) / a.length; }
+  function median(a) { a = a.slice().sort(function (x, y) { return x - y; }); var i = a.length >> 1; return a.length % 2 ? a[i] : (a[i - 1] + a[i]) / 2; }
+  function sigmoid(y) { return y >= 0 ? 1 / (1 + Math.exp(-y)) : Math.exp(y) / (1 + Math.exp(y)); }
+  function logit(p) { p = clamp(p, 0.005, 0.995); return Math.log(p / (1 - p)); }
+  function day(e) { var s = String(e.exam_date || ''); if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null; var t = Date.parse(s + 'T00:00:00Z'); return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === s ? t / 86400000 : null; }
+  function key(e) { return e.id != null && e.id !== '' ? 'id:' + e.id : JSON.stringify([e.exam_date || '', e.name || '', e.grade_level || '']); }
+  function invNormal(p) {
+    // Reuse the application's tested statistical kernel when it is present.
+    var core = window.PAL2 && window.PAL2.core || window.PAL && window.PAL.core;
+    if (core && core.invNorm) return core.invNorm(p);
+    // Standalone fallback: invert an Abramowitz–Stegun normal CDF approximation.
+    function cdf(x) {
+      var a = Math.abs(x), t = 1 / (1 + 0.2316419 * a), tail = Math.exp(-a * a / 2) / Math.sqrt(2 * Math.PI) * t *
+        (0.319381530 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+      return x >= 0 ? 1 - tail : tail;
+    }
+    var lo = -8, hi = 8;
+    for (var i = 0; i < 48; i++) { var m = (lo + hi) / 2; if (cdf(m) < p) lo = m; else hi = m; }
+    return (lo + hi) / 2;
+  }
+  function observation(e, subject, index) {
+    var r = e && e.scores && e.scores[subject] || {}, score = num(r.actual), max = num(r.max);
+    var N = present(r.participants) ? num(r.participants) : num(e.total_participants);
+    var rank = num(r.rank), pos = num(r.yearPositionPercent);
+    if (present(r.yearPositionPercent)) { if (pos === null || pos <= 0 || pos > 100) pos = null; }
+    else if (rank !== null && N !== null && Number.isInteger(rank) && rank >= 1 && rank <= N) pos = rank / N * 100;
+    var o = { e: e, index: index, score: score, max: max, N: N, pos: pos, day: day(e),
+      scoreValid: score !== null && max !== null && max > 0 && score >= 0 && score <= max,
+      rankValid: pos !== null && N !== null && Number.isSafeInteger(N) && N >= 30 };
+    o.valid = o.scoreValid && o.rankValid && o.day !== null;
+    if (o.valid) { var edge = Math.max(0.5 / N, 1e-8); o.z = invNormal(1 - clamp(pos / 100 - 0.5 / N, edge, 1 - edge)); o.y = logit(score / max); }
+    return o;
+  }
+  function fit(points) {
+    var mx = mean(points.map(function (p) { return p.z; })), my = mean(points.map(function (p) { return p.y; }));
+    var cx = median(points.map(function (p) { return p.z; })), sx = Math.max(0.15, 1.4826 * median(points.map(function (p) { return Math.abs(p.z - cx); })));
+    var weights = points.map(function (p) { return Math.min(1, 2.5 * sx / Math.max(Math.abs(p.z - cx), 1e-9)); });
+    var b = 0, a = my, raw = 0;
+    for (var t = 0; t < 24; t++) {
+      var sw = 0, x = 0, y = 0;
+      points.forEach(function (p, i) { sw += weights[i]; x += weights[i] * p.z; y += weights[i] * p.y; }); x /= sw; y /= sw;
+      var xx = 0, xy = 0; points.forEach(function (p, i) { xx += weights[i] * (p.z - x) * (p.z - x); xy += weights[i] * (p.z - x) * (p.y - y); });
+      raw = xx > 1e-10 ? xy / xx : 0; var nextB = Math.max(0, raw), nextA = y - nextB * x;
+      var residuals = points.map(function (p) { return p.y - nextA - nextB * p.z; }), rm = median(residuals);
+      var scale = Math.max(0.03, 1.4826 * median(residuals.map(function (v) { return Math.abs(v - rm); })));
+      weights = points.map(function (p, i) { return Math.min(1, 2.5 * sx / Math.max(Math.abs(p.z - cx), 1e-9)) * Math.min(1, 1.345 * scale / Math.max(Math.abs(residuals[i]), 1e-9)); });
+      if (Math.abs(nextB - b) + Math.abs(nextA - a) < 1e-9) { a = nextA; b = nextB; break; } a = nextA; b = nextB;
+    }
+    var residual = points.map(function (p) { return p.y - a - b * p.z; }), med = median(residual);
+    var dispersion = 1.4826 * median(residual.map(function (v) { return Math.abs(v - med); }));
+    return { b: b, rawSlope: raw, meanZ: mx, meanY: my, dispersion: dispersion,
+      spreadZ: Math.sqrt(mean(points.map(function (p) { return (p.z - mx) * (p.z - mx); }))) };
+  }
+  function hardness(p, model, slope) { var b = slope == null ? model.b : slope; return b * (p.z - model.meanZ) - (p.y - model.meanY); }
+  function difficultyIndex(h) { return 100 * sigmoid(h); }
+  function context(exams, subject) {
+    var observations = exams.map(function (e, i) { return observation(e, subject, i); });
+    var signature = JSON.stringify(observations.map(function (o) { return [key(o.e), o.day, o.e.grade_level || '', o.score, o.max, o.pos, o.N]; }));
+    var perSubject = cache.get(exams); if (!perSubject) { perSubject = Object.create(null); cache.set(exams, perSubject); }
+    if (perSubject[subject] && perSubject[subject].signature === signature) return perSubject[subject];
+    var seen = Object.create(null), unique = [];
+    // Duplicate IDs are one exam; keep the final supplied record.
+    observations.slice().reverse().forEach(function (o) { var k = key(o.e); if (!seen[k]) { seen[k] = true; if (o.valid) unique.push(o); } });
+    unique.sort(function (a, b) { return a.day - b.day || key(a.e).localeCompare(key(b.e)); });
+    var categories = Object.create(null), groups = [], byIndex = Object.create(null);
+    unique.forEach(function (o) {
+      var category = String(o.e.grade_level || ''), group = categories[category];
+      if (!group || Math.abs(o.N - median(group.points.map(function (p) { return p.N; }))) / Math.max(o.N, median(group.points.map(function (p) { return p.N; }))) >= 0.3) {
+        group = { points: [], category: category }; groups.push(group); categories[category] = group;
+      }
+      group.points.push(o); o.group = group; byIndex[o.index] = o;
+    });
+    groups.forEach(function (group) { if (group.points.length >= 3) group.model = fit(group.points); });
+    var result = { signature: signature, observations: observations, groups: groups, byIndex: byIndex };
+    perSubject[subject] = result; return result;
+  }
+  function scoreOnScale(cur, delta, max) {
+    if (Math.abs(delta) < 1e-10) return cur.score / cur.max * max;
+    return max * sigmoid(cur.y + delta);
+  }
+  function compare(exams, subject, index, options) {
+    options = options || { mode: 'history' };
+    var e = exams[index], out = { kind: 'empty', referenceMode: options.mode || 'history', references: [] };
+    if (!e) { out.reason = '先录入一次考试，就可以建立你的成绩参考尺子。'; return out; }
+    var cur = observation(e, subject, index); out.current = cur;
+    if (!cur.scoreValid) { out.reason = '补齐这次的成绩和满分，就能开始比较。'; return out; }
+    if (out.referenceMode === 'exam' && Number(options.exam) === index) {
+      out.kind = 'identity'; out.value = cur.score; out.targetMax = cur.max; out.low = cur.score; out.high = cur.score; out.references = [cur]; out.referenceLabel = e.name || '本次考试'; out.quality = 'identity';
+      var self = context(exams, subject).byIndex[index];
+      if (self && self.group.model) { out.modelN = self.group.points.length; out.difficulty = out.referenceDifficulty = difficultyIndex(hardness(self, self.group.model)); }
+      return out;
+    }
+    if (!cur.rankValid) { out.reason = '还需要这科的年级排名（或排名位置）和参考人数。少于 30 人时，暂不估计难度。'; return out; }
+    if (cur.day === null) { out.reason = '补齐有效的考试日期，就能建立参考尺子。'; return out; }
+    var ctx = context(exams, subject), point = ctx.byIndex[index];
+    if (!point) { out.reason = '这场考试有重复记录，已避免重复计入参考尺子。'; return out; }
+    var group = point.group, model = group.model; out.modelN = group.points.length;
+    if (!model) { out.reason = '这组可比较的记录还不足 3 场。补齐成绩、满分和年级排名后，就能估计相对难度。'; return out; }
+    var refs = group.points, max = cur.max, label = '历史平均';
+    if (out.referenceMode === 'period') {
+      var start = day({ exam_date: options.start }), end = day({ exam_date: options.end });
+      if (start === null || end === null || start > end) { out.reason = '选一个完整的日期范围，开始日期要早于或等于结束日期。'; return out; }
+      refs = refs.filter(function (p) { return p.day >= start && p.day <= end; }); label = options.start + ' 至 ' + options.end;
+    } else if (out.referenceMode === 'exam') {
+      var ref = ctx.byIndex[Number(options.exam)];
+      if (!ref || ref.group !== group) { out.reason = '参照考试需要有完整的单科成绩和排名，并属于同一分类、同一参考人群阶段。'; return out; }
+      refs = [ref]; max = ref.max; label = ref.e.name || '参照考试';
+    }
+    if (!refs.length) { out.reason = '这个时间段内没有可用的参照考试，试试扩大日期范围。'; return out; }
+    var h = hardness(point, model), refH = mean(refs.map(function (p) { return hardness(p, model); }));
+    out.kind = 'estimate'; out.referenceLabel = label; out.references = refs; out.targetMax = max;
+    out.value = scoreOnScale(point, h - refH, max); out.difficulty = difficultyIndex(h); out.referenceDifficulty = difficultyIndex(refH);
+    out.sameMaxValue = scoreOnScale(point, h - refH, point.max); out.offset = h - refH;
+    if (!group.slopes) {
+      var count = Math.min(80, group.points.length), slopes = [];
+      for (var i = 0; i < count; i++) {
+        var omit = count === 1 ? 0 : Math.round(i * (group.points.length - 1) / (count - 1));
+        slopes.push(fit(group.points.filter(function (_, j) { return j !== omit; })).b);
+      }
+      group.slopes = slopes;
+    }
+    // Sensitivity of the fitted slope: fixed full-history centering and fixed reference inputs.
+    var values = group.slopes.map(function (b) {
+      var delta = hardness(point, model, b) - mean(refs.map(function (p) { return hardness(p, model, b); }));
+      return scoreOnScale(point, delta, max);
+    }).concat(out.value);
+    out.low = Math.min.apply(null, values); out.high = Math.max.apply(null, values); out.sensitivityRuns = group.slopes.length;
+    var reasons = [];
+    if (group.points.length < 8) reasons.push('历史记录还少');
+    if (model.spreadZ < 0.15) reasons.push('历史排名变化较小，尺子的斜率还不明确');
+    if (model.rawSlope <= 0 && model.spreadZ >= 0.15) reasons.push('分数与排名的历史关系较弱，换算更接近参照范围的平均得分率');
+    if (model.dispersion > 0.5) reasons.push('历史分数与排名关系波动较大');
+    if (out.high - out.low > max * 0.1) reasons.push('少用一场历史记录，换算结果就会明显变化');
+    if (point.score === 0 || point.score === point.max || refs.some(function (p) { return p.score === 0 || p.score === p.max; })) reasons.push('含零分或满分，边界附近的换算更不确定');
+    if (refs.length === 1) reasons.push('参照仅有一场考试，个人状态可能影响其难度估计');
+    out.quality = reasons.length ? 'limited' : 'supported'; out.warnings = reasons; out.model = model;
+    return out;
+  }
+  function cells(exams, subjects) {
+    var result = Object.create(null);
+    subjects.forEach(function (subject) {
+      var ctx = context(exams, subject);
+      Object.keys(ctx.byIndex).forEach(function (i) {
+        var p = ctx.byIndex[i], m = p.group.model;
+        if (m) result[i + '|' + subject] = { index: difficultyIndex(hardness(p, m)), n: p.group.points.length,
+          limited: p.group.points.length < 8 || m.spreadZ < 0.15 || m.rawSlope <= 0 || m.dispersion > 0.5 };
+      });
+    }); return result;
+  }
+  window.__stScoreWorthModel = { observation: observation, compare: compare, cells: cells, fit: fit, context: context, day: day, key: key, difficultyIndex: difficultyIndex };
+})();
+
+/* ===== score-worth.js ===== */
+(function () {
+  'use strict';
+  var M = window.__stScoreWorthModel, selections = Object.create(null);
+  function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function fmt(v) { return String(Math.round(v * 10) / 10); }
+  function plainWarnings(r) {
+    var messages = {
+      '历史记录还少': '目前只有 ' + r.modelN + ' 场可比较的记录，先把这个分数当作大致参考。',
+      '历史排名变化较小，尺子的斜率还不明确': '这些考试的排名很接近，还不容易看清分数和排名之间的关系。',
+      '分数与排名的历史关系较弱，换算更接近参照范围的平均得分率': '你的分数和排名没有明显一起变化，这次换算更接近参照考试的平均得分水平。',
+      '历史分数与排名关系波动较大': '历史表现波动较大，换算分数只能作粗略参考。',
+      '少用一场历史记录，换算结果就会明显变化': '换一组历史记录，参考分就会变化不少，暂时不要太看重这个数字。',
+      '含零分或满分，边界附近的换算更不确定': '记录里有零分或满分，这类成绩不容易准确换算。',
+      '参照仅有一场考试，个人状态可能影响其难度估计': '只和一场考试比较，也会受到那次发挥的影响。'
+    };
+    return (r.warnings || []).map(function (warning) { return messages[warning] || warning + '。'; });
+  }
+  function briefWarning(r) {
+    if (r.modelN < 8) return '仅 ' + r.modelN + ' 场记录，先作参考。';
+    var hints = {
+      '历史排名变化较小，尺子的斜率还不明确': '历史排名太接近，先作参考。',
+      '分数与排名的历史关系较弱，换算更接近参照范围的平均得分率': '分数与排名关系不明显，先作参考。',
+      '历史分数与排名关系波动较大': '历史表现波动较大，先作参考。',
+      '少用一场历史记录，换算结果就会明显变化': '换用历史记录后变化较大，先作参考。',
+      '含零分或满分，边界附近的换算更不确定': '含零分或满分，先作参考。',
+      '参照仅有一场考试，个人状态可能影响其难度估计': '只参照一场考试，先作参考。'
+    };
+    return hints[(r.warnings || [])[0]] || '换算结果仅供参考。';
+  }
+  function rgb(value, fallback) {
+    var hex = /^#([\da-f]{6}|[\da-f]{3})$/i.exec(String(value).trim());
+    if (hex) { var s = hex[1]; if (s.length === 3) s = s.replace(/./g, function (c) { return c + c; }); return [0, 2, 4].map(function (i) { return parseInt(s.slice(i, i + 2), 16); }); }
+    var numbers = String(value).match(/[\d.]+/g);
+    return /^rgba?\(/.test(String(value).trim()) && numbers && numbers.length >= 3 ? numbers.slice(0, 3).map(Number) : fallback;
+  }
+  function heatColor(value) {
+    var theme = getComputedStyle(document.documentElement), accent = rgb(theme.getPropertyValue('--accent'), [93, 114, 232]);
+    var panel = rgb(theme.getPropertyValue('--panel-solid'), [255, 255, 255]);
+    // One fixed, continuous 0–100 scale; never rescale to a row or the visible range.
+    var amount = 0.08 + 0.84 * Math.max(0, Math.min(100, Number(value))) / 100;
+    var fill = panel.map(function (v, i) { return Math.round(v + (accent[i] - v) * amount); });
+    var linear = fill.map(function (v) { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+    var luminance = 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+    return { background: 'rgb(' + fill.join(',') + ')', color: (luminance + 0.05) / 0.05 >= 1.05 / (luminance + 0.05) ? '#000000' : '#ffffff' };
+  }
+  function heatStyle(value) { var c = heatColor(value); return 'background:' + c.background + ';color:' + c.color; }
+  function heatRamp() { return 'linear-gradient(90deg,' + [0, 25, 50, 75, 100].map(function (v) { return heatColor(v).background; }).join(',') + ')'; }
+  function paintHeatmap() {
+    document.querySelectorAll('[data-worth-heat]').forEach(function (cell) { var c = heatColor(cell.dataset.worthHeat); cell.style.background = c.background; cell.style.color = c.color; });
+    document.querySelectorAll('[data-worth-heat-ramp]').forEach(function (ramp) { ramp.style.background = heatRamp(); });
+  }
+  function selection(f) {
+    var user = typeof state !== 'undefined' && state.user || {}, uk = String(user.id || user.username || 'guest');
+    var s = selections[uk] || (selections[uk] = { mode: 'history' }), subjects = f.subjects || [], exams = f.exams || [];
+    if (subjects.indexOf(s.subject) < 0) s.subject = subjects[0] || '';
+    var index = exams.findIndex(function (e) { return M.key(e) === s.exam; });
+    if (index < 0) {
+      index = exams.length - 1;
+      for (var i = exams.length - 1; i >= 0; i--) { if (subjects.some(function (sub) { return M.observation(exams[i], sub).scoreValid; })) { index = i; break; } }
+      s.exam = index >= 0 ? M.key(exams[index]) : '';
+      var scored = subjects.filter(function (sub) { return index >= 0 && M.observation(exams[index], sub).scoreValid; });
+      if (scored.length && scored.indexOf(s.subject) < 0) s.subject = scored[0];
+    }
+    s.index = index;
+    var p = M.context(exams, s.subject).byIndex[index], candidates = p ? p.group.points : [];
+    var reference = candidates.find(function (o) { return M.key(o.e) === s.refExam; });
+    if (!reference) {
+      var previous = candidates.filter(function (o) { return o.day < p.day; });
+      reference = previous[previous.length - 1] || candidates[candidates.length - 1]; s.refExam = reference ? M.key(reference.e) : '';
+    }
+    s.refIndex = reference ? reference.index : index;
+    if (s.start === undefined || s.end === undefined) {
+      var date = exams[index] && M.day(exams[index]);
+      if (date !== null && date !== undefined) { s.end = exams[index].exam_date; s.start = new Date((date - 90) * 86400000).toISOString().slice(0, 10); }
+    }
+    return s;
+  }
+  function result(f, s) { return M.compare(f.exams, s.subject, s.index, { mode: s.mode, exam: s.refIndex, start: s.start, end: s.end }); }
+  function examOptions(exams, index, indices) {
+    return exams.map(function (e, i) {
+      if (indices && indices.indexOf(i) < 0) return '';
+      return '<option value="' + i + '"' + (i === index ? ' selected' : '') + '>' + esc((e.exam_date || '') + ' · ' + (e.name || '未命名考试')) + '</option>';
+    }).reverse().join('');
+  }
+  function html(f) {
+    var s = selection(f), r = result(f, s), cur = r.current;
+    var p = M.context(f.exams, s.subject).byIndex[s.index], candidates = p ? p.group.points.map(function (o) { return o.index; }) : [s.index];
+    var reference = '<div class="worth-ref-modes" role="group" aria-label="选择参照难度">' + [ ['history', '历史平均'], ['period', '一段时间'], ['exam', '某次考试'] ].map(function (pair) {
+      return '<button type="button" class="chip' + (s.mode === pair[0] ? ' active' : '') + '" data-worth-mode="' + pair[0] + '" aria-pressed="' + (s.mode === pair[0]) + '">' + pair[1] + '</button>';
+    }).join('') + '</div>';
+    if (s.mode === 'period') reference += '<div class="worth-controls worth-dates"><label>开始日期<input type="date" value="' + esc(s.start || '') + '" data-worth-control="start"></label><label>结束日期<input type="date" value="' + esc(s.end || '') + '" data-worth-control="end"></label></div>';
+    if (s.mode === 'exam') reference += '<label class="worth-ref-exam">参照考试<select data-worth-control="reference">' + examOptions(f.exams, s.refIndex, candidates) + '</select></label>';
+    var body = '';
+    if (cur && cur.scoreValid) {
+      body = '<div class="worth-compare"><div class="worth-number"><span>本次实际成绩</span><strong>' + fmt(cur.score) + '<small> / ' + fmt(cur.max) + '</small></strong><p>' + (cur.rankValid ? '年级前 ' + fmt(cur.pos) + '%' : '还没有可比较的排名') + '</p></div>';
+      body += '<div class="worth-number worth-reference"><span>换算参考分 <small>估计</small></span><strong>' + (r.kind === 'empty' ? '—' : '约 ' + fmt(r.value) + '<small> / ' + fmt(r.targetMax) + '</small>') + '</strong><p>' + (r.kind === 'empty' ? '还需要一些数据' : esc(r.referenceLabel)) + '</p></div></div>';
+    }
+    if (r.kind === 'empty') body += '<p class="worth-message" role="status">' + esc(r.reason) + '</p>';
+    else {
+      body += '<p class="worth-message">' + (r.kind === 'identity' ? '参照就是本次考试，成绩不变。' : '按' + (s.mode === 'history' ? '历史平均难度' : s.mode === 'period' ? '这段时间的平均难度' : '这场考试的难度') + '，约相当于 <b>' + fmt(r.value) + ' 分</b>。') + '</p>';
+      if (r.kind !== 'identity' && r.quality === 'limited') body += '<div class="worth-stability"><p>' + esc(briefWarning(r)) + '</p></div>';
+      var rows = r.references.slice().sort(function (a, b) { return b.day - a.day; });
+      var model = p && p.group.model, difficultyCells = model ? M.cells(f.exams, [s.subject]) : {};
+      body += '<details class="worth-evidence worth-records"><summary>参考考试 · ' + rows.length + ' 场</summary>';
+      body += '<div class="worth-table-scroll" tabindex="0" role="region" aria-label="参照考试依据"><table class="worth-table"><thead><tr><th>考试</th><th>实际成绩</th><th>年级排名</th><th>难度参考</th><th></th></tr></thead><tbody>' + rows.map(function (o) {
+        var cell = difficultyCells[o.index + '|' + s.subject];
+        return '<tr><td>' + esc(o.e.name || '未命名考试') + '<small>' + esc(o.e.exam_date || '') + '</small></td><td>' + fmt(o.score) + ' / ' + fmt(o.max) + '</td><td>' + (o.rankValid ? '前 ' + fmt(o.pos) + '%<small>' + o.N + ' 人</small>' : '—') + '</td><td>' + (cell ? fmt(cell.index) : '—') + '</td><td><button type="button" class="worth-link" data-worth-reference="' + o.index + '">用作参照</button></td></tr>';
+      }).join('') + '</tbody></table></div></details>';
+      body += '<details class="worth-evidence worth-method"><summary>怎么算的？</summary>';
+      if (r.difficulty != null) body += '<div class="worth-difficulty"><div><span>本次难度参考</span><b>' + fmt(r.difficulty) + '</b></div><div><span>参照难度参考</span><b>' + fmt(r.referenceDifficulty) + '</b></div><div><span>参考记录</span><b>' + rows.length + '<small> 场</small></b></div></div><p class="worth-note">50 为这组考试的平均难度，数字越大，估计相对越难；不是难度概率。</p>';
+      body += '<p class="worth-note">用 ' + (r.modelN || 1) + ' 场可比较的分数与年级排名估算难度，再换到你选择的参照难度。分类不同或人数明显变化时分开计算。</p><p class="worth-note">历史平均和时间段平均包含范围内的本次考试。回看旧考试也会用到后来录入的记录，不是当时的预测。指定考试按它的满分换算，其他参照按本次满分。</p>';
+      if (r.kind !== 'identity') {
+        body += plainWarnings(r).map(function (warning) { return '<p class="worth-note">' + esc(warning) + '</p>'; }).join('');
+        body += '<p class="worth-note worth-sensitivity">每次少用一场记录重算，结果为 ' + fmt(r.low) + '–' + fmt(r.high) + ' 分。结果相近不说明分数一定准确；不是预测区间或置信区间，也不是下次考试的分数范围。</p>';
+      }
+      body += '<p class="worth-note">个人发挥、赋分和参考人群变化都可能影响估算，不能当作试卷的真实难度或正式等值分。</p></details>';
+    }
+    return '<section class="card worth-card" id="scoreWorthCard" aria-labelledby="scoreWorthTitle" data-worth-result="' + r.kind + '" data-worth-quality="' + (r.quality || 'missing') + '"><div class="card-title-row"><h3 class="card-title" id="scoreWorthTitle">成绩含金量</h3></div><div class="worth-controls"><label>科目<select data-worth-control="subject">' + f.subjects.map(function (sub) { return '<option' + (sub === s.subject ? ' selected' : '') + '>' + esc(sub) + '</option>'; }).join('') + '</select></label><label>本次考试<select data-worth-control="exam">' + examOptions(f.exams, s.index) + '</select></label></div><div class="worth-reference-choice"><span>参照难度</span>' + reference + '</div>' + body + '<p class="worth-note worth-limit">估算仅供参考，实际成绩不会改变。</p></section>';
+  }
+  function track(name, metadata) { try { if (window.__stTrack) window.__stTrack(name, metadata); } catch (_) {} }
+  function report(f, source) { var s = selection(f), r = result(f, s); track('score_worth_view', { source: source, result: r.kind, reference_mode: s.mode, model_count: r.modelN || 0, reference_count: r.references.length, quality: r.quality || 'missing', version: 2 }); }
+  function bind(root, f) {
+    var card = root.querySelector('#scoreWorthCard'); if (!card) return;
+    function watch(node) { node.querySelectorAll('details').forEach(function (details) { details.addEventListener('toggle', function () { if (details.open) track('score_worth_evidence_open', { source: details.classList.contains('worth-method') ? 'method' : 'records', version: 2 }); }); }); }
+    function replace(source, selector) {
+      card.outerHTML = html(f); card = root.querySelector('#scoreWorthCard'); watch(card); report(f, source);
+      var control = selector && card.querySelector(selector); if (control) control.focus({ preventScroll: true });
+    }
+    watch(card);
+    if (typeof IntersectionObserver === 'function') {
+      var watched = card, cleanup;
+      var observer = new IntersectionObserver(function (entries) { if (entries.some(function (e) { return e.isIntersecting; })) { report(f, 'analysis'); observer.disconnect(); if (cleanup) cleanup.disconnect(); } }, { threshold: 0.25 });
+      cleanup = new MutationObserver(function () { if (!watched.isConnected) { observer.disconnect(); cleanup.disconnect(); } }); cleanup.observe(root.parentNode, { childList: true, subtree: true }); observer.observe(watched);
+    } else report(f, 'analysis');
+    root.addEventListener('change', function (ev) {
+      var control = ev.target.closest('[data-worth-control]'); if (!control) return;
+      var s = selection(f), type = control.dataset.worthControl;
+      if (type === 'subject' && f.subjects.indexOf(control.value) >= 0) s.subject = control.value;
+      else if (type === 'exam' && f.exams[Number(control.value)]) s.exam = M.key(f.exams[Number(control.value)]);
+      else if (type === 'reference' && f.exams[Number(control.value)]) s.refExam = M.key(f.exams[Number(control.value)]);
+      else if (type === 'start' || type === 'end') s[type] = control.value;
+      track('score_worth_selection', { control: type, version: 2 }); replace('selection', '[data-worth-control="' + type + '"]');
+    });
+    root.addEventListener('click', function (ev) {
+      var mode = ev.target.closest('[data-worth-mode]');
+      if (mode) { var s = selection(f); s.mode = mode.dataset.worthMode; track('score_worth_reference_mode', { mode: s.mode, version: 2 }); replace('reference', '[data-worth-mode="' + s.mode + '"]'); return; }
+      var ref = ev.target.closest('[data-worth-reference]');
+      if (ref && f.exams[Number(ref.dataset.worthReference)]) { var s = selection(f); s.mode = 'exam'; s.refExam = M.key(f.exams[Number(ref.dataset.worthReference)]); track('score_worth_reference_selected', { source: 'evidence', version: 2 }); replace('reference', '[data-worth-control="reference"]'); return; }
+      var metric = ev.target.closest('[data-worth-matrix-mode]');
+      if (metric) {
+        state.sv31.matrixWorth = metric.dataset.worthMatrixMode; track('score_worth_matrix_metric', { view: state.sv31.matrixWorth, version: 2 }); window.__v32.rerender();
+        var selectedMetric = document.querySelector('[data-worth-matrix-mode="' + state.sv31.matrixWorth + '"]'); if (selectedMetric) selectedMetric.focus({ preventScroll: true });
+        return;
+      }
+      var button = ev.target.closest('[data-worth-matrix]'); if (!button) return;
+      var i = Number(button.dataset.worthMatrix), subject = button.dataset.worthSubject;
+      if (!f.exams[i] || f.subjects.indexOf(subject) < 0) return;
+      var s = selection(f); s.subject = subject; s.exam = M.key(f.exams[i]);
+      track('score_worth_matrix_open', { version: 2 }); replace('matrix'); card.setAttribute('tabindex', '-1'); card.focus({ preventScroll: true });
+      if (card.scrollIntoView) card.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    });
+  }
+  var style = document.createElement('style'); style.id = 'score-worth-style';
+  style.textContent = '.worth-card{scroll-margin-top:24px;min-width:0}.worth-tag{display:inline-block;font-size:10px;font-weight:600;color:var(--accent);background:var(--accent-soft);padding:4px 8px;border-radius:999px;vertical-align:middle}.worth-controls{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:12px;margin:14px 0}.worth-controls label,.worth-ref-exam{display:block;min-width:0;font-size:12px;color:var(--muted)}.worth-controls select,.worth-controls input,.worth-ref-exam select{box-sizing:border-box;display:block;width:100%;min-width:0;max-width:100%;margin-top:6px;border:1px solid var(--line);border-radius:12px;padding:10px;color:var(--text);background:var(--panel-solid);font:inherit;min-height:42px}.worth-reference-choice{margin:16px 0}.worth-reference-choice>span{font-size:12px;color:var(--muted)}.worth-ref-modes{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.worth-ref-exam{margin-top:12px}.worth-dates{grid-template-columns:repeat(2,minmax(0,1fr))}.worth-compare{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.worth-number{padding:16px;border:1px solid var(--line);border-radius:15px;min-width:0;background:var(--panel-solid)}.worth-reference{background:var(--accent-soft)}.worth-number>span,.worth-number p{font-size:12px;color:var(--muted)}.worth-number strong{display:block;font-size:32px;line-height:1.3;letter-spacing:-.5px;margin-top:8px;font-variant-numeric:tabular-nums;color:var(--text)}.worth-reference strong{color:var(--accent)}.worth-number small{font-size:13px;font-weight:500;letter-spacing:0}.worth-number p{margin:6px 0 0;overflow-wrap:anywhere}.worth-message{font-size:14px;line-height:1.8;margin:16px 0 8px;overflow-wrap:anywhere}.worth-note{color:var(--muted);font-size:12px;line-height:1.8;overflow-wrap:anywhere}.worth-limit{border-top:1px solid var(--line);padding-top:12px;margin-bottom:0}.worth-difficulty{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:16px 0 8px}.worth-difficulty>div{border:1px solid var(--line);border-radius:12px;padding:12px;min-width:0}.worth-difficulty span{font-size:11px;color:var(--muted)}.worth-difficulty b{display:block;font-size:22px;margin-top:7px;font-variant-numeric:tabular-nums}.worth-difficulty small{font-size:12px;font-weight:500}.worth-stability{border-left:3px solid var(--accent);padding:10px 12px;background:var(--chip-bg);border-radius:10px;margin:14px 0}.worth-stability p{margin:7px 0 0;font-size:12px;line-height:1.8;color:var(--muted)}.worth-evidence{margin:14px 0}.worth-evidence summary{cursor:pointer;font-size:12px;color:var(--accent);padding:6px 0}.worth-table-scroll{overflow:auto;max-height:280px;border:1px solid var(--line);border-radius:12px}.worth-table{width:100%;min-width:530px;border-collapse:collapse;font-size:12px}.worth-table th{position:sticky;top:0;background:var(--panel-solid);text-align:left;font-weight:600;z-index:1}.worth-table td,.worth-table th{padding:10px;border-bottom:1px solid var(--line)}.worth-table small{display:block;color:var(--muted);font-size:10px;margin-top:5px}.worth-table td:first-child{max-width:180px;overflow-wrap:anywhere}.worth-link{border:0;padding:7px;background:transparent;color:var(--accent);cursor:pointer;font:inherit;white-space:nowrap}.worth-matrix-button{border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;display:block;width:100%;min-height:32px;padding:4px;border-radius:5px}.worth-matrix-button:focus-visible{outline:2px solid currentColor;outline-offset:2px}.worth-card:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.worth-matrix-controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.worth-matrix-weak{display:block;font-size:9px;opacity:.8;margin-top:2px}@media(max-width:480px){.worth-controls{grid-template-columns:minmax(0,1fr)}.worth-dates{grid-template-columns:minmax(0,1fr)}.worth-number{padding:12px}.worth-number strong{font-size:28px}.worth-difficulty>div{padding:10px}.worth-difficulty span{font-size:10px}}';
+  document.head.appendChild(style);
+  style.textContent += '.worth-matrix-card{min-width:0}.worth-matrix-scroll{width:100%;max-width:100%;overflow:auto;max-height:480px;border:1px solid var(--line);border-radius:12px;-webkit-overflow-scrolling:touch}.worth-matrix-scroll:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.worth-matrix-table{table-layout:fixed;border-collapse:separate;border-spacing:0;width:100%;font-size:13px;font-variant-numeric:tabular-nums}.worth-matrix-table th,.worth-matrix-table td{box-sizing:border-box;padding:8px 6px;height:62px;border:0;border-bottom:1px solid var(--line);border-right:1px solid var(--line);text-align:center;vertical-align:middle;white-space:normal;word-break:normal;overflow-wrap:normal}.worth-matrix-table thead th{position:sticky;top:0;z-index:2;height:42px;background:var(--panel-solid);color:var(--muted);font-weight:600}.worth-matrix-table tr>:first-child{position:sticky;left:0;z-index:1;background:var(--panel-solid);color:var(--text);text-align:left;padding:10px 12px;box-shadow:2px 0 0 var(--line)}.worth-matrix-table thead tr>:first-child{z-index:3;color:var(--muted)}.worth-exam-name{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;line-height:1.4;max-height:2.8em;font-weight:600;overflow-wrap:anywhere}.worth-exam-date{display:block;font-size:10px;line-height:1.4;font-weight:400;color:var(--muted);margin-top:4px;white-space:nowrap}.worth-matrix-table .worth-matrix-button{min-height:44px;padding:6px 0;position:relative;white-space:nowrap;font-weight:600;font-size:14px;border-radius:4px}.worth-heat-limited{display:inline-block;font-size:11px;margin-left:3px;vertical-align:super;line-height:1}.worth-heat-legend{max-width:320px;margin:0 0 12px;color:var(--muted);font-size:11px}.worth-heat-ramp{height:10px;border-radius:5px;position:relative;overflow:hidden}.worth-heat-ramp:after{content:"";position:absolute;left:50%;top:0;bottom:0;border-left:2px solid var(--panel-solid)}.worth-heat-labels{display:flex;justify-content:space-between;margin-top:5px;gap:8px}.worth-matrix-hint{font-size:11px;color:var(--muted);line-height:1.7;margin:8px 0 12px}@media(max-width:480px){.worth-matrix-scroll{max-height:420px}.worth-matrix-table th,.worth-matrix-table td{height:60px}.worth-matrix-card .card-title-row{flex-wrap:wrap;gap:8px}.worth-matrix-card .legend{flex-wrap:wrap;gap:8px}}';
+  // A single theme watcher reads the current DOM, so page switches retain no old cards.
+  if (typeof MutationObserver === 'function') new MutationObserver(paintHeatmap).observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'data-theme'] });
+  window.__stScoreWorth = { html: html, bind: bind, compare: M.compare, observation: M.observation, difficultyCells: M.cells, heatStyle: heatStyle, heatRamp: heatRamp, heatColor: heatColor };
 })();
 
 /* ===== release-notices.js ===== */
