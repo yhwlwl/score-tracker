@@ -6,6 +6,10 @@ const { pathToFileURL } = require('node:url');
 const root = path.resolve(__dirname, '..');
 const origin = 'https://scores.test';
 const privateBody = JSON.stringify({ action: 'login', username: 'fixture-user', password: 'fixture-password', token: 'fixture-token' });
+const withCf = (request, cf) => {
+  Object.defineProperty(request, 'cf', { value: cf, configurable: true });
+  return request;
+};
 const post = (endpoint = 'score-tracker-api', body = privateBody, extra = {}) => new Request(origin + '/api/' + endpoint, {
   method: 'POST', headers: { 'content-type': 'application/json', 'x-score-request-id': 'st-fixture-1', cookie: 'private-cookie', authorization: 'private-header' }, body, ...extra,
 });
@@ -38,6 +42,34 @@ async function run() {
       assert.equal(response.headers.get('set-cookie'), null);
       assert.equal(response.headers.get('x-score-request-id'), 'st-fixture-1');
     }
+    const clientRequest = withCf(post('score-tracker-api', privateBody, {
+      headers: {
+        'content-type': 'application/json',
+        'x-score-request-id': 'st-client-ip',
+        'cf-connecting-ip': '203.0.113.42',
+        'x-forwarded-for': '198.51.100.9',
+        'cf-ipcountry': 'CN',
+      },
+    }), {
+      city: 'Shanghai',
+      country: 'CN',
+      region: 'Shanghai',
+      regionCode: 'SH',
+      timezone: 'Asia/Shanghai',
+    });
+    await proxyApi(clientRequest, { fetch: async (url, init) => {
+      const headers = new Headers(init.headers);
+      assert.equal(headers.get('x-score-client-ip'), '203.0.113.42');
+      assert.equal(headers.get('x-forwarded-for'), '203.0.113.42');
+      assert.equal(headers.get('x-real-ip'), '203.0.113.42');
+      assert.equal(headers.get('x-score-client-city'), 'Shanghai');
+      assert.equal(headers.get('x-vercel-ip-city'), 'Shanghai');
+      assert.equal(headers.get('x-score-client-country'), 'CN');
+      assert.equal(headers.get('x-score-client-region'), 'SH');
+      assert.equal(headers.get('x-score-client-timezone'), 'Asia/Shanghai');
+      return new Response('{"ok":true}');
+    }});
+    console.log('PASS: trusted edge IP and geo are forwarded for application telemetry while the browser-supplied forwarding chain is ignored');
     console.log('PASS: every endpoint forwards existing JSON unchanged, without browser cookies or privileged headers; responses are never cached');
 
     const failIfCalled = () => { throw Error('must not call upstream'); };
