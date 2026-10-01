@@ -47,34 +47,69 @@ function connectBrokenTrendPathsV19(stage){
 }
 
 function enhanceTrendStageV19(stage){
-  if(!stage||stage.dataset.v19Enhanced==='1')return;
+  if(!stage)return;
   var svg=stage.querySelector('svg');
   if(!svg)return;
+  if(!stage._trendGeometryV19){
+    var box=(svg.getAttribute('viewBox')||'').split(/\s+/).map(Number);
+    if(box.length!==4||!box[2]||!box[3])return;
+    var grid=Array.from(svg.querySelectorAll('line[x1][x2]')).filter(function(el){return Number(el.getAttribute('x2'))-Number(el.getAttribute('x1'))>box[2]/2;})[0];
+    if(!grid)return;
+    var left=Number(grid.getAttribute('x1')),right=Number(grid.getAttribute('x2'));
+    var labels=Array.from(svg.querySelectorAll('text[text-anchor="middle"]')).filter(function(el){return el.classList.contains('axis-label');});
+    // Keep the original coordinates: resizing must not stretch an already resized chart again.
+    stage._trendGeometryV19={width:box[2],height:box[3],left:left,right:right,count:labels.length||Math.max(1,(state.exams||[]).length),nodes:Array.from(svg.querySelectorAll('circle,text,line,path,polyline,polygon')).map(function(el){
+      var attrs={};['x','cx','x1','x2','d','points'].forEach(function(key){if(el.hasAttribute(key))attrs[key]=el.getAttribute(key);});return{el:el,attrs:attrs};
+    })};
+  }
+  var geometry=stage._trendGeometryV19;
+  var viewport=Math.max(240,stage.clientWidth||Math.min(760,window.innerWidth-64));
+  var rightMargin=Math.max(44,geometry.width-geometry.right);
+  var desired=Math.max(viewport,geometry.left+rightMargin+Math.max(0,geometry.count-1)*84);
+  var oldRange=Math.max(0,(stage._trendWidthV19||desired)-(stage._trendViewportV19||viewport));
+  var followEnd=!stage._trendWidthV19||stage.scrollLeft>=oldRange-8;
+  var progress=oldRange?stage.scrollLeft/oldRange:0;
+  function x(value){var n=Number(value);return n<geometry.left?n:geometry.left+(n-geometry.left)/(geometry.right-geometry.left)*(desired-rightMargin-geometry.left);}
+  geometry.nodes.forEach(function(item){Object.keys(item.attrs).forEach(function(key){
+    var value=item.attrs[key];
+    if(key==='d')value=value.replace(/([ML])\s*(-?[\d.]+(?:e[-+]?\d+)?)\s*[, ]\s*(-?[\d.]+(?:e[-+]?\d+)?)/g,function(_,command,px,py){return command+' '+x(px)+' '+py;});
+    else if(key==='points')value=value.trim().split(/\s+/).map(function(pair){var p=pair.split(',');return x(p[0])+','+p[1];}).join(' ');
+    else value=String(x(value));
+    item.el.setAttribute(key,value);
+  });});
   stage.dataset.v19Enhanced='1';
   stage.classList.add('trend-scroll-v19');
-  connectBrokenTrendPathsV19(stage);
-  var examCount=Math.max(1,(state.exams||[]).length);
-  var viewport=Math.max(280,stage.clientWidth||0);
-  var desired=examCount>5?Math.max(viewport,110+examCount*72):viewport;
+  // Expand the coordinate system, not the drawing: points, text and strokes keep their proportions.
+  svg.setAttribute('viewBox','0 0 '+desired+' '+geometry.height);
+  svg.setAttribute('preserveAspectRatio','xMinYMin meet');
+  svg.setAttribute('width',String(desired));svg.setAttribute('height',String(geometry.height));
   svg.style.width=desired+'px';
   svg.style.minWidth=desired+'px';
-  if(desired>viewport+4){
-    var hint=document.createElement('div');
+  svg.style.height=geometry.height+'px';
+  stage.style.height=geometry.height+'px';
+  stage._trendWidthV19=desired;stage._trendViewportV19=viewport;
+  stage.setAttribute('tabindex','0');stage.setAttribute('role','region');stage.setAttribute('aria-label','成绩趋势，可左右滚动查看考试');
+  if(!stage._trendHintV19){
+    var hint=document.createElement('div');stage._trendHintV19=hint;
     hint.className='trend-scroll-hint-v19';
     hint.textContent='← 左右滑动查看全部考试 →';
     stage.insertAdjacentElement('afterend',hint);
-    requestAnimationFrame(function(){stage.scrollLeft=Math.max(0,stage.scrollWidth-stage.clientWidth);});
   }
+  stage._trendHintV19.style.display=desired>viewport+4?'block':'none';
+  requestAnimationFrame(function(){if(stage.isConnected)stage.scrollLeft=followEnd?Math.max(0,desired-viewport):progress*Math.max(0,desired-viewport);});
 }
 
 function enhanceTrendChartsV19(){
   var candidates=[];
   document.querySelectorAll('#chart,#overviewChart,.rank-chart-stage-v7').forEach(function(stage){
-    if(stage.id==='chart'&&stage.querySelector('.rank-chart-stage-v7'))return;
+    if(stage.id==='chart'&&stage.querySelector('.rank-chart-stage-v7')){stage.style.height='auto';return;}
     if(candidates.indexOf(stage)<0)candidates.push(stage);
   });
   candidates.forEach(enhanceTrendStageV19);
 }
+
+var trendResizeFrameV19;
+window.addEventListener('resize',function(){cancelAnimationFrame(trendResizeFrameV19);trendResizeFrameV19=requestAnimationFrame(enhanceTrendChartsV19);});
 
 function clampTrendTooltipV19(point){
   var stage=point&&point.closest&&point.closest('#chart,#overviewChart,.rank-chart-stage-v7');
