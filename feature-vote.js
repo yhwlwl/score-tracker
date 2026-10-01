@@ -1,10 +1,13 @@
-/* feature-vote.js · v6.2 dynamic feature-priority voting */
+/* Feature voting and once-per-account completion reveals. */
 (function () {
   'use strict';
   if (window.__featureVoteV36) return;
   window.__featureVoteV36 = 1;
 
   var DATA_API = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-data-api';
+  var COMPLETION_API = DATA_API.replace('score-tracker-data-api', 'score-tracker-notices');
+  var completionSeen = new Set();
+  var completionPending = new Set();
   var activeUserKey = '';
   var overviewCache = null;
   var overviewPromise = null;
@@ -32,6 +35,7 @@
   }
   function syncUserState() {
     var key = userKey();
+    if (key !== activeUserKey) { var oldModal = document.getElementById('featureVoteV36'); if (oldModal) oldModal.remove(); }
     if (!key) {
       activeUserKey = '';
       overviewCache = null;
@@ -50,7 +54,7 @@
     return key;
   }
   async function voteApi(action, payload) {
-    var response = await fetch(DATA_API, {
+    var response = await fetch(action === 'feature_completion_claim' ? COMPLETION_API : DATA_API, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify(Object.assign({
@@ -71,16 +75,102 @@
     overviewPromise = null;
   }
   function loadOverview(force) {
-    if (!syncUserState()) return Promise.reject(new Error('未登录'));
+    var key = syncUserState();
+    if (!key) return Promise.reject(new Error('未登录'));
     if (!force && overviewCache) return Promise.resolve(overviewCache);
     if (!force && overviewPromise) return overviewPromise;
-    overviewPromise = voteApi('feature_vote_overview').then(function (data) {
+    var pending = voteApi('feature_vote_overview').then(function (data) {
+      if (key !== userKey()) throw new Error('账号已切换');
       overviewCache = data || {};
       return overviewCache;
     }).finally(function () {
-      overviewPromise = null;
+      if (overviewPromise === pending) overviewPromise = null;
     });
-    return overviewPromise;
+    overviewPromise = pending;
+    return pending;
+  }
+
+  function completionContext() {
+    var context = {pathname:location.pathname, app_page:state.page || 'home', app_version:(document.querySelector('meta[name="application-version"]') || {}).content || 'v7.0'};
+    try { context.session_id = sessionStorage.getItem('st_session_id'); context.visitor_id = localStorage.getItem('st_visitor_id'); } catch (_) {}
+    return context;
+  }
+  function completionKey(item, key) { return 'st_feature_done:' + key + ':' + item.id; }
+  function hasSeenCompletion(item, key) {
+    var k = completionKey(item, key);
+    if (completionSeen.has(k)) return true;
+    try { return localStorage.getItem(k) === '1'; } catch (_) { return false; }
+  }
+  function rememberCompletion(item, key) {
+    var k = completionKey(item, key);
+    completionSeen.add(k);
+    try { localStorage.setItem(k, '1'); } catch (_) {}
+    invalidateOverview();
+  }
+  function visibleOptions(data) {
+    var key = userKey();
+    return (Array.isArray(data.options) ? data.options : []).filter(function (x) {
+      return !x.completedAt || !hasSeenCompletion(x, key);
+    });
+  }
+  function completionAttrs(item) { return ' data-completion-id="' + esc(item.id) + '"'; }
+  function completionMark() {
+    return '<span class="fv36-finish-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4L18 8" pathLength="1"/></svg><span>已完成</span></span>';
+  }
+  function rowIsVisible(row, root) {
+    if (!row.isConnected || document.hidden || !row.getClientRects().length) return false;
+    if (!root.classList.contains('fv36-back') && (hasBlockingModal() || document.querySelector('.fv36-back'))) return false;
+    var rect = row.getBoundingClientRect();
+    return rect.bottom > 0 && rect.top < window.innerHeight && rect.right > 0 && rect.left < window.innerWidth;
+  }
+  function revealCompletions(root, options, surface) {
+    var key = userKey();
+    options.filter(function (x) { return x.completedAt; }).forEach(function (item) {
+      var row = root.querySelector('[data-completion-id="' + item.id + '"]');
+      if (!row) return;
+      var inView = !window.IntersectionObserver, stopped = false, observer = null, timer = null;
+      function stop() { stopped = true; clearTimeout(timer); if (observer) observer.disconnect(); }
+      async function check() {
+        if (stopped) return;
+        if (!row.isConnected || userKey() !== key) { stop(); return; }
+        if (!inView || !rowIsVisible(row, root)) { timer = setTimeout(check, 180); return; }
+        var k = completionKey(item, key);
+        if (completionPending.has(k)) { timer = setTimeout(check, 100); return; }
+        if (hasSeenCompletion(item, key)) { row.remove(); stop(); return; }
+        completionPending.add(k);
+        stop();
+        try {
+          var result = await voteApi('feature_completion_claim', {option_id:item.id, context:completionContext()});
+          if (userKey() !== key) return;
+          if (!result.claimed) {
+            rememberCompletion(item, key);
+            row.remove();
+            track('feature_completion_suppressed', {option_id:item.id, surface:surface, reason:'already_seen'});
+            return;
+          }
+          // A render may replace the row while the receipt request is in flight.
+          if (!row.isConnected) row = document.querySelector('[data-completion-id="' + item.id + '"]');
+          rememberCompletion(item, key);
+          if (!row || !row.isConnected) return;
+          var reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+          row.classList.add('fv36-revealed');
+          track('feature_completion_animation_started', {option_id:item.id, completed_at:item.completedAt, surface:surface, reduced_motion:reduced});
+          setTimeout(function () {
+            if (userKey() !== key) return;
+            track(row.isConnected ? 'feature_completion_animation_finished' : 'feature_completion_animation_interrupted', {option_id:item.id, surface:surface, reduced_motion:reduced});
+          }, reduced ? 0 : 1100);
+        } catch (e) {
+          if (userKey() !== key) return;
+          track('feature_completion_claim_failed', {option_id:item.id, surface:surface, status:e.status || 0});
+          // Leave the completed state visible; try again on the next opening.
+        } finally { completionPending.delete(k); }
+      }
+      if (window.IntersectionObserver) {
+        observer = new IntersectionObserver(function (entries) { inView = entries.some(function (e) { return e.isIntersecting; }); });
+        observer.observe(row);
+      }
+      timer = setTimeout(check, 80);
+    });
   }
 
   function injectStyle() {
@@ -112,6 +202,11 @@
       '.fv36-account-list{display:grid;gap:8px;margin-top:14px}.fv36-account-row{display:flex;align-items:center;gap:10px;border:1px solid var(--line,#e5e9ef);border-radius:13px;padding:10px 12px}.fv36-account-row-main{min-width:0;flex:1}.fv36-account-row b{display:block;font-size:12.5px;line-height:1.45}.fv36-account-row small{color:var(--muted,#7a8494);font-size:10.5px}',
       '.fv36-badge{border-radius:999px;padding:4px 8px;font-size:10px;font-weight:750;background:var(--cell,#f4f6f8);color:var(--muted,#6f7a89);white-space:nowrap}.fv36-badge.mine{background:var(--green-soft,#e9f8f2);color:var(--green,#32a77a)}',
       '.fv36-suggestions{margin-top:14px;border-top:1px solid var(--line,#e7eaf0);padding-top:12px}.fv36-suggestions-title{font-size:11px;font-weight:750;margin-bottom:7px}.fv36-suggestion{font-size:11px;color:var(--muted,#748091);line-height:1.55;margin-top:4px}',
+      '.fv36-completed{cursor:default!important;opacity:1!important}.fv36-completion-title{display:inline-block;position:relative}.fv36-completion-title:after{content:"";position:absolute;left:0;right:0;top:53%;height:1px;background:var(--muted,#7a8494);transform:scaleX(0);transform-origin:left center}',
+      '.fv36-finish-mark{display:flex;align-items:center;gap:5px;color:var(--green,#32a77a);font-size:10.5px;font-weight:750;white-space:nowrap}.fv36-finish-mark svg{width:22px;height:22px;border-radius:50%;background:var(--green-soft,#e9f8f2);padding:3px}.fv36-finish-mark path{fill:none;stroke:currentColor;stroke-width:2.1;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1}',
+      '.fv36-revealed{background:var(--green-soft,#e9f8f2)!important;transition:background .45s ease}.fv36-revealed .fv36-completion-title:after{animation:fv36-strike .62s .08s cubic-bezier(.22,1,.36,1) forwards}.fv36-revealed .fv36-finish-mark path{animation:fv36-tick .34s .56s ease-out forwards}.fv36-revealed .fv36-finish-mark svg{animation:fv36-settle .44s .48s cubic-bezier(.22,1,.36,1) both}',
+      '@keyframes fv36-strike{to{transform:scaleX(1)}}@keyframes fv36-tick{to{stroke-dashoffset:0}}@keyframes fv36-settle{from{transform:scale(.82)}to{transform:scale(1)}}',
+      '@media(prefers-reduced-motion:reduce){.fv36-revealed{transition:none}.fv36-revealed .fv36-completion-title:after{animation:none;transform:scaleX(1)}.fv36-revealed .fv36-finish-mark path{animation:none;stroke-dashoffset:0}.fv36-revealed .fv36-finish-mark svg{animation:none}}',
       '@media(max-width:620px){.fv36-account{margin-top:14px}.fv36-back{padding:12px}.fv36-modal{border-radius:21px}.fv36-head{padding:19px 17px 12px}.fv36-body{padding:6px 17px 18px}.fv36-head h2{font-size:19px}.fv36-option{padding:12px 13px}.fv36-account{padding:16px}.fv36-account-head{align-items:center}}'
     ].join('');
     document.head.appendChild(style);
@@ -147,6 +242,7 @@
   }
 
   function optionHtml(item) {
+    if (item.completedAt) return '<div class="fv36-option fv36-completed"' + completionAttrs(item) + '><span class="fv36-option-main"><span class="fv36-label"><span class="fv36-completion-title">' + esc(item.label) + '</span></span><span class="fv36-count">' + Number(item.votes || 0) + ' 人已投</span></span>' + completionMark() + '</div>';
     var voted = !!item.votedByMe;
     return '<button class="fv36-option ' + (voted ? 'voted' : '') + '" type="button" data-feature-id="' + esc(item.id) + '" data-feature-key="' + esc(item.key || '') + '" ' + (voted ? 'disabled aria-pressed="true"' : 'aria-pressed="false"') + '>' +
       '<span class="fv36-check">✓</span>' +
@@ -157,15 +253,17 @@
 
   async function openVoteModal(source, prefetched) {
     if (!syncUserState() || document.getElementById('featureVoteV36')) return;
+    var key = userKey();
     injectStyle();
     var data;
-    try { data = prefetched || await loadOverview(false); }
+    try { data = source === 'auto' && prefetched ? prefetched : await loadOverview(true); }
     catch (e) {
       try { if (typeof toast === 'function') toast(e.message || '投票暂时无法打开'); } catch (_) {}
       return;
     }
+    if (key !== userKey() || document.getElementById('featureVoteV36')) return;
     if (source === 'auto' && hasBlockingModal()) { queueAutoCheck(320); return; }
-    var options = Array.isArray(data.options) ? data.options : [];
+    var options = visibleOptions(data);
     var back = document.createElement('div');
     back.id = 'featureVoteV36';
     back.className = 'fv36-back';
@@ -178,6 +276,7 @@
         '<div class="fv36-error" id="fv36Error"></div><div class="fv36-actions"><button class="fv36-submit" id="fv36Submit" type="button">提交投票</button></div></div>' +
       '</div>';
     document.body.appendChild(back);
+    revealCompletions(back, options, 'modal');
     track('feature_vote_modal_open', {source: source || 'manual', available_count: Number(data.availableCount || 0), total_voters: Number(data.totalVoters || 0)});
 
     var close = function () {
@@ -240,15 +339,16 @@
   }
   function renderAccountData(root, data) {
     if (!root || !data) return;
-    var options = Array.isArray(data.options) ? data.options : [];
+    var options = visibleOptions(data);
     var myVotes = Array.isArray(data.myVotes) ? data.myVotes : options.filter(function (x) { return x.votedByMe; });
-    var archivedMine = myVotes.filter(function (x) { return x.isActive === false; });
+    var archivedMine = myVotes.filter(function (x) { return x.isActive === false && !x.completedAt; });
     var suggestions = Array.isArray(data.suggestions) ? data.suggestions : [];
     var body = root.querySelector('#featureVoteAccountBodyV36');
     if (!body) return;
     body.className = '';
     body.innerHTML =
       '<div class="fv36-account-list">' + options.map(function (item) {
+        if (item.completedAt) return '<div class="fv36-account-row fv36-completed"' + completionAttrs(item) + '><div class="fv36-account-row-main"><b><span class="fv36-completion-title">' + esc(item.label) + '</span></b><small>' + Number(item.votes || 0) + ' 人已投</small></div>' + completionMark() + '</div>';
         return '<div class="fv36-account-row"><div class="fv36-account-row-main"><b>' + esc(item.label) + '</b><small>' + Number(item.votes || 0) + ' 人已投</small></div><span class="fv36-badge ' + (item.votedByMe ? 'mine' : '') + '">' + (item.votedByMe ? '我已投' : '可投') + '</span></div>';
       }).join('') + archivedMine.map(function (item) {
         return '<div class="fv36-account-row"><div class="fv36-account-row-main"><b>' + esc(item.label) + '</b><small>' + Number(item.votes || 0) + ' 人投过</small></div><span class="fv36-badge">已结束</span></div>';
@@ -257,6 +357,7 @@
         var st = s.status === 'promoted' ? '已加入投票' : s.status === 'dismissed' ? '已处理' : '已提交';
         return '<div class="fv36-suggestion">' + esc(s.content) + ' · ' + st + '</div>';
       }).join('') + '</div>' : '');
+    revealCompletions(root, options, 'account');
     var open = root.querySelector('#featureVoteOpenV36');
     if (open) {
       open.textContent = Number(data.availableCount || 0) > 0 ? '继续投票' : '新增需求';
@@ -277,7 +378,7 @@
         track('feature_vote_account_view', {});
       }
       var data = await loadOverview(!!force);
-      if (!root.isConnected) return;
+      if (!root.isConnected || key !== userKey()) return;
       renderAccountData(root, data);
     } catch (e) {
       var body = document.getElementById('featureVoteAccountBodyV36');

@@ -30,7 +30,32 @@ Deno.serve(async req => {
     body=req.method==='POST'?await req.json():{};action=new URL(req.url).searchParams.get('action')||String(body.action||'');
     if(action==='notice_public'&&req.method==='POST')return json({config:await config()});
     user=await auth(req.headers.get('x-score-token')||String(body.token||''));if(!user)return json({error:'登录已失效，请重新登录'},401);
-    if(action.startsWith('notification_')&&!user.is_admin)return json({error:'只有管理员可以修改公告'},403);
+    if((action.startsWith('notification_')||['feature_completion_admin','feature_option_complete','feature_option_active'].includes(action))&&!user.is_admin)return json({error:'只有管理员可以修改这些内容'},403);
+    if(action==='feature_completion_admin'&&req.method==='GET'){
+      const r=await db.from('score_tracker_feature_vote_options').select('id,completed_at,is_active');if(r.error)throw r.error;return json({options:r.data||[]});
+    }
+    if(['feature_option_complete','feature_option_active'].includes(action)&&req.method==='POST'){
+      if(!UUID.test(body.id))return json({error:'请选择一个投票选项'},400);
+      const before=await db.from('score_tracker_feature_vote_options').select('id,completed_at,is_active').eq('id',body.id).maybeSingle();if(before.error)throw before.error;if(!before.data)return json({error:'这个选项已不存在'},404);
+      if(action==='feature_option_complete'){
+        const r=await db.from('score_tracker_feature_vote_options').update({completed_at:new Date().toISOString(),is_active:false,updated_at:new Date().toISOString()}).eq('id',body.id).is('completed_at',null).select('id,completed_at');if(r.error)throw r.error;
+        if(r.data?.length)await audit('feature_option_completed',user,body,req,{option_id:body.id,completed_at:r.data[0].completed_at});
+        return json({ok:true});
+      }
+      if(typeof body.active!=='boolean')return json({error:'请选择选项状态'},400);
+      if(before.data.completed_at)return json({error:'这个功能已完成，无需再开启投票'},409);
+      const r=await db.from('score_tracker_feature_vote_options').update({is_active:body.active,updated_at:new Date().toISOString()}).eq('id',body.id).is('completed_at',null).select('id');if(r.error)throw r.error;
+      if(!r.data?.length)return json({error:'这个功能刚刚已完成，请刷新看看'},409);
+      await audit('feature_option_status_changed',user,body,req,{option_id:body.id,is_active:body.active});return json({ok:true});
+    }
+    if(action==='feature_completion_claim'&&req.method==='POST'){
+      if(!UUID.test(body.option_id))return json({error:'无效的投票选项'},400);
+      const option=await db.from('score_tracker_feature_vote_options').select('completed_at').eq('id',body.option_id).maybeSingle();if(option.error)throw option.error;
+      if(!option.data?.completed_at)return json({claimed:false});
+      const r=await db.from('score_tracker_feature_completion_receipts').upsert({user_id:user.id,option_id:body.option_id},{onConflict:'user_id,option_id',ignoreDuplicates:true}).select('option_id');if(r.error)throw r.error;
+      if(r.data?.length){try{await audit('feature_completion_seen',user,body,req,{option_id:body.option_id,completed_at:option.data.completed_at});}catch(e){console.error('feature_completion_audit_error',e);}}
+      return json({claimed:!!r.data?.length});
+    }
     if(action==='notification_config'&&req.method==='GET'){const c=await config();await audit('notification_admin_viewed',user,body,req,{revision:c.revision});return json({config:c});}
     if(action==='notification_config_save'&&req.method==='POST'){
       let c;try{c=validate(body);}catch(e){await audit('notification_config_save_failed',user,body,req,{reason:e.message});return json({error:e.message},400);}
@@ -55,6 +80,7 @@ Deno.serve(async req => {
     return json({error:'Unknown action'},400);
   } catch(e) {
     console.error('notification_service_error',action,e);
+    if(user&&action==='feature_option_complete'){try{await audit('feature_option_complete_failed',user,body,req,{option_id:UUID.test(body.id)?body.id:null,reason:'server_error'});}catch(_){} }
     if(user&&action==='notification_config_save'){try{await audit('notification_config_save_failed',user,body,req,{reason:'server_error'});}catch(_){} }
     return json({error:'通知暂时无法读取，请稍后重试'},500);
   }

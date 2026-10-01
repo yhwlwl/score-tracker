@@ -118,7 +118,7 @@ export default async function handler(req, res) {
       return res.send(JSON.stringify(upstream.ok ? overviewFromMetrics(data) : data));
     }
 
-    const target = action.startsWith('recovery_admin_') ? RECOVERY_UPSTREAM + query : ['notification_config','notification_config_save','notification_event'].includes(action) ? NOTICES_UPSTREAM + query : action === 'feedback_reply' && req.method === 'POST' ? REPLY_UPSTREAM : ADMIN_UPSTREAM + query;
+    const target = action.startsWith('recovery_admin_') ? RECOVERY_UPSTREAM + query : ['notification_config','notification_config_save','notification_event','feature_option_complete','feature_option_active','feature_completion_admin'].includes(action) ? NOTICES_UPSTREAM + query : action === 'feedback_reply' && req.method === 'POST' ? REPLY_UPSTREAM : ADMIN_UPSTREAM + query;
     const upstream = await fetch(target, {
       method: req.method,
       headers,
@@ -126,6 +126,16 @@ export default async function handler(req, res) {
       signal: AbortSignal.timeout(30000),
     });
     secureHeaders(res).status(upstream.status).setHeader('Content-Type', 'application/json; charset=utf-8');
+    if(action === 'feature_votes' && upstream.ok) {
+      const [data, statuses] = await Promise.all([
+        upstream.json(),
+        fetch(NOTICES_UPSTREAM + '?action=feature_completion_admin', {headers, signal:AbortSignal.timeout(30000)}),
+      ]);
+      if(!statuses.ok) throw new Error('feature_completion_unavailable');
+      const completed = new Map(((await statuses.json()).options || []).map(x => [x.id, x]));
+      data.options = (data.options || []).map(x => ({...x, ...(completed.get(x.id) || {})}));
+      return res.send(JSON.stringify(data));
+    }
     return res.send(Buffer.from(await upstream.arrayBuffer()));
   } catch (error) {
     return secureHeaders(res).status(502).json({
