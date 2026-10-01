@@ -37,5 +37,6 @@
   "app-v33.js",
   "app-v34.js",
   "app-v35.js",
-  "release-notices.js"
+  "release-notices.js",
+  "account-recovery.js"
 ]
