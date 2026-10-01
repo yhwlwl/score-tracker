@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 
 const db = createClient(
   Deno.env.get("SUPABASE_URL") ?? "",
@@ -12,7 +12,7 @@ const DEFAULT_VISION_BASE_URL = "https://openrouter.ai/api/v1";
 const DEFAULT_AI_DAILY_LIMIT = 10;
 const DEFAULT_AI_GLOBAL_DAILY_LIMIT = 100;
 const DEFAULT_AI_COOLDOWN_SECONDS = 15;
-const DEFAULT_UPSTREAM_TIMEOUT_MS = 30000;
+const DEFAULT_UPSTREAM_TIMEOUT_MS = 45000;
 const DATABASE_TIMEOUT_MS = 8000;
 const CACHE_TTL_MS = 30000;
 
@@ -231,11 +231,10 @@ function normalize(raw: any, context: any) {
   if (examSchoolRank !== null || examSchoolParticipants !== null) warnings.push("识别到校次/校排名，已按年排使用。");
   if (examJointRank !== null || examJointParticipants !== null) warnings.push("识别到联考名次/联考排名，当前不作为年排或班排。");
 
-  const seen = new Set<string>();
+  const seen = new Map<string, any>();
   const subjects = (Array.isArray(raw?.subjects) ? raw.subjects : []).map((item: any) => {
     const name = cleanText(item?.name, 40);
-    if (!name || seen.has(name)) return null;
-    seen.add(name);
+    if (!name) return null;
     const subjectSchoolRank = cleanInt(item.schoolRank);
     const subjectSchoolParticipants = cleanInt(item.schoolParticipants);
     const subjectJointRank = cleanInt(item.jointRank);
@@ -258,10 +257,38 @@ function normalize(raw: any, context: any) {
     if (subject.ambiguousScore !== null) warnings.push(`${name} 有一个分数 ${subject.ambiguousScore}，无法确定是原始分还是赋分/最终分，请手动确认。`);
     if (subject.rawScore !== null && subject.rawMax !== null && subject.rawScore > subject.rawMax) warnings.push(`${name} 的原始分高于识别到的原始满分，请核对。`);
     if (subject.finalScore !== null && subject.finalMax !== null && subject.finalScore > subject.finalMax) warnings.push(`${name} 的最终分高于识别到的最终满分，请核对。`);
+    const previous = seen.get(name);
+    if (previous) {
+      for (const key of Object.keys(subject).filter((k) => k !== "name")) {
+        if (previous[key] === null && subject[key] !== null) previous[key] = subject[key];
+        else if (previous[key] !== null && subject[key] !== null && previous[key] !== subject[key]) warnings.push(`${name} 的部分数据在图片中不一致，已保留先读到的值，请核对。`);
+      }
+      return null;
+    }
+    seen.set(name, subject);
     return subject;
   }).filter(Boolean).slice(0, 40);
 
   return { exam, subjects, warnings: [...new Set(warnings)].slice(0, 20) };
+}
+
+function usableFieldCount(result: any) {
+  const values = [...Object.values(result.exam), ...result.subjects.flatMap((subject: any) => Object.entries(subject).filter(([key]) => key !== "name").map(([, value]) => value))];
+  return values.filter((v) => v !== null && v !== undefined && v !== "").length;
+}
+
+function imageParts(images: string[], input: unknown) {
+  if (input === undefined) {
+    if (images.length > 6) return null;
+    return images.map((_, i) => ({source_index:i, kind:"original", part_index:0, part_count:1}));
+  }
+  if (!Array.isArray(input) || input.length !== images.length) return null;
+  const parts = [];
+  for (const part of input) {
+    if (!part || !Number.isInteger(part.source_index) || part.source_index < 0 || part.source_index > 5 || !["original","overview","segment"].includes(part.kind) || !Number.isInteger(part.part_count) || part.part_count < 1 || part.part_count > 11 || !Number.isInteger(part.part_index) || part.part_index < 0 || part.part_index > part.part_count || (part.kind === "segment" ? part.part_index === 0 : part.part_index !== 0)) return null;
+    parts.push({source_index:part.source_index, kind:part.kind, part_index:part.part_index, part_count:part.part_count});
+  }
+  return parts;
 }
 
 Deno.serve(async (req) => {
@@ -389,7 +416,9 @@ Deno.serve(async (req) => {
     }
 
     const images = Array.isArray(body.images) ? body.images : [];
-    if (!images.length || images.length > 6) return json({ error: "请选择 1～6 张图片" }, 400);
+    if (!images.length || images.length > 12) return json({ error: "请选择 1～6 张图片，长图可以自动分段", code:"image_count_invalid" }, 400);
+    const parts = imageParts(images, body.image_parts);
+    if (!parts) return json({error:"图片分段信息不完整，请重新选择图片", code:"image_parts_invalid"}, 400);
     let totalSize = 0;
     for (const image of images) {
       if (typeof image !== "string" || !/^data:image\/(?:jpeg|jpg|png|webp);base64,/i.test(image)) return json({ error: "仅支持 JPG、PNG、WEBP 图片" }, 400);
@@ -440,8 +469,13 @@ Deno.serve(async (req) => {
     }
 
     const context = body.context ?? {};
-    const prompt = `你是一个中文学生成绩单识别器。请从用户提供的 1～6 张同一次考试的截图或照片中提取明确可见的数据。\n\n重要规则：\n1. 绝不猜测看不清、没有明确标注或无法确认的数据；不确定就返回 null，并在 warnings 说明。\n2. “原始分/卷面分”和“赋分/等级分/最终分”必须根据图片文字语义区分。若某科只有一个分数或一组“分数/满分”，且没有明确写原始分，默认放到 finalScore/finalMax；只有明确出现原始分时才填写 rawScore/rawMax。\n3. 排名不要机械依赖固定字段名，也不要要求标签必须和“年排/班排”完全一致；请结合整张表的表头、分组、相邻行以及同一科目的语义判断范围，再映射到系统字段：学校范围的“校次/校排/校排名/学校名次”等按 yearRank 处理（本系统将校内名次作为年排使用）；年级范围的年排/年级排名等也按 yearRank 处理；班级范围的班次/班排/班级排名等按 classRank 处理；联考/联考名次/联考排名等单独放 jointRank，当前不作为 yearRank 或 classRank。若同一组数据同时出现校次、班次、联考名次，优先把校次放 yearRank、班次放 classRank，联考名次放 jointRank。只有确实无法判断范围时才返回 null，并在 warnings 说明。\n4. 参考人数只在图片明确出现时提取，不要用其他字段的数字补全。\n5. 科目/模块名称按图片原文，可包含自定义题型；${JSON.stringify(context.subjectNames || [])} 是当前录入表已有科目，仅用于辅助匹配，不要凭空新增图片中不存在的科目。\n6. 不要根据常识补满分；图片没有满分就返回 null。\n7. 日期必须转换成 YYYY-MM-DD；年份不明确则返回 null。\n8. 分类只允许从这些选项里选择：${JSON.stringify(context.classificationOptions || [])}；不明确就 null。\n9. 多张图若内容重复，合并为一个考试，不要重复科目。\n10. 总分只从图片明确标注“总分/总成绩”的位置提取；不要把某一科成绩或排名填入总分。\n\n只返回 JSON，不要 Markdown，不要解释。格式：\n{\n  "exam": {"name": string|null, "date": string|null, "category": string|null, "finalTotal": number|null, "rawTotal": number|null, "yearRank": number|null, "yearParticipants": number|null, "classRank": number|null, "classParticipants": number|null, "jointRank": number|null, "jointParticipants": number|null},\n  "subjects": [{"name": string, "target": number|null, "rawScore": number|null, "rawMax": number|null, "finalScore": number|null, "finalMax": number|null, "yearRank": number|null, "yearParticipants": number|null, "classRank": number|null, "classParticipants": number|null, "jointRank": number|null, "jointParticipants": number|null, "ambiguousScore": number|null}],\n  "warnings": [string]\n}`;    const content: any[] = [{ type: "text", text: prompt }];
-    for (const image of images) content.push({ type: "image_url", image_url: { url: image } });
+    const prompt = `你是一个中文学生成绩单识别器。请从用户提供的同一次考试的成绩单截图或照片中提取明确可见的数据。图片可能包含同一张长成绩单的全图和清晰分段，图片前的说明标明它们的顺序。\n\n重要规则：\n1. 先阅读整张表的表头、行列关系和成绩区域，支持科目横排、科目竖排、成绩卡片、带聊天或网页边框的截图。只提取看得清且能对应到科目的数据；局部模糊或缺少日期、满分、人数时，只把对应字段填 null，并在 warnings 说明，不要因为信息不全就放弃其他清晰的成绩。绝不猜测分数或排名。\n2. “原始分/卷面分”和“赋分/等级分/最终分”必须根据图片文字语义区分。若某科只有一个分数或一组“分数/满分”，且没有明确写原始分，默认放到 finalScore/finalMax；只有明确出现原始分时才填写 rawScore/rawMax。\n3. 排名不要机械依赖固定字段名，也不要要求标签必须和“年排/班排”完全一致；请结合整张表的表头、分组、相邻行以及同一科目的语义判断范围，再映射到系统字段：学校范围的“校次/校排/校排名/学校名次”等按 yearRank 处理（本系统将校内名次作为年排使用）；年级范围的年排/年级排名等也按 yearRank 处理；班级范围的班次/班排/班级排名等按 classRank 处理；联考/联考名次/联考排名等单独放 jointRank，当前不作为 yearRank 或 classRank。若同一组数据同时出现校次、班次、联考名次，优先把校次放 yearRank、班次放 classRank，联考名次放 jointRank。只有确实无法判断范围时才返回 null，并在 warnings 说明。\n4. 参考人数只在图片明确出现时提取，不要用其他字段的数字补全。\n5. 科目/模块名称按图片原文，可包含自定义题型；${JSON.stringify(context.subjectNames || [])} 是当前录入表已有科目，仅用于辅助匹配，不要凭空新增图片中不存在的科目。\n6. 不要根据常识补满分；图片没有满分就返回 null。\n7. 日期必须转换成 YYYY-MM-DD；年份不明确则返回 null。\n8. 分类只允许从这些选项里选择：${JSON.stringify(context.classificationOptions || [])}；不明确就 null。\n9. 全图用于核对表头和上下文，清晰分段用于读小字；分段有少量重叠，可能把同一行拆在相邻图片中。先合并同一科目的不同字段，再去除重复，不要重复科目，也不要把同一张图的分段当成不同考试。\n10. 总分只从图片明确标注“总分/总成绩”的位置提取；不要把某一科成绩或排名填入总分。\n\n只返回 JSON，不要 Markdown，不要解释。格式：\n{\n  "exam": {"name": string|null, "date": string|null, "category": string|null, "finalTotal": number|null, "rawTotal": number|null, "yearRank": number|null, "yearParticipants": number|null, "classRank": number|null, "classParticipants": number|null, "jointRank": number|null, "jointParticipants": number|null},\n  "subjects": [{"name": string, "target": number|null, "rawScore": number|null, "rawMax": number|null, "finalScore": number|null, "finalMax": number|null, "yearRank": number|null, "yearParticipants": number|null, "classRank": number|null, "classParticipants": number|null, "jointRank": number|null, "jointParticipants": number|null, "ambiguousScore": number|null}],\n  "warnings": [string]\n}`;    const content: any[] = [{ type: "text", text: prompt }];
+    images.forEach((image, index) => {
+      const part = parts[index];
+      const description = part.kind === "overview" ? "全图，供核对表头和上下文" : part.kind === "segment" ? `清晰片段 ${part.part_index}/${part.part_count}` : "完整图片";
+      content.push({type:"text", text:`第 ${part.source_index + 1} 张成绩单：${description}。`});
+      content.push({ type:"image_url", image_url:{url:image, detail:"high"} });
+    });
 
     if (!config.baseUrl) return json({ error: "识别服务 Base URL 配置无效，请联系管理员", code: "invalid_base_url", request_status: 0 }, 503);
 
@@ -449,7 +483,7 @@ Deno.serve(async (req) => {
       model: config.model,
       messages: [{ role: "user", content }],
       temperature: 0.1,
-      max_tokens: 3200,
+      max_tokens: 6400,
     };
     if (isOpenRouterBase(config.baseUrl)) requestBody.provider = { data_collection: "deny" };
 
@@ -462,7 +496,7 @@ Deno.serve(async (req) => {
       requestHeaders["X-Title"] = "Score Tracker Preview";
     }
 
-    mark("upstream_start", { image_count: images.length });
+    mark("upstream_start", { image_count: images.length, source_image_count:new Set(parts.map((p) => p.source_index)).size, image_chars:totalSize, image_detail:"high" });
     let response: Response;
     let payload: any;
     try {
@@ -501,6 +535,9 @@ Deno.serve(async (req) => {
       }
       return json({ ...shared, error: "识别服务暂不可用", code: "upstream_error" }, 502);
     }
+    const finishReason = payload?.choices?.[0]?.finish_reason;
+    mark("model_output", {finish_reason:finishReason, completion_tokens:payload?.usage?.completion_tokens, reasoning_tokens:payload?.usage?.completion_tokens_details?.reasoning_tokens});
+    if (finishReason === "length" || finishReason === "max_tokens") return json({error:"识别结果没能完整返回，请减少图片数量或分段截图后再试", code:"model_output_truncated", request_status:200, upstream_status:200}, 422);
     const text = outputText(payload);
     if (!text) {
       mark("empty_model_output");
@@ -521,7 +558,12 @@ Deno.serve(async (req) => {
 
     try {
       const normalized = normalize(parsed, context);
-      mark("completed", { subject_count: normalized.subjects.length });
+      const fieldCount = usableFieldCount(normalized);
+      if (!fieldCount) {
+        mark("no_usable_fields", {subject_count:normalized.subjects.length});
+        return json({error:"还没读到成绩或考试信息，可以裁剪成绩区域后再试", code:"no_usable_fields", request_status:200, upstream_status:200}, 422);
+      }
+      mark("completed", { subject_count: normalized.subjects.length, field_count:fieldCount });
       return json(normalized);
     } catch (error) {
       mark("model_normalize_failed");

@@ -93,6 +93,8 @@ async function proxyTest(){
   let res=response();await scope.handler({url:'/api/mg?action=feature_votes',method:'GET',headers:{'x-score-token':'admin'}},res);assert.equal(res.data.options[0].completed_at,done.completedAt);assert.equal(res.data.options[0].is_active,false);assert.equal(res.data.options[0].votes,12);assert.equal(res.data.ai_config.configured,true);
   fail=true;res=response();await scope.handler({url:'/api/mg?action=feature_votes',method:'GET',headers:{}},res);assert.equal(res.code,502);
   fail=false;calls=[];res=response();await scope.handler({url:'/api/mg?action=feature_option_complete',method:'POST',headers:{},body:{id:done.id}},res);assert(calls[0].includes('score-tracker-notices'));
+  for(const action of ['feature_option_active','feature_completion_admin']){calls=[];res=response();await scope.handler({url:'/api/mg?action='+action,method:'GET',headers:{}},res);assert(calls[0].includes('score-tracker-notices'));}
+  for(const action of ['recovery_admin_list','recovery_admin_detail','recovery_admin_review']){calls=[];res=response();await scope.handler({url:'/api/mg?action='+action,method:'POST',headers:{},body:{}},res);assert(calls[0].includes('score-tracker-recovery'));assert.equal(calls.length,1);}
   console.log('PASS: admin proxy merges completion status, preserves settings and avoids misleading state on errors');
 }
 run().catch(e=>{console.error(e);process.exitCode=1});
