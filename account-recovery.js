@@ -1,7 +1,7 @@
 /* Account recovery: anonymous tickets, private lookup, and new-account pickup. */
 (function () {
   'use strict';
-  var ENDPOINT = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-recovery';
+  var ENDPOINT = '/api/score-tracker-recovery';
   var LABELS = {pending:'等待审核',reviewing:'正在核验',needs_info:'需要补充信息',approved:'审核通过',rejected:'未通过审核',claimed:'已领取新账号'};
   var active = null, draft = {}, mode = 'password', screen = 'apply', current = null;
   function esc(v) { return escapeHtml(String(v == null ? '' : v)); }

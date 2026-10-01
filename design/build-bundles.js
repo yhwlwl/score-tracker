@@ -28,6 +28,12 @@ fs.writeFileSync(path.join(ROOT, "app-bundle.js"), bundle);
 const htmlPath = path.join(ROOT, "index.html");
 let html = fs.readFileSync(htmlPath, "utf8");
 html = html.replace(/<script src="\.\/app-bundle\.js\?v=[^"\s]+"/, '<script src="./app-bundle.js?v=' + hash + '"');
+// Standalone features also need a fresh URL whenever their source changes.
+html = html.replace(/(<script src="\.\/)([^"?\s]+\.js)\?v=[^"\s]+/g, (match, prefix, file) => {
+  const source = fs.readFileSync(path.join(ROOT, file));
+  const version = crypto.createHash("md5").update(source).digest("hex").slice(0, 10);
+  return prefix + file + "?v=" + version;
+});
 fs.writeFileSync(htmlPath, html);
 
 console.log("app-bundle.js 已生成 (" + Math.round(bundle.length / 1024) + " KB)，hash=" + hash);

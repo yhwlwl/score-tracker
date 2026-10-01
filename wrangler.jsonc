@@ -6,6 +6,7 @@
   "compatibility_date": "2025-08-01",
   "assets": {
     "directory": "./",
+    "run_worker_first": ["/api/*", "/mg", "/mg/*"],
     "not_found_handling": "none"
   }
   // 静态排除走根目录 .assetsignore(assets 配置不支持 include/exclude 字段)

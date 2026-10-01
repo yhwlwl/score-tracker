@@ -1,5 +1,5 @@
 // v7: customizable subjects + scientifically normalized rank trends
-const DATA_API_V7 = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-data-api';
+const DATA_API_V7 = '/api/score-tracker-data-api';
 state.subjectConfigs = state.subjectConfigs || [];
 state.trendMetric = state.trendMetric || 'score';
 

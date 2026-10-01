@@ -1,4 +1,4 @@
-const API = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-api';
+const API = '/api/score-tracker-api';
 const SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治'];
 const SUBJECT_SHORT = { 语文: '语', 数学: '数', 英语: '英', 物理: '物', 化学: '化', 生物: '生', 历史: '史', 地理: '地', 政治: '政' };
 const SUBJECT_MAX = { 语文: 150, 数学: 150, 英语: 150, 物理: 100, 化学: 100, 生物: 100, 历史: 100, 地理: 100, 政治: 100 };
@@ -617,7 +617,7 @@ async function login() {
   } catch (e) {
     // v2 自定义密码登录回退：旧密码体系查不到时，尝试 data-api 的 v2 口令
     try {
-      const v2res = await fetch('https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-data-api', {
+      const v2res = await fetch('/api/score-tracker-data-api', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'login_v2', username: $('#loginUser').value.trim(), password: $('#loginPass').value })

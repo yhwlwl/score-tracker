@@ -1,4 +1,4 @@
-const API='https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-api';
+const API='/api/score-tracker-api';
 const SUBJECTS=['语文','数学','英语','物理','化学','生物','历史','地理','政治'];
 const MAX_SCORE={语文:150,数学:150,英语:150,物理:100,化学:100,生物:100,历史:100,地理:100,政治:100};
 const state={token:localStorage.getItem('st_token')||'',user:null,exams:[],page:'home',subject:'总分',onboarding:null};

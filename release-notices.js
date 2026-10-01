@@ -1,7 +1,7 @@
 /* Release notifications: deployed version stays immutable; content is managed remotely. */
 (function () {
   'use strict';
-  var API = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-notices';
+  var API = '/api/score-tracker-notices';
   var CURRENT = (document.querySelector('meta[name="application-version"]') || {}).content || 'v7.0';
   var PERIOD = 30 * 60 * 1000;
   var DEFAULT = {version:'v7.0',enabled:true,title:'v7.0 更新内容',content:'我们好高兴地告诉大家，图片识别功能正式上线了！\n\n新建考试时，进入「快速录入」，选择「图片识别」模式，上传图片即可自动解析。\n\n功能刚刚上线，还有些不稳定。如果遇到识别错误等情况，欢迎大家及时反馈哦。',tip_enabled:false,tip_content:'自然语言快速录入功能已上线，欢迎在新建考试时体验。',announcement_enabled:false,announcement_title:'公告',announcement_content:'',revision:1};

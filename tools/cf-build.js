@@ -37,5 +37,12 @@ for (const f of FILES) fs.copyFileSync(path.join(ROOT, f), path.join(OUT, f));
 fs.copyFileSync(path.join(ROOT, "functions/mg.js"), path.join(OUT, "functions/mg.js"));
 fs.copyFileSync(path.join(ROOT, "api/mg.js"), path.join(OUT, "api/mg.js"));
 fs.copyFileSync(path.join(ROOT, "api/mg-ui.js"), path.join(OUT, "api/mg-ui.js"));
+fs.mkdirSync(path.join(OUT, "functions/api"), { recursive: true });
+fs.mkdirSync(path.join(OUT, "server"), { recursive: true });
+fs.copyFileSync(path.join(ROOT, "functions/api/[endpoint].js"), path.join(OUT, "functions/api/[endpoint].js"));
+fs.copyFileSync(path.join(ROOT, "server/same-origin-api.js"), path.join(OUT, "server/same-origin-api.js"));
+fs.writeFileSync(path.join(OUT, "_routes.json"), JSON.stringify({
+  version: 1, include: ["/api/*", "/mg", "/mg/*"], exclude: [],
+}, null, 2) + "\n");
 
-console.log("deploy/ 已生成：" + FILES.length + " 个静态文件 + /mg 管理面板函数");
+console.log("deploy/ 已生成：" + FILES.length + " 个静态文件 + /mg 和 /api 同域函数");

@@ -1,7 +1,7 @@
 // v19 / product v1.1: readable long trends + username rename while preserving original account name.
 state.originalUsernameV19 = state.originalUsernameV19 || '';
 
-var USERNAME_API_V19='https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-username-api';
+var USERNAME_API_V19='/api/score-tracker-username-api';
 
 (function injectV19Styles(){
   if(document.getElementById('app-v19-style'))return;

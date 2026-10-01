@@ -1,6 +1,6 @@
 // v24: small client request budget. Loaded before telemetry so background polling can be coalesced.
 (function(){
-  var API='https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-api';
+  var API='/api/score-tracker-api';
   /* 版本唯一来源:index.html 的 <meta name="application-version">。
      此前这里硬编码 'v2.4',把 telemetry 读到的真实版本在发送前覆盖掉了。 */
   function currentVersion(){
@@ -19,7 +19,8 @@
   }
   window.fetch=async function requestBudgetFetch(input,init){
     var target=typeof input==='string'?input:(input&&input.url)||'';
-    if(!target.startsWith(API)||!init||!init.body)return nativeFetch(input,init);
+    try{var endpoint=new URL(target,location.href);if(endpoint.origin!==location.origin||endpoint.pathname!==API)return nativeFetch(input,init);}catch(e){return nativeFetch(input,init);}
+    if(!init||!init.body)return nativeFetch(input,init);
     var body=null;
     try{body=JSON.parse(String(init.body));}catch(e){return nativeFetch(input,init);}
 
