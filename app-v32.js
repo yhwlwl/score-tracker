@@ -1054,38 +1054,39 @@ function compHtmlV32(f,mode){
 /* ---------- ⑧ 热力矩阵 + 分布带 + 个人纪录 ---------- */
 function matrixSectionHtmlV32(f,mode){
   var rgb=accentRgbV32();
+  var difficultyView=!!(window.__stScoreWorth&&state.sv31&&state.sv31.matrixWorth==="difficulty");
+  var difficultyCells=difficultyView?window.__stScoreWorth.difficultyCells(f.exams,f.subjects):{};
   var subs=f.subjects.filter(function(s){
-    return f.series[s]&&f.series[s].some(function(x){return mode==="rank"?x.pos!==null:x.rate!==null;});
+    return f.series[s]&&f.series[s].some(function(x){return difficultyView?x.rate!==null:mode==="rank"?x.pos!==null:x.rate!==null;});
   });
   var rowsHtml="";
   f.exams.forEach(function(e,i){
     var cells=subs.map(function(s){
       var key=i+"|"+s,fl=f.flags[key];
-      /* 难度分标注:P(难)/P(易) 百分数,与深度分析板块同源 */
+      if(difficultyView){
+        var dc=difficultyCells[key];
+        if(!dc)return '<td class="worth-heat-missing">'+worthCellV32(i,s,'—',(e.name||'未命名考试')+'，'+s+'，暂时没有可比较的难度，查看成绩含金量')+'</td>';
+        return '<td data-worth-heat="'+dc.index+'" style="'+window.__stScoreWorth.heatStyle(dc.index)+'">'+worthCellV32(i,s,r32(dc.index)+(dc.limited?'<span class="worth-heat-limited" aria-hidden="true">†</span>':''),(e.name||'未命名考试')+'，'+s+'，难度参考 '+r32(dc.index)+(dc.limited?'，暂时只作粗略参考':'')+'，查看成绩含金量')+'</td>';
+      }
       var dot="";
       if(fl){
         var col=fl.lvl===2?"#d95c5c":fl.lvl===1?"#e59b45":"#32a77a";
         dot='<span class="sv31-dot" style="background:'+col+'"></span>';
-        if(fl.pH!=null){
-          var isHard=fl.lvl>0,pv=Math.round((isHard?fl.pH:fl.pE)*100);
-          dot+='<span style="font-size:9px;font-weight:700;opacity:.85;margin-left:3px;'+
-            'vertical-align:1px;color:'+(isHard?"#ffd9d9":"#d6f5e5")+'">'+
-            (isHard?"难":"易")+pv+"%</span>";
-        }
       }
       if(mode==="rank"){
         var p=posYearOf32(e,rowV32(e,s));
         if(p===null)return "<td>—</td>";
-        return '<td style="background:'+rankHeatColor32(rgb,p)+';color:#fff">'+r32(p)+dot+"</td>";
+        return '<td style="background:'+rankHeatColor32(rgb,p)+';color:#fff">'+worthCellV32(i,s,r32(p)+dot)+"</td>";
       }else{
         var rt=rateOf32(rowV32(e,s));
         if(rt===null)return "<td>—</td>";
-        var hl=fl&&fl.lvl>0?"background:#fdf3e4;":"";
-        return '<td style="'+hl+'border-radius:6px">'+Math.round(rt)+"%"+dot+"</td>";
+        var hl=fl&&fl.lvl>0?"background:var(--accent-soft);":"";
+        return '<td style="'+hl+'border-radius:6px">'+worthCellV32(i,s,Math.round(rt)+"%"+dot)+"</td>";
       }
     }).join("");
     var totCell;
-    if(f.totalSynthetic){
+    if(difficultyView){totCell='';}
+    else if(f.totalSynthetic){
       /* 合成口径:列值=所选科目位比中位数(与趋势线一致),分数模式=成员得分率中位 */
       var hit=f.totalSeries.filter(function(x){return x.i===i;})[0];
       if(mode==="rank"){
@@ -1102,9 +1103,10 @@ function matrixSectionHtmlV32(f,mode){
         :mode==="rank"?'<td class="sv31-tot" style="background:'+rankHeatColor32(rgb,tp)+';color:#fff">'+r32(tp)+"</td>"
         :'<td class="sv31-tot"><b>'+(examRateV32(e)===null?"—":Math.round(examRateV32(e))+"%")+"</b></td>";
     }
-    rowsHtml+="<tr><td>"+esc32(shortName32(e.name))+"</td>"+cells+totCell+"</tr>";
+    rowsHtml+='<tr><th scope="row"><span class="worth-exam-name" title="'+esc32(e.name||'未命名考试')+'">'+esc32(e.name||'未命名考试')+'</span>'+(e.exam_date?'<small class="worth-exam-date">'+esc32(e.exam_date)+'</small>':'')+'</th>'+cells+totCell+'</tr>';
   });
-  var head="<tr><th>考试</th>"+subs.map(function(s){return "<th>"+esc32(s)+"</th>";}).join("")+"<th>"+esc32(f.totalLabel||"总分")+"</th></tr>";
+  var head='<tr><th scope="col">考试</th>'+subs.map(function(s){return '<th scope="col">'+esc32(s)+'</th>';}).join('')+(difficultyView?'':'<th scope="col">'+esc32(f.totalLabel||'总分')+'</th>')+'</tr>';
+  var colCount=subs.length+(difficultyView?0:1), matrixCols='<colgroup><col style="width:136px">'+Array.from({length:colCount},function(){return '<col style="width:76px">';}).join('')+'</colgroup>';
   /* 分布带 */
   var bands=[{l:"前10%内",a:0,b:10,c:"rgba(93,114,232,.9)"},{l:"前10–20%",a:10,b:20,c:"rgba(93,114,232,.7)"},
     {l:"前20–30%",a:20,b:30,c:"rgba(93,114,232,.5)"},{l:"前30–50%",a:30,b:50,c:"rgba(93,114,232,.32)"},
@@ -1208,14 +1210,16 @@ function matrixSectionHtmlV32(f,mode){
   var extHtml=recs.map(function(r){
     return '<div class="sv31-ext"><div class="t">'+r.t+'</div><div class="v">'+r.v+'</div><div class="s">'+r.s+"</div>"+eviHtmlV32(r.ev)+"</div>";
   }).join("");
-  return '<div class="card"><div class="card-title-row">'
+  return '<div class="card worth-matrix-card"><div class="card-title-row">'
     +'<div><h3 class="card-title">⑧ 全量统计矩阵</h3><p class="card-sub" id="sv31HeatSub">'
-    +(mode==="rank"?"数字越小、颜色越深 = 名次越好":"得分率仅在同一张卷子内可比;圆点 = 这科这次偏难/偏易")
-    +'</p></div><div class="legend sv31-nopalette"><span><span class="sv31-dot" style="background:#d95c5c"></span>这科这次偏难</span>'
-    +'<span><span class="sv31-dot" style="background:#e59b45"></span>偏难(关注)</span>'
-    +'<span><span class="sv31-dot" style="background:#32a77a"></span>偏易</span></div></div>'
-    +(rowsHtml?'<div class="sv31-scroll"><table class="sv31-heat"><thead>'+head+"</thead><tbody>"+rowsHtml+"</tbody></table></div>"
-      +'<p class="card-sub" style="margin-top:8px">圆点由「难度贝叶斯分档」模型推断（与深度分析板块同一算法），详见页底方法论。</p>':'<p class="card-sub">还没有可展示的成绩。</p>')
+    +(difficultyView?"颜色越浓，估计相对越难；50 表示这组考试的平均难度。":"格子显示"+(mode==="rank"?"排名位置，数字越小越好":"得分率")+"。点击单科格子，查看成绩含金量。")
+    +'</p></div>'+(difficultyView?'':'<div class="legend sv31-nopalette"><span><span class="sv31-dot" style="background:#d95c5c"></span>偏难信号</span>'
+    +'<span><span class="sv31-dot" style="background:#e59b45"></span>可能偏难</span>'
+    +'<span><span class="sv31-dot" style="background:#32a77a"></span>偏易信号</span></div>')+'</div>'
+    +(window.__stScoreWorth?'<div class="worth-matrix-controls" role="group" aria-label="矩阵显示内容"><button type="button" class="chip'+(!difficultyView?' active':'')+'" aria-pressed="'+!difficultyView+'" data-worth-matrix-mode="original">原始表现</button><button type="button" class="chip'+(difficultyView?' active':'')+'" aria-pressed="'+difficultyView+'" data-worth-matrix-mode="difficulty">难度参考</button></div>':'')
+    +(difficultyView?'<div class="worth-heat-legend" aria-label="难度参考色阶，0 到 100，50 为平均难度"><div class="worth-heat-ramp" data-worth-heat-ramp style="background:'+window.__stScoreWorth.heatRamp()+'" aria-hidden="true"></div><div class="worth-heat-labels"><span>0 · 较易</span><span>50 · 平均</span><span>100 · 较难</span></div></div>':'')
+    +(rowsHtml?'<p class="worth-matrix-hint">左右滑动看科目，上下滑动看考试。'+(difficultyView?' † 暂时只作粗略参考，点格子查看原因；— 表示数据不足。':'')+'</p><div class="sv31-scroll worth-matrix-scroll" tabindex="0" role="region" aria-label="全部考试'+(difficultyView?'难度参考热力图':'成绩矩阵')+'"><table class="sv31-heat worth-matrix-table" style="min-width:'+(136+76*colCount)+'px">'+matrixCols+'<thead>'+head+'</thead><tbody>'+rowsHtml+'</tbody></table></div>'
+      +'<p class="card-sub" style="margin-top:8px">'+(difficultyView?"与成绩含金量用同一把尺子。只比较同一科目、同分类且参考人数相近的考试，不同组不直接比较，也不合成总分难度。点击格子，看看换到历史平均或某次考试的难度下，相当于多少分。":"圆点是逐场异常提示，也可能受个人状态影响；难度参考视图则使用完整历史建立统一尺子，两者用途不同，都不是试卷难度的确定结论。")+'</p>':'<p class="card-sub">还没有可展示的成绩。</p>')
     +(dom?'<div style="margin-top:18px">'+dom+"</div>":"")
     +(extHtml?'<div style="margin-top:18px"><b style="font-size:13px">个人纪录 <span style="color:var(--muted);font-weight:600">(分数项只和自己那张卷子比)</span></b>'
       +'<div class="sv31-ext-grid" style="margin-top:8px">'+extHtml+"</div></div>":"")
@@ -1225,8 +1229,8 @@ function matrixSectionHtmlV32(f,mode){
 var METHOD_MATH_V32='<div class="formula">'
   +'排名位置:<span class="mth"><i>p</i><sub>i</sub> = <span class="frac"><span class="num"><i>r</i><sub>i</sub></span><span class="den"><i>N</i><sub>i</sub></span></span> × 100</span>(第 r<sub>i</sub> 名 / 共 N<sub>i</sub> 人,记作「前 p<sub>i</sub>%」)<br>'
   +'进步速度:<span class="mth"><i>v</i> = med<sub>j</sub>(<i>p</i><sub>j</sub> − <i>p</i><sub>j+1</sub>)</span>,正为前进;折算名次 = <span class="mth"><i>v</i>·N/100</span>;单场进步/退步卡仅在两场参考人数相近(差&lt;30%)时入选,并附前后位比与折算式<br>'
-  +'难度信号(与深度分析板块统一):对每科位比序列做<b>贝叶斯分档推断</b>——把「这场卷子偏难/偏易」当作隐变量,用逐场位比的意外幅度 + 参考人数的抽样噪声宽度联合推断,输出每场 P(难) / P(易);P(难)≥0.6 → 偏难(红点),0.4~0.6 → 关注(橙点),P(易)≥0.4 → 偏易(绿点)<br>'
-  +'难度置信差: <span class="mth">e = −100×(P(难)−P(易))</span>,负值越负越像难卷;该概率已按参考人数自动校准——小池子的位比波动天然更宽,不会误报</div>';
+  +'难度信号：用此前的分数与排名关系，检查本次分数是否明显偏离历史表现。红、橙、绿点分别表示偏难、可能偏难、偏易信号；它们是模型提示，不是试卷难度概率。历史不足时不作判断，旧环境可能使用简化规则。<br>'
+  +'含金量尺子：用同分类、同参考人群阶段的完整分数与排名关系建立稳健模型，估计每场单科成绩相对平均的难度偏移。至少 3 场起提供估计；样本少、关系较弱或边界分数时提示参考较弱。可换算到历史平均、日期范围或某次考试的难度。不同满分先用得分率统一，回看旧考试使用当前已有记录。少用一场记录重算后的范围表示样本敏感性，不是置信区间或预测区间。</div>';
 function qualityHtmlV32(f){
   var q=f.quality,items=[];
   q.pending.forEach(function(e){items.push("<li>有 1 场还没录成绩:"+esc32(shortName32(e.name))+' <a href="javascript:void(0)" data-sv31-edit="'+esc32(e.id||"")+'" data-date="'+esc32(e.exam_date||"")+'" data-name="'+esc32(e.name||"")+'">去补录</a></li>');});
@@ -1240,14 +1244,18 @@ function qualityHtmlV32(f){
     +(items.length?'<ul style="margin:0;padding-left:18px">'+items.join("")+"</ul>":'<p class="card-sub">当前范围内没有发现缺口,数据很完整。</p>')
     +'<details class="sv31-method"><summary>这些结论是怎么算出来的?(方法论与局限声明)</summary><div class="m-body">'
     +'<b>名词对照</b>:「排名」指名次÷参考人数(第57名/310人=前18%,专业术语叫位比);「个百分点」即 pp。<br>'
-    +'<b>口径纪律</b>:跨考试比较一律使用排名位置;分数与得分率只在同一张卷子内使用。手动填写过总分时以手动值为准;不计总分的科目不参与总分口径。<br>'
+    +'<b>比较口径</b>:跨考试主要比较排名位置，不直接把卷面分数当作能力变化。「成绩含金量」用相对难度模型提供换算参考，不是正式等值分。手动填写过总分时以手动值为准;不计总分的科目不参与总分口径。<br>'
     +'<b>序数性声明</b>:排名位置是序数指标,前10%区每1个百分点的难度大于中段,规则阈值按分段收紧。<br>'
-    +'<b>科目级难度信号(统一版)</b>:排名对卷面难度天然免疫,分数不是。与「深度分析」板块使用同一难度算法(贝叶斯分档推断,输出 P(难)/P(易)),矩阵圆点、难度卡、退步卡三处结论同源;需≥3场有效位比,不足时自动降级为旧启发式或不出点。'
+    +'<b>科目级难度信号</b>:分数与排名一起看，能为理解成绩提供线索。矩阵与深度分析使用同一难度内核；单人历史不能确定整张试卷的真实难度，也不能保证不同参考人群之间可比。'
     +METHOD_MATH_V32
     +'<b>局限声明</b>:① 难度信号是推断,也可能是临场失误,仅用于解读,不改变排名结论;② 无法区分「卷易」与「你该科突然开窍」;③ 无他人分数,分布类结论仅基于你自己的等位线。<br>'
     +'<b>样本门槛</b>:进步速度与稳定性≥3场;离群检测≥5场,不足时降级措辞。</div></details></div>';
 }
 /* ---------- 页面装配 ---------- */
+function worthCellV32(i,s,content,label){
+  if(!window.__stScoreWorth)return content;
+  return '<button type="button" class="worth-matrix-button" data-worth-matrix="'+i+'" data-worth-subject="'+esc32(s)+'" aria-label="'+esc32(label||s+'，查看这次考试的成绩含金量')+'">'+content+'</button>';
+}
 function statsPageV32(f){
   var scope=(typeof state!=="undefined"&&state.sv31)||{};
   var mode=scope.mode||"rank";
@@ -1283,6 +1291,7 @@ function statsPageV32(f){
   var ins=buildInsightsV32(f);
   return '<div class="sv31-page">'+head+modBar+controlsHtmlV32(f)
     +kpiHtmlV32(f,mode)
+    +(window.__stScoreWorth?window.__stScoreWorth.html(f):"")
     +insightsHtmlV32(ins)
     +trendHtmlV32(f,mode)
     +structureHtmlV32(f,mode)
@@ -1536,6 +1545,7 @@ function routeStatsV32(){
   var sy=window.pageYOffset||0;
   c.innerHTML=statsPageV32(f);
   try{bindStatsV32(f,c.firstElementChild);}catch(e){}
+  if(window.__stScoreWorth)window.__stScoreWorth.bind(c.firstElementChild,f);
   /* 渲染后让 v29 图例取色/显隐对统计页图表生效(图二/图三换色与勾选显示) */
   try{if(window.__v29&&window.__v29.afterRender)window.__v29.afterRender();}catch(e){}
   window.scrollTo(0,sy);

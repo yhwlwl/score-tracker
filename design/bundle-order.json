@@ -37,6 +37,8 @@
   "app-v33.js",
   "app-v34.js",
   "app-v35.js",
+  "score-worth-model.js",
+  "score-worth.js",
   "release-notices.js",
   "account-recovery.js"
 ]
