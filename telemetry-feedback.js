@@ -32,7 +32,7 @@
     appPage: currentPage(), referrerOrigin: document.referrer || '', firstReferrer, utmSource, utmCampaign,
     userAgent: navigator.userAgent, browserLanguage: navigator.language, clientTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     screenWidth: screen.width, screenHeight: screen.height, viewportWidth: innerWidth, viewportHeight: innerHeight,
-    isPwa: matchMedia('(display-mode: standalone)').matches || navigator.standalone === true, appVersion: APP_VERSION,
+    isPwa: matchMedia('(display-mode: standalone)').matches || navigator.standalone === true, appVersion: window.__releaseNotices?.currentVersion?.() || APP_VERSION,
   });
   async function call(action, payload = {}) {
     const r = await nativeFetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, token: localStorage.getItem('st_token') || '', ...payload }) });

@@ -130,11 +130,13 @@ async function run() {
       }, __scoreTrackerTrack: (type, record) => { records.push({ ...record }); return Promise.resolve(); },
     };
     scope.window = scope;
+    scope.__releaseNotices = { currentVersion: () => 'v7.1' };
     scope.api = async function(action) { const r = await scope.fetch('/api/score-tracker-api', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({action}) }); throw Error((await r.json()).error); };
     vm.createContext(scope);
     vm.runInContext(fs.readFileSync(path.join(root, 'app-v37.js'), 'utf8'), scope);
     await assert.rejects(scope.api('login'), e => e.code === 'API_UPSTREAM_TIMEOUT' && e.status === 504 && e.requestId === new Headers(calls.at(-1).init.headers).get('x-score-request-id'));
     assert.equal(records.at(-1).error_code, 'API_UPSTREAM_TIMEOUT');
+    assert.equal(records.at(-1).app_version, 'v7.1');
     mode = 'network';
     await assert.rejects(scope.fetch(new URL('/api/score-tracker-data-api', origin).href, { method: 'POST', body: '{"action":"login_v2"}' }));
     assert.equal(records.at(-1).request_state, 'network_error');
