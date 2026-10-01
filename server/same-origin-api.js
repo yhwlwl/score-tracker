@@ -11,6 +11,36 @@ export const API_ENDPOINTS = Object.freeze([
 
 const NO_STORE = 'private, no-store, max-age=0';
 
+const safeEdgeValue = (value, max) => {
+  const text = String(value || '').trim();
+  return text && text.length <= max && !/[\r\n]/.test(text) ? text : '';
+};
+const firstForwardedValue = (value) => String(value || '').split(',')[0].trim();
+
+function getClientNetwork(request) {
+  const cf = request.cf && typeof request.cf === 'object' ? request.cf : {};
+  return {
+    // CF-Connecting-IP is supplied by Cloudflare; the other values cover Vercel
+    // and keep the existing recovery rate limit working through the proxy.
+    ip: safeEdgeValue(
+      request.headers.get('cf-connecting-ip')
+      || firstForwardedValue(request.headers.get('x-forwarded-for'))
+      || request.headers.get('x-real-ip'),
+      80,
+    ),
+    country: safeEdgeValue(
+      cf.country || request.headers.get('cf-ipcountry') || request.headers.get('x-vercel-ip-country'),
+      8,
+    ),
+    region: safeEdgeValue(
+      cf.regionCode || cf.region || request.headers.get('x-vercel-ip-country-region'),
+      80,
+    ),
+    city: safeEdgeValue(cf.city || request.headers.get('x-vercel-ip-city'), 160),
+    timezone: safeEdgeValue(cf.timezone || request.headers.get('x-vercel-ip-timezone'), 120),
+  };
+}
+
 export async function proxyApi(request, options = {}) {
   const url = new URL(request.url);
   const endpoint = url.pathname.replace(/^\/api\//, '').replace(/\/$/, '');
@@ -54,6 +84,32 @@ export async function proxyApi(request, options = {}) {
     'Accept': 'application/json',
     'X-Score-Request-Id': id,
   });
+  const clientNetwork = getClientNetwork(request);
+  if (clientNetwork.ip) {
+    // The Supabase edge may replace standard forwarding headers on a
+    // cross-zone subrequest, so the application function reads this
+    // explicit proxy header first and still receives standard headers for
+    // endpoints that already understand them.
+    upstreamHeaders.set('X-Score-Client-IP', clientNetwork.ip);
+    upstreamHeaders.set('X-Forwarded-For', clientNetwork.ip);
+    upstreamHeaders.set('X-Real-IP', clientNetwork.ip);
+  }
+  if (clientNetwork.country) {
+    upstreamHeaders.set('X-Score-Client-Country', clientNetwork.country);
+    upstreamHeaders.set('X-Vercel-IP-Country', clientNetwork.country);
+  }
+  if (clientNetwork.region) {
+    upstreamHeaders.set('X-Score-Client-Region', clientNetwork.region);
+    upstreamHeaders.set('X-Vercel-IP-Country-Region', clientNetwork.region);
+  }
+  if (clientNetwork.city) {
+    upstreamHeaders.set('X-Score-Client-City', clientNetwork.city);
+    upstreamHeaders.set('X-Vercel-IP-City', clientNetwork.city);
+  }
+  if (clientNetwork.timezone) {
+    upstreamHeaders.set('X-Score-Client-Timezone', clientNetwork.timezone);
+    upstreamHeaders.set('X-Vercel-IP-Timezone', clientNetwork.timezone);
+  }
 
   try {
     // Buffer neither images nor credentials; forward the existing request body unchanged.
