@@ -814,7 +814,7 @@ function trendHtmlV32(f,mode){
       ?'<p class="card-sub">这些考试没录名次,排名走势暂时是空的——已自动切到「分数参考」。下次补录「名次 + 总人数」即可解锁。</p>'
       :'<p class="card-sub">出分满 2 次后显示走势。</p>'))+"</div>"
     +'<div class="sv31-pane'+(mode==="score"?" on":"")+'" data-pane="score">'+(paneScore||'<p class="card-sub">出分满 2 次后显示分数走势。</p>')+"</div>"
-    +speedTableHtmlV32(f)+"</div>";
+    +speedTableHtmlV32(f)+(window.__stTrajectories?window.__stTrajectories.html():"")+"</div>";
 }
 function speedTableHtmlV32(f){
   var rows=[];
@@ -1281,12 +1281,12 @@ function statsPageV32(f){
   var modBar=(comboRow||subjRow)?'<div style="margin-top:2px" '+
     'title="与账户「组合设置」联动；选中后，下方所有板块只分析该组合/科目">'+comboRow+subjRow+"</div>":"";
   var head='<div class="page-head"><div><h2>统计分析</h2><p>'+f.exams.length+" 次考试 · "+Math.max(f.scoredExams,f.totalSeries.length,f.rateCount)+" 场可分析</p></div>"
-    +'<span class="sv31-tag">本地实时计算 · 数据不出你的设备</span></div>';
+    +'<span class="sv31-tag">看清变化，找到自己的节奏</span></div>';
   if(f.scoredExams<1){
     return '<div class="sv31-page">'+head+modBar+controlsHtmlV32(f)
       +'<div class="card"><div class="card-title-row"><div><h3 class="card-title">先从一次考试开始</h3></div></div>'
       +'<p class="card-sub">这里会用排名帮你回答三个问题:我在进步吗?强弱科在哪?目标定得合理吗?现在还没有已出分的考试——去「考试记录」录入第一场吧。</p></div>'
-      +qualityHtmlV32(f)+"</div>";
+      +(window.__stTrajectories?'<div class="card">'+window.__stTrajectories.html()+"</div>":"")+qualityHtmlV32(f)+"</div>";
   }
   var ins=buildInsightsV32(f);
   return '<div class="sv31-page">'+head+modBar+controlsHtmlV32(f)
@@ -1546,6 +1546,7 @@ function routeStatsV32(){
   c.innerHTML=statsPageV32(f);
   try{bindStatsV32(f,c.firstElementChild);}catch(e){}
   if(window.__stScoreWorth)window.__stScoreWorth.bind(c.firstElementChild,f);
+  if(window.__stTrajectories)window.__stTrajectories.bind(c.firstElementChild,f);
   /* 渲染后让 v29 图例取色/显隐对统计页图表生效(图二/图三换色与勾选显示) */
   try{if(window.__v29&&window.__v29.afterRender)window.__v29.afterRender();}catch(e){}
   window.scrollTo(0,sy);

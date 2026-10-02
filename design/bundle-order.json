@@ -40,5 +40,7 @@
   "score-worth-model.js",
   "score-worth.js",
   "release-notices.js",
-  "account-recovery.js"
+  "account-recovery.js",
+  "trajectory-forecast.js",
+  "similar-trajectories.js"
 ]
