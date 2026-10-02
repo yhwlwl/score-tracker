@@ -157,19 +157,31 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
     return json({ok:false,status:response.status,latency_ms:Date.now()-started,message:detail||('HTTP '+response.status),code:'upstream_error'});
   }
   if(action==='feature_votes'){
+    try{
     const ai=await db.from('score_tracker_ai_configs').select('openrouter_api_key,base_url,model,enabled,beta_only,daily_limit,global_daily_limit,cooldown_seconds,updated_at').eq('id','score_vision').maybeSingle();
     if(ai.error)throw ai.error;
     const [or,vr,sr]=await Promise.all([
       db.from('score_tracker_feature_vote_options').select('id,option_key,label,description,source,is_active,sort_order,created_at,updated_at').order('sort_order').order('created_at'),
-      db.from('score_tracker_feature_votes').select('id,user_id,option_id,created_at').order('created_at',{ascending:false}),
+      (async()=>{
+        const rows=[];
+        for(let offset=0;;offset+=1000){
+          const r=await db.from('score_tracker_feature_votes').select('id,user_id,option_id,created_at').order('created_at',{ascending:false}).order('id').range(offset,offset+999);
+          if(r.error)throw r.error;
+          rows.push(...(r.data||[]));
+          if((r.data||[]).length<1000)return{data:rows,error:null};
+        }
+      })(),
       db.from('score_tracker_feature_vote_suggestions').select('id,user_id,content,status,promoted_option_id,feedback_id,created_at,updated_at').order('created_at',{ascending:false}).limit(500)
     ]);
     for(const r of [or,vr,sr])if(r.error)throw r.error;
     const options=or.data||[],votes=vr.data||[],suggestions=sr.data||[];
     const userIds=[...new Set(votes.map(x=>x.user_id).concat(suggestions.map(x=>x.user_id)).filter(Boolean))];
-    const ur=userIds.length?await db.from('score_tracker_users').select('id,username').in('id',userIds):{data:[],error:null};
-    if(ur.error)throw ur.error;
-    const names=new Map((ur.data||[]).map(x=>[x.id,x.username]));
+    const names=new Map();
+    for(let offset=0;offset<userIds.length;offset+=100){
+      const ur=await db.from('score_tracker_users').select('id,username').in('id',userIds.slice(offset,offset+100));
+      if(ur.error)throw ur.error;
+      for(const u of ur.data||[])names.set(u.id,u.username);
+    }
     const optMap=new Map(options.map(x=>[x.id,x]));
     const counts=new Map();for(const v of votes)counts.set(v.option_id,(counts.get(v.option_id)||0)+1);
     const perUser=new Map();
@@ -197,6 +209,10 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
       users:[...perUser.values()].sort((a,b)=>+new Date(b.last_voted_at||0)-+new Date(a.last_voted_at||0)),
       suggestions:suggestions.map(s=>({...s,username:names.get(s.user_id)||s.user_id}))
     })
+    }catch(error){
+      console.error('feature_votes_failed',error);
+      return json({error:'投票数据暂时没能加载，请稍后重试',code:typeof error?.code==='string'?error.code:'feature_votes_load_failed'},500);
+    }
   }
   if(action==='feature_option_add'&&req.method==='POST'){
     const b=await req.json(),label=String(b.label||'').trim().slice(0,160),description=String(b.description||'').trim().slice(0,500);
