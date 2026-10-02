@@ -214,7 +214,7 @@
 
   function hasBlockingModal() {
     try { if (state && state.onboarding) return true; } catch (e) {}
-    return !!document.querySelector('.modal-backdrop,.rn-back,.st-fb-back,.gmodal-backdrop.open');
+    return !!document.querySelector('.modal-backdrop,.rn-back,.st-fb-back,.pwa-back,.gmodal-backdrop.open');
   }
   function queueAutoCheck(delay) {
     clearTimeout(openTimer);
@@ -271,7 +271,7 @@
     back.innerHTML =
       '<div class="fv36-modal" role="dialog" aria-modal="true" aria-labelledby="fv36Title">' +
         '<div class="fv36-head"><div><div class="fv36-kicker">功能投票</div><h2 id="fv36Title">下一步，你更希望先做什么？</h2><p class="fv36-sub">每个功能每个账号只能投 1 票；以后新增选项还可以继续投</p></div><button class="fv36-close" type="button" aria-label="关闭">×</button></div>' +
-        '<div class="fv36-body"><div class="fv36-options">' + options.map(optionHtml).join('') + '</div>' +
+        '<div class="fv36-body"><div class="fv36-help">这里收集你希望增加的功能。遇到问题或不知道怎么用？<button type="button" class="fv36-feedback-link">去反馈里问问</button></div><div class="fv36-options">' + options.map(optionHtml).join('') + '</div>' +
         '<div class="fv36-other"><label for="fv36Other">新增需求</label><input id="fv36Other" maxlength="300" placeholder="写下你希望增加的功能"></div>' +
         '<div class="fv36-error" id="fv36Error"></div><div class="fv36-actions"><button class="fv36-submit" id="fv36Submit" type="button">提交投票</button></div></div>' +
       '</div>';
@@ -284,6 +284,12 @@
       back.remove();
     };
     back.querySelector('.fv36-close').onclick = close;
+    back.querySelector('.fv36-feedback-link').onclick = function () {
+      var content = String(back.querySelector('#fv36Other').value || '').trim();
+      track('feature_vote_feedback_click', {source: source || 'manual'});
+      close();
+      window.__scoreTrackerFeedback?.open({type:'other', content:content});
+    };
     back.addEventListener('click', function (event) { if (event.target === back) close(); });
     back.querySelectorAll('[data-feature-id]:not(.voted)').forEach(function (button) {
       button.onclick = function () {
@@ -354,10 +360,13 @@
         return '<div class="fv36-account-row"><div class="fv36-account-row-main"><b>' + esc(item.label) + '</b><small>' + Number(item.votes || 0) + ' 人投过</small></div><span class="fv36-badge">已结束</span></div>';
       }).join('') + '</div>' +
       (suggestions.length ? '<div class="fv36-suggestions"><div class="fv36-suggestions-title">我的新增需求</div>' + suggestions.slice(0,4).map(function (s) {
-        var st = s.status === 'promoted' ? '已加入投票' : s.status === 'dismissed' ? '已处理' : '已提交';
-        return '<div class="fv36-suggestion">' + esc(s.content) + ' · ' + st + '</div>';
+        var st = s.status === 'promoted' ? '已加入投票' : s.status === 'converted' ? '已转到反馈' : s.status === 'dismissed' ? '已处理' : '已提交';
+        return '<div class="fv36-suggestion">' + esc(s.content) + ' · ' + st + (s.status === 'converted' && s.feedbackId ? ' <button type="button" class="fv36-feedback-link" data-vote-feedback="' + esc(s.feedbackId) + '">查看反馈</button>' : '') + '</div>';
       }).join('') + '</div>' : '');
     revealCompletions(root, options, 'account');
+    root.querySelectorAll('[data-vote-feedback]').forEach(function (button) {
+      button.onclick = function () { window.__scoreTrackerFeedback?.open({feedbackId:button.dataset.voteFeedback}); };
+    });
     var open = root.querySelector('#featureVoteOpenV36');
     if (open) {
       open.textContent = Number(data.availableCount || 0) > 0 ? '继续投票' : '新增需求';

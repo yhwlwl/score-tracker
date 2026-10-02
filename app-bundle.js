@@ -238,7 +238,7 @@
   }
   function injectFeedbackButton() {
     if ($('#stFeedbackBtn')) return;
-    const b = document.createElement('button'); b.id = 'stFeedbackBtn'; b.className = 'st-fb-btn'; b.innerHTML = '建议反馈 <b>0</b>'; b.onclick = openFeedback; document.body.appendChild(b);
+    const b = document.createElement('button'); b.id = 'stFeedbackBtn'; b.className = 'st-fb-btn'; b.innerHTML = '建议反馈 <b>0</b>'; b.onclick = () => openFeedback(); document.body.appendChild(b);
   }
   const statusText = { new: '新反馈', open: '已查看', in_progress: '处理中', resolved: '已解决', closed: '已关闭' };
   async function pollUnread() {
@@ -260,13 +260,24 @@
     for (const f of files) { if (!f.type.startsWith('image/')) continue; if (f.size > 5 * 1024 * 1024) throw new Error('单张图片不能超过 5MB'); const data = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsDataURL(f); }); out.push({ name: f.name, type: f.type, size: f.size, data }); }
     return out;
   }
-  async function openFeedback() {
+  window.__scoreTrackerFeedback = { open: openFeedback };
+  async function openFeedback(options = {}) {
+    if (document.querySelector('.st-fb-back')) return;
     track('feedback_opened');
     const back = modalBase('建议与反馈'), body = $('.st-fb-body', back);
     body.innerHTML = `<div class="st-fb-tabs"><button class="active" data-tab="new">提交反馈</button><button data-tab="history">我的反馈</button></div><div id="stFbPane"></div>`;
     const showNew = () => { $$('.st-fb-tabs button', back).forEach(x => x.classList.toggle('active', x.dataset.tab === 'new')); $('#stFbPane', back).innerHTML = `<div class="st-fb-field"><label>类型</label><select id="stFbType"><option value="suggestion">功能建议</option><option value="bug">问题 / Bug</option><option value="experience">体验反馈</option><option value="other">其他</option></select></div><div class="st-fb-field"><label>内容</label><textarea id="stFbContent" maxlength="5000" placeholder="请尽量描述发生了什么、你希望怎样改进…"></textarea></div><div class="st-fb-field st-fb-files"><label>截图（可选，最多 3 张，每张 ≤ 5MB）</label><input id="stFbFiles" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple></div><div class="st-fb-note">会自动附带版本、页面、设备、访问来源、使用深度和成绩记录统计，方便定位问题；不会上传你的密码。</div><div class="st-fb-actions" style="margin-top:16px"><button class="st-fb-primary" id="stFbSubmit">提交</button></div>`; $('#stFbSubmit', back).onclick = submitFeedback; };
     const showHistory = async () => { $$('.st-fb-tabs button', back).forEach(x => x.classList.toggle('active', x.dataset.tab === 'history')); const pane = $('#stFbPane', back); pane.innerHTML = '<div class="st-fb-empty">读取中…</div>'; try { const d = await call('feedback_list', { guestAccessToken }); pane.innerHTML = (d.feedback || []).length ? `<div class="st-fb-list">${d.feedback.map(x => `<div class="st-fb-item" data-feedback-id="${x.id}"><div class="st-fb-meta"><span>${new Date(x.created_at).toLocaleString('zh-CN')} · <span class="st-fb-pill">${statusText[x.status] || x.status}</span></span>${x.unread ? `<span class="st-fb-unread">${x.unread} 条新回复</span>` : ''}</div><div class="st-fb-content">${escapeHtml(x.content)}</div></div>`).join('')}</div>` : '<div class="st-fb-empty">还没有提交过反馈</div>'; $$('[data-feedback-id]', pane).forEach(x => x.onclick = () => openThread(x.dataset.feedbackId, back)); } catch (e) { pane.innerHTML = `<div class="st-fb-empty">${escapeHtml(e.message)}</div>`; } };
-    $$('[data-tab]', back).forEach(x => x.onclick = () => x.dataset.tab === 'new' ? showNew() : showHistory()); showNew();
+    $$('[data-tab]', back).forEach(x => x.onclick = () => x.dataset.tab === 'new' ? showNew() : showHistory());
+    if (options.feedbackId) {
+      $$('[data-tab]', back).forEach(x => x.classList.toggle('active', x.dataset.tab === 'history'));
+      await openThread(options.feedbackId, back);
+    } else if (options.tab === 'history') await showHistory();
+    else {
+      showNew();
+      if (options.type) $('#stFbType', back).value = options.type;
+      if (options.content) $('#stFbContent', back).value = options.content;
+    }
     async function submitFeedback() { const btn = $('#stFbSubmit', back), content = $('#stFbContent', back).value.trim(); if (!content) return; btn.disabled = true; btn.textContent = '提交中…'; try { const attachments = await filePayload($('#stFbFiles', back)); await call('feedback_submit', { feedbackType: $('#stFbType', back).value, content, context: context(), guestAccessToken, attachments }); track('feedback_submitted', { type: $('#stFbType', back).value }); $('#stFbPane', back).innerHTML = '<div class="st-fb-empty"><b>已收到，谢谢你的反馈。</b><br><br>管理员回复后这里会出现未读提醒。</div>'; pollUnread(); } catch (e) { btn.disabled = false; btn.textContent = '提交'; alert(e.message); } }
   }
   async function openThread(id, parent) {
@@ -12658,7 +12669,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     var controller=new AbortController(),timeout=setTimeout(function(){controller.abort();},10000);
     try { var url=new URL('index.html',location.href);url.searchParams.set('__cb',Date.now());var r=await fetch(url.href,{cache:'no-store',signal:controller.signal});if(!r.ok)throw new Error('版本检查失败');var doc=new DOMParser().parseFromString(await r.text(),'text/html'),m=doc.querySelector('meta[name="application-version"]');if(!m||!/^v?\d+(\.\d+){0,2}$/i.test(m.content))throw new Error('暂时未找到版本信息');return {version:version(m.content),build:build(doc)}; } finally {clearTimeout(timeout);}
   }
-  function blocking() { try{if(state.onboarding)return true;}catch(_){}return document.visibilityState!=='visible'||!!document.querySelector('.modal-backdrop,.fv36-back,.st-fb-back,.gmodal-backdrop.open'); }
+  function blocking() { try{if(state.onboarding)return true;}catch(_){}return document.visibilityState!=='visible'||!!document.querySelector('.modal-backdrop,.fv36-back,.st-fb-back,.pwa-back,.gmodal-backdrop.open'); }
   function injectStyle() {
     if(document.getElementById('release-notices-style'))return;
     var s=document.createElement('style');s.id='release-notices-style';s.textContent=
