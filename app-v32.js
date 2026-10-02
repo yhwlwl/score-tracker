@@ -1635,11 +1635,14 @@ function ensureNavV32(){
     var accB=bn.querySelector('[data-page="account"]');
     var bb=document.createElement("button");
     bb.className="";bb.setAttribute("data-page","stats");
-    bb.innerHTML='<span>▦</span><span>分析</span>';
+    bb.setAttribute("aria-label","分析");
+    bb.innerHTML='<span class="nav-icon" aria-hidden="true">'+navIcon('stats')+'</span><span>分析</span>';
     accB?bn.insertBefore(bb,accB):bn.appendChild(bb);
   }
   document.querySelectorAll('.desktop-nav [data-page],.bottom-nav [data-page]').forEach(function(el){
-    el.classList.toggle("active",el.getAttribute("data-page")===page);
+    var active=el.getAttribute("data-page")===page;
+    el.classList.toggle("active",active);
+    if(active)el.setAttribute("aria-current","page");else el.removeAttribute("aria-current");
   });
 }
 /* 包装渲染入口:注入导航 + 拦截 stats 页 */
