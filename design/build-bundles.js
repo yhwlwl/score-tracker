@@ -34,6 +34,7 @@ html = html.replace(/(<script src="\.\/)([^"?\s]+\.js)\?v=[^"\s]+/g, (match, pre
   const version = crypto.createHash("md5").update(source).digest("hex").slice(0, 10);
   return prefix + file + "?v=" + version;
 });
+html = html.replace(/(href="\.\/pwa-install\.css)\?v=[^"\s]+/g, (match, prefix) => prefix + '?v=' + crypto.createHash('md5').update(fs.readFileSync(path.join(ROOT, 'pwa-install.css'))).digest('hex').slice(0, 10));
 fs.writeFileSync(htmlPath, html);
 
 console.log("app-bundle.js 已生成 (" + Math.round(bundle.length / 1024) + " KB)，hash=" + hash);

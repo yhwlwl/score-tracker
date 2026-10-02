@@ -1,6 +1,10 @@
 # Cloudflare Pages 缓存与安全头（第一条匹配生效）
 #
 # app-bundle.js 带 ?v= hash：内容变 → hash 变 → 新 URL → 可安全一年长缓存（与 vercel.json 对齐）
+/sw.js
+  Cache-Control: no-cache
+/manifest.webmanifest
+  Cache-Control: no-cache
 /app-bundle.js
   Cache-Control: public, max-age=31536000, immutable
 # HTML 入口不缓存，保证发版立即可见

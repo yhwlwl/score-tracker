@@ -162,7 +162,7 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
     const [or,vr,sr]=await Promise.all([
       db.from('score_tracker_feature_vote_options').select('id,option_key,label,description,source,is_active,sort_order,created_at,updated_at').order('sort_order').order('created_at'),
       db.from('score_tracker_feature_votes').select('id,user_id,option_id,created_at').order('created_at',{ascending:false}),
-      db.from('score_tracker_feature_vote_suggestions').select('id,user_id,content,status,promoted_option_id,created_at,updated_at').order('created_at',{ascending:false}).limit(500)
+      db.from('score_tracker_feature_vote_suggestions').select('id,user_id,content,status,promoted_option_id,feedback_id,created_at,updated_at').order('created_at',{ascending:false}).limit(500)
     ]);
     for(const r of [or,vr,sr])if(r.error)throw r.error;
     const options=or.data||[],votes=vr.data||[],suggestions=sr.data||[];
@@ -211,20 +211,29 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
     const r=await db.from('score_tracker_feature_vote_options').update({is_active:active,updated_at:new Date().toISOString()}).eq('id',id);if(r.error)throw r.error;
     return json({ok:true})
   }
+  if(action==='feature_suggestion_convert'&&req.method==='POST'){
+    const b=await req.json(),id=String(b.id||'');
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))return json({error:'这条需求没有找到'},400);
+    const r=await db.rpc('score_tracker_convert_vote_to_feedback',{p_suggestion_id:id,p_admin_id:admin.id});
+    if(r.error){if(r.error.code==='P0002')return json({error:'这条需求没有找到'},404);if(r.error.code==='22023')return json({error:'这条需求已经处理过了'},409);throw r.error;}
+    return json({ok:true,feedback_id:r.data});
+  }
   if(action==='feature_suggestion_promote'&&req.method==='POST'){
     const b=await req.json(),id=String(b.id||'');if(!id)return json({error:'missing_id'},400);
     const sr=await db.from('score_tracker_feature_vote_suggestions').select('id,user_id,content,status').eq('id',id).maybeSingle();if(sr.error)throw sr.error;if(!sr.data)return json({error:'not_found'},404);
     if(sr.data.status==='promoted')return json({ok:true});
+    if(sr.data.status!=='new')return json({error:'这条需求已经处理过了'},409);
     const last=await db.from('score_tracker_feature_vote_options').select('sort_order').order('sort_order',{ascending:false}).limit(1);if(last.error)throw last.error;
     const key='suggestion_'+crypto.randomUUID().replaceAll('-','').slice(0,16),sort=Number(last.data?.[0]?.sort_order||0)+10;
     const or=await db.from('score_tracker_feature_vote_options').insert({option_key:key,label:String(sr.data.content).slice(0,160),source:'user_suggestion',sort_order:sort}).select('id').single();if(or.error)throw or.error;
-    const up=await db.from('score_tracker_feature_vote_suggestions').update({status:'promoted',promoted_option_id:or.data.id,updated_at:new Date().toISOString()}).eq('id',id);if(up.error)throw up.error;
+    const up=await db.from('score_tracker_feature_vote_suggestions').update({status:'promoted',promoted_option_id:or.data.id,updated_at:new Date().toISOString()}).eq('id',id).eq('status','new').select('id').maybeSingle();
+    if(up.error||!up.data){await db.from('score_tracker_feature_vote_options').delete().eq('id',or.data.id);if(up.error)throw up.error;return json({error:'这条需求已经处理过了'},409);}
     const vr=await db.from('score_tracker_feature_votes').insert({user_id:sr.data.user_id,option_id:or.data.id});if(vr.error&&vr.error.code!=='23505')throw vr.error;
     return json({ok:true,option_id:or.data.id})
   }
   if(action==='feature_suggestion_dismiss'&&req.method==='POST'){
     const b=await req.json(),id=String(b.id||'');if(!id)return json({error:'missing_id'},400);
-    const r=await db.from('score_tracker_feature_vote_suggestions').update({status:'dismissed',updated_at:new Date().toISOString()}).eq('id',id);if(r.error)throw r.error;
+    const r=await db.from('score_tracker_feature_vote_suggestions').update({status:'dismissed',updated_at:new Date().toISOString()}).eq('id',id).eq('status','new').select('id').maybeSingle();if(r.error)throw r.error;if(!r.data)return json({error:'这条需求已经处理过了'},409);
     return json({ok:true})
   }
   if(action==='overview'){
