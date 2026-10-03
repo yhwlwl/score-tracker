@@ -40,9 +40,9 @@
     if (!r.ok) throw new Error(j.error || '请求失败');
     return j;
   }
-  function track(eventType, metadata = {}, overridePage) {
-    const c = context(); if (overridePage) c.appPage = overridePage;
-    return nativeFetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+  function track(eventType, metadata = {}, overridePage, originalContext, options = {}) {
+    const c = Object.assign(context(), originalContext || {}); if (overridePage) c.appPage = overridePage;
+    return nativeFetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true, signal: options.signal,
       body: JSON.stringify({ action: 'track_event', token: localStorage.getItem('st_token') || '', eventType, context: c, metadata }) }).catch(() => undefined);
   }
 
@@ -168,3 +168,4 @@
   }
   function escapeHtml(v = '') { return String(v).replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 })();
+
