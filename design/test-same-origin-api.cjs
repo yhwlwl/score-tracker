@@ -153,17 +153,17 @@ async function run() {
 
     const records = [], calls = [];
     let mode = 'http';
-    const scope = { URL, Headers, Date, Promise, navigator: { onLine: true }, location: new URL(origin),
-      document: { querySelector: () => ({ content: 'v7.0' }) }, localStorage: { getItem: () => '' }, console: { warn() {} },
+    const scope = { URL, Headers, Date, Promise, AbortController, setTimeout, clearTimeout, addEventListener() {}, navigator: { onLine: true }, location: new URL(origin),
+      document: { querySelector: () => ({ content: 'v7.0' }), createElement: () => ({}), head: { appendChild() {} } }, localStorage: { getItem: () => '', setItem() {} }, console: { warn() {} },
       fetch: async (input, init) => {
         calls.push({ input, init });
         if (mode === 'network') throw new TypeError('Load failed');
         return new Response('{"error":"服务响应超时","code":"API_UPSTREAM_TIMEOUT"}', { status: 504, headers: { 'x-score-request-id': new Headers(init.headers).get('x-score-request-id') } });
-      }, __scoreTrackerTrack: (type, record) => { records.push({ ...record }); return Promise.resolve(); },
+      }, __scoreTrackerTrack: (type, record) => { records.push({ ...record }); return Promise.resolve({ ok: true }); },
     };
     scope.window = scope;
     scope.__releaseNotices = { currentVersion: () => 'v7.1' };
-    scope.api = async function(action) { const r = await scope.fetch('/api/score-tracker-api', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({action}) }); throw Error((await r.json()).error); };
+    scope.api = async function(action) { const r = await scope.fetch('/api/score-tracker-api', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({action}) }); throw scope.__scoreTrackerResponseError(r, await r.json(), action); };
     vm.createContext(scope);
     vm.runInContext(fs.readFileSync(path.join(root, 'app-v37.js'), 'utf8'), scope);
     await assert.rejects(scope.api('login'), e => e.code === 'API_UPSTREAM_TIMEOUT' && e.status === 504 && e.requestId === new Headers(calls.at(-1).init.headers).get('x-score-request-id'));
@@ -180,13 +180,13 @@ async function run() {
 
     // Run the real login/API functions through the real Pages adapter with a fixture backend.
     const stored = new Map(), backendCalls = [], nodes = {
-      '#loginBtn': { disabled: false, textContent: '登录' },
+      '#loginBtn': { disabled: false, textContent: '登录', isConnected: true },
       '#loginUser': { value: 'fixture-user' }, '#loginPass': { value: 'fixture-password' },
     };
     const storage = { getItem: key => stored.get(key) || null, setItem: (key, value) => stored.set(key, String(value)), removeItem: key => stored.delete(key) };
-    const app = { URL, Headers, Date, Promise, console: { warn() {} }, location: new URL(origin), navigator: { onLine: true },
-      localStorage: storage, document: { querySelector: key => nodes[key] || null, createElement: () => ({}), head: { appendChild() {} } },
-      __scoreTrackerTrack: () => Promise.resolve(),
+    const app = { URL, Headers, Date, Promise, AbortController, setTimeout, clearTimeout, addEventListener() {}, console: { warn() {} }, location: new URL(origin), navigator: { onLine: true },
+      localStorage: storage, document: { querySelector: key => nodes[key] || null, getElementById: () => null, createElement: () => ({}), head: { appendChild() {} } },
+      __scoreTrackerTrack: () => Promise.resolve({ ok: true }),
     };
     app.window = app;
     app.fetch = async (input, init) => {

@@ -34,7 +34,7 @@ async function api(action, payload = {}) {
       state.user = null;
       renderLogin();
     }
-    throw new Error(data.error || '请求失败');
+    throw window.__scoreTrackerResponseError ? window.__scoreTrackerResponseError(res, data, action) : new Error(data.error || '请求失败');
   }
   return data;
 }
@@ -246,7 +246,7 @@ function render() {
     <header class="topbar"><div class="brand"><div class="logo">↗</div><div><h1>成绩轨迹</h1><p>把每一次努力，连成一条向上的线</p></div></div>
     <nav class="desktop-nav">${navButton('home', '概览')}${navButton('records', '考试记录')}${navButton('account', '账号')}</nav></header>
     <main id="content"></main></div>
-    <nav class="bottom-nav">${bottomButton('home', '概览')}${bottomButton('records', '记录')}${bottomButton('account', '账号')}</nav>`;
+    <nav class="bottom-nav">${bottomButton('home', '⌂', '概览')}${bottomButton('records', '▤', '记录')}${bottomButton('account', '○', '账号')}</nav>`;
   renderPage();
   bindNav();
   if (state.onboarding) showOnboarding();
@@ -254,17 +254,8 @@ function render() {
 function navButton(p, label) {
   return `<button class="nav-btn ${state.page === p ? 'active' : ''}" data-page="${p}">${label}</button>`;
 }
-function navIcon(name) {
-  const icons = {
-    home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 10.7 8.5-7 8.5 7v9.8a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M9 22v-6.2h6V22"/></svg>',
-    records: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 3v18M11.5 8h5M11.5 12h5M11.5 16h3.5"/></svg>',
-    stats: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V5M4 20h17"/><path d="M8 17v-4M12 17V8M16 17v-7M20 17v-3"/></svg>',
-    account: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="9" r="2.5"/><path d="M7.5 18c.9-2.2 2.4-3.3 4.5-3.3s3.6 1.1 4.5 3.3"/></svg>'
-  };
-  return icons[name] || icons.home;
-}
-function bottomButton(p, label) {
-  return `<button class="${state.page === p ? 'active' : ''}" data-page="${p}" aria-label="${label}" ${state.page === p ? 'aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true">${navIcon(p)}</span><span>${label}</span></button>`;
+function bottomButton(p, icon, label) {
+  return `<button class="${state.page === p ? 'active' : ''}" data-page="${p}"><span>${icon}</span><span>${label}</span></button>`;
 }
 function bindNav() {
   $$('[data-page]').forEach((b) => {
@@ -612,10 +603,29 @@ function renderLogin(error = '') {
 
 async function login() {
   const btn = $('#loginBtn');
+  document.getElementById('requestErrorDetails')?.remove();
   btn.disabled = true;
   btn.textContent = '登录中…';
+  let primaryError;
   try {
-    const data = await api('login', { username: $('#loginUser').value.trim(), password: $('#loginPass').value });
+    const credentials = { username: $('#loginUser').value.trim(), password: $('#loginPass').value };
+    let data;
+    try {
+      data = await api('login', credentials);
+    } catch (error) {
+      primaryError = error;
+      // Compatibility login may succeed for a password created by the newer account service.
+      if (error.status === 400 || error.status === 429) throw error;
+      const response = await fetch('/api/score-tracker-data-api', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'login_v2', ...credentials })
+      });
+      const result = await response.json().catch(() => ({ error: '网络响应异常' }));
+      if (!response.ok || !result.token) {
+        throw window.__scoreTrackerResponseError ? window.__scoreTrackerResponseError(response, result, 'login_v2') : new Error(result.error || '登录失败');
+      }
+      data = result;
+    }
     state.token = data.token;
     state.user = data.user;
     localStorage.setItem('st_token', data.token);
@@ -624,28 +634,10 @@ async function login() {
     state.page = 'home';
     render();
   } catch (e) {
-    // v2 自定义密码登录回退：旧密码体系查不到时，尝试 data-api 的 v2 口令
-    try {
-      const v2res = await fetch('/api/score-tracker-data-api', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'login_v2', username: $('#loginUser').value.trim(), password: $('#loginPass').value })
-      });
-      const v2 = await v2res.json().catch(() => null);
-      if (v2res.ok && v2 && v2.token) {
-        state.token = v2.token;
-        state.user = v2.user;
-        localStorage.setItem('st_token', v2.token);
-        localStorage.setItem('st_known_user', '1');
-        await loadExams();
-        state.page = 'home';
-        render();
-        return;
-      }
-    } catch (_) {}
-    toast(e.message);
-    btn.disabled = false;
-    btn.textContent = '登录';
+    if (window.__scoreTrackerShowRequestError) window.__scoreTrackerShowRequestError(e, primaryError && primaryError !== e ? [primaryError] : []);
+    else toast(e.message);
+  } finally {
+    if (btn.isConnected) { btn.disabled = false; btn.textContent = '登录'; }
   }
 }
 
@@ -659,3 +651,4 @@ async function logout() {
 }
 
 init();
+

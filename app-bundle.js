@@ -72,6 +72,7 @@
   });
 })();
 
+
 /* ===== request-budget-v24.js ===== */
 // v24: small client request budget. Loaded before telemetry so background polling can be coalesced.
 (function(){
@@ -123,6 +124,7 @@
     return nativeFetch(input,Object.assign({},init,{body:JSON.stringify(body)}));
   };
 })();
+
 /* ===== telemetry-feedback.js ===== */
 (() => {
   'use strict';
@@ -166,9 +168,9 @@
     if (!r.ok) throw new Error(j.error || '请求失败');
     return j;
   }
-  function track(eventType, metadata = {}, overridePage) {
-    const c = context(); if (overridePage) c.appPage = overridePage;
-    return nativeFetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+  function track(eventType, metadata = {}, overridePage, originalContext, options = {}) {
+    const c = Object.assign(context(), originalContext || {}); if (overridePage) c.appPage = overridePage;
+    return nativeFetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true, signal: options.signal,
       body: JSON.stringify({ action: 'track_event', token: localStorage.getItem('st_token') || '', eventType, context: c, metadata }) }).catch(() => undefined);
   }
 
@@ -295,6 +297,7 @@
   function escapeHtml(v = '') { return String(v).replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 })();
 
+
 /* ===== feedback-statuses.js ===== */
 (() => {
   'use strict';
@@ -356,6 +359,7 @@
   }, true);
 })();
 
+
 /* ===== app-v3.js ===== */
 const API = '/api/score-tracker-api';
 const SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治'];
@@ -393,7 +397,7 @@ async function api(action, payload = {}) {
       state.user = null;
       renderLogin();
     }
-    throw new Error(data.error || '请求失败');
+    throw window.__scoreTrackerResponseError ? window.__scoreTrackerResponseError(res, data, action) : new Error(data.error || '请求失败');
   }
   return data;
 }
@@ -605,7 +609,7 @@ function render() {
     <header class="topbar"><div class="brand"><div class="logo">↗</div><div><h1>成绩轨迹</h1><p>把每一次努力，连成一条向上的线</p></div></div>
     <nav class="desktop-nav">${navButton('home', '概览')}${navButton('records', '考试记录')}${navButton('account', '账号')}</nav></header>
     <main id="content"></main></div>
-    <nav class="bottom-nav">${bottomButton('home', '概览')}${bottomButton('records', '记录')}${bottomButton('account', '账号')}</nav>`;
+    <nav class="bottom-nav">${bottomButton('home', '⌂', '概览')}${bottomButton('records', '▤', '记录')}${bottomButton('account', '○', '账号')}</nav>`;
   renderPage();
   bindNav();
   if (state.onboarding) showOnboarding();
@@ -613,17 +617,8 @@ function render() {
 function navButton(p, label) {
   return `<button class="nav-btn ${state.page === p ? 'active' : ''}" data-page="${p}">${label}</button>`;
 }
-function navIcon(name) {
-  const icons = {
-    home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 10.7 8.5-7 8.5 7v9.8a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M9 22v-6.2h6V22"/></svg>',
-    records: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 3v18M11.5 8h5M11.5 12h5M11.5 16h3.5"/></svg>',
-    stats: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V5M4 20h17"/><path d="M8 17v-4M12 17V8M16 17v-7M20 17v-3"/></svg>',
-    account: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="9" r="2.5"/><path d="M7.5 18c.9-2.2 2.4-3.3 4.5-3.3s3.6 1.1 4.5 3.3"/></svg>'
-  };
-  return icons[name] || icons.home;
-}
-function bottomButton(p, label) {
-  return `<button class="${state.page === p ? 'active' : ''}" data-page="${p}" aria-label="${label}" ${state.page === p ? 'aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true">${navIcon(p)}</span><span>${label}</span></button>`;
+function bottomButton(p, icon, label) {
+  return `<button class="${state.page === p ? 'active' : ''}" data-page="${p}"><span>${icon}</span><span>${label}</span></button>`;
 }
 function bindNav() {
   $$('[data-page]').forEach((b) => {
@@ -971,10 +966,29 @@ function renderLogin(error = '') {
 
 async function login() {
   const btn = $('#loginBtn');
+  document.getElementById('requestErrorDetails')?.remove();
   btn.disabled = true;
   btn.textContent = '登录中…';
+  let primaryError;
   try {
-    const data = await api('login', { username: $('#loginUser').value.trim(), password: $('#loginPass').value });
+    const credentials = { username: $('#loginUser').value.trim(), password: $('#loginPass').value };
+    let data;
+    try {
+      data = await api('login', credentials);
+    } catch (error) {
+      primaryError = error;
+      // Compatibility login may succeed for a password created by the newer account service.
+      if (error.status === 400 || error.status === 429) throw error;
+      const response = await fetch('/api/score-tracker-data-api', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'login_v2', ...credentials })
+      });
+      const result = await response.json().catch(() => ({ error: '网络响应异常' }));
+      if (!response.ok || !result.token) {
+        throw window.__scoreTrackerResponseError ? window.__scoreTrackerResponseError(response, result, 'login_v2') : new Error(result.error || '登录失败');
+      }
+      data = result;
+    }
     state.token = data.token;
     state.user = data.user;
     localStorage.setItem('st_token', data.token);
@@ -983,28 +997,10 @@ async function login() {
     state.page = 'home';
     render();
   } catch (e) {
-    // v2 自定义密码登录回退：旧密码体系查不到时，尝试 data-api 的 v2 口令
-    try {
-      const v2res = await fetch('/api/score-tracker-data-api', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'login_v2', username: $('#loginUser').value.trim(), password: $('#loginPass').value })
-      });
-      const v2 = await v2res.json().catch(() => null);
-      if (v2res.ok && v2 && v2.token) {
-        state.token = v2.token;
-        state.user = v2.user;
-        localStorage.setItem('st_token', v2.token);
-        localStorage.setItem('st_known_user', '1');
-        await loadExams();
-        state.page = 'home';
-        render();
-        return;
-      }
-    } catch (_) {}
-    toast(e.message);
-    btn.disabled = false;
-    btn.textContent = '登录';
+    if (window.__scoreTrackerShowRequestError) window.__scoreTrackerShowRequestError(e, primaryError && primaryError !== e ? [primaryError] : []);
+    else toast(e.message);
+  } finally {
+    if (btn.isConnected) { btn.disabled = false; btn.textContent = '登录'; }
   }
 }
 
@@ -1018,6 +1014,7 @@ async function logout() {
 }
 
 init();
+
 
 /* ===== app-v4.js ===== */
 // v4 enhancement: dynamic radar axes + all-subject overview trend chart
@@ -1216,6 +1213,7 @@ bindPage = function bindPageV4() {
   bindOverviewTooltipV4();
 };
 
+
 /* ===== app-v5.js ===== */
 // v5: move all-subject overview into the existing trend card
 const chartHtmlBeforeV5 = chartHtml;
@@ -1298,6 +1296,7 @@ bindPage = function bindPageV5() {
   bindPageBeforeV5();
   bindOverviewTrendTooltipV5();
 };
+
 
 /* ===== app-v6.js ===== */
 // v6: dynamic chart/radar axis ranges to improve visual separation on mobile
@@ -1449,6 +1448,7 @@ if (typeof radarChartHtml === 'function') {
   };
 }
 
+
 /* ===== app-v7.js ===== */
 // v7: customizable subjects + scientifically normalized rank trends
 const DATA_API_V7 = '/api/score-tracker-data-api';
@@ -1521,7 +1521,7 @@ async function dataApiV7(action, payload = {}) {
       state.user = null;
       renderLogin();
     }
-    throw new Error(data.error || '请求失败');
+    throw window.__scoreTrackerResponseError ? window.__scoreTrackerResponseError(res, data, action) : new Error(data.error || '请求失败');
   }
   return data;
 }
@@ -1878,6 +1878,7 @@ renderLogin = function renderLoginV7(error = '') {
   if (help) help.textContent = '支持自定义科目、目标/真实成绩、排名趋势与多次考试雷达对比。';
 };
 
+
 /* ===== app-v8.js ===== */
 // v8: preserve edits while adding/removing custom subjects and clarify rank-comparison scope
 openSubjectManagerV7 = function openSubjectManagerV8() {
@@ -1958,6 +1959,7 @@ openExam = function openExamV8(exam = null) {
     box.innerHTML += '<br><b>比较口径也要一致：</b>建议长期都使用同一种排名口径，例如都填“年级排名”，不要把班级排名和年级排名混在同一条趋势里。';
   }
 };
+
 
 /* ===== app-v9.js ===== */
 // v9: add normalized rank percentile to radar comparison
@@ -2106,6 +2108,7 @@ bindPage = function bindPageV9() {
     point.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
   });
 };
+
 
 /* ===== app-v10.js ===== */
 // v10: subjects belong to each exam; hide/delete controls; hidden exams stay out of charts
@@ -2357,6 +2360,7 @@ renderLogin = function renderLoginV10(error = '') {
   const help = $('.auth-help'); if (help) help.textContent = '每次考试都可自由增减科目，并支持成绩、排名趋势与排名百分位雷达对比。';
 };
 
+
 /* ===== app-v11.js ===== */
 // v11: add direct raw-rank views beside normalized rank percentile
 state.trendMetric = state.trendMetric || 'score';
@@ -2549,6 +2553,7 @@ radarCardHtml = function radarCardHtmlV11() {
   return html;
 };
 
+
 /* ===== feedback-unread-dot.js ===== */
 // Show unread feedback replies as a small red dot on the feedback button.
 (() => {
@@ -2566,6 +2571,7 @@ radarCardHtml = function radarCardHtmlV11() {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply, { once: true });
   else apply();
 })();
+
 
 /* ===== app-v12.js ===== */
 // v12: mobile radar controls should wrap cleanly instead of overflowing the card
@@ -2625,6 +2631,7 @@ radarCardHtml = function radarCardHtmlV11() {
   `;
   document.head.appendChild(style);
 })();
+
 
 /* ===== app-v13.js ===== */
 // v13: raw-vs-assigned scores + grade grouping/filtering
@@ -2869,6 +2876,7 @@ bindPage = function bindPageV13() {
 const renderLoginBeforeV13 = renderLogin;
 renderLogin = function renderLoginV13(error='') { renderLoginBeforeV13(error); const help=$('.auth-help'); if(help) help.textContent='支持每次考试自由增减科目、原始分/赋分、名次/百分位，以及高一高二高三分类。'; };
 
+
 /* ===== app-v14.js ===== */
 // v14: customizable exam categories + separate raw/final full marks, kept intentionally simple
 state.classification = state.classification || { label: '年级', options: ['高一', '高二', '高三'] };
@@ -2984,6 +2992,7 @@ recordHtml=function recordHtmlV14(exam){let html=recordHtmlBeforeV14(exam);html=
 const bindPageBeforeV14=bindPage;
 bindPage=function bindPageV14(){bindPageBeforeV14();$('#manageCategoriesV14')?.addEventListener('click',openCategoryManagerV14);$$('[data-grade-filter-v13]').forEach(button=>button.onclick=()=>{state.gradeFilter=button.dataset.gradeFilterV13;state.radarSelection=[];applyGradeFilterV13();render();});};
 
+
 /* ===== app-v15.js ===== */
 // v15: simple in-app password change setting
 (function injectV15Styles(){
@@ -3048,6 +3057,7 @@ renderLogin=function renderLoginV15(error){
   var help=document.querySelector('.auth-help');
   if(help) help.textContent='新账号会生成 10 位数字密码；登录后可在账号页改成自己的 6～20 位数字密码。';
 };
+
 
 /* ===== app-v16.js ===== */
 // v16: split rankings into year-grade rank and class rank while preserving all old rank data as year-grade rank.
@@ -3315,6 +3325,7 @@ bindPage=function bindPageV16(){
   $$('[data-trend-scope-v16]').forEach(function(button){button.onclick=function(){var scope=button.dataset.trendScopeV16;if(scope==='score'){state.trendMetric='score';}else{state.rankScopeV16=scope;if(state.trendMetric!=='rank_raw'&&state.trendMetric!=='rank')state.trendMetric='rank_raw';}render();};});
   $$('[data-radar-scope-v16]').forEach(function(button){button.onclick=function(){state.rankScopeV16=button.dataset.radarScopeV16;if(state.radarMode!=='rank_raw'&&state.radarMode!=='rank')state.radarMode='rank_raw';ensureRadarSelection();render();};});
 };
+
 /* ===== app-v17.js ===== */
 // v17 / product v1.1: direct position-percent input, statistical subtotal items, newest-first records.
 state.rankEntryModeV17 = state.rankEntryModeV17 || 'rank';
@@ -3393,6 +3404,7 @@ recordsHtml=function recordsHtmlV17(){var exams=state.allExams||[],hidden=exams.
 
 var bindPageBeforeV17=bindPage;
 bindPage=function bindPageV17(){bindPageBeforeV17();document.querySelectorAll('[data-trend-scope-v16]').forEach(function(button){button.onclick=function(){var scope=button.dataset.trendScopeV16;if(scope==='score'){state.trendMetric='score';}else{state.rankScopeV16=scope;if(hasDirectPercentV17(scope)&&!hasRawRankV17(scope))state.trendMetric='rank';else if(state.trendMetric!=='rank_raw'&&state.trendMetric!=='rank')state.trendMetric='rank_raw';}render();};});document.querySelectorAll('[data-radar-scope-v16]').forEach(function(button){button.onclick=function(){var scope=button.dataset.radarScopeV16;state.rankScopeV16=scope;if(hasDirectPercentV17(scope)&&!hasRawRankV17(scope))state.radarMode='rank';else if(state.radarMode!=='rank_raw'&&state.radarMode!=='rank')state.radarMode='rank_raw';ensureRadarSelection();render();};});};
+
 /* ===== app-v18.js ===== */
 // v18 / product v1.1: score modules, subtle Study Planner cross-link, optional ranking stays optional.
 state.modulesV18 = state.modulesV18 || [];
@@ -3603,6 +3615,7 @@ bindPage=function bindPageV18(){
   var tool=document.getElementById('studyPlannerToolV18');if(tool)tool.addEventListener('click',trackStudyPlannerV18,{capture:true});
 };
 
+
 /* ===== app-v19.js ===== */
 // v19 / product v1.1: readable long trends + username rename while preserving original account name.
 state.originalUsernameV19 = state.originalUsernameV19 || '';
@@ -3794,6 +3807,7 @@ bindPage=function bindPageV19(){
   if(rename)rename.onclick=openUsernameModalV19;
   refreshUsernameIdentityV19();
 };
+
 
 /* ===== app-v20.js ===== */
 // v20 / product v1.1: mobile record polish, compact radar controls, fair latest metric, collapsible groups, raw-only score fallback.
@@ -4013,6 +4027,7 @@ bindPage=function bindPageV20(){
   decorateRecordGroupCollapseV20();
 };
 
+
 /* ===== app-v21.js ===== */
 // v21 / product v1.1: separate subjects from score combinations and make combinations exam-specific.
 (function injectV21Styles(){
@@ -4125,6 +4140,7 @@ saveExam=async function saveExamV21(id,modal){
   if(!exam.name||!exam.exam_date)return toast('请填写考试名称和日期');var error=validateExam(exam);if(error)return toast(error);button.disabled=true;button.textContent='保存中…';try{await dataApiV7('save_exam',{exam:exam});await loadExams();modal.remove();state.modal=null;render();toast(id?'已保存修改':'考试已记录');}catch(e){toast(e.message);button.disabled=false;button.textContent=id?'保存修改':'保存考试';}
 };
 
+
 /* ===== app-v22.js ===== */
 // v22 / product v1.1: keep raw-only fallback scientifically safe across different score scales.
 (function(){
@@ -4141,6 +4157,7 @@ saveExam=async function saveExamV21(id,modal){
   };
   if(typeof recordHtmlBeforeV20==='function')recordHtml=function recordHtmlV22(exam){return recordHtmlBeforeV20(exam);};
 })();
+
 
 /* ===== app-v23.js ===== */
 // v23 / product v1.9: stop subject add/remove mutation storms and keep subject settings lightweight.
@@ -4223,6 +4240,7 @@ saveExam=async function saveExamV21(id,modal){
     };
   }
 })();
+
 
 /* ===== app-v24.js ===== */
 // v24 / product v2.0: explicit subject settings mapping, manual weighted totals, and bundled read requests.
@@ -4443,6 +4461,7 @@ saveExam=async function saveExamV21(id,modal){
 
   syncVersionV24();
 })();
+
 
 /* ===== app-v25.js ===== */
 // v25 / product v2.4: combo ranks, combo trends, score/percent view, full-trend PNG export,
@@ -5523,6 +5542,7 @@ saveExam=async function saveExamV21(id,modal){
   syncVersionV25();
 })();
 
+
 /* ===== app-v26.js ===== */
 // v26 / product v3.0: 记录页分数显示重设计。
 // 胶囊 pill（宽度随内容、换行锯齿）→ 总分强调条 + 等宽分数格（auto-fill 网格，任意宽度都排满整行）。
@@ -5689,6 +5709,7 @@ saveExam=async function saveExamV21(id,modal){
   syncVersionV26();
 })();
 
+
 /* ===== app-v27.js ===== */
 // app-v27 / product v3.1: 修复首页趋势卡「多科彩色图例」被裁切的问题。
 // 根因：总览模式下 .overview-legend 生成在 #chart 容器内部（SVG 之后），而 v19 给 #chart
@@ -5743,6 +5764,7 @@ saveExam=async function saveExamV21(id,modal){
 
   syncVersionV27();
 })();
+
 
 /* ===== app-v28.js ===== */
 // app-v28 / product v3.2: 
@@ -5816,9 +5838,9 @@ saveExam=async function saveExamV21(id,modal){
   function friendlyNetErrorV28(e){
     if(!isNetworkErrorV28(e))return e;
     try{
-      if(navigator.onLine===false)return new Error('当前无网络连接，请联网后重试');
+      if(navigator.onLine===false)return Object.assign(new Error('当前无网络连接，请联网后重试'),e);
     }catch(_){}
-    return new Error('网络连接失败：请检查网络后重试；如果浏览器安装了广告拦截类插件，请允许本站请求后再试');
+    return Object.assign(new Error('暂时无法连接，请稍后重试或切换网络'),e);
   }
   var apiBeforeV28=(typeof api==='function')?api:null;
   if(apiBeforeV28){
@@ -5835,6 +5857,7 @@ saveExam=async function saveExamV21(id,modal){
 
   syncVersionV28();
 })();
+
 
 /* ===== app-v29.js ===== */
 // app-v29 / product v3.3: GUI 视觉提升
@@ -6461,6 +6484,7 @@ saveExam=async function saveExamV21(id,modal){
     seriesPalette:function(){return window.OVERVIEW_COLORS?{total:window.OVERVIEW_COLORS[0],first:window.OVERVIEW_COLORS[1]}:null;}
   };
 })();
+
 
 /* ===== app-v30.js ===== */
 /* app-v30.js · v4.1 数据导出
@@ -7156,6 +7180,7 @@ window.__v30={
 };
 })();
 
+
 /* ===== app-v31.js ===== */
 /* app-v31.js · v4.1 交互与运营层
    1) 图例换色提示升级：一次性 toast → 手动关闭的提示条；图例旁常驻小灰字
@@ -7358,6 +7383,7 @@ window.__v31={
   track:window.__stTrack
 };
 })();
+
 
 /* ===== app-v32.js ===== */
 /* app-v32.js · v5.0 统计分析页
@@ -9035,6 +9061,7 @@ window.__v32={
 };
 })();
 
+
 /* ===== app-v33.js ===== */
 /* app-v33.js · v5.1 长期目标系统 + 市/区排名(总分层面)
    蓝本:design/goal-system.html(四场景 + 统计页联动 + 六项科学加固)
@@ -9714,6 +9741,7 @@ window.__v33={
   reload:loadGoal
 };
 })();
+
 
 /* ===== app-v34.js ===== */
 /* app-v34.js · 深度分析(Beta) —— 自动生成,勿手改
@@ -12199,6 +12227,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
 })();
 
 
+
 /* ===== app-v35.js ===== */
 /* app-v35.js · v6.1 usability fixes: multi-category trends, safe drafts and viewport stability. */
 (function(){
@@ -12316,6 +12345,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   var style=document.createElement('style');style.id='app-v35-style';style.textContent='.grade-filter-v61{align-items:center}.grade-filter-v61 .label{white-space:nowrap}.draft-note-v61{border:1px solid var(--line,#e5e9ef);background:var(--cell,#f7f9fc);color:var(--muted,#687386);border-radius:11px;padding:9px 11px;margin-bottom:12px;font-size:11px;line-height:1.6}.draft-clear-v61{margin-right:auto}.gh-chips{touch-action:pan-y!important}';document.head.appendChild(style);
   window.__v61={captureDraft:captureExam61,readDraft:readDraft61,clearDraft:clearDraft61,filters:function(){return(state.gradeFiltersV61||[]).slice();}};
 })();
+
 
 /* ===== score-worth-model.js ===== */
 /* A retrospective, personal score/rank scale. Not population test equating. */
@@ -12476,6 +12506,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   }
   window.__stScoreWorthModel = { observation: observation, compare: compare, cells: cells, fit: fit, context: context, day: day, key: key, difficultyIndex: difficultyIndex };
 })();
+
 
 /* ===== score-worth.js ===== */
 (function () {
@@ -12649,6 +12680,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   window.__stScoreWorth = { html: html, bind: bind, compare: M.compare, observation: M.observation, difficultyCells: M.cells, heatStyle: heatStyle, heatRamp: heatRamp, heatColor: heatColor };
 })();
 
+
 /* ===== release-notices.js ===== */
 /* Published release versions and loaded asset freshness are checked separately. */
 (function () {
@@ -12780,6 +12812,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   window.__releaseNotices={check:check,compareVersions:compare,currentVersion:function(){return CURRENT;}};
 })();
 
+
 /* ===== account-recovery.js ===== */
 /* Account recovery: anonymous tickets, private lookup, and new-account pickup. */
 (function () {
@@ -12833,3 +12866,4 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   attachForgot();
   window.__accountRecovery={open:function(){screen='apply';renderRecovery()}};
 })();
+
