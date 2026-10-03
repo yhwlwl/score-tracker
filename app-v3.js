@@ -34,7 +34,7 @@ async function api(action, payload = {}) {
       state.user = null;
       renderLogin();
     }
-    throw new Error(data.error || '请求失败');
+    throw window.__scoreTrackerResponseError ? window.__scoreTrackerResponseError(res, data, action) : new Error(data.error || '请求失败');
   }
   return data;
 }
@@ -612,10 +612,29 @@ function renderLogin(error = '') {
 
 async function login() {
   const btn = $('#loginBtn');
+  document.getElementById('requestErrorDetails')?.remove();
   btn.disabled = true;
   btn.textContent = '登录中…';
+  let primaryError;
   try {
-    const data = await api('login', { username: $('#loginUser').value.trim(), password: $('#loginPass').value });
+    const credentials = { username: $('#loginUser').value.trim(), password: $('#loginPass').value };
+    let data;
+    try {
+      data = await api('login', credentials);
+    } catch (error) {
+      primaryError = error;
+      // Compatibility login may succeed for a password created by the newer account service.
+      if (error.status === 400 || error.status === 429) throw error;
+      const response = await fetch('/api/score-tracker-data-api', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'login_v2', ...credentials })
+      });
+      const result = await response.json().catch(() => ({ error: '网络响应异常' }));
+      if (!response.ok || !result.token) {
+        throw window.__scoreTrackerResponseError ? window.__scoreTrackerResponseError(response, result, 'login_v2') : new Error(result.error || '登录失败');
+      }
+      data = result;
+    }
     state.token = data.token;
     state.user = data.user;
     localStorage.setItem('st_token', data.token);
@@ -624,28 +643,10 @@ async function login() {
     state.page = 'home';
     render();
   } catch (e) {
-    // v2 自定义密码登录回退：旧密码体系查不到时，尝试 data-api 的 v2 口令
-    try {
-      const v2res = await fetch('/api/score-tracker-data-api', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'login_v2', username: $('#loginUser').value.trim(), password: $('#loginPass').value })
-      });
-      const v2 = await v2res.json().catch(() => null);
-      if (v2res.ok && v2 && v2.token) {
-        state.token = v2.token;
-        state.user = v2.user;
-        localStorage.setItem('st_token', v2.token);
-        localStorage.setItem('st_known_user', '1');
-        await loadExams();
-        state.page = 'home';
-        render();
-        return;
-      }
-    } catch (_) {}
-    toast(e.message);
-    btn.disabled = false;
-    btn.textContent = '登录';
+    if (window.__scoreTrackerShowRequestError) window.__scoreTrackerShowRequestError(e, primaryError && primaryError !== e ? [primaryError] : []);
+    else toast(e.message);
+  } finally {
+    if (btn.isConnected) { btn.disabled = false; btn.textContent = '登录'; }
   }
 }
 
@@ -659,3 +660,4 @@ async function logout() {
 }
 
 init();
+

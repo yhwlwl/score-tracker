@@ -166,9 +166,9 @@
     if (!r.ok) throw new Error(j.error || '请求失败');
     return j;
   }
-  function track(eventType, metadata = {}, overridePage) {
-    const c = context(); if (overridePage) c.appPage = overridePage;
-    return nativeFetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+  function track(eventType, metadata = {}, overridePage, originalContext, options = {}) {
+    const c = Object.assign(context(), originalContext || {}); if (overridePage) c.appPage = overridePage;
+    return nativeFetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true, signal: options.signal,
       body: JSON.stringify({ action: 'track_event', token: localStorage.getItem('st_token') || '', eventType, context: c, metadata }) }).catch(() => undefined);
   }
 
@@ -295,6 +295,7 @@
   function escapeHtml(v = '') { return String(v).replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 })();
 
+
 /* ===== feedback-statuses.js ===== */
 (() => {
   'use strict';
@@ -393,7 +394,7 @@ async function api(action, payload = {}) {
       state.user = null;
       renderLogin();
     }
-    throw new Error(data.error || '请求失败');
+    throw window.__scoreTrackerResponseError ? window.__scoreTrackerResponseError(res, data, action) : new Error(data.error || '请求失败');
   }
   return data;
 }
@@ -971,10 +972,29 @@ function renderLogin(error = '') {
 
 async function login() {
   const btn = $('#loginBtn');
+  document.getElementById('requestErrorDetails')?.remove();
   btn.disabled = true;
   btn.textContent = '登录中…';
+  let primaryError;
   try {
-    const data = await api('login', { username: $('#loginUser').value.trim(), password: $('#loginPass').value });
+    const credentials = { username: $('#loginUser').value.trim(), password: $('#loginPass').value };
+    let data;
+    try {
+      data = await api('login', credentials);
+    } catch (error) {
+      primaryError = error;
+      // Compatibility login may succeed for a password created by the newer account service.
+      if (error.status === 400 || error.status === 429) throw error;
+      const response = await fetch('/api/score-tracker-data-api', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'login_v2', ...credentials })
+      });
+      const result = await response.json().catch(() => ({ error: '网络响应异常' }));
+      if (!response.ok || !result.token) {
+        throw window.__scoreTrackerResponseError ? window.__scoreTrackerResponseError(response, result, 'login_v2') : new Error(result.error || '登录失败');
+      }
+      data = result;
+    }
     state.token = data.token;
     state.user = data.user;
     localStorage.setItem('st_token', data.token);
@@ -983,28 +1003,10 @@ async function login() {
     state.page = 'home';
     render();
   } catch (e) {
-    // v2 自定义密码登录回退：旧密码体系查不到时，尝试 data-api 的 v2 口令
-    try {
-      const v2res = await fetch('/api/score-tracker-data-api', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'login_v2', username: $('#loginUser').value.trim(), password: $('#loginPass').value })
-      });
-      const v2 = await v2res.json().catch(() => null);
-      if (v2res.ok && v2 && v2.token) {
-        state.token = v2.token;
-        state.user = v2.user;
-        localStorage.setItem('st_token', v2.token);
-        localStorage.setItem('st_known_user', '1');
-        await loadExams();
-        state.page = 'home';
-        render();
-        return;
-      }
-    } catch (_) {}
-    toast(e.message);
-    btn.disabled = false;
-    btn.textContent = '登录';
+    if (window.__scoreTrackerShowRequestError) window.__scoreTrackerShowRequestError(e, primaryError && primaryError !== e ? [primaryError] : []);
+    else toast(e.message);
+  } finally {
+    if (btn.isConnected) { btn.disabled = false; btn.textContent = '登录'; }
   }
 }
 
@@ -1018,6 +1020,7 @@ async function logout() {
 }
 
 init();
+
 
 /* ===== app-v4.js ===== */
 // v4 enhancement: dynamic radar axes + all-subject overview trend chart
@@ -1521,7 +1524,7 @@ async function dataApiV7(action, payload = {}) {
       state.user = null;
       renderLogin();
     }
-    throw new Error(data.error || '请求失败');
+    throw window.__scoreTrackerResponseError ? window.__scoreTrackerResponseError(res, data, action) : new Error(data.error || '请求失败');
   }
   return data;
 }
@@ -1877,6 +1880,7 @@ renderLogin = function renderLoginV7(error = '') {
   const help = $('.auth-help');
   if (help) help.textContent = '支持自定义科目、目标/真实成绩、排名趋势与多次考试雷达对比。';
 };
+
 
 /* ===== app-v8.js ===== */
 // v8: preserve edits while adding/removing custom subjects and clarify rank-comparison scope
@@ -5816,9 +5820,9 @@ saveExam=async function saveExamV21(id,modal){
   function friendlyNetErrorV28(e){
     if(!isNetworkErrorV28(e))return e;
     try{
-      if(navigator.onLine===false)return new Error('当前无网络连接，请联网后重试');
+      if(navigator.onLine===false)return Object.assign(new Error('当前无网络连接，请联网后重试'),e);
     }catch(_){}
-    return new Error('网络连接失败：请检查网络后重试；如果浏览器安装了广告拦截类插件，请允许本站请求后再试');
+    return Object.assign(new Error('暂时无法连接，请稍后重试或切换网络'),e);
   }
   var apiBeforeV28=(typeof api==='function')?api:null;
   if(apiBeforeV28){
@@ -5835,6 +5839,7 @@ saveExam=async function saveExamV21(id,modal){
 
   syncVersionV28();
 })();
+
 
 /* ===== app-v29.js ===== */
 // app-v29 / product v3.3: GUI 视觉提升
