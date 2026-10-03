@@ -422,7 +422,7 @@ function buildPrintHtmlV30(exams,scopeLabel){
     +'.stat{flex:1;text-align:center;padding:9px 4px;border-right:1px solid #e6eaf1}'
     +'.stat:last-child{border-right:0}'
     +'.stat b{font-size:15px;display:block}.stat span{font-size:9.5px;color:#6d7787}'
-    +'h2.sec{font-size:13px;margin:20px 0 8px;color:#1c2430}'
+    +'h2.sec{font-size:13px;margin:20px 0 8px;color:#1c2430;break-after:avoid-page;page-break-after:avoid}'
     +'h2.sec::after{content:"";display:block;width:26px;height:3px;background:#5d72e8;border-radius:2px;margin-top:3px}'
     +'table{width:100%;border-collapse:collapse;font-size:11px}'
     +'th{text-align:left;font-size:9.5px;color:#6d7787;font-weight:600;border-bottom:1.5px solid #d8dde6;padding:4px 6px}'
@@ -440,7 +440,7 @@ function buildPrintHtmlV30(exams,scopeLabel){
     +'i.ok,i.miss{font-style:normal;font-size:9px;border-radius:4px;padding:0 4px;vertical-align:1px}'
     +'i.ok{color:#2f9d76;background:#e8f5ee}'
     +'i.miss{color:#b26a12;background:#fdf3e4}'
-    +'.chart-wrap{border:1px solid #e6eaf1;border-radius:10px;padding:8px 6px 2px}'
+    +'.chart-wrap{border:1px solid #e6eaf1;border-radius:10px;padding:8px 6px 2px;break-inside:avoid;page-break-inside:avoid}'
     +'.chart-note{font-size:9.5px;color:#98a1ae;margin-top:4px}'
     +'.rate-mx{width:100%;border-collapse:collapse;font-size:9.5px}'
     +'.rate-mx th{font-weight:600;color:#6d7787;font-size:9px;border-bottom:1px solid #e6eaf1;padding:5px 6px;text-align:center}'
@@ -449,9 +449,10 @@ function buildPrintHtmlV30(exams,scopeLabel){
     +'.rate-mx .rh{text-align:left;color:#1c2430;font-weight:650;font-size:10px;white-space:nowrap}'
     +'.rate-mx .boldr{font-weight:800}'
     +'.rate-mx.tight th,.rate-mx.tight td{padding:4px 3px;font-size:8.5px}'
+    +'.mx-wrap{break-inside:avoid;page-break-inside:avoid}'
     +'.cellp{display:inline-block;min-width:30px;border-radius:5px;padding:1px 4px;color:#fff;font-size:9px}'
     +'.cellp.boldp{font-weight:800;font-size:9.5px}'
-    +'.rank-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:10px}'
+    +'.rank-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:10px;break-inside:avoid;page-break-inside:avoid}'
     +'.mini{border:1px solid #e6eaf1;border-radius:10px;padding:8px 8px 3px}'
     +'.mini h4{margin:0 0 2px;font-size:11px}'
     +'.exam-block{margin:0 0 16px;page-break-inside:avoid;border:1px solid #e6eaf1;border-radius:10px;padding:12px 13px 10px}'
@@ -460,7 +461,7 @@ function buildPrintHtmlV30(exams,scopeLabel){
     +'.b-name{font-size:12.5px}.b-date{color:#6d7787;font-size:10.5px}'
     +'.combo{font-size:10px;color:#6d7787;margin-top:5px}'
     +'.totline{font-size:11px;margin-top:6px;color:#1c2430}.totline b{font-size:13px}'
-    +'.foot{margin-top:22px;padding-top:10px;border-top:1px solid #e6eaf1;text-align:center;color:#98a1ae;font-size:9.5px}'
+    +'.foot{margin-top:6px;padding-top:5px;border-top:1px solid #e6eaf1;text-align:center;color:#98a1ae;font-size:8px;break-before:avoid-page;page-break-before:avoid}'
     +'</style></head><body>'
     +'<div class="rep-head">'
     +'<div class="brand">'+logoSvg(40)+'<div><b>成绩轨迹</b><small>成绩报告 · Score Report</small></div></div>'
@@ -617,7 +618,7 @@ function injectDataCardV30(){
   var card=document.createElement('div');
   card.className='card account-card data-card-v30';
   card.id='dataCardV30';
-  card.innerHTML='<h3 class="card-title">数据</h3><p class="card-sub">导出成绩与设置，全部在本机完成。</p>'
+  card.innerHTML='<h3 class="card-title">数据</h3><p class="card-sub">选择要保存的成绩、图表和分析。</p>'
     +'<div class="data-actions-v30">'
     +'<button type="button" class="secondary" id="exportDataV30">⬇︎ 导出数据</button>'
     +'<button type="button" class="secondary" id="importDataV30" disabled title="即将支持">⬆︎ 导入恢复<span class="soon-v30">即将支持</span></button>'
@@ -684,9 +685,13 @@ window.__v30={
   buildJson:buildJsonV30,
   buildPrintHtml:buildPrintHtmlV30,
   filename:filenameV30,
+  download:downloadV30,printReport:printReportV30,
   openSheet:openExportSheetV30,
   closeSheet:closeExportSheetV30,
   injectDataCard:injectDataCardV30,
   formats:FORMATS_V30
 };
 })();
+
+
+

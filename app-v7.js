@@ -69,7 +69,7 @@ async function dataApiV7(action, payload = {}) {
       state.user = null;
       renderLogin();
     }
-    throw new Error(data.error || '请求失败');
+    throw window.__scoreTrackerResponseError ? window.__scoreTrackerResponseError(res, data, action) : new Error(data.error || '请求失败');
   }
   return data;
 }
@@ -425,3 +425,4 @@ renderLogin = function renderLoginV7(error = '') {
   const help = $('.auth-help');
   if (help) help.textContent = '支持自定义科目、目标/真实成绩、排名趋势与多次考试雷达对比。';
 };
+

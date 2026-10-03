@@ -1,5 +1,5 @@
 /*! app-bundle.js · 自动生成,勿手改 —— 改源码后运行: node design/build-bundles.js
-   来源顺序: compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js, score-worth-model.js, score-worth.js, release-notices.js, account-recovery.js */
+   来源顺序: compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js, score-worth-model.js, score-worth.js, release-notices.js, account-recovery.js, trajectory-forecast.js, similar-trajectories.js */
 /* ===== compat.js ===== */
 // Compatibility helpers for older iOS Safari/WebViews.
 // Keep this file tiny and load it before the application scripts.
@@ -166,9 +166,9 @@
     if (!r.ok) throw new Error(j.error || '请求失败');
     return j;
   }
-  function track(eventType, metadata = {}, overridePage) {
-    const c = context(); if (overridePage) c.appPage = overridePage;
-    return nativeFetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+  function track(eventType, metadata = {}, overridePage, originalContext, options = {}) {
+    const c = Object.assign(context(), originalContext || {}); if (overridePage) c.appPage = overridePage;
+    return nativeFetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true, signal: options.signal,
       body: JSON.stringify({ action: 'track_event', token: localStorage.getItem('st_token') || '', eventType, context: c, metadata }) }).catch(() => undefined);
   }
 
@@ -295,6 +295,7 @@
   function escapeHtml(v = '') { return String(v).replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 })();
 
+
 /* ===== feedback-statuses.js ===== */
 (() => {
   'use strict';
@@ -393,7 +394,7 @@ async function api(action, payload = {}) {
       state.user = null;
       renderLogin();
     }
-    throw new Error(data.error || '请求失败');
+    throw window.__scoreTrackerResponseError ? window.__scoreTrackerResponseError(res, data, action) : new Error(data.error || '请求失败');
   }
   return data;
 }
@@ -971,10 +972,29 @@ function renderLogin(error = '') {
 
 async function login() {
   const btn = $('#loginBtn');
+  document.getElementById('requestErrorDetails')?.remove();
   btn.disabled = true;
   btn.textContent = '登录中…';
+  let primaryError;
   try {
-    const data = await api('login', { username: $('#loginUser').value.trim(), password: $('#loginPass').value });
+    const credentials = { username: $('#loginUser').value.trim(), password: $('#loginPass').value };
+    let data;
+    try {
+      data = await api('login', credentials);
+    } catch (error) {
+      primaryError = error;
+      // Compatibility login may succeed for a password created by the newer account service.
+      if (error.status === 400 || error.status === 429) throw error;
+      const response = await fetch('/api/score-tracker-data-api', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'login_v2', ...credentials })
+      });
+      const result = await response.json().catch(() => ({ error: '网络响应异常' }));
+      if (!response.ok || !result.token) {
+        throw window.__scoreTrackerResponseError ? window.__scoreTrackerResponseError(response, result, 'login_v2') : new Error(result.error || '登录失败');
+      }
+      data = result;
+    }
     state.token = data.token;
     state.user = data.user;
     localStorage.setItem('st_token', data.token);
@@ -983,28 +1003,10 @@ async function login() {
     state.page = 'home';
     render();
   } catch (e) {
-    // v2 自定义密码登录回退：旧密码体系查不到时，尝试 data-api 的 v2 口令
-    try {
-      const v2res = await fetch('/api/score-tracker-data-api', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'login_v2', username: $('#loginUser').value.trim(), password: $('#loginPass').value })
-      });
-      const v2 = await v2res.json().catch(() => null);
-      if (v2res.ok && v2 && v2.token) {
-        state.token = v2.token;
-        state.user = v2.user;
-        localStorage.setItem('st_token', v2.token);
-        localStorage.setItem('st_known_user', '1');
-        await loadExams();
-        state.page = 'home';
-        render();
-        return;
-      }
-    } catch (_) {}
-    toast(e.message);
-    btn.disabled = false;
-    btn.textContent = '登录';
+    if (window.__scoreTrackerShowRequestError) window.__scoreTrackerShowRequestError(e, primaryError && primaryError !== e ? [primaryError] : []);
+    else toast(e.message);
+  } finally {
+    if (btn.isConnected) { btn.disabled = false; btn.textContent = '登录'; }
   }
 }
 
@@ -1018,6 +1020,7 @@ async function logout() {
 }
 
 init();
+
 
 /* ===== app-v4.js ===== */
 // v4 enhancement: dynamic radar axes + all-subject overview trend chart
@@ -1521,7 +1524,7 @@ async function dataApiV7(action, payload = {}) {
       state.user = null;
       renderLogin();
     }
-    throw new Error(data.error || '请求失败');
+    throw window.__scoreTrackerResponseError ? window.__scoreTrackerResponseError(res, data, action) : new Error(data.error || '请求失败');
   }
   return data;
 }
@@ -1877,6 +1880,7 @@ renderLogin = function renderLoginV7(error = '') {
   const help = $('.auth-help');
   if (help) help.textContent = '支持自定义科目、目标/真实成绩、排名趋势与多次考试雷达对比。';
 };
+
 
 /* ===== app-v8.js ===== */
 // v8: preserve edits while adding/removing custom subjects and clarify rank-comparison scope
@@ -3389,10 +3393,13 @@ saveExam=async function saveExamV17(id,modal){var button=modal.querySelector('.s
 
 recordHtml=function recordHtmlV17(exam){var subjects=Object.keys(exam.scores||{}),finalTotal=totalFor(exam,'actual'),rawTotal=totalRawForV13(exam);var tags=subjects.map(function(subject){var row=exam.scores[subject]||{},a=num(row.actual),raw=num(row.raw),t=num(row.target),year=rankInfoByScopeV16(exam,subject,'year'),cls=rankInfoByScopeV16(exam,subject,'class');if(a===null&&raw===null&&t===null&&year.rank===null&&year.positionPercent===null&&cls.rank===null&&cls.positionPercent===null)return'';var rankText='';if(year.directPercent)rankText+=` · 年位比 前${formatPercent(year.positionPercent)}`;else if(year.rank!==null)rankText+=` · 年排 ${year.rank}${year.participants?`/${year.participants}`:''}`;if(cls.directPercent)rankText+=` · 班位比 前${formatPercent(cls.positionPercent)}`;else if(cls.rank!==null)rankText+=` · 班排 ${cls.rank}${cls.participants?`/${cls.participants}`:''}`;return `<span class="score-tag">${escapeHtml(subject)}${row.excludeFromTotal?'<span class="stat-badge-v17">统计项</span>':''} ${a===null?'—':formatScore(a)}${raw!==null?`<span class="raw-final-inline-v13"> · 原始 <b>${formatScore(raw)}</b></span>`:''}<span style="color:#a1a9b5"> / 目标 ${t===null?'—':formatScore(t)}</span>${rankText?`<span style="color:#667085">${rankText}</span>`:''}</span>`;}).join('');var year=rankInfoByScopeV16(exam,'总分','year'),cls=rankInfoByScopeV16(exam,'总分','class'),badges='';if(year.directPercent)badges+=`<span class="score-tag"><b>年位比 前${formatPercent(year.positionPercent)}</b></span>`;else if(year.rank!==null)badges+=`<span class="score-tag"><b>年排 ${year.rank}${year.participants?` / ${year.participants}`:''}</b></span>`;if(cls.directPercent)badges+=`<span class="score-tag"><b>班位比 前${formatPercent(cls.positionPercent)}</b></span>`;else if(cls.rank!==null)badges+=`<span class="score-tag"><b>班排 ${cls.rank}${cls.participants?` / ${cls.participants}`:''}</b></span>`;return `<div class="record ${exam.is_hidden?'hidden-record-v10':''}"><div class="record-date">${fmtYearDate(exam.exam_date)}<b>${escapeHtml(exam.name)}<span class="grade-badge-v13">${escapeHtml(exam.grade_level||'未分类')}</span>${exam.is_hidden?'<span class="hidden-badge-v10">已隐藏</span>':''}</b></div><div class="record-scores">${tags||'<span class="score-tag">尚未填写分数或排名</span>'}<span class="score-tag"><b>赋分总分 ${finalTotal===null?'—':formatScore(finalTotal)}</b>${rawTotal!==null?` · 原始总分 ${formatScore(rawTotal)}`:''}</span>${badges}</div><div class="record-actions record-actions-v10"><button class="record-action-btn-v10" data-edit="${exam.id}">编辑</button><button class="record-action-btn-v10" data-hidden-toggle="${exam.id}">${exam.is_hidden?'恢复显示':'隐藏'}</button><button class="record-action-btn-v10 danger" data-delete="${exam.id}">删除</button></div></div>`;};
 
-recordsHtml=function recordsHtmlV17(){var exams=state.allExams||[],hidden=exams.filter(function(e){return e.is_hidden;}).length,order=categoryOptionsV14();function byDateAsc(a,b){var d=String(a.exam_date||'').localeCompare(String(b.exam_date||''));if(d)return d;return String(a.created_at||'').localeCompare(String(b.created_at||''));}var groups=[...order.map(function(v){return{name:v,exams:exams.filter(function(e){return e.grade_level===v;}).sort(byDateAsc)};}),{name:'未分类',exams:exams.filter(function(e){return !e.grade_level;}).sort(byDateAsc)}].filter(function(g){return g.exams.length;});return `<div class="page-head"><div><h2>考试记录</h2><p>按${escapeHtml(categoryLabelV14())}分组，每组按考试时间从早到晚。${hidden?` ${hidden} 次已隐藏。`:''}</p></div><button class="primary" id="addExam">＋ 新建</button></div>${groups.length?groups.map(function(g){return `<section class="grade-section-v13"><div class="grade-section-head-v13"><h3>${escapeHtml(g.name)}</h3><span>${g.exams.length} 次</span></div><div class="card records-card">${g.exams.map(recordHtml).join('')}</div></section>`;}).join(''):`<div class="card records-card"><div class="empty-chart" style="height:260px"><div>还没有考试记录<br><button class="secondary" id="emptyAdd" style="margin-top:14px">记录第一场考试</button></div></div></div>`}`;};
+recordsHtml=function recordsHtmlV17(){var exams=state.allExams||[],hidden=exams.filter(function(e){return e.is_hidden;}).length,order=categoryOptionsV14();function byDateDesc(a,b){var d=String(b.exam_date||'').localeCompare(String(a.exam_date||''));if(d)return d;return String(b.created_at||'').localeCompare(String(a.created_at||''))||String(b.id||'').localeCompare(String(a.id||''));}var groups=[...order.map(function(v){return{name:v,exams:exams.filter(function(e){return e.grade_level===v;}).sort(byDateDesc)};}),{name:'未分类',exams:exams.filter(function(e){return !e.grade_level;}).sort(byDateDesc)}].filter(function(g){return g.exams.length;}).sort(function(a,b){return byDateDesc(a.exams[0],b.exams[0]);});return `<div class="page-head"><div><h2>考试记录</h2><p>最近的考试排在前面。${hidden?` ${hidden} 次已隐藏。`:''}</p></div><button class="primary" id="addExam">＋ 新建</button></div>${groups.length?groups.map(function(g){return `<section class="grade-section-v13"><div class="grade-section-head-v13"><h3>${escapeHtml(g.name)}</h3><span>${g.exams.length} 次</span></div><div class="card records-card">${g.exams.map(recordHtml).join('')}</div></section>`;}).join(''):`<div class="card records-card"><div class="empty-chart" style="height:260px"><div>还没有考试记录<br><button class="secondary" id="emptyAdd" style="margin-top:14px">记录第一场考试</button></div></div></div>`}`;};
 
 var bindPageBeforeV17=bindPage;
 bindPage=function bindPageV17(){bindPageBeforeV17();document.querySelectorAll('[data-trend-scope-v16]').forEach(function(button){button.onclick=function(){var scope=button.dataset.trendScopeV16;if(scope==='score'){state.trendMetric='score';}else{state.rankScopeV16=scope;if(hasDirectPercentV17(scope)&&!hasRawRankV17(scope))state.trendMetric='rank';else if(state.trendMetric!=='rank_raw'&&state.trendMetric!=='rank')state.trendMetric='rank_raw';}render();};});document.querySelectorAll('[data-radar-scope-v16]').forEach(function(button){button.onclick=function(){var scope=button.dataset.radarScopeV16;state.rankScopeV16=scope;if(hasDirectPercentV17(scope)&&!hasRawRankV17(scope))state.radarMode='rank';else if(state.radarMode!=='rank_raw'&&state.radarMode!=='rank')state.radarMode='rank_raw';ensureRadarSelection();render();};});};
+
+
+
 /* ===== app-v18.js ===== */
 // v18 / product v1.1: score modules, subtle Study Planner cross-link, optional ranking stays optional.
 state.modulesV18 = state.modulesV18 || [];
@@ -5745,7 +5752,7 @@ saveExam=async function saveExamV21(id,modal){
 })();
 
 /* ===== app-v28.js ===== */
-// app-v28 / product v3.2: 
+// app-v28 / product v3.2:
 // A) 折线图配色去重：原始分总览（v13）依赖 OVERVIEW_COLORS、排名图（v7/v11/v25）依赖
 //    OVERVIEW_COLORS_V4，但两者此前均未定义 → 回退到小调色板按 index 取模
 //    （RADAR_COLORS 仅 4 色 / 排名 10 色），科目一多颜色必然重复。
@@ -5816,9 +5823,9 @@ saveExam=async function saveExamV21(id,modal){
   function friendlyNetErrorV28(e){
     if(!isNetworkErrorV28(e))return e;
     try{
-      if(navigator.onLine===false)return new Error('当前无网络连接，请联网后重试');
+      if(navigator.onLine===false)return Object.assign(new Error('当前无网络连接，请联网后重试'),e);
     }catch(_){}
-    return new Error('网络连接失败：请检查网络后重试；如果浏览器安装了广告拦截类插件，请允许本站请求后再试');
+    return Object.assign(new Error('暂时无法连接，请稍后重试或切换网络'),e);
   }
   var apiBeforeV28=(typeof api==='function')?api:null;
   if(apiBeforeV28){
@@ -5835,6 +5842,9 @@ saveExam=async function saveExamV21(id,modal){
 
   syncVersionV28();
 })();
+
+
+
 
 /* ===== app-v29.js ===== */
 // app-v29 / product v3.3: GUI 视觉提升
@@ -6887,7 +6897,7 @@ function buildPrintHtmlV30(exams,scopeLabel){
     +'.stat{flex:1;text-align:center;padding:9px 4px;border-right:1px solid #e6eaf1}'
     +'.stat:last-child{border-right:0}'
     +'.stat b{font-size:15px;display:block}.stat span{font-size:9.5px;color:#6d7787}'
-    +'h2.sec{font-size:13px;margin:20px 0 8px;color:#1c2430}'
+    +'h2.sec{font-size:13px;margin:20px 0 8px;color:#1c2430;break-after:avoid-page;page-break-after:avoid}'
     +'h2.sec::after{content:"";display:block;width:26px;height:3px;background:#5d72e8;border-radius:2px;margin-top:3px}'
     +'table{width:100%;border-collapse:collapse;font-size:11px}'
     +'th{text-align:left;font-size:9.5px;color:#6d7787;font-weight:600;border-bottom:1.5px solid #d8dde6;padding:4px 6px}'
@@ -6905,7 +6915,7 @@ function buildPrintHtmlV30(exams,scopeLabel){
     +'i.ok,i.miss{font-style:normal;font-size:9px;border-radius:4px;padding:0 4px;vertical-align:1px}'
     +'i.ok{color:#2f9d76;background:#e8f5ee}'
     +'i.miss{color:#b26a12;background:#fdf3e4}'
-    +'.chart-wrap{border:1px solid #e6eaf1;border-radius:10px;padding:8px 6px 2px}'
+    +'.chart-wrap{border:1px solid #e6eaf1;border-radius:10px;padding:8px 6px 2px;break-inside:avoid;page-break-inside:avoid}'
     +'.chart-note{font-size:9.5px;color:#98a1ae;margin-top:4px}'
     +'.rate-mx{width:100%;border-collapse:collapse;font-size:9.5px}'
     +'.rate-mx th{font-weight:600;color:#6d7787;font-size:9px;border-bottom:1px solid #e6eaf1;padding:5px 6px;text-align:center}'
@@ -6914,9 +6924,10 @@ function buildPrintHtmlV30(exams,scopeLabel){
     +'.rate-mx .rh{text-align:left;color:#1c2430;font-weight:650;font-size:10px;white-space:nowrap}'
     +'.rate-mx .boldr{font-weight:800}'
     +'.rate-mx.tight th,.rate-mx.tight td{padding:4px 3px;font-size:8.5px}'
+    +'.mx-wrap{break-inside:avoid;page-break-inside:avoid}'
     +'.cellp{display:inline-block;min-width:30px;border-radius:5px;padding:1px 4px;color:#fff;font-size:9px}'
     +'.cellp.boldp{font-weight:800;font-size:9.5px}'
-    +'.rank-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:10px}'
+    +'.rank-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:10px;break-inside:avoid;page-break-inside:avoid}'
     +'.mini{border:1px solid #e6eaf1;border-radius:10px;padding:8px 8px 3px}'
     +'.mini h4{margin:0 0 2px;font-size:11px}'
     +'.exam-block{margin:0 0 16px;page-break-inside:avoid;border:1px solid #e6eaf1;border-radius:10px;padding:12px 13px 10px}'
@@ -6925,7 +6936,7 @@ function buildPrintHtmlV30(exams,scopeLabel){
     +'.b-name{font-size:12.5px}.b-date{color:#6d7787;font-size:10.5px}'
     +'.combo{font-size:10px;color:#6d7787;margin-top:5px}'
     +'.totline{font-size:11px;margin-top:6px;color:#1c2430}.totline b{font-size:13px}'
-    +'.foot{margin-top:22px;padding-top:10px;border-top:1px solid #e6eaf1;text-align:center;color:#98a1ae;font-size:9.5px}'
+    +'.foot{margin-top:6px;padding-top:5px;border-top:1px solid #e6eaf1;text-align:center;color:#98a1ae;font-size:8px;break-before:avoid-page;page-break-before:avoid}'
     +'</style></head><body>'
     +'<div class="rep-head">'
     +'<div class="brand">'+logoSvg(40)+'<div><b>成绩轨迹</b><small>成绩报告 · Score Report</small></div></div>'
@@ -7082,7 +7093,7 @@ function injectDataCardV30(){
   var card=document.createElement('div');
   card.className='card account-card data-card-v30';
   card.id='dataCardV30';
-  card.innerHTML='<h3 class="card-title">数据</h3><p class="card-sub">导出成绩与设置，全部在本机完成。</p>'
+  card.innerHTML='<h3 class="card-title">数据</h3><p class="card-sub">选择要保存的成绩、图表和分析。</p>'
     +'<div class="data-actions-v30">'
     +'<button type="button" class="secondary" id="exportDataV30">⬇︎ 导出数据</button>'
     +'<button type="button" class="secondary" id="importDataV30" disabled title="即将支持">⬆︎ 导入恢复<span class="soon-v30">即将支持</span></button>'
@@ -7149,12 +7160,16 @@ window.__v30={
   buildJson:buildJsonV30,
   buildPrintHtml:buildPrintHtmlV30,
   filename:filenameV30,
+  download:downloadV30,printReport:printReportV30,
   openSheet:openExportSheetV30,
   closeSheet:closeExportSheetV30,
   injectDataCard:injectDataCardV30,
   formats:FORMATS_V30
 };
 })();
+
+
+
 
 /* ===== app-v31.js ===== */
 /* app-v31.js · v4.1 交互与运营层
@@ -7960,6 +7975,7 @@ function quadSvgV32(pts,overallPos){
   function X(v){return L+cw*(v-X0)/(X1-X0);}
   function Y(pos){return T+chh*(clamp32(pos,P0,P1)-P0)/(P1-P0);} /* 位比小=靠上 */
   var x0=X(0),yh=Y(overallPos===null||!Number.isFinite(overallPos)?P1:overallPos),s="";
+  var overallText='你的总分水平 '+fmtPos32(overallPos),overallY=Math.max(T+10,yh-5);
   function rect(x1,y1,x2,y2,f){return '<rect x="'+Math.min(x1,x2)+'" y="'+Math.min(y1,y2)+'" width="'+Math.abs(x2-x1)+'" height="'+Math.abs(y2-y1)+'" fill="'+f+'"/>';}
   s+=rect(L,T,x0,yh,"rgba(93,114,232,.06)")+rect(x0,T,W-R,yh,"rgba(50,167,122,.07)")
     +rect(L,yh,x0,H-B,"rgba(217,92,92,.06)")+rect(x0,yh,W-R,H-B,"rgba(229,155,69,.07)");
@@ -7972,7 +7988,7 @@ function quadSvgV32(pts,overallPos){
   }
   s+='<line x1="'+x0+'" y1="'+T+'" x2="'+x0+'" y2="'+(H-B)+'" stroke="var(--line,#e8ebf0)" stroke-dasharray="4 3"/>'
     +'<line x1="'+L+'" y1="'+yh+'" x2="'+(W-R)+'" y2="'+yh+'" stroke="var(--muted,#98a1ae)"/>'
-    +'<text x="'+(W-R)+'" y="'+Math.max(T+10,yh-5)+'" text-anchor="end" font-size="9" fill="var(--muted,#98a1ae)">你的总分水平 '+fmtPos32(overallPos)+"</text>"
+    +'<text x="'+(W-R)+'" y="'+overallY+'" text-anchor="end" font-size="9" fill="var(--muted,#98a1ae)">'+overallText+"</text>"
     +'<text x="'+L+'" y="'+(H-B+17)+'" font-size="9.5" fill="var(--muted,#788392)">\u2190 每场在后退</text>'
     +'<text x="'+(W-R)+'" y="'+(H-B+17)+'" text-anchor="end" font-size="9.5" fill="var(--muted,#788392)">每场在前进 \u2192</text>'
     +'<text x="'+x0+'" y="'+(H-B+17)+'" text-anchor="middle" font-size="9.5" fill="var(--muted,#788392)">0</text>'
@@ -7981,7 +7997,16 @@ function quadSvgV32(pts,overallPos){
     +'<text x="'+(L+8)+'" y="'+(H-B-8)+'" font-size="10" font-weight="700" fill="rgba(217,92,92,.6)">重点警报</text>'
     +'<text x="'+(W-R-8)+'" y="'+(H-B-8)+'" text-anchor="end" font-size="10" font-weight="700" fill="rgba(229,155,69,.65)">快速爬升</text>';
   var boxes=[];
+  /* 先给固定说明文字留出安全区，避免右上方的科目标签压住总分基准线。 */
+  boxes.push({x:L+4,y:T-2,w:92,h:18});
+  boxes.push({x:W-R-104,y:T-2,w:104,h:18});
+  boxes.push({x:L+4,y:H-B-22,w:92,h:18});
+  boxes.push({x:W-R-104,y:H-B-22,w:104,h:18});
+  if(overallPos!==null&&Number.isFinite(overallPos)){
+    boxes.push({x:W-R-170,y:overallY-11,w:170,h:16});
+  }
   function fits(x,y,w,hh){
+    if(x<L-2||x+w>W-R+2||y<T-2||y+hh>H-B+2)return false;
     return !boxes.some(function(b){return x<b.x+b.w&&x+w>b.x&&y<b.y+b.h&&y+hh>b.y;});
   }
   var placedDots=[];
@@ -8034,15 +8059,15 @@ function controlsHtmlV32(f){
   var mode=scope.mode||"rank";
   return '<div class="sv31-controls"><div class="chips sv31-scroll-x" id="sv31Scope">'+chips+"</div>"
     +'<div class="sv31-seg" id="sv31Mode">'
-    +'<button class="'+(mode==="rank"?"active":"")+'" data-mode="rank">排名模式(推荐)</button>'
+    +'<button class="'+(mode==="rank"?"active":"")+'" data-mode="rank">排名模式</button>'
     +'<button class="'+(mode==="score"?"active":"")+'" data-mode="score">分数模式</button></div>'
     +(mode==="score"
-      ?'<div class="sv31-warn">当前为<b>分数模式</b>:各科是不同试卷、各次考试难度不同,分数跨考试不可直接比较,仅供同卷阅读。结论以排名模式为准。</div>'
-      :'<div class="sv31-modenote">排名模式 · 跨卷比较以名次为准;切「分数模式」可看各科卷面分与得分率</div>')
+      ?'<div class="sv31-warn">不同试卷难度不同，分数变化仅供参考。</div>'
+      :'<div class="sv31-modenote">排名越靠前，表现越好。</div>')
     +"</div>";
 }
 /* 名次口径模块在分数模式下打的标 */
-function lockTagV32(mode){return mode==="score"?'<span class="sv31-tag">名次口径 · 不随模式切换</span>':"";}
+function lockTagV32(mode){return mode==="score"?'<span class="sv31-tag">按排名比较</span>':"";}
 /* 「最近一次」小注:第几次考试 + 日期(行里缺 date 时从 exams[i].exam_date 补) */
 function exNoteV32(x,f){
   if(!x)return "";
@@ -8162,7 +8187,7 @@ function trendHtmlV32(f,mode){
         sc.map(function(x){return shortName32(x.name);}),{unit:"分",marks:marks});
     }
   }
-  return '<div class="card"><div class="card-title-row">'
+  return '<div class="card sv31-trend-card"><div class="card-title-row">'
     +'<div><h3 class="card-title">③ 趋势与进步</h3><p class="card-sub">'+sub+"</p></div>"
     +'<span class="sv31-tag" title="当前分析的总分/序列口径，随顶部组合选择联动">数据口径: '+esc32(f.totalLabel||"总分")+"</span>"
     +'<div class="sv31-seg sv31-tabs"><button class="'+(mode==="rank"?"active":"")+'" data-sv31-tab="rank">排名走势</button>'
@@ -8176,7 +8201,7 @@ function trendHtmlV32(f,mode){
       ?'<p class="card-sub">这些考试没录名次,排名走势暂时是空的——已自动切到「分数参考」。下次补录「名次 + 总人数」即可解锁。</p>'
       :'<p class="card-sub">出分满 2 次后显示走势。</p>'))+"</div>"
     +'<div class="sv31-pane'+(mode==="score"?" on":"")+'" data-pane="score">'+(paneScore||'<p class="card-sub">出分满 2 次后显示分数走势。</p>')+"</div>"
-    +speedTableHtmlV32(f)+"</div>";
+    +speedTableHtmlV32(f)+(window.__stTrajectories?window.__stTrajectories.html():"")+"</div>";
 }
 function speedTableHtmlV32(f){
   var rows=[];
@@ -8601,17 +8626,17 @@ function qualityHtmlV32(f){
   if(q.smallSubs.length)items.push("<li>数据太少不下结论:"+esc32(q.smallSubs.join("、"))+"不足 3 次成绩,不给趋势判断</li>");
   if(q.smallCohort.length)items.push("<li>"+q.smallCohort.length+" 次考试参考人数很少(30人以内):相关说法自动更保守</li>");
   if(q.cohortChange>0)items.push("<li>"+q.cohortChange+" 处相邻考试的参考人数变化≥30%:跨场名次跳变可能由范围变化引起,相关结论已自动谨慎处理</li>");
-  return '<div class="card sv31-quality"><div class="card-title-row"><div><h3 class="card-title">⑩ 数据质量与方法论</h3>'
-    +'<p class="card-sub">缺什么、弱在哪,明明白白告诉你</p></div></div>'
-    +(items.length?'<ul style="margin:0;padding-left:18px">'+items.join("")+"</ul>":'<p class="card-sub">当前范围内没有发现缺口,数据很完整。</p>')
-    +'<details class="sv31-method"><summary>这些结论是怎么算出来的?(方法论与局限声明)</summary><div class="m-body">'
+  return '<div class="card sv31-quality"><div class="card-title-row"><div><h3 class="card-title">⑩ 数据与计算方法</h3>'
+    +'<p class="card-sub">看看哪些记录还可以补全</p></div></div>'
+    +(items.length?'<ul style="margin:0;padding-left:18px">'+items.join("")+"</ul>":'<p class="card-sub">当前记录没有明显缺项。</p>')
+    +'<details class="sv31-method"><summary>怎么算的</summary><div class="m-body">'
     +'<b>名词对照</b>:「排名」指名次÷参考人数(第57名/310人=前18%,专业术语叫位比);「个百分点」即 pp。<br>'
     +'<b>比较口径</b>:跨考试主要比较排名位置，不直接把卷面分数当作能力变化。「成绩含金量」用相对难度模型提供换算参考，不是正式等值分。手动填写过总分时以手动值为准;不计总分的科目不参与总分口径。<br>'
-    +'<b>序数性声明</b>:排名位置是序数指标,前10%区每1个百分点的难度大于中段,规则阈值按分段收紧。<br>'
+    +'<b>排名的特点</b>:排名位置是序数指标,前10%区每1个百分点的难度大于中段,规则阈值按分段收紧。<br>'
     +'<b>科目级难度信号</b>:分数与排名一起看，能为理解成绩提供线索。矩阵与深度分析使用同一难度内核；单人历史不能确定整张试卷的真实难度，也不能保证不同参考人群之间可比。'
     +METHOD_MATH_V32
-    +'<b>局限声明</b>:① 难度信号是推断,也可能是临场失误,仅用于解读,不改变排名结论;② 无法区分「卷易」与「你该科突然开窍」;③ 无他人分数,分布类结论仅基于你自己的等位线。<br>'
-    +'<b>样本门槛</b>:进步速度与稳定性≥3场;离群检测≥5场,不足时降级措辞。</div></details></div>';
+    +'<b>参考时注意</b>:① 难度信号是推断,也可能是临场失误,仅用于解读,不改变排名结论;② 无法区分「卷易」与「你该科突然开窍」;③ 无他人分数,分布类结论仅基于你自己的等位线。<br>'
+    +'<b>需要多少次考试</b>:进步速度与稳定性≥3场;离群检测≥5场,不足时降级措辞。</div></details></div>';
 }
 /* ---------- 页面装配 ---------- */
 function worthCellV32(i,s,content,label){
@@ -8643,12 +8668,13 @@ function statsPageV32(f){
   var modBar=(comboRow||subjRow)?'<div style="margin-top:2px" '+
     'title="与账户「组合设置」联动；选中后，下方所有板块只分析该组合/科目">'+comboRow+subjRow+"</div>":"";
   var head='<div class="page-head"><div><h2>统计分析</h2><p>'+f.exams.length+" 次考试 · "+Math.max(f.scoredExams,f.totalSeries.length,f.rateCount)+" 场可分析</p></div>"
-    +'<span class="sv31-tag">本地实时计算 · 数据不出你的设备</span></div>';
+    +'</div>';
   if(f.scoredExams<1){
     return '<div class="sv31-page">'+head+modBar+controlsHtmlV32(f)
-      +'<div class="card"><div class="card-title-row"><div><h3 class="card-title">先从一次考试开始</h3></div></div>'
-      +'<p class="card-sub">这里会用排名帮你回答三个问题:我在进步吗?强弱科在哪?目标定得合理吗?现在还没有已出分的考试——去「考试记录」录入第一场吧。</p></div>'
-      +qualityHtmlV32(f)+"</div>";
+      +'<div class="card"><div class="card-title-row"><div><h3 class="card-title">记录第一场考试</h3></div></div>'
+      +'<p class="card-sub">去「考试记录」填入成绩，就能在这里看趋势和强弱科。</p></div>'
+      +(window.__stTrajectories?'<div class="card">'+window.__stTrajectories.html()+"</div>":"")+qualityHtmlV32(f)+"</div>";
+  }
   }
   var ins=buildInsightsV32(f);
   return '<div class="sv31-page">'+head+modBar+controlsHtmlV32(f)
@@ -8705,7 +8731,8 @@ function injectStylesV32(){
     ".sv31-insight b{font-size:13.5px}.sv31-insight p{margin:4px 0 0;font-size:12.5px;color:var(--muted,#667085);line-height:1.7;width:100%}",
     ".sv31-insight .ev{cursor:pointer;font-size:10.5px;color:var(--muted,#98a1ae);background:var(--chip-bg,#f4f6fa);border-radius:7px;padding:2px 7px}",
     ".sv31-insight .ev:hover{color:var(--accent,#5d72e8);background:var(--accent-soft,#eef1ff)}",
-    ".sv31-evbody{width:100%;font-size:11px;color:var(--muted,#788392);background:var(--chip-bg,#f4f6fa);border-radius:8px;padding:7px 10px;line-height:1.7;margin-top:9px;white-space:pre-line}",
+    ".sv31-insight>div:nth-child(2){min-width:0;flex:1 1 calc(100% - 46px)}",
+    ".sv31-evbody{flex:0 0 100%;box-sizing:border-box;min-width:0;width:100%;font-size:11px;color:var(--muted,#788392);background:var(--chip-bg,#f4f6fa);border-radius:8px;padding:7px 10px;line-height:1.7;margin-top:9px;white-space:pre-line;overflow-wrap:anywhere;word-break:normal}",
     /* ⓘ 折叠依据:圆圈i默认收起,点击展开结构化依据(考试/数据/计算/判断) */
     ".sv31-evi{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;border:1px solid rgba(127,127,127,.55);font-size:9.5px;font-style:normal;font-weight:700;cursor:pointer;opacity:.5;vertical-align:-3px;margin-left:5px;user-select:none;flex:none}",
     ".sv31-evi:hover{opacity:1;border-color:var(--accent,#5d72e8);color:var(--accent,#5d72e8)}",
@@ -8908,6 +8935,7 @@ function routeStatsV32(){
   c.innerHTML=statsPageV32(f);
   try{bindStatsV32(f,c.firstElementChild);}catch(e){}
   if(window.__stScoreWorth)window.__stScoreWorth.bind(c.firstElementChild,f);
+  if(window.__stTrajectories)window.__stTrajectories.bind(c.firstElementChild,f);
   /* 渲染后让 v29 图例取色/显隐对统计页图表生效(图二/图三换色与勾选显示) */
   try{if(window.__v29&&window.__v29.afterRender)window.__v29.afterRender();}catch(e){}
   window.scrollTo(0,sy);
@@ -8997,14 +9025,11 @@ function ensureNavV32(){
     var accB=bn.querySelector('[data-page="account"]');
     var bb=document.createElement("button");
     bb.className="";bb.setAttribute("data-page","stats");
-    bb.setAttribute("aria-label","分析");
-    bb.innerHTML='<span class="nav-icon" aria-hidden="true">'+navIcon('stats')+'</span><span>分析</span>';
+    bb.innerHTML='<span>▦</span><span>分析</span>';
     accB?bn.insertBefore(bb,accB):bn.appendChild(bb);
   }
   document.querySelectorAll('.desktop-nav [data-page],.bottom-nav [data-page]').forEach(function(el){
-    var active=el.getAttribute("data-page")===page;
-    el.classList.toggle("active",active);
-    if(active)el.setAttribute("aria-current","page");else el.removeAttribute("aria-current");
+    el.classList.toggle("active",el.getAttribute("data-page")===page);
   });
 }
 /* 包装渲染入口:注入导航 + 拦截 stats 页 */
@@ -9030,10 +9055,12 @@ window.__v32={
   applySubjectModule:applySubjectModuleV32,
   lineSvg:lineSvgV32,quadSvg:quadSvgV32,donut:donutSvgV32,spark:sparkSvg32,
   speedText:speedTextV32,rerender:rerenderStatsV32,
-  kpi:kpiHtmlV32,trend:trendHtmlV32,structure:structureHtmlV32,hall:hallHtmlV32,
+  insights:function(f){return insightsHtmlV32(buildInsightsV32(f));},kpi:kpiHtmlV32,trend:trendHtmlV32,structure:structureHtmlV32,hall:hallHtmlV32,
   calib:calibHtmlV32,comp:compHtmlV32,matrix:matrixSectionHtmlV32,quality:qualityHtmlV32
 };
 })();
+
+
 
 /* ===== app-v33.js ===== */
 /* app-v33.js · v5.1 长期目标系统 + 市/区排名(总分层面)
@@ -11856,13 +11883,13 @@ var PAL2NS = (window.PAL = window.PAL || {});
     var body;
     if (obs.length < 4) {
       body = '<div style="font-size:13px;opacity:.75;padding:6px 0 2px">' +
-        (combo ? '组合「' + esc(combo.name) + '」没有填写过「组合年排」，' : '该序列') +
-        '有效位比观测不足 4 场，暂无法建模。' +
+        (combo ? '组合「' + esc(combo.name) + '」没有填写过「组合年排」，' : '当前成绩') +
+        '还需要至少 4 次有效排名。' +
         (combo ? '在考试录入弹窗为组合填写「组合年排名次/年级人数」后即可解锁。' : '') + '</div>';
     } else {
       var rep = analyzeProd(obs);
       if (!rep.valid) {
-        body = '<div style="font-size:13px;opacity:.75">数据未通过有效性检查。</div>';
+        body = '<div style="font-size:13px;opacity:.75">暂时没有足够的有效记录。</div>';
       } else {
         pushShadow({ subj: S.cur, n: obs.length,
           mid: +rep.nextExam.medianPercentile.toFixed(1),
@@ -11880,18 +11907,18 @@ var PAL2NS = (window.PAL = window.PAL || {});
         var trajCap = '灰点=每场实际排名位置（<span style="color:#2e9e6b">绿圈</span>=落在当时预测区间内） · 蓝线=综合多场记录后的稳定水平 · ' +
           '阴影带=当前水平可能范围（<b>不是</b>下一场预测区间，下一场范围通常更宽） · ' +
           '右侧色阶扇区=状态模型的下场落点概率密度（越深越接近模型中心） · ' + histNote;
-        body = '<div class="dsb-level-head"><span>第一层</span><b>先看结论</b><small>不用理解统计术语</small></div>' +
+        body = '<div class="dsb-level-head"><b>近期表现</b></div>' +
           mainCard(rep, obs.length) +
           '<div class="dsb-block-title">本期提醒</div>' +
           insightsList(rep, obs.length) +
-          '<div class="dsb-level-head"><span>第二层</span><b>为什么这样判断</b><small>查看每条结论的依据</small></div>' +
+          '<div class="dsb-level-head"><b>变化与依据</b></div>' +
           whyDetails(rep, obs.length) +
           '<div class="dsb-fig" style="margin-top:14px"><div class="dsb-fig-title">排名轨迹与预测区间</div>' +
           '<div class="dsb-scroll">' + trajectorySvg(rep, obs, hist) + '</div>' +
           '<div class="dsb-fig-cap">' + trajCap + '</div></div>' +
           '<div class="dsb-fig" style="margin-top:12px"><div class="dsb-fig-title">下一场落点分布</div>' +
           '<div id="dsbDistWrap">' + distBlock(rep) + '</div></div>' +
-          '<div class="dsb-level-head"><span>第三层</span><b>专业细节</b><small>统计检验、计算过程和参数</small></div>' +
+          '<div class="dsb-level-head"><b>计算细节</b></div>' +
           '<div class="dsb-grid2">' +
           trendDetails(rep) + signalsDetails(rep) + difficultyDetails(rep) +
           calcDetails(rep, obs) + '</div>';
@@ -11902,7 +11929,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
       '<div class="dsb-head">' +
       '<span style="font-size:15px;font-weight:700">⑨ 深度分析</span>' +
       '<sup style="font-size:9.5px;opacity:.55">Beta</sup>' +
-      '<span class="dsb-note">先看结论，需要时再展开依据和专业细节。数据只在本机计算</span></div>' +
+      '</div>' +
       '<div class="dsb-privacy-note" role="note">为改进预测质量，本模块会使用经匿名化、去标识化处理的使用数据进行统计分析；不会记录密码等敏感内容。</div>' +
       '<div style="margin:2px 0 10px">' +
       (comboList().length ? '<div class="combo-chips-v25">' + comboChipsHtml(combo) + '</div>' : '') +
@@ -12197,6 +12224,9 @@ var PAL2NS = (window.PAL = window.PAL || {});
 
 window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
 })();
+
+
+
 
 
 /* ===== app-v35.js ===== */
@@ -12832,4 +12862,235 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   renderLogin=function(){document.body.classList.remove('st-recovery-active');var result=before.apply(this,arguments);attachForgot();return result;};
   attachForgot();
   window.__accountRecovery={open:function(){screen='apply';renderRecovery()}};
+})();
+
+/* ===== trajectory-forecast.js ===== */
+/* A descriptive estimate from anonymous references, not a calibrated probability. */
+(function () {
+  'use strict';
+  var defaults={similarity:1,history:0.5,width:1};
+  function settings(input) {
+    input=input||{};var out={};
+    [['similarity',0,3],['history',0,2],['width',0.5,2]].forEach(function(spec){
+      var v=input[spec[0]];out[spec[0]]=typeof v==='number'&&Number.isFinite(v)&&v>=spec[1]&&v<=spec[2]?v:defaults[spec[0]];
+    });return out;
+  }
+  function clamp(v) {return Math.max(0,Math.min(100,v));}
+  function align(own,peer,mode) {
+    var offset=mode==='shape'?own[own.length-1]-peer.history[peer.history.length-1]:0;
+    return {offset:offset,history:peer.history.map(function(v){return clamp(v+offset);}),future:peer.future.map(function(v){return clamp(v+offset);})};
+  }
+  function estimate(own,peers,mode,input) {
+    if(!own.length||!Number.isFinite(own[own.length-1]))return null;
+    var cfg=settings(input),samples=[];
+    peers.forEach(function(peer){
+      if(!peer.history.length||!Number.isFinite(peer.history[peer.history.length-1])||!Number.isFinite(peer.future[0]))return;
+      var aligned=align(own,peer,mode),score=typeof peer.match_score==='number'&&Number.isFinite(peer.match_score)&&peer.match_score>=0&&peer.match_score<=100?Math.max(0.01,peer.match_score/100):1;
+      samples.push({value:aligned.future[0],weight:Math.pow(score,cfg.similarity)*Math.pow(peer.history.length,cfg.history)});
+    });
+    if(!samples.length)return null;
+    var total=samples.reduce(function(sum,s){return sum+s.weight;},0),mean=0,variance=0;
+    samples.forEach(function(s){s.weight/=total;mean+=s.value*s.weight;});
+    samples.forEach(function(s){variance+=s.weight*Math.pow(s.value-mean,2);});
+    var changes=[];for(var j=Math.max(1,own.length-5);j<own.length;j++)if(Number.isFinite(own[j])&&Number.isFinite(own[j-1]))changes.push(Math.abs(own[j]-own[j-1]));
+    changes.sort(function(a,b){return a-b;});
+    var volatility=changes.length?changes[Math.floor(changes.length/2)]:0;
+    // Shared Gaussian bandwidth includes recent own volatility, so agreement does not imply certainty.
+    var bandwidth=Math.max(0.5,0.35*Math.sqrt(variance),0.35*volatility),density=[],area=[0],peak=-1,center=0;
+    // Integrate only the valid 0–100 domain, at 0.1 percentage-point resolution.
+    for(var i=0;i<=1000;i++){
+      var x=i/10,p=0;samples.forEach(function(s){p+=s.weight*Math.exp(-0.5*Math.pow((x-s.value)/bandwidth,2));});density.push(p);
+      if(p>peak+1e-12||(Math.abs(p-peak)<=1e-12&&Math.abs(x-mean)<Math.abs(center-mean))){peak=p;center=x;}
+      if(i)area.push(area[i-1]+(density[i-1]+p)*0.05);
+    }
+    function quantile(q){
+      var target=area[1000]*q;for(var k=1;k<=1000;k++)if(area[k]>=target){var span=area[k]-area[k-1];return (k-1+(span?(target-area[k-1])/span:0))/10;}return 100;
+    }
+    var low=Math.min(center,quantile(0.1)),high=Math.max(center,quantile(0.9));
+    return {center:center,low:clamp(center-(center-low)*cfg.width),high:clamp(center+(high-center)*cfg.width),count:samples.length,bandwidth:bandwidth,samples:samples};
+  }
+  window.__stTrajectoryForecast={settings:settings,align:align,estimate:estimate};
+})();
+
+/* ===== similar-trajectories.js ===== */
+/* Anonymous, opt-in peer trajectories. Results are never persisted in browser storage. */
+(function () {
+  'use strict';
+  var host, filters, generation = 0, owner = '', enabled = null, result = null, selected = [true,true,true], busy = false, message = '', metricChoice = '', matchChoice = 'shape', policyChoice = 'balanced', minChoice = 3, exposureSent = false, exposureObserver = null;
+  var colors = ['var(--green,#32a77a)','var(--warn,#b97f24)','#b17ac9'], forecast=window.__stTrajectoryForecast, forecastChoice=forecast.settings();
+  function esc(v) { return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function identity() { return typeof state!=='undefined' && state.user && state.token ? state.user.id+'|'+state.token : ''; }
+  function track(event,meta) { try { if(window.__stTrack)window.__stTrack(event,meta||{}); } catch(_) {} }
+  function requestMeta(error,startedAt) {
+    var timedOut=error&&error.name==='AbortError';
+    return {duration_ms:Math.max(0,Date.now()-startedAt),status:Number(error&&error.status)||0,error_type:(timedOut?'timeout':String(error&&error.name||'unknown')).slice(0,40),error_code:String(error&&error.code||'').slice(0,40),error_message:String(error&&error.message||'').slice(0,120)};
+  }
+  function watchExposure() {
+    exposureSent=false;
+    if(exposureObserver){exposureObserver.disconnect();exposureObserver=null;}
+    if(!host)return;
+    var emit=function(){if(exposureSent)return;exposureSent=true;track('trajectory_view',{logged_in:!!owner});if(exposureObserver){exposureObserver.disconnect();exposureObserver=null;}};
+    if(typeof IntersectionObserver==='function'){
+      exposureObserver=new IntersectionObserver(function(entries){for(var i=0;i<entries.length;i++)if(entries[i].isIntersecting&&entries[i].intersectionRatio>=0.25){emit();break;}},{threshold:[0.25]});
+      exposureObserver.observe(host);
+    } else emit();
+  }
+  function preferenceKey() { return state.user&&state.user.id?'st.trajectory.preferences.v1:'+state.user.id:''; }
+  function remember() { try { var key=preferenceKey();if(key)localStorage.setItem(key,JSON.stringify({mode:matchChoice,policy:policyChoice,min:minChoice,forecast:forecastChoice})); } catch(_) {} }
+  function reset() {
+    generation++; if(host&&host.isConnected)host.innerHTML=''; owner=identity(); enabled=null; result=null; busy=false; message=''; metricChoice=''; matchChoice='shape';policyChoice='balanced';minChoice=3;
+    forecastChoice=forecast.settings();
+    try { var key=preferenceKey(),p=key?JSON.parse(localStorage.getItem(key)||'null'):null;if(p){if(['shape','overlap'].indexOf(p.mode)>=0)matchChoice=p.mode;if(['balanced','long','recent'].indexOf(p.policy)>=0)policyChoice=p.policy;if(Number.isInteger(p.min)&&p.min>=3&&p.min<=1000)minChoice=p.min;forecastChoice=forecast.settings(p.forecast);} } catch(_) {}
+  }
+  function policyNote() { return policyChoice==='long'?'在足够相近的轨迹里，先看参考场次更多的人。':policyChoice==='recent'?'侧重最近 '+(minChoice>=5?minChoice:minChoice+'～5')+' 次考试的变化。':'兼顾相似程度和参考场次，相近时优先长轨迹。'; }
+  function fmt(v) { return (filters.metric==='score'?'':'前')+(Math.round(v*10)/10)+'%'; }
+  function hasScore(m) { return typeof m.match_score==='number'&&Number.isFinite(m.match_score)&&m.match_score>=0&&m.match_score<=100; }
+  function scoreBadge(m) { return hasScore(m)?'<span class="st-peer-fit">匹配度 '+Math.round(m.match_score)+'%</span>':''; }
+  async function api(action,payload) {
+    var controller=new AbortController(),timer=setTimeout(function(){controller.abort();},20000);
+    try {
+      var response=await fetch('/api/score-tracker-trajectories',{method:'POST',headers:{'Content-Type':'application/json'},signal:controller.signal,body:JSON.stringify(Object.assign({action:action,token:state.token},payload||{}))});
+      var data=await response.json().catch(function(){return {};});
+      if(!response.ok){var error=new Error(data.error||'暂时没能加载，请再试一次');error.status=response.status;error.code=typeof data.code==='string'?data.code:'';throw error;}
+      return data;
+    } finally {clearTimeout(timer);}
+  }
+  function current(seq,key) {return seq===generation&&key===identity()&&host&&host.isConnected;}
+  async function load() {
+    var startedAt=Date.now(),seq=++generation,key=owner;busy=true;message='';result=null;paint();
+    try {
+      var data=await api('match',filters);
+      if(!current(seq,key))return;
+      enabled=data.enabled;result=data;selected=[true,true,true];
+      track('trajectory_match_result',{metric:filters.metric,match_mode:filters.match_mode,reference_policy:filters.reference_policy,min_history:filters.min_history,count:(data.matches||[]).length,reason:data.reason,duration_ms:Date.now()-startedAt,status:200});
+    } catch(e) {if(current(seq,key)){message=e.name==='AbortError'?'这次加载有点久，请再试一次':e.message;track('trajectory_match_error',requestMeta(e,startedAt));}}
+    finally {if(current(seq,key)){busy=false;paint();}}
+  }
+  async function status() {
+    var startedAt=Date.now(),seq=++generation,key=owner;busy=true;paint();
+    try {var data=await api('status');if(!current(seq,key))return;enabled=data.enabled;track('trajectory_status_result',{enabled:!!enabled,duration_ms:Date.now()-startedAt,status:200});busy=false;if(enabled){load();return;}paint();}
+    catch(e){if(current(seq,key)){busy=false;message='暂时没能加载，请再试一次';track('trajectory_status_error',requestMeta(e,startedAt));paint();}}
+  }
+  async function sharing(value) {
+    var startedAt=Date.now(),seq=++generation,key=owner;busy=true;message='';result=null;paint();
+    try {
+      var data=await api('sharing',{enabled:value});if(!current(seq,key))return;
+      enabled=data.enabled;track('trajectory_sharing_change',{enabled:enabled,duration_ms:Date.now()-startedAt,status:200});busy=false;
+      if(enabled){load();return;}paint();
+    } catch(e){if(current(seq,key)){busy=false;message='设置还没有保存，请再试一次';track('trajectory_sharing_error',requestMeta(e,startedAt));paint();}}
+  }
+  function prediction() {return forecast.estimate(result.history,result.matches.filter(function(m,i){return selected[i];}),filters.match_mode,forecastChoice);}
+  function chart(estimate) {
+    var own=result.history,matches=result.matches.map(function(m){return forecast.align(own,m,filters.match_mode);}),n=own.length,horizon=Math.max.apply(null,matches.map(function(m){return m.future.length;})),count=n+horizon;
+    var W=Math.max(560,count*76),H=250,L=55,R=26,T=24,B=40;
+    var values=own.slice();matches.forEach(function(m,i){if(selected[i])values=values.concat(m.history,m.future);});if(estimate)values=values.concat([estimate.low,estimate.high,estimate.center]);
+    var low=Math.max(0,Math.floor((Math.min.apply(null,values)-5)/5)*5),high=Math.min(100,Math.ceil((Math.max.apply(null,values)+5)/5)*5);if(high===low)high=low+1;
+    function X(i){return L+i*(W-L-R)/(count-1);}
+    function Y(v){return T+(filters.metric==='score'?(high-v):(v-low))*(H-T-B)/(high-low);}
+    function line(vals,offset,color,dash,label,span){
+      var step=span==null?1:span/(vals.length-1);
+      var points=vals.map(function(v,i){return X(offset+i*step)+','+Y(v);}).join(' ');
+      return '<polyline points="'+points+'" fill="none" stroke="'+color+'" stroke-width="'+(label==='我'?3:2)+'"'+(dash?' stroke-dasharray="5 5"':'')+'/>'+vals.map(function(v,i){return '<circle cx="'+X(offset+i*step)+'" cy="'+Y(v)+'" r="3.5" fill="'+color+'"><title>'+esc(label)+' · '+(dash?(i===0?'参考段末次':'后续第 '+i+' 次'):'参考段第 '+(i+1)+' 次')+' · '+fmt(v)+'</title></circle>';}).join('');
+    }
+    var svg='<rect x="'+X(n-1)+'" y="'+T+'" width="'+(W-R-X(n-1))+'" height="'+(H-T-B)+'" fill="var(--accent,#5d72e8)" opacity=".025"/>',overlay='';
+    for(var j=0;j<=4;j++){var v=low+(high-low)*j/4,y=Y(v);svg+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y+'" y2="'+y+'" stroke="var(--line,#e8ebf0)"/><text x="'+(L-8)+'" y="'+(y+4)+'" text-anchor="end">'+fmt(v)+'</text>';}
+    for(var k=0;k<count;k++)svg+='<text x="'+X(k)+'" y="'+(H-14)+'" text-anchor="middle">'+(k===n-1?'最近一次':k<n?'前 '+(n-1-k)+' 次':'后 '+(k-n+1)+' 次')+'</text>';
+    matches.forEach(function(m,i){if(!selected[i])return;svg+=line(m.history,n-m.history.length,colors[i],false,'轨迹 '+(i+1))+line([m.history[m.history.length-1]].concat(m.future),n-1,colors[i],true,'轨迹 '+(i+1));});
+    if(estimate){
+      var x=X(n),cy=Y(estimate.center),ly=Y(estimate.low),hy=Y(estimate.high),anchorY=Y(own[n-1]),labelTop=Math.max(2,Math.min(ly,hy)-30);
+      svg+='<g class="st-peer-forecast-mark"><path d="M '+X(n-1)+' '+anchorY+' L '+x+' '+ly+' L '+x+' '+hy+' Z" fill="var(--accent,#5d72e8)" opacity=".075"/><line x1="'+X(n-1)+'" y1="'+anchorY+'" x2="'+x+'" y2="'+cy+'" stroke="var(--accent,#5d72e8)" stroke-width="2" stroke-dasharray="2 4"/><path d="M '+(x-5)+' '+ly+' H '+(x+5)+' M '+x+' '+ly+' V '+hy+' M '+(x-5)+' '+hy+' H '+(x+5)+'" fill="none" stroke="var(--accent,#5d72e8)" stroke-width="2"/><g data-peer-forecast-toggle style="cursor:pointer"><rect x="'+(x-22)+'" y="'+(cy-22)+'" width="44" height="44" fill="transparent"/><path class="st-peer-forecast-center" d="M '+x+' '+(cy-6)+' L '+(x+6)+' '+cy+' L '+x+' '+(cy+6)+' L '+(x-6)+' '+cy+' Z" fill="var(--panel-solid,#fff)" stroke="var(--accent,#5d72e8)" stroke-width="2.5"><title>下次预测中心 · '+fmt(estimate.center)+'</title></path></g></g>';
+      overlay='<button type="button" class="st-peer-forecast-label" data-peer-forecast-toggle aria-expanded="false" aria-controls="st-peer-forecast-tip" style="left:'+(x-38)+'px;top:'+labelTop+'px">下次预测</button><div id="st-peer-forecast-tip" class="st-peer-forecast-tip" hidden style="left:'+Math.max(L,Math.min(W-230,x-110))+'px;top:'+Math.min(H-174,labelTop+34)+'px"><button type="button" data-peer-forecast-close aria-label="收起预测详情">×</button><div><span>预测中心</span><strong>'+fmt(estimate.center)+'</strong></div><div><span>参考范围</span><b>'+fmt(estimate.low)+' ～ '+fmt(estimate.high)+'</b></div><small>'+estimate.count+' 条轨迹参考 · 仅供参考</small></div>';
+    }
+    svg+=line(own,0,'var(--accent,#5d72e8)',false,'我');
+    return '<div class="st-peer-chart" tabindex="0" role="region" aria-label="相似轨迹对比，可左右滑动"><div class="st-peer-chart-canvas" style="width:'+W+'px"><svg role="img" aria-label="实线为匹配段，虚线为参考后续；蓝色空心菱形和色带为下次预测中心及范围" viewBox="0 0 '+W+' '+H+'">'+svg+'</svg>'+overlay+'</div></div><p class="st-peer-chart-caption">'+(filters.match_mode==='shape'?'走势已对齐 · ':'')+'虚线是参考轨迹的后续</p>';
+  }
+  function toggleForecast(show) {
+    var tip=host.querySelector('.st-peer-forecast-tip');if(!tip)return;
+    var open=!tip.hidden,next=show==null?!open:!!show;if(open===next)return;
+    tip.hidden=!next;
+    var label=host.querySelector('.st-peer-forecast-label');if(label)label.setAttribute('aria-expanded',String(!tip.hidden));
+    track('trajectory_forecast_detail',{action:next?'open':'close'});
+  }
+  function paint() {
+    if(!host||!host.isConnected)return;
+    var body='';
+    if(enabled===false){
+      body='<div class="st-peer-invite"><div><b>看看走过相似一段路的人</b><p>开启后，你的轨迹也会匿名供他人参考，不显示用户名、学校或考试名称。隐藏的考试不参与，可随时关闭。</p></div><button type="button" class="primary-btn" data-peer-enable '+(busy?'disabled':'')+'>开启共享并匹配</button></div>';
+    }else if(enabled===true){
+      body='<div class="st-peer-controls"><div role="group" aria-label="相似轨迹比较方式">'+[['year','年级排名'],['class','班级排名'],['score','得分率']].map(function(o){return '<button type="button" class="chip'+(filters.metric===o[0]?' active':'')+'" data-peer-metric="'+o[0]+'" aria-pressed="'+(filters.metric===o[0])+'" '+(busy?'disabled':'')+'>'+o[1]+'</button>';}).join('')+'</div><button type="button" class="st-peer-link" data-peer-disable '+(busy?'disabled':'')+'>关闭共享</button></div>';
+      body+='<div class="st-peer-modes" role="group" aria-label="轨迹匹配方式">'+[['shape','走势相似'],['overlap','轨迹重合']].map(function(o){return '<button type="button" class="chip'+(filters.match_mode===o[0]?' active':'')+'" data-peer-mode="'+o[0]+'" aria-pressed="'+(filters.match_mode===o[0])+'" '+(busy?'disabled':'')+'>'+o[1]+'</button>';}).join('')+'</div>';
+      var settingsOpen=host.querySelector('.st-peer-settings');
+      var advancedOpen=host.querySelector('.st-peer-advanced');
+      body+='<details class="st-peer-settings"'+(settingsOpen&&settingsOpen.open?' open':'')+'><summary>匹配设置 · '+(policyChoice==='long'?'长轨迹优先':policyChoice==='recent'?'近期变化优先':'综合匹配')+' · 至少 '+minChoice+' 次</summary><form data-peer-settings><div class="st-peer-fields"><label>匹配偏好<select name="reference_policy" '+(busy?'disabled':'')+'>'+[['balanced','综合匹配'],['long','长轨迹优先'],['recent','近期变化优先']].map(function(o){return '<option value="'+o[0]+'"'+(policyChoice===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select></label><label>至少参考几次<input name="min_history" type="number" min="3" max="1000" step="1" inputmode="numeric" required value="'+minChoice+'" '+(busy?'disabled':'')+'></label></div><p class="st-peer-note">'+policyNote()+'</p><details class="st-peer-advanced"'+(advancedOpen&&advancedOpen.open?' open':'')+'><summary>高级设置</summary><div class="st-peer-fields">'+[['similarity','匹配度权重',0,3],['history','场次权重',0,2],['width','范围宽度',0.5,2]].map(function(o){return '<label>'+o[1]+'<input name="forecast_'+o[0]+'" type="number" min="'+o[2]+'" max="'+o[3]+'" step="0.1" inputmode="decimal" required value="'+forecastChoice[o[0]]+'" '+(busy?'disabled':'')+'></label>';}).join('')+'</div><p class="st-peer-note">权重越大，越偏向匹配度高或场次多的轨迹；设为 0 则不考虑。范围宽度 1 为默认，越大越宽。</p></details><div class="st-peer-setting-actions"><button type="submit" class="chip active" '+(busy?'disabled':'')+'>应用设置</button><button type="button" class="st-peer-link" data-peer-default '+(busy?'disabled':'')+'>恢复默认</button></div></form></details>';
+      if(!busy&&result){
+        var matches=result.matches||[];
+        if(matches.length){
+          var estimate=prediction();
+          body+='<div class="st-peer-summary" aria-live="polite">'+(estimate?'<div class="st-peer-center"><span>下次预测中心</span><strong>'+fmt(estimate.center)+'</strong></div><div class="st-peer-range"><span>参考范围</span><b>'+fmt(estimate.low)+' ～ '+fmt(estimate.high)+'</b></div><small>'+estimate.count+' 条轨迹参考'+(estimate.count<3?' · 参考较少':'')+'</small>':'<span>选择轨迹，看看下次预测</span>')+'</div>';
+          body+='<div class="st-peer-options"><span class="st-peer-mine">● 我的轨迹</span>'+matches.map(function(m,i){return '<button type="button" class="st-peer-option" style="--peer-color:'+colors[i]+'" data-peer-index="'+i+'" aria-pressed="'+selected[i]+'"><span class="st-peer-option-title"><span>● 相似轨迹 '+(i+1)+'</span>'+scoreBadge(m)+'</span><small>'+m.history.length+' 次参考</small></button>';}).join('')+'</div>'+chart(estimate);
+          var helpOpen=host.querySelector('.st-peer-help');
+          body+='<details class="st-peer-help"'+(helpOpen&&helpOpen.open?' open':'')+'><summary>预测与匹配说明</summary><p>'+ (filters.match_mode==='shape'?'相似走势先平移到你最近一次的水平，再参考他们后续的变化；图中也已对齐。':'重合模式保留对方的成绩水平，直接参考他们的后续成绩。')+'超出 0～100% 的部分按边界显示。</p><p>中心取加权后最集中的位置；范围结合参考分歧和你近期的波动估计。预测仅供参考，不代表下次成绩一定落在范围内。</p><p class="st-peer-fit-note">匹配度表示这段走势有多相似，不是预测准确率。排序还会考虑场次和匹配偏好。</p><p>从最近一次往前比较，双方总场次数可以不同。只显示满足最低参考场次的轨迹，每人最多一条。</p><p>'+ (filters.metric==='score'?'得分率已换算到相同满分，试卷难度可能不同。':'排名来自各自的班级或年级，群体差异可能影响比较。')+'只匹配同一分类和科目范围。</p></details>';
+          body+='<details class="st-peer-details"><summary>查看每次成绩</summary><div class="st-peer-table"><table><thead><tr><th>考试</th><th>我</th>'+matches.map(function(m,i){return '<th>轨迹 '+(i+1)+'</th>';}).join('')+'</tr></thead><tbody>';
+          var n=result.history.length,max=Math.max.apply(null,matches.map(function(m){return m.future.length;}));
+          for(var j=0;j<n;j++)body+='<tr><th>'+(j===n-1?'最近一次':'前 '+(n-1-j)+' 次')+'</th><td>'+fmt(result.history[j])+'</td>'+matches.map(function(m){var idx=j-(n-m.history.length);return '<td>'+(idx>=0?fmt(m.history[idx]):'—')+'</td>';}).join('')+'</tr>';
+          for(var k=0;k<max;k++)body+='<tr><th>后续 '+(k+1)+'</th><td>—</td>'+matches.map(function(m){return '<td>'+(k<m.future.length?fmt(m.future[k]):'—')+'</td>';}).join('')+'</tr>';
+          body+='</tbody></table></div><p class="st-peer-note">这里保留原始成绩，同一行按距最近一次的场次对齐。</p></details>';
+        }else body+='<div class="st-peer-empty">'+(result.reason==='need_history'?'当前可用考试还不够':'暂时没有符合这些设置的轨迹')+'<p>'+(result.reason==='need_history'?'同一分类、同一科目范围，需要最近至少 '+minChoice+' 次连续有效成绩。可以减少参考场次，或补全成绩。':'试试减少参考场次或切换匹配偏好，下次考试后也可以再来看看。')+'</p><button type="button" class="st-peer-link" data-peer-retry>重新匹配</button></div>';
+      }
+    }
+    if(busy)body+='<p class="st-peer-loading" role="status">'+(enabled===true?'正在寻找与你相近的轨迹…':'正在加载…')+'</p>';
+    if(message)body+='<p class="st-peer-error" role="alert">'+esc(message)+' <button type="button" class="st-peer-link" data-peer-retry>重试</button></p>';
+    host.innerHTML='<div class="st-peer-heading"><div><h4>相似轨迹</h4><p>'+esc(filters.label)+'</p></div><span class="sv31-tag">最多 3 条</span></div>'+body;
+    var form=host.querySelector('[data-peer-settings]');if(form)form.noValidate=true;
+    var chartHost=host.querySelector('.st-peer-chart');if(chartHost)chartHost.scrollLeft=Math.max(0,chartHost.scrollWidth-chartHost.clientWidth);
+  }
+  function bind(root,f) {
+    host=root.querySelector('[data-peer-host]');if(!host)return;
+    if(owner!==identity())reset();
+    if(!owner){watchExposure();host.innerHTML='<p class="card-sub">登录后，看看与你相似的轨迹。</p>';return;}
+    generation++;result=null;busy=false;message='';
+    var cfg=state.sv31||{},subjects=cfg.subjMod&&cfg.subjMod.length?cfg.subjMod.slice():null;
+    filters={match_mode:matchChoice,reference_policy:policyChoice,min_history:minChoice,subjects:subjects,metric:metricChoice||(cfg.mode==='score'?'score':'year'),category:cfg.scope||'__all__',label:subjects?subjects.join('、'):'总分'};
+    watchExposure();
+    host.onclick=function(event){
+      var summary=event.target.closest('summary');
+      if(summary&&host.contains(summary)){var details=summary.parentElement,section=details.classList.contains('st-peer-settings')?'settings':details.classList.contains('st-peer-advanced')?'advanced':details.classList.contains('st-peer-help')?'help':details.classList.contains('st-peer-details')?'details':'other';setTimeout(function(){track('trajectory_details_toggle',{section:section,open:!!details.open});},0);}
+      if(event.target.closest('[data-peer-forecast-toggle]')){toggleForecast();return;}
+      if(event.target.closest('[data-peer-forecast-close]')){toggleForecast(false);host.querySelector('.st-peer-forecast-label').focus({preventScroll:true});return;}
+      if(!event.target.closest('.st-peer-forecast-tip'))toggleForecast(false);
+      var b=event.target.closest('button');if(!b||b.disabled)return;
+      if(b.hasAttribute('data-peer-enable'))sharing(true);
+      if(b.hasAttribute('data-peer-disable'))sharing(false);
+      if(b.hasAttribute('data-peer-retry')){track('trajectory_retry',{kind:enabled===true?'match':'status'});if(enabled===true)load();else status();}
+      if(b.hasAttribute('data-peer-metric')){var previous=filters.metric;metricChoice=b.getAttribute('data-peer-metric');filters.metric=metricChoice;track('trajectory_filter_change',{filter:'metric',from:previous,to:metricChoice});load();}
+      if(b.hasAttribute('data-peer-mode')){var previousMode=filters.match_mode;matchChoice=b.getAttribute('data-peer-mode');filters.match_mode=matchChoice;remember();track('trajectory_filter_change',{filter:'match_mode',from:previousMode,to:matchChoice});load();}
+      if(b.hasAttribute('data-peer-default')){matchChoice='shape';policyChoice='balanced';minChoice=3;forecastChoice=forecast.settings();filters.match_mode=matchChoice;filters.reference_policy=policyChoice;filters.min_history=minChoice;remember();track('trajectory_settings_reset',{reference_policy:policyChoice,min_history:minChoice,forecast_similarity:forecastChoice.similarity,forecast_history:forecastChoice.history,forecast_width:forecastChoice.width});load();}
+      if(b.hasAttribute('data-peer-index')){var i=Number(b.getAttribute('data-peer-index'));selected[i]=!selected[i];paint();track('trajectory_select',{index:i+1,selected:selected[i]});}
+    };
+    host.onkeydown=function(event){if(event.key==='Escape'&&host.querySelector('.st-peer-forecast-tip:not([hidden])')){toggleForecast(false);host.querySelector('.st-peer-forecast-label').focus({preventScroll:true});event.preventDefault();}};
+    host.oninput=function(event){if(event.target.matches('input[type="number"]'))event.target.setCustomValidity('');};
+    host.onsubmit=function(event){
+      var form=event.target;if(!form.hasAttribute('data-peer-settings'))return;event.preventDefault();if(busy)return;
+      var input=form.elements.min_history,value=Number(input.value),policy=form.elements.reference_policy.value;
+      if(!Number.isInteger(value)||value<3||value>1000){input.setCustomValidity('请输入 3～1000 之间的整数');input.reportValidity();return;}
+      if(['balanced','long','recent'].indexOf(policy)<0)return;
+      var nextForecast={},specs=[['similarity',0,3],['history',0,2],['width',0.5,2]];
+      for(var j=0;j<specs.length;j++){var spec=specs[j],field=form.elements['forecast_'+spec[0]],v=Number(field.value);if(field.value.trim()===''||!Number.isFinite(v)||v<spec[1]||v>spec[2]){field.closest('details').open=true;field.setCustomValidity('请输入 '+spec[1]+'～'+spec[2]+' 之间的数值');field.reportValidity();return;}nextForecast[spec[0]]=v;}
+      var rematch=minChoice!==value||policyChoice!==policy;
+      minChoice=value;policyChoice=policy;forecastChoice=nextForecast;filters.min_history=value;filters.reference_policy=policy;remember();track('trajectory_settings_change',{reference_policy:policy,min_history:value,forecast_similarity:forecastChoice.similarity,forecast_history:forecastChoice.history,forecast_width:forecastChoice.width,rematch:rematch});if(rematch)load();else paint();
+    };
+    status();
+  }
+  var style=document.createElement('style');style.textContent=
+    '.st-peer-option-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.st-peer-fit{font-size:11px;line-height:1.4;padding:3px 7px;border-radius:999px;background:var(--cell,#f6f7fa);color:var(--text,#18212f);white-space:nowrap;font-variant-numeric:tabular-nums}'+
+    '.st-peer-settings{margin:12px 0 16px;border:1px solid var(--line,#e8ebf0);border-radius:12px;padding:11px 13px;font-size:12px}.st-peer-settings summary{cursor:pointer;color:var(--muted,#788392);line-height:1.7}.st-peer-settings form{margin-top:14px}.st-peer-fields{display:flex;flex-wrap:wrap;gap:12px}.st-peer-fields label{display:flex;flex:1;min-width:130px;flex-direction:column;gap:7px;color:var(--muted,#788392)}.st-peer-fields select,.st-peer-fields input{box-sizing:border-box;width:100%;min-height:40px;padding:8px 10px;border:1px solid var(--line,#e8ebf0);border-radius:9px;background:var(--panel-solid,#fff);color:var(--text,#18212f);font:inherit;font-size:16px}.st-peer-setting-actions{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:12px}.st-peer-setting-actions span{font-size:11px;color:var(--muted,#788392)}.st-peer-settings select:focus-visible,.st-peer-settings input:focus-visible,.st-peer-settings summary:focus-visible{outline:2px solid var(--accent,#5d72e8);outline-offset:3px}'+
+    '.st-peer{margin-top:22px;padding-top:22px;border-top:1px solid var(--line,#e8ebf0);color:var(--text,#18212f)}.st-peer-heading,.st-peer-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.st-peer h4{font-size:16px;margin:0}.st-peer-heading p,.st-peer-invite p,.st-peer-empty p{font-size:12px;color:var(--muted,#788392);line-height:1.8;margin:6px 0 0}.st-peer-invite{padding:20px;background:var(--accent-soft,#eef1ff);border-radius:16px;margin-top:16px;display:flex;align-items:center;gap:24px}.st-peer-invite b{font-size:14px}.st-peer-invite button{flex-shrink:0;padding:11px 16px;border-radius:12px;border:0;background:var(--accent,#5d72e8);color:white;font:inherit;font-size:12px;cursor:pointer}.st-peer-controls{margin:16px 0}.st-peer-controls>div,.st-peer-modes{display:flex;gap:6px;flex-wrap:wrap}.st-peer-modes{margin-top:12px}.st-peer-link{background:none;border:0;color:var(--muted,#788392);font:inherit;font-size:12px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}.st-peer-summary{padding:16px 18px;border-radius:14px;background:var(--cell,#f6f7fa);display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}.st-peer-summary span,.st-peer-summary small{font-size:12px;color:var(--muted,#788392)}.st-peer-summary strong{font-size:22px;font-variant-numeric:tabular-nums}.st-peer-summary small{margin-left:auto}.st-peer-options{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:16px 0}.st-peer-mine{font-size:12px;color:var(--accent,#5d72e8);margin-right:8px}.st-peer-option{display:flex;flex-direction:column;gap:5px;padding:10px 14px;border-radius:12px;border:1px solid var(--peer-color);color:var(--peer-color);background:var(--panel-solid,#fff);font:inherit;font-size:12px;text-align:left;cursor:pointer;transition:opacity .18s,transform .18s}.st-peer-option small{font-size:11px;color:var(--muted,#788392)}.st-peer-option[aria-pressed=false]{opacity:.45;border-color:var(--line,#e8ebf0)}.st-peer-option:active{transform:scale(.97)}.st-peer-chart{overflow:auto;touch-action:pan-x pan-y;max-width:100%}.st-peer-chart svg{display:block;width:100%;height:auto}.st-peer-chart text{font-size:11px;fill:var(--muted,#788392)}.st-peer-note{font-size:11px;line-height:1.8;color:var(--muted,#788392);margin:10px 0 0}.st-peer-empty{padding:24px 10px;text-align:center;font-size:14px}.st-peer-empty button{margin-top:12px}.st-peer-loading,.st-peer-error{font-size:13px;padding:20px 0;color:var(--muted,#788392)}.st-peer-loading{animation:st-peer-pulse 1.3s ease-in-out infinite}.st-peer-details{font-size:12px;color:var(--muted,#788392);margin-top:12px}.st-peer-details summary{cursor:pointer}.st-peer-table{overflow:auto;margin-top:10px}.st-peer-table table{width:100%;border-collapse:collapse;white-space:nowrap}.st-peer-table th,.st-peer-table td{padding:9px;text-align:left;border-bottom:1px solid var(--line,#e8ebf0)}.st-peer button:focus-visible,.st-peer-chart:focus-visible{outline:2px solid var(--accent,#5d72e8);outline-offset:3px}.st-peer button:disabled{opacity:.55;cursor:wait}@keyframes st-peer-pulse{50%{opacity:.5}}@media(max-width:620px){.st-peer-invite{flex-direction:column;align-items:stretch;gap:14px;padding:16px}.st-peer-summary strong{font-size:19px}.st-peer-summary small{width:100%;margin:0}.st-peer-option{flex:1;min-width:90px;padding:9px}.st-peer-mine{width:100%}}@media(prefers-reduced-motion:reduce){.st-peer *{animation:none!important;transition:none!important}}';document.head.appendChild(style);
+  style.textContent+='.st-peer-settings summary,.st-peer-fields label,.st-peer-link,.st-peer-option small{color:var(--text,#18212f)}.st-peer-settings summary{font-weight:500}.st-peer-advanced{margin-top:16px;border-top:1px solid var(--line,#e8ebf0);padding-top:12px}.st-peer-advanced .st-peer-fields{margin-top:12px}.st-peer-summary{position:relative;align-items:center;gap:10px 28px;padding:20px}.st-peer-center,.st-peer-range{display:flex;flex-direction:column;gap:6px}.st-peer-summary span{color:var(--text,#18212f)}.st-peer-summary strong{font-size:28px;line-height:1.2;color:var(--accent,#5d72e8)}.st-peer-summary b{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}.st-peer-summary small{align-self:flex-end;font-size:11px}.st-peer-chart-caption{margin:8px 0 14px;font-size:11px;color:var(--text,#18212f)}.st-peer-help,.st-peer-details{margin:0;font-size:12px;line-height:1.8;color:var(--text,#18212f)}.st-peer-help summary,.st-peer-details summary{cursor:pointer;padding:9px 0}.st-peer-help p{margin:8px 0 12px}.st-peer-help summary:focus-visible,.st-peer-details summary:focus-visible,.st-peer-advanced summary:focus-visible{outline:2px solid var(--accent,#5d72e8);outline-offset:3px}.st-peer-table .st-peer-note{color:var(--text,#18212f)}@media(max-width:620px){.st-peer-summary{gap:14px 20px;padding:18px}.st-peer-summary strong{font-size:26px}.st-peer-summary small{width:100%;margin:0}.st-peer-summary b{font-size:14px}.st-peer-option{min-width:0}.st-peer-option-title{gap:5px}.st-peer-fit{font-size:10px}.st-peer-advanced .st-peer-fields label{min-width:110px}}';
+  style.textContent+='.st-peer-chart-canvas{position:relative;min-width:100%}.st-peer-forecast-label{position:absolute;box-sizing:border-box;width:76px;min-height:28px;padding:4px 7px;border:0;border-radius:7px;background:var(--accent-soft,#eef1ff);color:var(--accent,#5d72e8);font:inherit;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}.st-peer-forecast-label::before{content:"";position:absolute;inset:-8px 0}.st-peer-forecast-tip{position:absolute;z-index:2;box-sizing:border-box;width:220px;padding:14px;border:1px solid var(--line,#e8ebf0);border-radius:12px;background:var(--panel-solid,#fff);color:var(--text,#18212f);box-shadow:0 8px 24px rgba(20,30,60,.12);font-size:12px}.st-peer-forecast-tip[hidden]{display:none}.st-peer-forecast-tip>button{position:absolute;right:3px;top:3px;width:32px;height:32px;border:0;background:none;color:var(--text,#18212f);font-size:20px;cursor:pointer}.st-peer-forecast-tip>div{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}.st-peer-forecast-tip strong{font-size:19px;color:var(--accent,#5d72e8)}.st-peer-forecast-tip b{font-size:13px;font-weight:500}.st-peer-forecast-tip small{font-size:10px}';
+  window.__stTrajectories={html:function(){return '<section class="st-peer" data-peer-host aria-label="相似轨迹"></section>';},bind:bind};
+  // Keep the canvas coordinates identical to SVG coordinates, including on wide screens.
+  style.textContent+='.st-peer-chart-canvas{min-width:0}.st-peer-forecast-tip{line-height:1.5}.st-peer-forecast-label{padding:0;background:transparent;border-radius:0;min-height:20px;font-size:10px;font-weight:400}';
+  document.addEventListener('click',function(event){if(host&&!host.contains(event.target))toggleForecast(false);});
+  // Invalidate in-flight results as soon as navigation or sign-out removes the host.
+  new MutationObserver(function(){if(host&&!host.isConnected){generation++;host=null;result=null;}if(owner!==identity())reset();}).observe(document.body,{childList:true,subtree:true});
 })();

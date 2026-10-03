@@ -2138,13 +2138,13 @@ var PAL2NS = (window.PAL = window.PAL || {});
     var body;
     if (obs.length < 4) {
       body = '<div style="font-size:13px;opacity:.75;padding:6px 0 2px">' +
-        (combo ? '组合「' + esc(combo.name) + '」没有填写过「组合年排」，' : '该序列') +
-        '有效位比观测不足 4 场，暂无法建模。' +
+        (combo ? '组合「' + esc(combo.name) + '」没有填写过「组合年排」，' : '当前成绩') +
+        '还需要至少 4 次有效排名。' +
         (combo ? '在考试录入弹窗为组合填写「组合年排名次/年级人数」后即可解锁。' : '') + '</div>';
     } else {
       var rep = analyzeProd(obs);
       if (!rep.valid) {
-        body = '<div style="font-size:13px;opacity:.75">数据未通过有效性检查。</div>';
+        body = '<div style="font-size:13px;opacity:.75">暂时没有足够的有效记录。</div>';
       } else {
         pushShadow({ subj: S.cur, n: obs.length,
           mid: +rep.nextExam.medianPercentile.toFixed(1),
@@ -2162,18 +2162,18 @@ var PAL2NS = (window.PAL = window.PAL || {});
         var trajCap = '灰点=每场实际排名位置（<span style="color:#2e9e6b">绿圈</span>=落在当时预测区间内） · 蓝线=综合多场记录后的稳定水平 · ' +
           '阴影带=当前水平可能范围（<b>不是</b>下一场预测区间，下一场范围通常更宽） · ' +
           '右侧色阶扇区=状态模型的下场落点概率密度（越深越接近模型中心） · ' + histNote;
-        body = '<div class="dsb-level-head"><span>第一层</span><b>先看结论</b><small>不用理解统计术语</small></div>' +
+        body = '<div class="dsb-level-head"><b>近期表现</b></div>' +
           mainCard(rep, obs.length) +
           '<div class="dsb-block-title">本期提醒</div>' +
           insightsList(rep, obs.length) +
-          '<div class="dsb-level-head"><span>第二层</span><b>为什么这样判断</b><small>查看每条结论的依据</small></div>' +
+          '<div class="dsb-level-head"><b>变化与依据</b></div>' +
           whyDetails(rep, obs.length) +
           '<div class="dsb-fig" style="margin-top:14px"><div class="dsb-fig-title">排名轨迹与预测区间</div>' +
           '<div class="dsb-scroll">' + trajectorySvg(rep, obs, hist) + '</div>' +
           '<div class="dsb-fig-cap">' + trajCap + '</div></div>' +
           '<div class="dsb-fig" style="margin-top:12px"><div class="dsb-fig-title">下一场落点分布</div>' +
           '<div id="dsbDistWrap">' + distBlock(rep) + '</div></div>' +
-          '<div class="dsb-level-head"><span>第三层</span><b>专业细节</b><small>统计检验、计算过程和参数</small></div>' +
+          '<div class="dsb-level-head"><b>计算细节</b></div>' +
           '<div class="dsb-grid2">' +
           trendDetails(rep) + signalsDetails(rep) + difficultyDetails(rep) +
           calcDetails(rep, obs) + '</div>';
@@ -2184,7 +2184,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
       '<div class="dsb-head">' +
       '<span style="font-size:15px;font-weight:700">⑨ 深度分析</span>' +
       '<sup style="font-size:9.5px;opacity:.55">Beta</sup>' +
-      '<span class="dsb-note">先看结论，需要时再展开依据和专业细节。数据只在本机计算</span></div>' +
+      '</div>' +
       '<div class="dsb-privacy-note" role="note">为改进预测质量，本模块会使用经匿名化、去标识化处理的使用数据进行统计分析；不会记录密码等敏感内容。</div>' +
       '<div style="margin:2px 0 10px">' +
       (comboList().length ? '<div class="combo-chips-v25">' + comboChipsHtml(combo) + '</div>' : '') +
@@ -2479,4 +2479,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
 
 window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
 })();
+
+
+
 
