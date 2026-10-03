@@ -1,4 +1,4 @@
-// app-v28 / product v3.2: 
+// app-v28 / product v3.2:
 // A) 折线图配色去重：原始分总览（v13）依赖 OVERVIEW_COLORS、排名图（v7/v11/v25）依赖
 //    OVERVIEW_COLORS_V4，但两者此前均未定义 → 回退到小调色板按 index 取模
 //    （RADAR_COLORS 仅 4 色 / 排名 10 色），科目一多颜色必然重复。
@@ -69,9 +69,9 @@
   function friendlyNetErrorV28(e){
     if(!isNetworkErrorV28(e))return e;
     try{
-      if(navigator.onLine===false)return new Error('当前无网络连接，请联网后重试');
+      if(navigator.onLine===false)return Object.assign(new Error('当前无网络连接，请联网后重试'),e);
     }catch(_){}
-    return new Error('网络连接失败：请检查网络后重试；如果浏览器安装了广告拦截类插件，请允许本站请求后再试');
+    return Object.assign(new Error('暂时无法连接，请稍后重试或切换网络'),e);
   }
   var apiBeforeV28=(typeof api==='function')?api:null;
   if(apiBeforeV28){
@@ -88,3 +88,6 @@
 
   syncVersionV28();
 })();
+
+
+

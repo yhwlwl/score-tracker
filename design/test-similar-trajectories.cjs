@@ -1,0 +1,76 @@
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const {JSDOM,VirtualConsole}=require('jsdom');const root=path.resolve(__dirname,'..'),read=f=>fs.readFileSync(path.join(root,f),'utf8');
+const tick=()=>new Promise(r=>setTimeout(r,40));
+(async()=>{
+const vc=new VirtualConsole(),errors=[];vc.on('jsdomError',e=>{if(!e.message.includes('CSS'))errors.push(e.message)});
+const dom=new JSDOM(read('index.html').replace(/<script[\s\S]*?<\/script>/g,''),{url:'https://test.local/',runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:vc}),w=dom.window,d=w.document;
+w.matchMedia=()=>({matches:false,addEventListener(){},addListener(){}});w.scrollTo=()=>{};w.setInterval=()=>1;
+let enabled=false,requests=[],hold=null,pending,fail=false,reason='matched',scores=[87,100,0];
+const payload=()=>({enabled,reason,history:[46,44,40,36,30],matches:reason==='matched'?[{history:[41,35,31],future:[28,26,24],match_score:scores[0]},{history:[39,38,35,32,29],future:[33,34],match_score:scores[1]},{history:[45,42,38,32],future:[30],match_score:scores[2]}]:[]});
+w.fetch=async(url,init={})=>{const b=JSON.parse(init.body||'{}');if(String(url).includes('trajectories')){requests.push(b);if(fail)throw new Error('offline');if(b.action==='sharing'){enabled=b.enabled;return new Response(JSON.stringify({enabled}));}if(b.action==='match'){if(hold)await new Promise(r=>pending=r);return new Response(JSON.stringify(payload()));}return new Response(JSON.stringify({enabled}));}return new Response('{}');};
+w.eval(read('app-bundle.js')+'\nwindow.state=state;');await tick();
+function render(){w.state.page='stats';d.getElementById('app').innerHTML='<div id="content"></div>';w.__v32.rerender();}
+w.state.user={id:'fixture',username:'fixture'};w.state.token='fixture-token';w.state.exams=Array.from({length:4},(_,i)=>({id:'e'+i,name:'月考'+i,exam_date:'2026-09-0'+(i+1),grade_level:'高二',total_rank:40-i*4,total_participants:100,scores:{数学:{actual:70+i*3,max:100,rank:40-i*4,participants:100}}}));
+render();await tick();assert(d.querySelector('[data-peer-enable]'));assert(!requests.some(b=>b.action==='match'),'no match before opt-in');
+d.querySelector('[data-peer-enable]').click();await tick();assert.equal(d.querySelectorAll('[data-peer-index]').length,3);assert.equal(d.querySelectorAll('.st-peer-chart polyline[stroke-dasharray]').length,3);assert(d.querySelector('.st-peer-summary').textContent.includes('下次预测中心'));assert(d.querySelector('.st-peer-range').textContent.includes('参考范围'));assert(d.querySelector('.st-peer-summary').textContent.includes('3 条轨迹参考'));
+assert(d.querySelector('[data-peer-index="1"]').textContent.includes('5 次参考'));
+assert.deepEqual([...d.querySelectorAll('.st-peer-fit')].map(x=>x.textContent),['匹配度 87%','匹配度 100%','匹配度 0%'],'each reference displays its own percentage, including zero');
+assert(d.querySelector('.st-peer-fit-note').textContent.includes('不是预测准确率'),'fit is not described as forecast accuracy');
+assert.equal(d.querySelector('.st-peer-help').open,false,'explanations are collapsed initially');assert(!d.querySelector('.st-peer-fit-note').closest('details').open);
+assert.equal(d.querySelector('.st-peer-advanced').open,false,'advanced controls are collapsed initially');
+assert.equal(d.querySelector('.st-peer-forecast-label').textContent,'下次预测');assert(d.querySelector('.st-peer-forecast-center'));assert.equal(d.querySelector('.st-peer-forecast-center').getAttribute('fill'),'var(--panel-solid,#fff)','forecast center is hollow rather than an actual-score dot');
+assert(d.querySelector('.st-peer-forecast-tip').hidden);d.querySelector('.st-peer-forecast-label').click();assert(!d.querySelector('.st-peer-forecast-tip').hidden);assert.equal(d.querySelector('.st-peer-forecast-label').getAttribute('aria-expanded'),'true');assert(d.querySelector('.st-peer-forecast-tip').textContent.includes('参考范围'));
+d.querySelector('[data-peer-forecast-close]').click();assert(d.querySelector('.st-peer-forecast-tip').hidden);assert.equal(d.activeElement,d.querySelector('.st-peer-forecast-label'));
+d.querySelector('.st-peer-forecast-center').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));assert(!d.querySelector('.st-peer-forecast-tip').hidden,'tapping diamond opens details');d.querySelector('.st-peer-forecast-label').dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));assert(d.querySelector('.st-peer-forecast-tip').hidden);
+d.querySelector('.st-peer-forecast-label').click();d.querySelector('.st-peer-heading').click();assert(d.querySelector('.st-peer-forecast-tip').hidden,'outside tap dismisses details');
+scores=[undefined,null,'90'];render();await tick();assert.equal(d.querySelectorAll('.st-peer-fit').length,0,'legacy or invalid scores are not guessed');
+scores=[-1,101,NaN];render();await tick();assert.equal(d.querySelectorAll('.st-peer-fit').length,0,'out-of-range scores are hidden');
+scores=[87,100,0];render();await tick();
+assert(d.querySelector('.st-peer-settings').textContent.includes('相近时优先长轨迹'),'length preference is explained naturally');
+const solid=[...d.querySelectorAll('.st-peer-chart polyline:not([stroke-dasharray])')];
+assert.equal(solid[1].getAttribute('points').split(' ').length,5,'real peer points are kept');
+assert(Number(solid[0].getAttribute('points').split(' ')[0].split(',')[0])>Number(solid[1].getAttribute('points').split(' ')[0].split(',')[0]),'shorter reference starts later, aligned to latest exams');
+assert.equal(solid[0].getAttribute('points').split(' ').at(-1).split(',')[0],solid[1].getAttribute('points').split(' ').at(-1).split(',')[0],'different lengths end together');
+assert(d.querySelector('.st-peer-table').textContent.includes('最近一次'));
+assert(!/NaN|Infinity/.test(d.querySelector('.st-peer-chart').innerHTML),'all chart coordinates are finite');
+const futureLines=[...d.querySelectorAll('.st-peer-chart polyline[stroke-dasharray]')];
+for(let i=0;i<3;i++)assert.equal(futureLines[i].getAttribute('points').split(' ')[0],solid[i].getAttribute('points').split(' ').at(-1),'future connects to peer actual final history point');
+assert.equal(solid[0].getAttribute('points').split(' ').at(-1).split(',')[1],solid.at(-1).getAttribute('points').split(' ').at(-1).split(',')[1],'shape chart aligns peer to own latest level');assert(d.querySelector('.st-peer-forecast-mark'));
+const tableRows=[...d.querySelectorAll('.st-peer-table tbody tr')];assert.equal(tableRows[0].children[2].textContent,'—');assert.equal(tableRows[4].children[2].textContent,'前31%','peer latest history aligns to requester latest row');
+
+function settings(policy,min){const form=d.querySelector('[data-peer-settings]');form.closest('details').open=true;form.elements.reference_policy.value=policy;form.elements.min_history.value=min;form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));}
+assert.equal(requests.at(-1).reference_policy,'balanced');assert.equal(requests.at(-1).min_history,3);
+settings('long',8);await tick();assert.equal(requests.at(-1).reference_policy,'long');assert.equal(requests.at(-1).min_history,8);assert(d.querySelector('.st-peer-settings').open,'settings remain open during reload');assert(d.querySelector('.st-peer-settings summary').textContent.includes('至少 8 次'));
+const beforeInvalid=requests.length;settings('long',2);await tick();assert.equal(requests.length,beforeInvalid,'invalid minimum makes no request');
+settings('recent',4);await tick();assert(d.querySelector('.st-peer-settings').textContent.includes('最近 4～5 次'),'recent range respects a custom four-exam minimum');
+settings('recent',5);await tick();assert.equal(requests.at(-1).reference_policy,'recent');assert.equal(requests.at(-1).min_history,5);
+assert.deepEqual(JSON.parse(w.localStorage.getItem('st.trajectory.preferences.v1:fixture')),{mode:'shape',policy:'recent',min:5,forecast:{similarity:1,history:0.5,width:1}},'only choices are stored, never peer data or token');
+const priorRequests=requests.length,oldRange=d.querySelector('.st-peer-range').textContent,form=d.querySelector('[data-peer-settings]');d.querySelector('.st-peer-advanced').open=true;form.elements.forecast_width.value='2';form.elements.forecast_similarity.value='2';settings('recent',5);await tick();assert.equal(requests.length,priorRequests,'forecast-only changes reuse fetched references');assert.notEqual(d.querySelector('.st-peer-range').textContent,oldRange);assert(d.querySelector('.st-peer-advanced').open);assert.equal(JSON.parse(w.localStorage.getItem('st.trajectory.preferences.v1:fixture')).forecast.width,2);
+const invalidForecast=d.querySelector('[data-peer-settings]');invalidForecast.elements.forecast_width.value='';d.querySelector('.st-peer-advanced').open=false;settings('recent',5);await tick();assert.equal(JSON.parse(w.localStorage.getItem('st.trajectory.preferences.v1:fixture')).forecast.width,2,'invalid advanced settings are not saved');assert(d.querySelector('.st-peer-advanced').open,'invalid advanced field is revealed for correction');assert(invalidForecast.noValidate,'custom validation can reveal folded fields before focusing');
+w.localStorage.setItem('st.trajectory.preferences.v1:other',JSON.stringify({mode:'invalid',policy:'invalid',min:2}));
+w.state.user={id:'other',username:'other'};w.state.token='other-token';render();await tick();assert.equal(requests.at(-1).reference_policy,'balanced');assert.equal(requests.at(-1).min_history,3,'preferences never cross accounts and invalid cached settings use defaults');
+assert.equal(d.querySelector('[name="forecast_width"]').value,'1','forecast settings also stay isolated per account');
+w.state.user={id:'fixture',username:'fixture'};w.state.token='fixture-token';render();await tick();assert.equal(requests.at(-1).reference_policy,'recent');assert.equal(requests.at(-1).min_history,5,'returning account restores choices');
+assert.equal(d.querySelector('[name="forecast_width"]').value,'2');
+d.querySelector('[data-peer-default]').click();await tick();assert.equal(requests.at(-1).reference_policy,'balanced');assert.equal(requests.at(-1).min_history,3);
+assert.equal(d.querySelector('[name="forecast_width"]').value,'1');
+
+
+d.querySelector('[data-peer-index="1"]').click();assert.equal(d.querySelectorAll('.st-peer-chart polyline[stroke-dasharray]').length,2);assert.equal(d.querySelector('[data-peer-index="1"]').getAttribute('aria-pressed'),'false');
+assert.equal(requests.at(-1).match_mode,'shape');
+assert(d.querySelector('.st-peer-summary').textContent.includes('2 条轨迹参考'));
+d.querySelector('[data-peer-index="0"]').click();d.querySelector('[data-peer-index="2"]').click();assert(!d.querySelector('.st-peer-forecast-mark'));assert(d.querySelector('.st-peer-summary').textContent.includes('选择轨迹'));
+assert(!d.querySelector('.st-peer-forecast-label'));assert(!d.querySelector('.st-peer-forecast-tip'),'deselecting every reference removes the prediction hint too');
+d.querySelector('[data-peer-mode="overlap"]').click();await tick();assert.equal(requests.at(-1).match_mode,'overlap');assert.equal(d.querySelector('[data-peer-mode="overlap"]').getAttribute('aria-pressed'),'true');
+d.querySelector('[data-peer-mode="shape"]').click();await tick();assert.equal(requests.at(-1).match_mode,'shape');
+d.querySelector('[data-peer-metric="score"]').click();await tick();assert.equal(requests.at(-1).metric,'score');assert(!d.querySelector('.st-peer-summary strong').textContent.includes('前'));
+w.state.sv31.subjMod=['数学'];w.state.sv31.scope='高二';render();await tick();assert.deepEqual(requests.at(-1).subjects,['数学']);assert.equal(requests.at(-1).category,'高二');
+reason='need_history';render();await tick();assert(d.querySelector('.st-peer-empty').textContent.includes('至少 3 次'));assert(d.querySelector('[data-peer-disable]'));
+settings('long',8);await tick();assert(d.querySelector('.st-peer-empty').textContent.includes('至少 8 次'),'empty guidance reflects chosen minimum');d.querySelector('[data-peer-default]').click();await tick();
+reason='no_match';render();await tick();assert(d.querySelector('.st-peer-empty').textContent.includes('暂时没有'));
+reason='matched';render();await tick();d.querySelector('[data-peer-disable]').click();await tick();assert(!d.querySelector('.st-peer-chart'));assert(d.querySelector('[data-peer-enable]'));assert.equal(enabled,false);
+fail=true;render();await tick();assert(d.querySelector('[role="alert"]'));fail=false;d.querySelector('[data-peer-retry]').click();await tick();assert(d.querySelector('[data-peer-enable]'));
+enabled=true;hold=true;render();await tick();w.state.user={id:'second',username:'second'};w.state.token='second-token';enabled=false;render();await tick();pending();await tick();assert(!d.querySelector('.st-peer-chart'));assert(d.querySelector('[data-peer-enable]'),'late response must not cross accounts');hold=false;
+w.state.exams=[];render();await tick();assert(d.querySelector('[data-peer-enable]'),'sharing remains accessible with no exams');
+assert.deepEqual(errors,[]);dom.window.close();console.log('PASS: analysis integration, consent, real aligned curves, configured settings, validation, account-isolated preference memory, defaults, dynamic empty guidance, filters and stale responses');
+})().catch(e=>{console.error(e);process.exitCode=1});
