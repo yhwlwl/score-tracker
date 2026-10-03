@@ -31,6 +31,10 @@
       "destination": "https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-recovery"
     },
     {
+      "source": "/api/score-tracker-setup",
+      "destination": "https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-setup"
+    },
+    {
       "source": "/api/score-tracker-vision-preview",
       "destination": "https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-vision-preview"
     }
