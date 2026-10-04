@@ -24,7 +24,10 @@ Deno.serve(async (req:Request) => {
     if(body.action==='status') {
       const {data,error} = await db.from('score_tracker_trajectory_sharing').select('enabled').eq('user_id',user.id).maybeSingle();
       if(error) throw error;
-      return out({enabled:data?.enabled===true});
+      if(data) return out({enabled:data.enabled===true,defaulted:false});
+      const {error:defaultError} = await db.from('score_tracker_trajectory_sharing').upsert({user_id:user.id,enabled:true,updated_at:new Date().toISOString()},{onConflict:'user_id',ignoreDuplicates:true});
+      if(defaultError) throw defaultError;
+      return out({enabled:true,defaulted:true});
     }
     if(body.action!=='match') return out({error:'请求内容不正确'},400);
     const subjects = body.subjects===null || body.subjects===undefined ? null : body.subjects;
