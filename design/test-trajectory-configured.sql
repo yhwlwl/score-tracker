@@ -39,6 +39,8 @@ begin
       assert not exists(select 1 from jsonb_array_elements(got->'matches') m where (m->>'own_history_start')::int<>12-(m->>'history_length')::int),'each match uses requester latest suffix';
     end loop;
   end loop;
+  assert (select count(*) from public.score_tracker_trajectory_match_exposures where matcher_user_id=ids[1])>0,'successful matches record anonymous exposure owners';
+  assert public.score_tracker_trajectory_matcher_count(ids[2])=(select count(*) from public.score_tracker_trajectory_match_exposures where owner_user_id=ids[2]),'exposure count is distinct by matcher account';
   got:=public.score_tracker_trajectory_match_configured(ids[1],array[subject_name],'score','高二','shape','long',13);
   assert got->>'reason'='need_history' and got->'matches'='[]'::jsonb,'requester with too few exams gets explicit empty result';
   begin

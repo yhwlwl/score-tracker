@@ -2,6 +2,16 @@ import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {auth:{persistSession:false,autoRefreshToken:false}});
 const headers = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type, authorization, apikey','Access-Control-Allow-Methods':'POST, OPTIONS','Content-Type':'application/json','Cache-Control':'private, no-store'};
 const out = (data:unknown,status=200) => new Response(JSON.stringify(data),{status,headers});
+async function matchedCount(userId:string) {
+  try {
+    const {data,error} = await db.rpc('score_tracker_trajectory_matcher_count',{p_user_id:userId});
+    if(error) throw error;
+    return Math.max(0,Number(data)||0);
+  } catch(_) {
+    // The count is informative; an older deployment without the migration must not block matching.
+    return 0;
+  }
+}
 Deno.serve(async (req:Request) => {
   if(req.method==='OPTIONS') return new Response(null,{headers});
   if(req.method!=='POST') return out({error:'请求方式不正确'},405);
@@ -19,15 +29,15 @@ Deno.serve(async (req:Request) => {
       if(typeof body.enabled!=='boolean') return out({error:'请选择是否参与'},400);
       const {error} = await db.from('score_tracker_trajectory_sharing').upsert({user_id:user.id,enabled:body.enabled,updated_at:new Date().toISOString()});
       if(error) throw error;
-      return out({enabled:body.enabled});
+      return out({enabled:body.enabled,matched_count:await matchedCount(user.id)});
     }
     if(body.action==='status') {
       const {data,error} = await db.from('score_tracker_trajectory_sharing').select('enabled').eq('user_id',user.id).maybeSingle();
       if(error) throw error;
-      if(data) return out({enabled:data.enabled===true,defaulted:false});
+      if(data) return out({enabled:data.enabled===true,defaulted:false,matched_count:await matchedCount(user.id)});
       const {error:defaultError} = await db.from('score_tracker_trajectory_sharing').upsert({user_id:user.id,enabled:true,updated_at:new Date().toISOString()},{onConflict:'user_id',ignoreDuplicates:true});
       if(defaultError) throw defaultError;
-      return out({enabled:true,defaulted:true});
+      return out({enabled:true,defaulted:true,matched_count:await matchedCount(user.id)});
     }
     if(body.action!=='match') return out({error:'请求内容不正确'},400);
     const subjects = body.subjects===null || body.subjects===undefined ? null : body.subjects;
