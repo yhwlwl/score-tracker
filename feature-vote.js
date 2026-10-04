@@ -214,7 +214,7 @@
 
   function hasBlockingModal() {
     try { if (state && state.onboarding) return true; } catch (e) {}
-    return !!document.querySelector('.modal-backdrop,.rn-back,.st-fb-back,.pwa-back,.gmodal-backdrop.open');
+    return !!document.querySelector('.modal-backdrop,.rn-back,.st-fb-back,.pwa-back,.school-back,.gmodal-backdrop.open');
   }
   function queueAutoCheck(delay) {
     clearTimeout(openTimer);

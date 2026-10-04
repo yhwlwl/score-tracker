@@ -10,7 +10,7 @@
   const track = (event, meta = {}) => { try { window.__scoreTrackerTrack?.(event, {platform, source, native_available:!!deferred, ...meta}); } catch (_) {} };
   const blocked = () => {
     try { if (state.onboarding) return true; } catch (_) {}
-    return document.visibilityState !== 'visible' || !!document.querySelector('.modal-backdrop,.rn-back,.fv36-back,.st-fb-back,.gmodal-backdrop.open');
+    return document.visibilityState !== 'visible' || !!document.querySelector('.modal-backdrop,.rn-back,.fv36-back,.st-fb-back,.school-back,.gmodal-backdrop.open');
   };
   function eligible() {
     const s = read();
@@ -127,7 +127,8 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready, {once:true}); else ready();
   const accountBefore = typeof accountHtml === 'function' ? accountHtml : null;
   if (accountBefore) accountHtml = function () {
-    return accountBefore.apply(this, arguments) + '<div class="card pwa-account"><div><h3 class="card-title">' + (standalone() ? '已从主屏幕打开' : '添加到主屏幕') + '</h3><p class="card-sub">点图标就能打开成绩追踪。</p></div>' + (!standalone() ? '<button type="button" class="secondary" data-pwa-open>看看怎么添加</button>' : '') + '</div>';
+    const installed = standalone();
+    return accountBefore.apply(this, arguments) + '<div class="card pwa-account"><div class="pwa-account-main"><span class="pwa-account-icon" aria-hidden="true">↗</span><div class="pwa-account-copy"><p class="pwa-account-kicker">快捷入口</p><h3 class="card-title">' + (installed ? '已从主屏幕打开' : '放到主屏幕') + '</h3><p class="card-sub">' + (installed ? '点图标就能直接打开成绩追踪。' : '下次点图标就能直接打开成绩追踪。') + '</p></div></div>' + (!installed ? '<button type="button" class="pwa-account-open" data-pwa-open>查看步骤</button>' : '') + '</div>';
   };
   document.addEventListener('click', e => { if (e.target.closest?.('[data-pwa-open]')) open('account'); });
 })();
