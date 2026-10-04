@@ -6,6 +6,7 @@ export const API_ENDPOINTS = Object.freeze([
   'score-tracker-username-api',
   'score-tracker-notices',
   'score-tracker-recovery',
+  'score-tracker-trajectories',
   'score-tracker-setup',
   'score-tracker-vision-preview',
 ]);
