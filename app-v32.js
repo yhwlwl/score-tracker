@@ -598,6 +598,7 @@ function quadSvgV32(pts,overallPos){
   function X(v){return L+cw*(v-X0)/(X1-X0);}
   function Y(pos){return T+chh*(clamp32(pos,P0,P1)-P0)/(P1-P0);} /* 位比小=靠上 */
   var x0=X(0),yh=Y(overallPos===null||!Number.isFinite(overallPos)?P1:overallPos),s="";
+  var overallText='你的总分水平 '+fmtPos32(overallPos),overallY=Math.max(T+10,yh-5);
   function rect(x1,y1,x2,y2,f){return '<rect x="'+Math.min(x1,x2)+'" y="'+Math.min(y1,y2)+'" width="'+Math.abs(x2-x1)+'" height="'+Math.abs(y2-y1)+'" fill="'+f+'"/>';}
   s+=rect(L,T,x0,yh,"rgba(93,114,232,.06)")+rect(x0,T,W-R,yh,"rgba(50,167,122,.07)")
     +rect(L,yh,x0,H-B,"rgba(217,92,92,.06)")+rect(x0,yh,W-R,H-B,"rgba(229,155,69,.07)");
@@ -610,7 +611,7 @@ function quadSvgV32(pts,overallPos){
   }
   s+='<line x1="'+x0+'" y1="'+T+'" x2="'+x0+'" y2="'+(H-B)+'" stroke="var(--line,#e8ebf0)" stroke-dasharray="4 3"/>'
     +'<line x1="'+L+'" y1="'+yh+'" x2="'+(W-R)+'" y2="'+yh+'" stroke="var(--muted,#98a1ae)"/>'
-    +'<text x="'+(W-R)+'" y="'+Math.max(T+10,yh-5)+'" text-anchor="end" font-size="9" fill="var(--muted,#98a1ae)">你的总分水平 '+fmtPos32(overallPos)+"</text>"
+    +'<text x="'+(W-R)+'" y="'+overallY+'" text-anchor="end" font-size="9" fill="var(--muted,#98a1ae)">'+overallText+"</text>"
     +'<text x="'+L+'" y="'+(H-B+17)+'" font-size="9.5" fill="var(--muted,#788392)">\u2190 每场在后退</text>'
     +'<text x="'+(W-R)+'" y="'+(H-B+17)+'" text-anchor="end" font-size="9.5" fill="var(--muted,#788392)">每场在前进 \u2192</text>'
     +'<text x="'+x0+'" y="'+(H-B+17)+'" text-anchor="middle" font-size="9.5" fill="var(--muted,#788392)">0</text>'
@@ -619,7 +620,16 @@ function quadSvgV32(pts,overallPos){
     +'<text x="'+(L+8)+'" y="'+(H-B-8)+'" font-size="10" font-weight="700" fill="rgba(217,92,92,.6)">重点警报</text>'
     +'<text x="'+(W-R-8)+'" y="'+(H-B-8)+'" text-anchor="end" font-size="10" font-weight="700" fill="rgba(229,155,69,.65)">快速爬升</text>';
   var boxes=[];
+  /* 先给固定说明文字留出安全区，避免右上方的科目标签压住总分基准线。 */
+  boxes.push({x:L+4,y:T-2,w:92,h:18});
+  boxes.push({x:W-R-104,y:T-2,w:104,h:18});
+  boxes.push({x:L+4,y:H-B-22,w:92,h:18});
+  boxes.push({x:W-R-104,y:H-B-22,w:104,h:18});
+  if(overallPos!==null&&Number.isFinite(overallPos)){
+    boxes.push({x:W-R-170,y:overallY-11,w:170,h:16});
+  }
   function fits(x,y,w,hh){
+    if(x<L-2||x+w>W-R+2||y<T-2||y+hh>H-B+2)return false;
     return !boxes.some(function(b){return x<b.x+b.w&&x+w>b.x&&y<b.y+b.h&&y+hh>b.y;});
   }
   var placedDots=[];
@@ -672,15 +682,15 @@ function controlsHtmlV32(f){
   var mode=scope.mode||"rank";
   return '<div class="sv31-controls"><div class="chips sv31-scroll-x" id="sv31Scope">'+chips+"</div>"
     +'<div class="sv31-seg" id="sv31Mode">'
-    +'<button class="'+(mode==="rank"?"active":"")+'" data-mode="rank">排名模式(推荐)</button>'
+    +'<button class="'+(mode==="rank"?"active":"")+'" data-mode="rank">排名模式</button>'
     +'<button class="'+(mode==="score"?"active":"")+'" data-mode="score">分数模式</button></div>'
     +(mode==="score"
-      ?'<div class="sv31-warn">当前为<b>分数模式</b>:各科是不同试卷、各次考试难度不同,分数跨考试不可直接比较,仅供同卷阅读。结论以排名模式为准。</div>'
-      :'<div class="sv31-modenote">排名模式 · 跨卷比较以名次为准;切「分数模式」可看各科卷面分与得分率</div>')
+      ?'<div class="sv31-warn">不同试卷难度不同，分数变化仅供参考。</div>'
+      :'<div class="sv31-modenote">排名越靠前，表现越好。</div>')
     +"</div>";
 }
 /* 名次口径模块在分数模式下打的标 */
-function lockTagV32(mode){return mode==="score"?'<span class="sv31-tag">名次口径 · 不随模式切换</span>':"";}
+function lockTagV32(mode){return mode==="score"?'<span class="sv31-tag">按排名比较</span>':"";}
 /* 「最近一次」小注:第几次考试 + 日期(行里缺 date 时从 exams[i].exam_date 补) */
 function exNoteV32(x,f){
   if(!x)return "";
@@ -800,7 +810,7 @@ function trendHtmlV32(f,mode){
         sc.map(function(x){return shortName32(x.name);}),{unit:"分",marks:marks});
     }
   }
-  return '<div class="card"><div class="card-title-row">'
+  return '<div class="card sv31-trend-card"><div class="card-title-row">'
     +'<div><h3 class="card-title">③ 趋势与进步</h3><p class="card-sub">'+sub+"</p></div>"
     +'<span class="sv31-tag" title="当前分析的总分/序列口径，随顶部组合选择联动">数据口径: '+esc32(f.totalLabel||"总分")+"</span>"
     +'<div class="sv31-seg sv31-tabs"><button class="'+(mode==="rank"?"active":"")+'" data-sv31-tab="rank">排名走势</button>'
@@ -814,7 +824,7 @@ function trendHtmlV32(f,mode){
       ?'<p class="card-sub">这些考试没录名次,排名走势暂时是空的——已自动切到「分数参考」。下次补录「名次 + 总人数」即可解锁。</p>'
       :'<p class="card-sub">出分满 2 次后显示走势。</p>'))+"</div>"
     +'<div class="sv31-pane'+(mode==="score"?" on":"")+'" data-pane="score">'+(paneScore||'<p class="card-sub">出分满 2 次后显示分数走势。</p>')+"</div>"
-    +speedTableHtmlV32(f)+"</div>";
+    +speedTableHtmlV32(f)+(window.__stTrajectories?window.__stTrajectories.html():"")+"</div>";
 }
 function speedTableHtmlV32(f){
   var rows=[];
@@ -1239,17 +1249,17 @@ function qualityHtmlV32(f){
   if(q.smallSubs.length)items.push("<li>数据太少不下结论:"+esc32(q.smallSubs.join("、"))+"不足 3 次成绩,不给趋势判断</li>");
   if(q.smallCohort.length)items.push("<li>"+q.smallCohort.length+" 次考试参考人数很少(30人以内):相关说法自动更保守</li>");
   if(q.cohortChange>0)items.push("<li>"+q.cohortChange+" 处相邻考试的参考人数变化≥30%:跨场名次跳变可能由范围变化引起,相关结论已自动谨慎处理</li>");
-  return '<div class="card sv31-quality"><div class="card-title-row"><div><h3 class="card-title">⑩ 数据质量与方法论</h3>'
-    +'<p class="card-sub">缺什么、弱在哪,明明白白告诉你</p></div></div>'
-    +(items.length?'<ul style="margin:0;padding-left:18px">'+items.join("")+"</ul>":'<p class="card-sub">当前范围内没有发现缺口,数据很完整。</p>')
-    +'<details class="sv31-method"><summary>这些结论是怎么算出来的?(方法论与局限声明)</summary><div class="m-body">'
+  return '<div class="card sv31-quality"><div class="card-title-row"><div><h3 class="card-title">⑩ 数据与计算方法</h3>'
+    +'<p class="card-sub">看看哪些记录还可以补全</p></div></div>'
+    +(items.length?'<ul style="margin:0;padding-left:18px">'+items.join("")+"</ul>":'<p class="card-sub">当前记录没有明显缺项。</p>')
+    +'<details class="sv31-method"><summary>怎么算的</summary><div class="m-body">'
     +'<b>名词对照</b>:「排名」指名次÷参考人数(第57名/310人=前18%,专业术语叫位比);「个百分点」即 pp。<br>'
     +'<b>比较口径</b>:跨考试主要比较排名位置，不直接把卷面分数当作能力变化。「成绩含金量」用相对难度模型提供换算参考，不是正式等值分。手动填写过总分时以手动值为准;不计总分的科目不参与总分口径。<br>'
-    +'<b>序数性声明</b>:排名位置是序数指标,前10%区每1个百分点的难度大于中段,规则阈值按分段收紧。<br>'
+    +'<b>排名的特点</b>:排名位置是序数指标,前10%区每1个百分点的难度大于中段,规则阈值按分段收紧。<br>'
     +'<b>科目级难度信号</b>:分数与排名一起看，能为理解成绩提供线索。矩阵与深度分析使用同一难度内核；单人历史不能确定整张试卷的真实难度，也不能保证不同参考人群之间可比。'
     +METHOD_MATH_V32
-    +'<b>局限声明</b>:① 难度信号是推断,也可能是临场失误,仅用于解读,不改变排名结论;② 无法区分「卷易」与「你该科突然开窍」;③ 无他人分数,分布类结论仅基于你自己的等位线。<br>'
-    +'<b>样本门槛</b>:进步速度与稳定性≥3场;离群检测≥5场,不足时降级措辞。</div></details></div>';
+    +'<b>参考时注意</b>:① 难度信号是推断,也可能是临场失误,仅用于解读,不改变排名结论;② 无法区分「卷易」与「你该科突然开窍」;③ 无他人分数,分布类结论仅基于你自己的等位线。<br>'
+    +'<b>需要多少次考试</b>:进步速度与稳定性≥3场;离群检测≥5场,不足时降级措辞。</div></details></div>';
 }
 /* ---------- 页面装配 ---------- */
 function worthCellV32(i,s,content,label){
@@ -1281,12 +1291,12 @@ function statsPageV32(f){
   var modBar=(comboRow||subjRow)?'<div style="margin-top:2px" '+
     'title="与账户「组合设置」联动；选中后，下方所有板块只分析该组合/科目">'+comboRow+subjRow+"</div>":"";
   var head='<div class="page-head"><div><h2>统计分析</h2><p>'+f.exams.length+" 次考试 · "+Math.max(f.scoredExams,f.totalSeries.length,f.rateCount)+" 场可分析</p></div>"
-    +'<span class="sv31-tag">本地实时计算 · 数据不出你的设备</span></div>';
+    +'</div>';
   if(f.scoredExams<1){
     return '<div class="sv31-page">'+head+modBar+controlsHtmlV32(f)
-      +'<div class="card"><div class="card-title-row"><div><h3 class="card-title">先从一次考试开始</h3></div></div>'
-      +'<p class="card-sub">这里会用排名帮你回答三个问题:我在进步吗?强弱科在哪?目标定得合理吗?现在还没有已出分的考试——去「考试记录」录入第一场吧。</p></div>'
-      +qualityHtmlV32(f)+"</div>";
+      +'<div class="card"><div class="card-title-row"><div><h3 class="card-title">记录第一场考试</h3></div></div>'
+      +'<p class="card-sub">去「考试记录」填入成绩，就能在这里看趋势和强弱科。</p></div>'
+      +(window.__stTrajectories?'<div class="card">'+window.__stTrajectories.html()+"</div>":"")+qualityHtmlV32(f)+"</div>";
   }
   var ins=buildInsightsV32(f);
   return '<div class="sv31-page">'+head+modBar+controlsHtmlV32(f)
@@ -1343,7 +1353,8 @@ function injectStylesV32(){
     ".sv31-insight b{font-size:13.5px}.sv31-insight p{margin:4px 0 0;font-size:12.5px;color:var(--muted,#667085);line-height:1.7;width:100%}",
     ".sv31-insight .ev{cursor:pointer;font-size:10.5px;color:var(--muted,#98a1ae);background:var(--chip-bg,#f4f6fa);border-radius:7px;padding:2px 7px}",
     ".sv31-insight .ev:hover{color:var(--accent,#5d72e8);background:var(--accent-soft,#eef1ff)}",
-    ".sv31-evbody{width:100%;font-size:11px;color:var(--muted,#788392);background:var(--chip-bg,#f4f6fa);border-radius:8px;padding:7px 10px;line-height:1.7;margin-top:9px;white-space:pre-line}",
+    ".sv31-insight>div:nth-child(2){min-width:0;flex:1 1 calc(100% - 46px)}",
+    ".sv31-evbody{flex:0 0 100%;box-sizing:border-box;min-width:0;width:100%;font-size:11px;color:var(--muted,#788392);background:var(--chip-bg,#f4f6fa);border-radius:8px;padding:7px 10px;line-height:1.7;margin-top:9px;white-space:pre-line;overflow-wrap:anywhere;word-break:normal}",
     /* ⓘ 折叠依据:圆圈i默认收起,点击展开结构化依据(考试/数据/计算/判断) */
     ".sv31-evi{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;border:1px solid rgba(127,127,127,.55);font-size:9.5px;font-style:normal;font-weight:700;cursor:pointer;opacity:.5;vertical-align:-3px;margin-left:5px;user-select:none;flex:none}",
     ".sv31-evi:hover{opacity:1;border-color:var(--accent,#5d72e8);color:var(--accent,#5d72e8)}",
@@ -1546,6 +1557,7 @@ function routeStatsV32(){
   c.innerHTML=statsPageV32(f);
   try{bindStatsV32(f,c.firstElementChild);}catch(e){}
   if(window.__stScoreWorth)window.__stScoreWorth.bind(c.firstElementChild,f);
+  if(window.__stTrajectories)window.__stTrajectories.bind(c.firstElementChild,f);
   /* 渲染后让 v29 图例取色/显隐对统计页图表生效(图二/图三换色与勾选显示) */
   try{if(window.__v29&&window.__v29.afterRender)window.__v29.afterRender();}catch(e){}
   window.scrollTo(0,sy);
@@ -1668,7 +1680,7 @@ window.__v32={
   applySubjectModule:applySubjectModuleV32,
   lineSvg:lineSvgV32,quadSvg:quadSvgV32,donut:donutSvgV32,spark:sparkSvg32,
   speedText:speedTextV32,rerender:rerenderStatsV32,
-  kpi:kpiHtmlV32,trend:trendHtmlV32,structure:structureHtmlV32,hall:hallHtmlV32,
+  insights:function(f){return insightsHtmlV32(buildInsightsV32(f));},kpi:kpiHtmlV32,trend:trendHtmlV32,structure:structureHtmlV32,hall:hallHtmlV32,
   calib:calibHtmlV32,comp:compHtmlV32,matrix:matrixSectionHtmlV32,quality:qualityHtmlV32
 };
 })();

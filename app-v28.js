@@ -1,4 +1,4 @@
-// app-v28 / product v3.2: 
+// app-v28 / product v3.2:
 // A) 折线图配色去重：原始分总览（v13）依赖 OVERVIEW_COLORS、排名图（v7/v11/v25）依赖
 //    OVERVIEW_COLORS_V4，但两者此前均未定义 → 回退到小调色板按 index 取模
 //    （RADAR_COLORS 仅 4 色 / 排名 10 色），科目一多颜色必然重复。
@@ -88,4 +88,3 @@
 
   syncVersionV28();
 })();
-

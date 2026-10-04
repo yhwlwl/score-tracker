@@ -1,0 +1,33 @@
+const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
+const context={window:{}};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../trajectory-forecast.js'),'utf8'),context);
+const model=context.window.__stTrajectoryForecast;
+const peer=(last,next,score=90,n=5)=>({history:Array(n).fill(last),future:[next],match_score:score});
+const own=[26,24,22,20];
+const peers=[peer(50,47),peer(60,58),peer(70,69)];
+const original=JSON.stringify(peers),shape=model.estimate(own,peers,'shape'),overlap=model.estimate(own,peers,'overlap');
+assert.deepEqual(Array.from(shape.samples,s=>s.value),[17,18,19],'shape uses subsequent changes at own latest level');
+assert.deepEqual(Array.from(overlap.samples,s=>s.value),[47,58,69],'overlap retains peer levels');
+assert.equal(JSON.stringify(peers),original,'neither prediction nor alignment mutates raw reference data');
+assert(Math.abs(shape.center-18)<0.2);assert(overlap.center>45);
+for(const prediction of [shape,overlap])assert(prediction.low<=prediction.center&&prediction.center<=prediction.high);
+const shifted=model.estimate(own.map(v=>v+12),peers,'shape');
+assert(Math.abs(shifted.center-shape.center-12)<0.11,'translation changes forecast by the same amount');
+assert(Math.abs(shifted.low-shape.low-12)<0.11);assert(Math.abs(shifted.high-shape.high-12)<0.11);
+assert.equal(model.estimate(own,[],'shape'),null,'no selected samples gives no forecast');
+assert.equal(model.estimate([],peers,'shape'),null);
+const one=model.estimate(own,[peers[0]],'shape');assert.equal(one.count,1);assert(one.high>one.low,'one reference still carries uncertainty');
+const identical=model.estimate([20,20,20],Array(3).fill(peer(20,20)),'overlap');assert.equal(identical.center,20);assert(identical.high>identical.low,'identical samples do not imply exact certainty');
+for(const [history,references] of [[[0,0,0],[peer(20,0)]],[[100,100,100],[peer(80,100)]]]){
+  const out=model.estimate(history,references,'shape');assert(out.low>=0&&out.high<=100);assert(out.center>=out.low&&out.center<=out.high);
+  const aligned=model.align(history,references[0],'shape');assert(aligned.history.every(v=>v>=0&&v<=100));assert(aligned.future.every(v=>v>=0&&v<=100));
+}
+const split=[peer(20,20,100),peer(20,60,10)];
+assert(model.estimate(own,split,'overlap',{similarity:3,history:0,width:1}).center<25,'strong similarity weighting favors the closer fit');
+const lengths=[peer(20,20,90,3),peer(20,60,90,30)];
+assert(model.estimate(own,lengths,'overlap',{similarity:0,history:2,width:1}).center>55,'history weighting favors substantial evidence');
+const narrow=model.estimate(own,peers,'shape',{width:0.5}),wide=model.estimate(own,peers,'shape',{width:2});
+assert.equal(narrow.center,wide.center);assert(wide.low<narrow.low&&wide.high>narrow.high,'width changes the interval without changing the central estimate');
+assert.deepEqual(JSON.parse(JSON.stringify(model.settings({similarity:NaN,history:-1,width:10}))),{similarity:1,history:0.5,width:1},'cached invalid settings fall back safely');
+const zero=model.estimate(own,[peer(20,15,0),peer(20,25,0)],'overlap');assert(Number.isFinite(zero.center));
+assert.equal(model.estimate(own,[{history:[20],future:[]}],'shape'),null,'incomplete references cannot create predictions');
+console.log('PASS: translated and overlap forecasts, immutability, modal center, selection, uncertainty, bounded percentages and configurable weights/ranges');

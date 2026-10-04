@@ -37,6 +37,10 @@
     {
       "source": "/api/score-tracker-vision-preview",
       "destination": "https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-vision-preview"
+    },
+    {
+      "source": "/api/score-tracker-trajectories",
+      "destination": "https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-trajectories"
     }
   ],
   "headers": [
