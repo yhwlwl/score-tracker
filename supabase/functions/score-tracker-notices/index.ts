@@ -9,8 +9,8 @@ const VERSION = /^v?\d{1,4}(\.\d{1,4}){0,2}$/i;
 function normalizeVersion(v) {const p=String(v).trim().replace(/^v/i,'').split('.').map(Number);while(p.length>2&&p.at(-1)===0)p.pop();if(p.length===1)p.push(0);return 'v'+p.join('.');}
 function releaseTitle(c) {return /^v?\d+(\.\d+){0,2} 更新内容$/i.test(c.title)?normalizeVersion(c.version)+' 更新内容':c.title;}
 async function sha(v) { const bits=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v));return [...new Uint8Array(bits)].map(b=>b.toString(16).padStart(2,'0')).join(''); }
-async function auth(token) { if(!token)return null;const r=await db.from('score_tracker_users').select('id,is_admin,session_expires_at').eq('session_token_hash',await sha(token)).maybeSingle();if(r.error)throw r.error;return r.data?.session_expires_at&&new Date(r.data.session_expires_at).getTime()>Date.now()?r.data:null; }
-async function config(history=false) { const r=await db.from('score_tracker_notification_config').select('version,enabled,title,content,tip_enabled,tip_content,announcement_enabled,announcement_title,announcement_content,revision,updated_at'+(history?',release_history':'')).eq('id',1).single();if(r.error)throw r.error;const c=r.data;c.title=releaseTitle(c);c.announcement_id=(await sha(c.announcement_title+'\n'+c.announcement_content)).slice(0,24);c.tip_id=(await sha(c.tip_content)).slice(0,24);return c; }
+async function auth(token) { if(!token)return null;const r=await db.from('score_tracker_users').select('id,username,is_admin,session_expires_at').eq('session_token_hash',await sha(token)).maybeSingle();if(r.error)throw r.error;return r.data?.session_expires_at&&new Date(r.data.session_expires_at).getTime()>Date.now()?r.data:null; }
+async function config(history=false) { const r=await db.from('score_tracker_notification_config').select('version,enabled,title,content,tip_enabled,tip_content,announcement_enabled,announcement_title,announcement_content,announcement_comments_enabled,announcement_comments_public,announcement_comment_title,revision,updated_at'+(history?',release_history':'')).eq('id',1).single();if(r.error)throw r.error;const c=r.data;c.title=releaseTitle(c);c.announcement_id=(await sha(c.announcement_title+'\n'+c.announcement_content)).slice(0,24);c.tip_id=(await sha(c.tip_content)).slice(0,24);return c; }
 function releaseHistory(before,current) {
   const releases=new Map();
   for(const c of [...(Array.isArray(before.release_history)?before.release_history:[]),before,current]){
@@ -23,6 +23,11 @@ async function audit(type,user,body,req,metadata={}) { const r=await db.from('sc
 function validate(body) {
   const keys=['version','title','content','tip_content','announcement_title','announcement_content'],limits={version:20,title:120,content:6000,tip_content:1000,announcement_title:120,announcement_content:6000};
   const c={};for(const k of keys){if(typeof body[k]!=='string'||body[k].length>limits[k])throw new Error('请检查内容长度');c[k]=body[k].trim();}
+  if(body.announcement_comments_enabled!==undefined&&typeof body.announcement_comments_enabled!=='boolean')throw new Error('请选择是否允许评论');
+  if(body.announcement_comments_enabled!==undefined)c.announcement_comments_enabled=body.announcement_comments_enabled;
+  if(body.announcement_comments_public!==undefined&&typeof body.announcement_comments_public!=='boolean')throw new Error('请选择是否允许查看其他评论');
+  if(body.announcement_comments_public!==undefined)c.announcement_comments_public=body.announcement_comments_public;
+  if(body.announcement_comment_title!==undefined){if(typeof body.announcement_comment_title!=='string'||body.announcement_comment_title.length>120)throw new Error('评论区标题最多 120 字');c.announcement_comment_title=body.announcement_comment_title.trim()||'想听听大家的意见';}
   if(!VERSION.test(c.version))throw new Error('版本号请填写 7.0 这样的数字');c.version=normalizeVersion(c.version);
   if(/^v?\d+(\.\d+){0,2} 更新内容$/i.test(c.title))c.title=c.version+' 更新内容';
   for(const k of ['enabled','tip_enabled','announcement_enabled']){if(typeof body[k]!=='boolean')throw new Error('请选择是否显示');c[k]=body[k];}
@@ -77,6 +82,32 @@ Deno.serve(async req => {
     if(action==='notification_event'&&req.method==='POST'){
       if(!['notification_previewed','notification_admin_tab_opened'].includes(body.event_type))return json({error:'不支持的操作'},400);
       await audit(body.event_type,user,body,req,{kind:['release','announcement','tip'].includes(body.kind)?body.kind:null});return json({ok:true});
+    }
+    if(['announcement_comments','announcement_comment_add','announcement_comment_delete'].includes(action)&&req.method==='POST'){
+      const c=await config();
+      if(!c.announcement_enabled||body.notice_id!==c.announcement_id)return json({error:'公告已更新，请重新打开'},409);
+      if(action==='announcement_comment_delete'){
+        if(!UUID.test(body.id))return json({error:'无效的评论'},400);
+        let q=db.from('score_tracker_announcement_comments').delete().eq('id',body.id).eq('notice_id',c.announcement_id);
+        if(!user.is_admin)q=q.eq('user_id',user.id);
+        const r=await q.select('id');if(r.error)throw r.error;
+        if(!r.data?.length)return json({error:'只能删除自己的评论'},403);
+        return json({ok:true});
+      }
+      if(!c.announcement_comments_enabled)return json({error:'这条公告已关闭评论'},403);
+      if(action==='announcement_comment_add'){
+        if(typeof body.content!=='string'||!body.content.trim()||body.content.trim().length>1000)return json({error:'评论请填写 1～1000 字'},400);
+        const r=await db.rpc('score_tracker_add_announcement_comment',{p_user_id:user.id,p_notice_id:c.announcement_id,p_content:body.content.trim()});
+        if(r.error){if(r.error.message.includes('评论太快'))return json({error:'评论太快了，请稍后再发'},429);if(r.error.message.includes('公告已更新'))return json({error:'公告已更新或关闭评论，请重新打开'},409);throw r.error;}
+        return json({ok:true});
+      }
+      const cursor=String(body.before||'');if(cursor&&!/^\d{1,18}$/.test(cursor))return json({error:'无效的分页'},400);
+      let q=db.from('score_tracker_announcement_comments').select('id,sequence,user_id,content,created_at,author:score_tracker_users(username)').eq('notice_id',c.announcement_id).order('sequence',{ascending:false}).limit(31);
+      if(!user.is_admin&&c.announcement_comments_public===false)q=q.eq('user_id',user.id);
+      if(cursor)q=q.lt('sequence',cursor);
+      const r=await q;if(r.error)throw r.error;
+      const rows=(r.data||[]).slice(0,30).map(x=>({id:String(x.id),content:x.content,sequence:String(x.sequence),created_at:x.created_at,author:x.author?.username||'用户',can_delete:user.is_admin||x.user_id===user.id}));
+      return json({rows,next:r.data?.length>30?rows.at(-1).sequence:null});
     }
     if(action==='notice_check'&&req.method==='POST'){
       const [c,r]=await Promise.all([config(),db.from('score_tracker_notification_receipts').select('kind,notice_id').eq('user_id',user.id).order('shown_at',{ascending:false}).limit(200)]);if(r.error)throw r.error;return json({config:c,seen:r.data||[]});
