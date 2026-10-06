@@ -71,6 +71,22 @@ Deno.serve(async req => {
       if(r.data?.length){try{await audit('feature_completion_seen',user,body,req,{option_id:body.option_id,completed_at:option.data.completed_at});}catch(e){console.error('feature_completion_audit_error',e);}}
       return json({claimed:!!r.data?.length});
     }
+    if(action==='notification_announcement_activity'&&req.method==='GET'){
+      const params=new URL(req.url).searchParams,scope=params.get('scope')||'all',cursor=params.get('before')||'';
+      if(!['all','current'].includes(scope)||(cursor&&!/^\d{1,18}$/.test(cursor)))return json({error:'无效的评论筛选或分页'},400);
+      const c=await config();
+      let q=db.from('score_tracker_announcement_comments').select('id,sequence,notice_id,content,created_at,author:score_tracker_users(username)').order('sequence',{ascending:false}).limit(51);
+      if(scope==='current')q=q.eq('notice_id',c.announcement_id);
+      if(cursor)q=q.lt('sequence',cursor);
+      const [seen,current,total,list]=await Promise.all([
+        db.from('score_tracker_notification_receipts').select('user_id',{count:'exact',head:true}).eq('kind','announcement').eq('notice_id',c.announcement_id),
+        db.from('score_tracker_announcement_comments').select('id',{count:'exact',head:true}).eq('notice_id',c.announcement_id),
+        db.from('score_tracker_announcement_comments').select('id',{count:'exact',head:true}),q
+      ]);
+      for(const r of [seen,current,total,list])if(r.error)throw r.error;
+      const rows=(list.data||[]).slice(0,50).map(x=>({id:String(x.id),sequence:String(x.sequence),notice_id:x.notice_id,content:x.content,created_at:x.created_at,author:x.author?.username||'用户',is_current:x.notice_id===c.announcement_id}));
+      return json({announcement_id:c.announcement_id,viewers:seen.count||0,current_comments:current.count||0,total_comments:total.count||0,rows,next:list.data?.length>50?rows.at(-1).sequence:null});
+    }
     if(action==='notification_config'&&req.method==='GET'){const c=await config();await audit('notification_admin_viewed',user,body,req,{revision:c.revision});return json({config:c});}
     if(action==='notification_config_save'&&req.method==='POST'){
       let c;try{c=validate(body);}catch(e){await audit('notification_config_save_failed',user,body,req,{reason:e.message});return json({error:e.message},400);}
