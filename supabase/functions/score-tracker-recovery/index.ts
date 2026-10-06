@@ -84,8 +84,8 @@ Deno.serve(async req => {
       const mode = body.mode; if (!['password', 'account'].includes(mode)) fail('请选择找回方式。');
       const hint = text(body.username, 100).toLowerCase(), e = evidence(body.evidence || {});
       if (mode === 'password' && !hint) fail('请填写记得的用户名。');
-      if (!e.exam_name && !e.exam_date && !e.score && e.details.length < 10) fail('请提供至少一条考试线索，或更详细地说明账号信息。');
-      if (mode === 'account' && !e.school && e.details.length < 10) fail('请补充学校、选科或使用时间等信息。');
+      const hasEvidence = Boolean(e.exam_name || e.exam_date || e.subject || e.score || e.school || e.details);
+      if (!hasEvidence) fail('请至少填写一项能帮助核验的信息，考试名称、日期、分数、学校或补充说明都可以。');
       await rate('submit:' + ipHash, 86400, 3);
       const key = random(), no = 'ST-' + (await sha(random())).slice(0, 12).toUpperCase();
       const { data, error } = await db.from('score_tracker_recovery_tickets').insert({ ticket_no: no, key_hash: await sha(key), mode, username_hint: hint, evidence: e, history: [{ author: 'system', content: '已收到申请，等待管理员核验。', at: new Date().toISOString() }] }).select('ticket_no,status,created_at').single();
