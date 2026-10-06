@@ -10,13 +10,22 @@ function normalizeVersion(v) {const p=String(v).trim().replace(/^v/i,'').split('
 function releaseTitle(c) {return /^v?\d+(\.\d+){0,2} 更新内容$/i.test(c.title)?normalizeVersion(c.version)+' 更新内容':c.title;}
 async function sha(v) { const bits=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v));return [...new Uint8Array(bits)].map(b=>b.toString(16).padStart(2,'0')).join(''); }
 async function auth(token) { if(!token)return null;const r=await db.from('score_tracker_users').select('id,username,is_admin,session_expires_at').eq('session_token_hash',await sha(token)).maybeSingle();if(r.error)throw r.error;return r.data?.session_expires_at&&new Date(r.data.session_expires_at).getTime()>Date.now()?r.data:null; }
-async function config(history=false) { const r=await db.from('score_tracker_notification_config').select('version,enabled,title,content,tip_enabled,tip_content,announcement_enabled,announcement_title,announcement_content,announcement_comments_enabled,announcement_comments_public,announcement_comment_title,revision,updated_at'+(history?',release_history':'')).eq('id',1).single();if(r.error)throw r.error;const c=r.data;c.title=releaseTitle(c);c.announcement_id=(await sha(c.announcement_title+'\n'+c.announcement_content)).slice(0,24);c.tip_id=(await sha(c.tip_content)).slice(0,24);return c; }
+async function config(history=false) { const r=await db.from('score_tracker_notification_config').select('version,enabled,title,content,tip_enabled,tip_content,announcement_enabled,announcement_title,announcement_content,announcement_comments_enabled,announcement_comments_public,announcement_comment_title,revision,updated_at'+(history?',release_history,announcement_history':'')).eq('id',1).single();if(r.error)throw r.error;const c=r.data;c.title=releaseTitle(c);c.announcement_id=(await sha(c.announcement_title+'\n'+c.announcement_content)).slice(0,24);c.tip_id=(await sha(c.tip_content)).slice(0,24);return c; }
 function releaseHistory(before,current) {
   const releases=new Map();
   for(const c of [...(Array.isArray(before.release_history)?before.release_history:[]),before,current]){
     if(c&&VERSION.test(c.version)&&typeof c.title==='string'&&typeof c.content==='string')releases.set(normalizeVersion(c.version),{version:normalizeVersion(c.version),title:releaseTitle(c),content:c.content});
   }
   return [...releases.values()];
+}
+function announcementSnapshot(c) { return {id:c.announcement_id,title:String(c.announcement_title||''),content:String(c.announcement_content||''),updated_at:c.updated_at||null,comments_enabled:c.announcement_comments_enabled===true,comments_public:c.announcement_comments_public!==false,comment_title:String(c.announcement_comment_title||'想听听大家的意见')}; }
+function announcementHistory(c) {
+  const history=new Map();
+  for(const item of Array.isArray(c.announcement_history)?c.announcement_history:[]) {
+    if(item&&typeof item.id==='string'&&item.id.length===24&&typeof item.title==='string'&&typeof item.content==='string')history.set(item.id,{id:item.id,title:item.title,content:item.content,updated_at:item.updated_at||null,comments_enabled:item.comments_enabled===true,comments_public:item.comments_public!==false,comment_title:String(item.comment_title||'想听听大家的意见')});
+  }
+  const current=announcementSnapshot(c);if(current.id&&current.content)history.set(current.id,current);
+  return [...history.values()].reverse().slice(0,50);
 }
 function cleanContext(body,req) { const c=body.context||{};return {session_id:UUID.test(c.session_id)?c.session_id:null,visitor_id:UUID.test(c.visitor_id)?c.visitor_id:null,app_version:String(c.app_version||'').slice(0,30),pathname:String(c.pathname||'/mg').slice(0,300),app_page:String(c.app_page||'admin_notifications').slice(0,60),user_agent:req.headers.get('user-agent')||null,account_mode:'registered'}; }
 async function audit(type,user,body,req,metadata={}) { const r=await db.from('score_tracker_visit_logs').insert({...cleanContext(body,req),event_type:type,user_id:user.id,metadata:{...metadata,source:'notification_service'}});if(r.error)throw r.error; }
@@ -43,7 +52,7 @@ Deno.serve(async req => {
   try {
     body=req.method==='POST'?await req.json():{};action=new URL(req.url).searchParams.get('action')||String(body.action||'');
     if(action==='notice_public'&&req.method==='POST')return json({config:await config()});
-    if(action==='notice_history'&&req.method==='POST'){const c=await config(true),releases=releaseHistory(c,c);delete c.release_history;return json({config:c,releases});}
+    if(action==='notice_history'&&req.method==='POST'){const c=await config(true),releases=releaseHistory(c,c),announcements=announcementHistory(c);delete c.release_history;delete c.announcement_history;return json({config:c,releases,announcements});}
     user=await auth(req.headers.get('x-score-token')||String(body.token||''));if(!user)return json({error:'登录已失效，请重新登录'},401);
     if((action.startsWith('notification_')||['feature_completion_admin','feature_option_complete','feature_option_active'].includes(action))&&!user.is_admin)return json({error:'只有管理员可以修改这些内容'},403);
     if(action==='feature_completion_admin'&&req.method==='GET'){
@@ -91,7 +100,7 @@ Deno.serve(async req => {
     if(action==='notification_config_save'&&req.method==='POST'){
       let c;try{c=validate(body);}catch(e){await audit('notification_config_save_failed',user,body,req,{reason:e.message});return json({error:e.message},400);}
       const before=await config(true),changed=Object.keys(c).filter(k=>c[k]!==before[k]);
-      const saved=await db.from('score_tracker_notification_config').update({...c,release_history:releaseHistory(before,c),revision:body.revision+1,updated_at:new Date().toISOString(),updated_by:user.id}).eq('id',1).eq('revision',body.revision).select('revision').maybeSingle();
+      const saved=await db.from('score_tracker_notification_config').update({...c,release_history:releaseHistory(before,c),announcement_history:announcementHistory(before),revision:body.revision+1,updated_at:new Date().toISOString(),updated_by:user.id}).eq('id',1).eq('revision',body.revision).select('revision').maybeSingle();
       if(saved.error)throw saved.error;if(!saved.data){await audit('notification_config_save_failed',user,body,req,{reason:'revision_conflict'});return json({error:'内容刚刚有变化，请刷新后再保存'},409);}
       await audit('notification_config_saved',user,body,req,{version:c.version,revision:saved.data.revision,changed_fields:changed});return json({ok:true,config:await config()});
     }

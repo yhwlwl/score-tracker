@@ -1,5 +1,5 @@
 /*! app-bundle.js · 自动生成,勿手改 —— 改源码后运行: node design/build-bundles.js
-   来源顺序: compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js, score-worth-model.js, score-worth.js, release-notices.js, account-recovery.js, trajectory-forecast.js, similar-trajectories.js, school-settings.js */
+   来源顺序: compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js, score-worth-model.js, score-worth.js, release-notices.js, account-recovery.js, trajectory-forecast.js, similar-trajectories.js, school-settings.js, announcement-settings.js */
 /* ===== compat.js ===== */
 // Compatibility helpers for older iOS Safari/WebViews.
 // Keep this file tiny and load it before the application scripts.
@@ -12690,6 +12690,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   var modal = null, lastFocus = null, pumpTimer = null, loginTimer = null;
   function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
   function noticeMarkup(v) { return esc(v).replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g,'<strong>$2</strong>'); }
+  function anonymousName(v) { var s=String(v||'用户').trim()||'用户'; return s.length<=1?s:s[0]+'*'+s[s.length-1]; }
   function version(v) { var parts=String(v || '').trim().replace(/^v/i,'').split('.').map(Number);while(parts.length>2&&parts[parts.length-1]===0)parts.pop();if(parts.length===1)parts.push(0);return 'v'+parts.join('.'); }
   function compare(a,b) { var x=version(a).slice(1).split('.').map(Number), y=version(b).slice(1).split('.').map(Number); for(var i=0;i<Math.max(x.length,y.length);i++){var d=(x[i]||0)-(y[i]||0);if(d)return d;}return 0; }
   function track(type,data) { try { return (window.__scoreTrackerTrack || window.__stTrack || function(){})(type,Object.assign({current_version:CURRENT},data||{})); } catch (_) {} }
@@ -12738,8 +12739,12 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       var history=document.createElement('label');history.className='rn-history';history.innerHTML='更新记录<select aria-label="选择更新版本">'+item.releases.map(function(r){return '<option value="'+esc(r.version)+'"'+(r.version===item.id?' selected':'')+'>'+esc(r.version)+(r.version===item.releases[0].version?' · 最新':'')+'</option>';}).join('')+'</select>';back.querySelector('.rn-title').before(history);
       history.querySelector('select').onchange=function(){var selected=item.releases.find(function(r){return r.version===history.querySelector('select').value;});if(!selected)return;track('version_history_selected',{target_version:selected.version,source:'manual'});close('history_selected');show(Object.assign({},item,{id:selected.version,title:selected.title,content:selected.content}));};
     }
+    if(item.manual&&item.kind==='announcement'&&item.announcements&&item.announcements.length>1){
+      var announcementHistory=document.createElement('label');announcementHistory.className='rn-history';announcementHistory.innerHTML='公告记录<select aria-label="选择公告">'+item.announcements.map(function(r){return '<option value="'+esc(r.id)+'"'+(r.id===item.id?' selected':'')+'>'+esc(r.title||'公告')+(r.id===item.announcements[0].id?' · 最新':'')+'</option>';}).join('')+'</select>';back.querySelector('.rn-title').before(announcementHistory);
+      announcementHistory.querySelector('select').onchange=function(){var selected=item.announcements.find(function(r){return r.id===announcementHistory.querySelector('select').value;});if(!selected)return;track('announcement_history_selected',{notice_id:selected.id,source:'settings'});close('history_selected');show(Object.assign({},item,selected,{manual:true,commentsEnabled:selected.id===item.announcements[0].id&&selected.comments_enabled===true,commentsPublic:selected.comments_public!==false,commentTitle:selected.comment_title||'想听听大家的意见'}));};
+    }
     mountComments(item,back);
-    if(item.manual&&item.kind==='release'&&latestConfig.announcement_enabled&&latestConfig.announcement_content){var open=document.createElement('button');open.type='button';open.className='rn-more';open.textContent='查看公告';back.querySelector('.rn-actions').before(open);open.onclick=function(){var c=latestConfig;close('open_announcement');show({user:item.user,kind:'announcement',id:c.announcement_id,title:c.announcement_title,content:c.announcement_content,commentsEnabled:c.announcement_comments_enabled,commentsPublic:c.announcement_comments_public!==false,commentTitle:c.announcement_comment_title,manual:true,source:'manual'});};}
+    if(item.manual&&item.kind==='release'&&latestConfig.announcement_enabled&&latestConfig.announcement_content){var open=document.createElement('button');open.type='button';open.className='rn-more';open.textContent='查看公告';back.querySelector('.rn-actions').before(open);open.onclick=function(){var c=latestConfig;close('open_announcement');show({user:item.user,kind:'announcement',id:c.announcement_id,title:c.announcement_title,content:c.announcement_content,commentsEnabled:c.announcement_comments_enabled,commentsPublic:c.announcement_comments_public!==false,commentTitle:c.announcement_comment_title,announcements:item.announcements||[],manual:true,source:'manual'});};}
     mark(item.user,item.kind,item.id);
     if(item.manual&&item.user.id!=='guest')call('notice_claim',{kind:item.kind,notice_id:item.id},item.user).catch(function(e){track('notice_claim_failed',{kind:item.kind,notice_id:item.id,status:e.status||0});});
     track(item.kind==='release'?'update_prompt_shown':'announcement_shown',{target_version:item.id,source:item.source,manual:item.manual,needs_update:outdated});
@@ -12754,7 +12759,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     back.querySelector('.rn-actions').before(section);
     var list=section.querySelector('.rn-comment-list'),more=section.querySelector('.rn-more'),form=section.querySelector('form'),status=section.querySelector('[role="status"]'),submit=form.querySelector('button'),input=form.querySelector('textarea'),next=null,loading=false;
     function current(){var u=user();return back.isConnected&&u&&u.id===item.user.id&&u.token===item.user.token;}
-    async function load(append){if(loading)return;loading=true;more.disabled=true;status.textContent='正在加载评论…';try{var data=await call('announcement_comments',{notice_id:item.id,before:append?next:null},item.user);if(!current())return;if(!append)list.innerHTML='';(data.rows||[]).forEach(function(row){var article=document.createElement('article');article.className='rn-comment';article.innerHTML='<div class="rn-comment-meta"><b>'+esc(row.author)+'</b><time>'+esc(new Date(row.created_at).toLocaleString())+'</time>'+(row.can_delete?'<button type="button">删除</button>':'')+'</div><div class="rn-comment-text">'+esc(row.content)+'</div>';var del=article.querySelector('button');if(del)del.onclick=async function(){del.disabled=true;try{await call('announcement_comment_delete',{notice_id:item.id,id:row.id},item.user);if(current())await load(false);}catch(e){status.textContent=e.message;}finally{del.disabled=false;}};list.appendChild(article);});if(!list.children.length)list.textContent='还没有评论，欢迎说说你的想法。';next=data.next;more.hidden=!next;status.textContent='';}catch(e){if(current())status.textContent=e.message;}finally{loading=false;more.disabled=false;}}
+    async function load(append){if(loading)return;loading=true;more.disabled=true;status.textContent='正在加载评论…';try{var data=await call('announcement_comments',{notice_id:item.id,before:append?next:null},item.user);if(!current())return;if(!append)list.innerHTML='';(data.rows||[]).forEach(function(row){var article=document.createElement('article');article.className='rn-comment';article.innerHTML='<div class="rn-comment-meta"><b>'+esc(anonymousName(row.author))+'</b><time>'+esc(new Date(row.created_at).toLocaleString())+'</time>'+(row.can_delete?'<button type="button">删除</button>':'')+'</div><div class="rn-comment-text">'+esc(row.content)+'</div>';var del=article.querySelector('button');if(del)del.onclick=async function(){del.disabled=true;try{await call('announcement_comment_delete',{notice_id:item.id,id:row.id},item.user);if(current())await load(false);}catch(e){status.textContent=e.message;}finally{del.disabled=false;}};list.appendChild(article);});if(!list.children.length)list.textContent='还没有评论，欢迎说说你的想法。';next=data.next;more.hidden=!next;status.textContent='';}catch(e){if(current())status.textContent=e.message;}finally{loading=false;more.disabled=false;}}
     more.onclick=function(){load(true);};
     form.onsubmit=async function(e){e.preventDefault();if(!current())return;var content=input.value.trim();if(!content){status.textContent='写点内容再发送吧';return;}submit.disabled=true;status.textContent='正在发送…';try{await call('announcement_comment_add',{notice_id:item.id,content:content},item.user);if(!current())return;input.value='';await load(false);if(!status.textContent)status.textContent='评论已发送';}catch(e){if(current())status.textContent=e.message;}finally{submit.disabled=false;}};
     if(item.user.id==='guest'){form.hidden=true;list.textContent='登录后可以查看和发表评论';return;}load(false);
@@ -12778,9 +12783,9 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     pending.shift();show(item);queuePump();
   }
   function enqueue(item) {if((modal&&modal.kind===item.kind&&modal.id===item.id)||pending.some(function(x){return x.kind===item.kind&&x.id===item.id;}))return;pending.push(item);pump();}
-  async function check(source,manual) {
+  async function check(source,manual,manualKind) {
     var u=user();if((!u&&!manual&&source!=='boot')||(!manual&&source!=='boot'&&document.querySelector('.auth-page'))||(!manual&&(document.visibilityState==='hidden'||navigator.onLine===false)))return;
-    if(busy){await busy;if(manual)return check(source,true);return;}
+    if(busy){await busy;if(manual)return check(source,true,manualKind);return;}
     u=u||{id:'guest',token:''};var start=Date.now();lastCheck=start;
     busy=(async function(){
       track('update_check_started',{source:source});
@@ -12802,8 +12807,16 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       var releases=manual&&results[0].status==='fulfilled'&&Array.isArray(results[0].value.releases)?results[0].value.releases:[];
       releases=releases.filter(function(r){return r&&/^v?\d+(\.\d+){0,2}$/i.test(r.version)&&typeof r.title==='string'&&typeof r.content==='string';}).map(function(r){return {version:version(r.version),title:r.title,content:r.content};}).filter(function(r,i,a){return a.findIndex(function(x){return x.version===r.version;})===i;});
       releases=releases.filter(function(r){return r.version!==target;}).sort(function(a,b){return compare(b.version,a.version);});releases.unshift({version:target,title:title,content:content});
+      var announcements=manual&&results[0].status==='fulfilled'&&Array.isArray(results[0].value.announcements)?results[0].value.announcements:[];
+      announcements=announcements.filter(function(r){return r&&typeof r.id==='string'&&r.id.length===24&&typeof r.title==='string'&&typeof r.content==='string';}).map(function(r){return {id:r.id,title:r.title,content:r.content,updated_at:r.updated_at||null,comments_enabled:r.id===c.announcement_id&&c.announcement_enabled===true&&r.comments_enabled===true,comments_public:r.comments_public!==false,comment_title:r.comment_title||'想听听大家的意见'};});
+      if(c.announcement_content&&c.announcement_id&&!announcements.some(function(r){return r.id===c.announcement_id;}))announcements.unshift({id:c.announcement_id,title:c.announcement_title,content:c.announcement_content,updated_at:c.updated_at,comments_enabled:c.announcement_enabled===true&&c.announcement_comments_enabled===true,comments_public:c.announcement_comments_public!==false,comment_title:c.announcement_comment_title||'想听听大家的意见'});
+      announcements=announcements.filter(function(r,i,a){return a.findIndex(function(x){return x.id===r.id;})===i;});
+      if(manual&&manualKind==='announcement'){
+        if(announcements.length){var announcement=announcements[0];enqueue({user:u,kind:'announcement',id:announcement.id,title:announcement.title,content:announcement.content,commentsEnabled:announcement.comments_enabled,commentsPublic:announcement.comments_public,commentTitle:announcement.comment_title,announcements:announcements,source:source,manual:true});}
+        return;
+      }
       if(!manual){pending=pending.filter(function(item){return item.kind!=='release'||item.manual||item.id===target;});if(modal&&modal.kind==='release'&&!modal.manual&&modal.id!==target)close('superseded');}
-      if(manual||(u.id!=='guest'&&c.enabled!==false)){if(manual||!seen(u,'release',target))enqueue({user:u,kind:'release',id:target,title:title,content:content,source:source,manual:!!manual,releases:manual?releases:null});else track('notice_suppressed',{kind:'release',notice_id:target,reason:'already_seen',source:source});}
+      if(manual||(u.id!=='guest'&&c.enabled!==false)){if(manual||!seen(u,'release',target))enqueue({user:u,kind:'release',id:target,title:title,content:content,source:source,manual:!!manual,releases:manual?releases:null,announcements:manual?announcements:null});else track('notice_suppressed',{kind:'release',notice_id:target,reason:'already_seen',source:source});}
       if(!manual&&config){['announcement','tip'].forEach(function(kind){if(!c[kind+'_enabled']||!c[kind+'_content']||seen(u,kind,String(c[kind+'_id'])))return;enqueue({user:u,kind:kind,id:String(c[kind+'_id']),title:c.announcement_title,content:c[kind+'_content'],commentsEnabled:c.announcement_comments_enabled,commentsPublic:c.announcement_comments_public!==false,commentTitle:c.announcement_comment_title,source:source,manual:false});});}
     })().finally(function(){busy=null;});return busy;
   }
@@ -12820,7 +12833,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   window.addEventListener('online',function(){if(Date.now()-lastCheck>=PERIOD)check('online',false);});
   window.addEventListener('storage',function(e){if(e.key==='st_token'&&user()&&e.newValue!==user().token){pending=[];if(modal)close('account_changed');}});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',sync,{once:true});else sync();
-  window.__releaseNotices={check:check,compareVersions:compare,currentVersion:function(){return CURRENT;}};
+  window.__releaseNotices={check:check,compareVersions:compare,currentVersion:function(){return CURRENT;},openAnnouncement:function(){track('announcement_manual_opened',{source:'settings'});return check('manual_announcement',true,'announcement');}};
 })();
 
 /* ===== account-recovery.js ===== */
@@ -13373,4 +13386,29 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   window.addEventListener('storage', e => { if (e.key === 'st_token' && modal && e.newValue !== user()?.token) modal.close(true); });
   setInterval(tick, 1000);
   tick();
+})();
+
+/* ===== announcement-settings.js ===== */
+/* 账号设置里的公告入口：与底部版本号入口共用公告读取和历史记录。 */
+(function(){
+  'use strict';
+  if(typeof accountHtml!=='function'||typeof bindPage!=='function')return;
+  var previousAccountHtml=accountHtml;
+  accountHtml=function accountHtmlWithAnnouncements(){
+    return previousAccountHtml.apply(this,arguments)+'<section class="card account-card announcement-settings-card" id="announcementSettingsCard"><div><h3 class="card-title">公告</h3><p class="card-sub">重新查看当前公告，也可以切换到之前发布过的公告。</p></div><button class="secondary" type="button" id="openAnnouncementSettings">打开公告</button><p class="announcement-settings-status" id="announcementSettingsStatus" role="status"></p></section>';
+  };
+  var previousBindPage=bindPage;
+  bindPage=function bindPageWithAnnouncements(){
+    previousBindPage.apply(this,arguments);
+    var button=document.getElementById('openAnnouncementSettings');
+    if(!button)return;
+    button.onclick=async function(){
+      var status=document.getElementById('announcementSettingsStatus');
+      if(!window.__releaseNotices||typeof window.__releaseNotices.openAnnouncement!=='function'){if(status)status.textContent='公告暂时无法读取，请刷新后重试';return;}
+      button.disabled=true;button.textContent='正在读取…';if(status)status.textContent='';
+      try{await window.__releaseNotices.openAnnouncement();}
+      catch(e){if(status)status.textContent=e&&e.message||'公告暂时无法读取，请稍后重试';}
+      finally{if(button.isConnected){button.disabled=false;button.textContent='打开公告';}}
+    };
+  };
 })();

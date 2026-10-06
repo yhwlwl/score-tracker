@@ -43,5 +43,6 @@
    "account-recovery.js",
    "trajectory-forecast.js",
    "similar-trajectories.js",
-   "school-settings.js"
+  "school-settings.js",
+  "announcement-settings.js"
 ]
