@@ -21,6 +21,14 @@ const {stripTypeScriptTypes}=require('node:module');
     const n=calls.length;assert.equal((await request({...base,...fields})).status,400);assert.equal(calls.length,n,'invalid settings never reach RPC');
   }
   assert.equal((await request({...base,min_history:1000})).status,200,'upper bound is accepted');
+  for(const mode of ['shape','overlap']){
+    assert.equal((await request({...base,match_mode:mode,reference_limit:20})).status,200);
+    assert.equal(calls.at(-1).name,'score_tracker_trajectory_match_ensemble');
+    assert.equal(calls.at(-1).parameters.p_user_id,'verified-user');
+  }
+  for(const reference_limit of [null,0,4,21,'20',20.5]){
+    const before=calls.length;assert.equal((await request({...base,reference_limit})).status,400);assert.equal(calls.length,before);
+  }
   await request(base);assert.equal(calls.at(-1).name,'score_tracker_trajectory_match_adaptive','old explicit-mode clients remain compatible');
   const legacy={...base};delete legacy.match_mode;await request(legacy);assert.equal(calls.at(-1).name,'score_tracker_trajectory_match','oldest clients retain equal-length API');
   await request({...legacy,reference_policy:'long'});assert.equal(calls.at(-1).name,'score_tracker_trajectory_match_configured','settings work with default shape mode');

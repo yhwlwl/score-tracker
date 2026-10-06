@@ -12889,6 +12889,10 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     });return out;
   }
   function clamp(v) {return Math.max(0,Math.min(100,v));}
+  function median(values) {
+    var sorted=values.slice().sort(function(a,b){return a-b;}),middle=Math.floor(sorted.length/2);
+    return sorted.length%2?sorted[middle]:(sorted[middle-1]+sorted[middle])/2;
+  }
   function align(own,peer,mode) {
     var offset=mode==='shape'?own[own.length-1]-peer.history[peer.history.length-1]:0;
     return {offset:offset,history:peer.history.map(function(v){return clamp(v+offset);}),future:peer.future.map(function(v){return clamp(v+offset);})};
@@ -12909,18 +12913,27 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     changes.sort(function(a,b){return a-b;});
     var volatility=changes.length?changes[Math.floor(changes.length/2)]:0;
     // Shared Gaussian bandwidth includes recent own volatility, so agreement does not imply certainty.
-    var bandwidth=Math.max(0.5,0.35*Math.sqrt(variance),0.35*volatility),density=[],area=[0],peak=-1,center=0;
+    // A robust own-history baseline protects against a single unusual exam.
+    // The fixed 25% reference contribution was selected on earlier rolling-origin
+    // cases, excluding showcase/admin1, before evaluating later held-out cases.
+    var recent=own.slice(-3).filter(Number.isFinite),baseline=median(recent);
+    var center=clamp(0.75*baseline+0.25*mean),bandwidth=Math.max(0.5,0.35*Math.sqrt(variance),0.35*volatility),density=[],area=[0];
     // Integrate only the valid 0–100 domain, at 0.1 percentage-point resolution.
     for(var i=0;i<=1000;i++){
       var x=i/10,p=0;samples.forEach(function(s){p+=s.weight*Math.exp(-0.5*Math.pow((x-s.value)/bandwidth,2));});density.push(p);
-      if(p>peak+1e-12||(Math.abs(p-peak)<=1e-12&&Math.abs(x-mean)<Math.abs(center-mean))){peak=p;center=x;}
       if(i)area.push(area[i-1]+(density[i-1]+p)*0.05);
     }
     function quantile(q){
       var target=area[1000]*q;for(var k=1;k<=1000;k++)if(area[k]>=target){var span=area[k]-area[k-1];return (k-1+(span?(target-area[k-1])/span:0))/10;}return 100;
     }
-    var low=Math.min(center,quantile(0.1)),high=Math.max(center,quantile(0.9));
-    return {center:center,low:clamp(center-(center-low)*cfg.width),high:clamp(center+(high-center)*cfg.width),count:samples.length,bandwidth:bandwidth,samples:samples};
+    // Preserve both reference disagreement and own-history variability. This is
+    // a descriptive reference range, not a calibrated confidence interval.
+    var ownSpread=Math.max(0.5,volatility);
+    var low=Math.min(center,quantile(0.1),clamp(baseline-ownSpread)),high=Math.max(center,quantile(0.9),clamp(baseline+ownSpread));
+    var latest=own[own.length-1];
+    // Ignore differences below the displayed precision when describing disagreement.
+    var disagreement=samples.some(function(s){return s.value<latest-0.05;})&&samples.some(function(s){return s.value>latest+0.05;});
+    return {center:center,ownCenter:baseline,referenceCenter:mean,low:clamp(center-(center-low)*cfg.width),high:clamp(center+(high-center)*cfg.width),count:samples.length,disagreement:disagreement,bandwidth:bandwidth,samples:samples};
   }
   window.__stTrajectoryForecast={settings:settings,align:align,estimate:estimate};
 })();
@@ -12929,7 +12942,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
 /* Anonymous peer trajectories, on by default with a clear opt-out. Results are never persisted in browser storage. */
 (function () {
   'use strict';
-  var host, filters, generation = 0, owner = '', enabled = null, defaulted = false, noticeVisible = false, result = null, selected = [true,true,true], busy = false, message = '', metricChoice = '', matchChoice = 'shape', policyChoice = 'balanced', minChoice = 3, categoryChoice = '__all__', matchedCount = 0, confirmAction = null, exposureSent = false, exposureObserver = null;
+  var host, filters, generation = 0, owner = '', enabled = null, defaulted = false, noticeVisible = false, result = null, selected = [], expandedReferences = false, busy = false, message = '', metricChoice = '', matchChoice = 'shape', policyChoice = 'balanced', minChoice = 3, categoryChoice = '__all__', matchedCount = 0, confirmAction = null, exposureSent = false, exposureObserver = null;
   var colors = ['var(--green,#32a77a)','var(--warn,#b97f24)','#b17ac9'], forecast=window.__stTrajectoryForecast, forecastChoice=forecast.settings();
   function esc(v) { return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
   function identity() { return typeof state!=='undefined' && state.user && state.token ? state.user.id+'|'+state.token : ''; }
@@ -12977,7 +12990,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     return enabled===false?'关闭后不会继续新增匹配':'暂时还没有用户匹配过你的匿名轨迹';
   }
   function reset() {
-    generation++; if(host&&host.isConnected)host.innerHTML=''; owner=identity(); enabled=null; defaulted=false; noticeVisible=false; result=null; busy=false; message=''; metricChoice=''; matchChoice='shape';policyChoice='balanced';minChoice=3;categoryChoice='__all__';matchedCount=0;confirmAction=null;
+    expandedReferences=false;generation++; if(host&&host.isConnected)host.innerHTML=''; owner=identity(); enabled=null; defaulted=false; noticeVisible=false; result=null; busy=false; message=''; metricChoice=''; matchChoice='shape';policyChoice='balanced';minChoice=3;categoryChoice='__all__';matchedCount=0;confirmAction=null;
     forecastChoice=forecast.settings();
     try { var key=preferenceKey(),p=key?JSON.parse(localStorage.getItem(key)||'null'):null;if(p){if(['shape','overlap'].indexOf(p.mode)>=0)matchChoice=p.mode;if(['balanced','long','recent'].indexOf(p.policy)>=0)policyChoice=p.policy;if(Number.isInteger(p.min)&&p.min>=3&&p.min<=1000)minChoice=p.min;if(typeof p.category==='string'&&p.category.length<=40&&validTrajectoryCategory(p.category))categoryChoice=p.category;forecastChoice=forecast.settings(p.forecast);} } catch(_) {}
   }
@@ -13000,7 +13013,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     try {
       var data=await api('match',filters);
       if(!current(seq,key))return;
-      enabled=data.enabled;result=data;selected=[true,true,true];if(Number.isFinite(Number(data.matched_count)))matchedCount=Math.max(0,Number(data.matched_count));
+      enabled=data.enabled;result=data;selected=(data.matches||[]).map(function(){return true;});expandedReferences=false;if(Number.isFinite(Number(data.matched_count)))matchedCount=Math.max(0,Number(data.matched_count));
       track('trajectory_match_result',{category:filters.category,metric:filters.metric,match_mode:filters.match_mode,reference_policy:filters.reference_policy,min_history:filters.min_history,count:(data.matches||[]).length,matched_count:matchedCount,reason:data.reason,duration_ms:Date.now()-startedAt,status:200});
     } catch(e) {if(current(seq,key)){message=e.name==='AbortError'?'这次加载有点久，请再试一次':e.message;track('trajectory_match_error',requestMeta(e,startedAt));}}
     finally {if(current(seq,key)){busy=false;paint();}}
@@ -13018,9 +13031,11 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       if(enabled){load();return;}paint();
     } catch(e){if(current(seq,key)){busy=false;message='设置还没有保存，请再试一次';track('trajectory_sharing_error',requestMeta(e,startedAt));paint();}}
   }
+  function peerColor(i) {return colors[i]||'hsl('+((i*137.508)%360)+',48%,48%)';}
+  function visibleMatches() {return expandedReferences?result.matches:result.matches.slice(0,3);}
   function prediction() {return forecast.estimate(result.history,result.matches.filter(function(m,i){return selected[i];}),filters.match_mode,forecastChoice);}
   function chart(estimate) {
-    var own=result.history,matches=result.matches.map(function(m){return forecast.align(own,m,filters.match_mode);}),n=own.length,horizon=Math.max.apply(null,matches.map(function(m){return m.future.length;})),count=n+horizon;
+    var own=result.history,matches=visibleMatches().map(function(m){return forecast.align(own,m,filters.match_mode);}),n=own.length,horizon=Math.max.apply(null,matches.map(function(m){return m.future.length;})),count=n+horizon;
     var W=Math.max(560,count*76),H=250,L=55,R=26,T=24,B=40;
     var values=own.slice();matches.forEach(function(m,i){if(selected[i])values=values.concat(m.history,m.future);});if(estimate)values=values.concat([estimate.low,estimate.high,estimate.center]);
     var low=Math.max(0,Math.floor((Math.min.apply(null,values)-5)/5)*5),high=Math.min(100,Math.ceil((Math.max.apply(null,values)+5)/5)*5);if(high===low)high=low+1;
@@ -13034,7 +13049,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     var svg='<rect x="'+X(n-1)+'" y="'+T+'" width="'+(W-R-X(n-1))+'" height="'+(H-T-B)+'" fill="var(--accent,#5d72e8)" opacity=".025"/>',overlay='';
     for(var j=0;j<=4;j++){var v=low+(high-low)*j/4,y=Y(v);svg+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y+'" y2="'+y+'" stroke="var(--line,#e8ebf0)"/><text x="'+(L-8)+'" y="'+(y+4)+'" text-anchor="end">'+fmt(v)+'</text>';}
     for(var k=0;k<count;k++)svg+='<text x="'+X(k)+'" y="'+(H-14)+'" text-anchor="middle">'+(k===n-1?'最近一次':k<n?'前 '+(n-1-k)+' 次':'后 '+(k-n+1)+' 次')+'</text>';
-    matches.forEach(function(m,i){if(!selected[i])return;svg+=line(m.history,n-m.history.length,colors[i],false,'轨迹 '+(i+1))+line([m.history[m.history.length-1]].concat(m.future),n-1,colors[i],true,'轨迹 '+(i+1));});
+    matches.forEach(function(m,i){if(!selected[i])return;svg+=line(m.history,n-m.history.length,peerColor(i),false,'轨迹 '+(i+1))+line([m.history[m.history.length-1]].concat(m.future),n-1,peerColor(i),true,'轨迹 '+(i+1));});
     if(estimate){
       var x=X(n),cy=Y(estimate.center),ly=Y(estimate.low),hy=Y(estimate.high),anchorY=Y(own[n-1]),labelTop=Math.max(2,Math.min(ly,hy)-30);
       svg+='<g class="st-peer-forecast-mark"><path d="M '+X(n-1)+' '+anchorY+' L '+x+' '+ly+' L '+x+' '+hy+' Z" fill="var(--accent,#5d72e8)" opacity=".075"/><line x1="'+X(n-1)+'" y1="'+anchorY+'" x2="'+x+'" y2="'+cy+'" stroke="var(--accent,#5d72e8)" stroke-width="2" stroke-dasharray="2 4"/><path d="M '+(x-5)+' '+ly+' H '+(x+5)+' M '+x+' '+ly+' V '+hy+' M '+(x-5)+' '+hy+' H '+(x+5)+'" fill="none" stroke="var(--accent,#5d72e8)" stroke-width="2"/><g data-peer-forecast-toggle style="cursor:pointer"><rect x="'+(x-22)+'" y="'+(cy-22)+'" width="44" height="44" fill="transparent"/><path class="st-peer-forecast-center" d="M '+x+' '+(cy-6)+' L '+(x+6)+' '+cy+' L '+x+' '+(cy+6)+' L '+(x-6)+' '+cy+' Z" fill="var(--panel-solid,#fff)" stroke="var(--accent,#5d72e8)" stroke-width="2.5"><title>下次预测中心 · '+fmt(estimate.center)+'</title></path></g></g>';
@@ -13063,13 +13078,13 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       var choices=trajectoryCategoryChoices(),categoryOptions=choices.map(function(choice){return '<option value="'+esc(choice.value)+'"'+(categoryChoice===choice.value?' selected':'')+'>'+esc(choice.label)+'</option>';}).join('');
       body+='<details class="st-peer-settings"'+(settingsOpen&&settingsOpen.open?' open':'')+'><summary>匹配设置 · '+(categoryChoice==='__all__'?'全部分类':trajectoryCategoryLabel(categoryChoice))+' · '+(policyChoice==='long'?'长轨迹优先':policyChoice==='recent'?'近期变化优先':'综合匹配')+' · 至少 '+minChoice+' 次</summary><form data-peer-settings><div class="st-peer-fields"><label>分类范围<select name="category" '+(busy?'disabled':'')+'>'+categoryOptions+'</select></label><label>匹配偏好<select name="reference_policy" '+(busy?'disabled':'')+'>'+[['balanced','综合匹配'],['long','长轨迹优先'],['recent','近期变化优先']].map(function(o){return '<option value="'+o[0]+'"'+(policyChoice===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select></label><label>至少参考几次<input name="min_history" type="number" min="3" max="1000" step="1" inputmode="numeric" required value="'+minChoice+'" '+(busy?'disabled':'')+'></label></div><p class="st-peer-note">默认会在全部分类中寻找；需要时可以指定一个分类。'+policyNote()+'</p><details class="st-peer-advanced"'+(advancedOpen&&advancedOpen.open?' open':'')+'><summary>高级设置</summary><div class="st-peer-fields">'+[['similarity','匹配度权重',0,3],['history','场次权重',0,2],['width','范围宽度',0.5,2]].map(function(o){return '<label>'+o[1]+'<input name="forecast_'+o[0]+'" type="number" min="'+o[2]+'" max="'+o[3]+'" step="0.1" inputmode="decimal" required value="'+forecastChoice[o[0]]+'" '+(busy?'disabled':'')+'></label>';}).join('')+'</div><p class="st-peer-note">权重越大，越偏向匹配度高或场次多的轨迹；设为 0 则不考虑。范围宽度 1 为默认，越大越宽。</p></details><div class="st-peer-setting-actions"><button type="submit" class="chip active" '+(busy?'disabled':'')+'>应用设置</button><button type="button" class="st-peer-link" data-peer-default '+(busy?'disabled':'')+'>恢复默认</button></div></form></details>';
       if(!busy&&result){
-        var matches=result.matches||[];
+        var matches=visibleMatches()||[];
         if(matches.length){
           var estimate=prediction();
-          body+='<div class="st-peer-summary" aria-live="polite">'+(estimate?'<div class="st-peer-center"><span>下次预测中心</span><strong>'+fmt(estimate.center)+'</strong></div><div class="st-peer-range"><span>参考范围</span><b>'+fmt(estimate.low)+' ～ '+fmt(estimate.high)+'</b></div><small>'+estimate.count+' 条轨迹参考'+(estimate.count<3?' · 参考较少':'')+'</small>':'<span>选择轨迹，看看下次预测</span>')+'</div>';
-          body+='<div class="st-peer-options"><span class="st-peer-mine">● 我的轨迹</span>'+matches.map(function(m,i){return '<button type="button" class="st-peer-option" style="--peer-color:'+colors[i]+'" data-peer-index="'+i+'" aria-pressed="'+selected[i]+'"><span class="st-peer-option-title"><span>● 相似轨迹 '+(i+1)+'</span>'+scoreBadge(m)+'</span><small>'+m.history.length+' 次参考</small></button>';}).join('')+'</div>'+chart(estimate);
+          body+='<div class="st-peer-summary" aria-live="polite">'+(estimate?'<div class="st-peer-center"><span>下次预测中心</span><strong>'+fmt(estimate.center)+'</strong></div><div class="st-peer-range"><span>参考范围</span><b>'+fmt(estimate.low)+' ～ '+fmt(estimate.high)+'</b></div><small>'+estimate.count+' 条轨迹参考'+(estimate.disagreement?' · 走势有分歧':'')+(estimate.count<10?' · 参考较少':'')+'</small>':'<span>选择轨迹，看看下次预测</span>')+'</div>';
+          body+='<div class="st-peer-options"><span class="st-peer-mine">● 我的轨迹</span>'+matches.map(function(m,i){return '<button type="button" class="st-peer-option" style="--peer-color:'+peerColor(i)+'" data-peer-index="'+i+'" aria-pressed="'+selected[i]+'"><span class="st-peer-option-title"><span>● 相似轨迹 '+(i+1)+'</span>'+scoreBadge(m)+'</span><small>'+m.history.length+' 次参考</small></button>';}).join('')+'</div>'+(result.matches.length>3?'<p class="st-peer-note">预测使用全部已选参考，默认展示前三条。<button type="button" class="st-peer-link" data-peer-expand aria-expanded="'+expandedReferences+'">'+(expandedReferences?'收起其余参考':'展开全部 '+result.matches.length+' 条参考')+'</button></p>':'')+chart(estimate);
           var helpOpen=host.querySelector('.st-peer-help');
-          body+='<details class="st-peer-help"'+(helpOpen&&helpOpen.open?' open':'')+'><summary>预测与匹配说明</summary><p>'+ (filters.match_mode==='shape'?'相似走势先平移到你最近一次的水平，再参考他们后续的变化；图中也已对齐。':'重合模式保留对方的成绩水平，直接参考他们的后续成绩。')+'超出 0～100% 的部分按边界显示。</p><p>中心取加权后最集中的位置；范围结合参考分歧和你近期的波动估计。预测仅供参考，不代表下次成绩一定落在范围内。</p><p class="st-peer-fit-note">匹配度表示这段走势有多相似，不是预测准确率。排序还会考虑场次和匹配偏好。</p><p>从最近一次往前比较，双方总场次数可以不同。只显示满足最低参考场次的轨迹，每人最多一条。</p><p>'+ (filters.metric==='score'?'得分率已换算到相同满分，试卷难度可能不同。':'排名来自各自的班级或年级，群体差异可能影响比较。')+'默认在全部分类中寻找，也可以在匹配设置里指定某个分类；科目范围需要一致。</p></details>';
+          body+='<details class="st-peer-help"'+(helpOpen&&helpOpen.open?' open':'')+'><summary>预测与匹配说明</summary><p>'+ (filters.match_mode==='shape'?'相似走势先平移到你最近一次的水平，再参考他们后续的变化；图中也已对齐。':'重合模式保留对方的成绩水平，直接参考他们的后续成绩。')+'超出 0～100% 的部分按边界显示。</p><p>中心以你最近三次的中位水平为主（75%），结合所选轨迹后续的加权平均（25%）。参考轨迹默认按匹配度 × 参考场次的平方根加权；高级设置只调整参考部分。最多参考 20 位不同用户，数量不足时不会凑数。范围结合参考分歧和你近期的波动估计。预测仅供参考，不代表下次成绩一定落在范围内。</p><p class="st-peer-fit-note">匹配度表示这段走势有多相似，不是预测准确率。排序还会考虑场次和匹配偏好。</p><p>从最近一次往前比较，双方总场次数可以不同。只显示满足最低参考场次的轨迹，每人最多一条。</p><p>'+ (filters.metric==='score'?'得分率已换算到相同满分，试卷难度可能不同。':'排名来自各自的班级或年级，群体差异可能影响比较。')+'默认在全部分类中寻找，也可以在匹配设置里指定某个分类；科目范围需要一致。</p></details>';
           body+='<details class="st-peer-details"><summary>查看每次成绩</summary><div class="st-peer-table"><table><thead><tr><th>考试</th><th>我</th>'+matches.map(function(m,i){return '<th>轨迹 '+(i+1)+'</th>';}).join('')+'</tr></thead><tbody>';
           var n=result.history.length,max=Math.max.apply(null,matches.map(function(m){return m.future.length;}));
           for(var j=0;j<n;j++)body+='<tr><th>'+(j===n-1?'最近一次':'前 '+(n-1-j)+' 次')+'</th><td>'+fmt(result.history[j])+'</td>'+matches.map(function(m){var idx=j-(n-m.history.length);return '<td>'+(idx>=0?fmt(m.history[idx]):'—')+'</td>';}).join('')+'</tr>';
@@ -13097,7 +13112,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     generation++;result=null;busy=false;message='';
     var cfg=state.sv31||{},subjects=cfg.subjMod&&cfg.subjMod.length?cfg.subjMod.slice():null;
     if(!validTrajectoryCategory(categoryChoice))categoryChoice='__all__';
-    filters={match_mode:matchChoice,reference_policy:policyChoice,min_history:minChoice,subjects:subjects,metric:metricChoice||(cfg.mode==='score'?'score':'year'),category:categoryChoice,label:subjects?subjects.join('、'):'总分'};
+    filters={reference_limit:20,match_mode:matchChoice,reference_policy:policyChoice,min_history:minChoice,subjects:subjects,metric:metricChoice||(cfg.mode==='score'?'score':'year'),category:categoryChoice,label:subjects?subjects.join('、'):'总分'};
     watchExposure();
     host.onclick=function(event){
       var summary=event.target.closest('summary');
@@ -13115,6 +13130,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       if(b.hasAttribute('data-peer-metric')){var previous=filters.metric;metricChoice=b.getAttribute('data-peer-metric');filters.metric=metricChoice;track('trajectory_filter_change',{filter:'metric',from:previous,to:metricChoice});load();}
       if(b.hasAttribute('data-peer-mode')){var previousMode=filters.match_mode;matchChoice=b.getAttribute('data-peer-mode');filters.match_mode=matchChoice;remember();track('trajectory_filter_change',{filter:'match_mode',from:previousMode,to:matchChoice});load();}
       if(b.hasAttribute('data-peer-default')){matchChoice='shape';policyChoice='balanced';minChoice=3;categoryChoice='__all__';forecastChoice=forecast.settings();filters.match_mode=matchChoice;filters.reference_policy=policyChoice;filters.min_history=minChoice;filters.category=categoryChoice;remember();track('trajectory_settings_reset',{category:categoryChoice,reference_policy:policyChoice,min_history:minChoice,forecast_similarity:forecastChoice.similarity,forecast_history:forecastChoice.history,forecast_width:forecastChoice.width});load();}
+      if(b.hasAttribute('data-peer-expand')){expandedReferences=!expandedReferences;paint();track('trajectory_references_expand',{expanded:expandedReferences,count:result.matches.length});return;}
       if(b.hasAttribute('data-peer-index')){var i=Number(b.getAttribute('data-peer-index'));selected[i]=!selected[i];paint();track('trajectory_select',{index:i+1,selected:selected[i]});}
     };
     host.onkeydown=function(event){if(event.key!=='Escape')return;if(confirmAction!==null){track('trajectory_sharing_confirm_cancel',{enabled:confirmAction===true,source:'escape'});confirmAction=null;paint();event.preventDefault();return;}if(host.querySelector('.st-peer-forecast-tip:not([hidden])')){toggleForecast(false);host.querySelector('.st-peer-forecast-label').focus({preventScroll:true});event.preventDefault();}};

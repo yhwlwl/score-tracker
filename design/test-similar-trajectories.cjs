@@ -5,8 +5,8 @@ const tick=()=>new Promise(r=>setTimeout(r,40));
 const vc=new VirtualConsole(),errors=[];vc.on('jsdomError',e=>{if(!e.message.includes('CSS'))errors.push(e.message)});
 const dom=new JSDOM(read('index.html').replace(/<script[\s\S]*?<\/script>/g,''),{url:'https://test.local/',runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:vc}),w=dom.window,d=w.document;
 w.matchMedia=()=>({matches:false,addEventListener(){},addListener(){}});w.scrollTo=()=>{};w.setInterval=()=>1;
-let enabled=true,defaultStatus=true,matchedCount=4,requests=[],hold=null,pending,fail=false,reason='matched',scores=[87,100,0];
-const payload=()=>({enabled,matched_count:matchedCount,reason,history:[46,44,40,36,30],matches:reason==='matched'?[{history:[41,35,31],future:[28,26,24],match_score:scores[0]},{history:[39,38,35,32,29],future:[33,34],match_score:scores[1]},{history:[45,42,38,32],future:[30],match_score:scores[2]}]:[]});
+let enabled=true,defaultStatus=true,matchedCount=4,requests=[],hold=null,pending,fail=false,reason='matched',scores=[87,100,0],extraMatches=false;
+const payload=()=>({enabled,matched_count:matchedCount,reason,history:[46,44,40,36,30],matches:reason==='matched'?[{history:[41,35,31],future:[28,26,24],match_score:scores[0]},{history:[39,38,35,32,29],future:[33,34],match_score:scores[1]},{history:[45,42,38,32],future:[30],match_score:scores[2]}].concat(extraMatches?Array.from({length:17},(_,i)=>({history:[46,42,37,32,30],future:[45+i/10],match_score:90})):[]):[]});
 w.fetch=async(url,init={})=>{const b=JSON.parse(init.body||'{}');if(String(url).includes('trajectories')){requests.push(b);if(fail)throw new Error('offline');if(b.action==='sharing'){enabled=b.enabled;return new Response(JSON.stringify({enabled,matched_count:matchedCount}));}if(b.action==='match'){if(hold)await new Promise(r=>pending=r);return new Response(JSON.stringify(payload()));}if(b.action==='status'){const first=defaultStatus;defaultStatus=false;return new Response(JSON.stringify({enabled,defaulted:first,matched_count:matchedCount}));}return new Response('{}');}return new Response('{}');};
 w.eval(read('app-bundle.js')+'\nwindow.state=state;');await tick();
 function render(){w.state.page='stats';d.getElementById('app').innerHTML='<div id="content"></div>';w.__v32.rerender();}
@@ -14,6 +14,10 @@ w.state.user={id:'fixture',username:'fixture'};w.state.token='fixture-token';w.s
 render();await tick();assert(!d.querySelector('[data-peer-enable]'),'matching is on by default');assert(d.querySelector('.st-peer-notice').textContent.includes('匿名成绩趋势'),'privacy scope is explained inline');assert(d.querySelector('.st-peer-count').textContent.includes('4 位用户'),'anonymous exposure count is visible');assert(requests.some(b=>b.action==='match'),'default participation loads matches');
 d.querySelector('[data-peer-notice-dismiss]').click();assert(!d.querySelector('.st-peer-notice'),'notice can be dismissed without blocking the feature');assert.equal(d.querySelectorAll('[data-peer-index]').length,3);assert.equal(d.querySelectorAll('.st-peer-chart polyline[stroke-dasharray]').length,3);assert(d.querySelector('.st-peer-summary').textContent.includes('下次预测中心'));assert(d.querySelector('.st-peer-range').textContent.includes('参考范围'));assert(d.querySelector('.st-peer-summary').textContent.includes('3 条轨迹参考'));
 assert(d.querySelector('[data-peer-index="1"]').textContent.includes('5 次参考'));
+assert(d.querySelector('.st-peer-summary').textContent.includes('走势有分歧'),'opposite reference directions are explained');
+const initial=payload(),initialEstimate=w.__stTrajectoryForecast.estimate(initial.history,initial.matches,'shape');
+assert.equal(d.querySelector('.st-peer-center strong').textContent,'前'+Math.round(initialEstimate.center*10)/10+'%','summary renders the weighted center');
+assert(d.querySelector('.st-peer-help').textContent.includes('加权平均'),'the displayed method matches the calculation');
 assert.deepEqual([...d.querySelectorAll('.st-peer-fit')].map(x=>x.textContent),['匹配度 87%','匹配度 100%','匹配度 0%'],'each reference displays its own percentage, including zero');
 assert(d.querySelector('.st-peer-fit-note').textContent.includes('不是预测准确率'),'fit is not described as forecast accuracy');
 assert.equal(d.querySelector('.st-peer-help').open,false,'explanations are collapsed initially');assert(!d.querySelector('.st-peer-fit-note').closest('details').open);
@@ -25,7 +29,7 @@ d.querySelector('.st-peer-forecast-center').dispatchEvent(new w.MouseEvent('clic
 d.querySelector('.st-peer-forecast-label').click();d.querySelector('.st-peer-heading').click();assert(d.querySelector('.st-peer-forecast-tip').hidden,'outside tap dismisses details');
 scores=[undefined,null,'90'];render();await tick();assert.equal(d.querySelectorAll('.st-peer-fit').length,0,'legacy or invalid scores are not guessed');
 scores=[-1,101,NaN];render();await tick();assert.equal(d.querySelectorAll('.st-peer-fit').length,0,'out-of-range scores are hidden');
-scores=[87,100,0];render();await tick();
+scores=[87,100,0],extraMatches=false;render();await tick();
 assert(d.querySelector('.st-peer-settings').textContent.includes('相近时优先长轨迹'),'length preference is explained naturally');
 const solid=[...d.querySelectorAll('.st-peer-chart polyline:not([stroke-dasharray])')];
 assert.equal(solid[1].getAttribute('points').split(' ').length,5,'real peer points are kept');
@@ -55,6 +59,19 @@ assert.equal(d.querySelector('[name="forecast_width"]').value,'2');
 d.querySelector('[data-peer-default]').click();await tick();assert.equal(requests.at(-1).reference_policy,'balanced');assert.equal(requests.at(-1).min_history,3);
 assert.equal(d.querySelector('[name="forecast_width"]').value,'1');
 
+
+extraMatches=true;render();await tick();
+assert.equal(requests.at(-1).reference_limit,20,'new clients explicitly request twenty references');
+assert.equal(d.querySelectorAll('[data-peer-index]').length,3,'default chart stays compact');
+assert(d.querySelector('.st-peer-summary').textContent.includes('20 条轨迹参考'),'hidden references still participate');
+const allEstimate=w.__stTrajectoryForecast.estimate(payload().history,payload().matches,'shape');
+assert.equal(d.querySelector('.st-peer-center strong').textContent,'前'+Math.round(allEstimate.center*10)/10+'%');
+d.querySelector('[data-peer-expand]').click();assert.equal(d.querySelectorAll('[data-peer-index]').length,20);assert.equal(d.querySelectorAll('.st-peer-chart polyline[stroke-dasharray]').length,20);
+assert(!/undefined|NaN|Infinity/.test(d.querySelector('.st-peer-chart').innerHTML),'expanded references have valid colors and coordinates');
+d.querySelector('[data-peer-index="19"]').click();assert(d.querySelector('.st-peer-summary').textContent.includes('19 条轨迹参考'));
+const deselectedCenter=d.querySelector('.st-peer-center strong').textContent;
+d.querySelector('[data-peer-expand]').click();assert.equal(d.querySelectorAll('[data-peer-index]').length,3);assert.equal(d.querySelector('.st-peer-center strong').textContent,deselectedCenter,'collapsing only changes presentation');
+extraMatches=false;render();await tick();
 
 d.querySelector('[data-peer-index="1"]').click();assert.equal(d.querySelectorAll('.st-peer-chart polyline[stroke-dasharray]').length,2);assert.equal(d.querySelector('[data-peer-index="1"]').getAttribute('aria-pressed'),'false');
 assert.equal(requests.at(-1).match_mode,'shape');

@@ -49,9 +49,14 @@ Deno.serve(async (req:Request) => {
     const minimum = body.min_history === undefined ? 3 : body.min_history;
     if(!['balanced','long','recent'].includes(policy)) return out({error:'请选择匹配偏好'},400);
     if(!Number.isInteger(minimum)||minimum<3||minimum>1000) return out({error:'参考场次需要是 3～1000 之间的整数'},400);
+    const referenceLimit = body.reference_limit === undefined ? 3 : body.reference_limit;
+    if(referenceLimit !== 3 && referenceLimit !== 20) return out({error:'参考数量需要是 3 或 20'},400);
     const parameters = {p_user_id:user.id,p_subjects:subjects,p_metric:body.metric,p_category:body.category};
     const configured = body.reference_policy !== undefined || body.min_history !== undefined;
-    const {data,error} = configured
+    // Larger ensembles are opt-in so deployed older clients still receive three.
+    const {data,error} = referenceLimit === 20
+      ? await db.rpc('score_tracker_trajectory_match_ensemble',{...parameters,p_match_mode:mode,p_reference_policy:policy,p_min_history:minimum})
+      : configured
       ? await db.rpc('score_tracker_trajectory_match_configured',{...parameters,p_match_mode:mode,p_reference_policy:policy,p_min_history:minimum})
       : body.match_mode === undefined
       ? await db.rpc('score_tracker_trajectory_match',parameters)
