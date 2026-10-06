@@ -13,7 +13,7 @@ function fail(message: string, status = 400): never { throw Object.assign(new Er
 const text = (v: unknown, max = 200) => typeof v === 'string' ? v.trim().slice(0, max) : '';
 const uuid = (v: unknown) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || ''));
 async function rpc(name: string, params: Record<string, unknown>) { const { data, error } = await db.rpc(name, params); if (error) throw error; return data; }
-async function rate(scope: string, seconds: number, max: number) { if (!await rpc('score_tracker_recovery_rate', { p_scope: scope, p_seconds: seconds, p_max: max })) fail('操作较频繁，请稍后再试。', 429); }
+async function rate(scope: string, seconds: number, max: number, message = '操作较频繁，请稍后再试。') { if (!await rpc('score_tracker_recovery_rate', { p_scope: scope, p_seconds: seconds, p_max: max })) fail(message, 429); }
 function evidence(raw: Record<string, unknown>) {
   const e = { exam_name: text(raw.exam_name, 100), exam_date: text(raw.exam_date, 10), subject: text(raw.subject, 40), score: text(raw.score, 10), school: text(raw.school, 100), details: text(raw.details, 4000) };
   if (e.exam_date && (!/^\d{4}-\d{2}-\d{2}$/.test(e.exam_date) || !Number.isFinite(Date.parse(e.exam_date)))) fail('请填写有效的考试日期。');
@@ -86,7 +86,9 @@ Deno.serve(async req => {
       if (mode === 'password' && !hint) fail('请填写记得的用户名。');
       const hasEvidence = Boolean(e.exam_name || e.exam_date || e.subject || e.score || e.school || e.details);
       if (!hasEvidence) fail('请至少填写一项能帮助核验的信息，考试名称、日期、分数、学校或补充说明都可以。');
-      await rate('submit:' + ipHash, 86400, 3);
+      const clientId = text(body.client_id, 80), clientScope = /^[A-Za-z0-9_-]{20,80}$/.test(clientId) ? await sha('score-recovery-client:' + clientId) : ipHash;
+      await rate('submit-device:' + clientScope, 86400, 5, '这个设备今天提交找回申请的次数已达上限，请明天再试。');
+      await rate('submit-ip:' + ipHash, 86400, 30, '当前网络提交较频繁，请稍后再试。');
       const key = random(), no = 'ST-' + (await sha(random())).slice(0, 12).toUpperCase();
       const { data, error } = await db.from('score_tracker_recovery_tickets').insert({ ticket_no: no, key_hash: await sha(key), mode, username_hint: hint, evidence: e, history: [{ author: 'system', content: '已收到申请，等待管理员核验。', at: new Date().toISOString() }] }).select('ticket_no,status,created_at').single();
       if (error) throw error; return out({ ...data, key });
