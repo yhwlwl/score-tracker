@@ -33,7 +33,7 @@ async function publicTicket(row: Record<string, any>) {
   if (new_user_id) { const { data, error } = await db.from('score_tracker_users').select('username').eq('id', new_user_id).maybeSingle(); if (error) throw error; safe.new_username = data?.username || ''; }
   return safe;
 }
-const errors: Record<string, string> = { ticket_not_found: '工单不存在。', ticket_closed: '这张工单已结束处理。', ticket_changed: '用户刚补充了信息，请刷新后重新核对。', source_not_found: '无法使用这个原账号。', review_note_required: '请填写审核说明。', invalid_source_links: '原账号的数据关联异常，请先检查。', message_limit: '这张工单的消息已达到上限。', not_claimable: '新账号已领取或工单尚未通过审核。', claim_expired: '领取期限已过，请重新提交找回申请。', unauthorized: 'unauthorized' };
+const errors: Record<string, string> = { ticket_not_found: '工单不存在。', ticket_closed: '这张工单已结束处理。', ticket_changed: '用户刚补充了信息，请刷新后重新核对。', source_not_found: '无法使用这个原账号。', review_note_required: '请填写审核说明。', invalid_source_links: '原账号的数据关联异常，请先检查。', message_limit: '这张工单的消息已达到上限。', not_claimable: '新账号已领取或工单尚未通过审核。', claim_expired: '领取期限已过，请重新提交找回申请。', username_taken: '这个用户名已被使用，请换一个。', invalid_username: '用户名请使用 2～24 位中文、字母、数字、横线或下划线。', unauthorized: 'unauthorized' };
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return out({ ok: true });
   if (!['GET', 'POST'].includes(req.method)) return out({ error: 'method_not_allowed' }, 405);
@@ -103,8 +103,10 @@ Deno.serve(async req => {
       await rate('claim:' + data.id, 600, 5);
       const p = typeof body.password === 'string' ? body.password : '';
       if (p.length < 6 || p.length > 20 || /\s/.test(p)) fail('新密码需为 6～20 位，且不能包含空格。');
+      const username = text(body.username, 24).toLowerCase();
+      if (!/^[\p{L}\p{N}_-]{2,24}$/u.test(username)) fail('invalid_username');
       const h = await passwordHash(p), token = random();
-      const result = await rpc('score_tracker_recovery_claim', { p_ticket: data.id, p_key_hash: kh, p_hash: h.hash, p_salt: h.salt, p_token_hash: await sha(token) });
+      const result = await rpc('score_tracker_recovery_claim', { p_ticket: data.id, p_key_hash: kh, p_hash: h.hash, p_salt: h.salt, p_token_hash: await sha(token), p_username: username });
       return out({ ...result, token });
     }
     fail('unknown_action', 404);
