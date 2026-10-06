@@ -76,3 +76,8 @@ html,body,#app{max-width:100%;overflow-x:hidden}
   .record-action-btn-v10{min-width:0;padding:7px 6px!important}
   .bottom-nav{left:12px;right:12px}
 }
+
+/* Keep the version trigger clear of the fixed mobile navigation. */
+@media(max-width:880px){
+  #app-version-v17{margin-bottom:calc(88px + env(safe-area-inset-bottom))}
+}
