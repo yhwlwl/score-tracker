@@ -9,9 +9,9 @@ const {stripTypeScriptTypes}=require('node:module');
   vm.runInNewContext(stripTypeScriptTypes(source),{createClient:()=>db,Deno:{env:{get:()=> 'test'},serve:f=>handler=f},crypto,TextEncoder,Uint8Array,Response,Request,Date,console});
   const base={action:'match',token,metric:'year',category:'__all__',subjects:null,match_mode:'shape'};
   async function request(body){return handler(new Request('https://test.local/trajectories',{method:'POST',body:JSON.stringify(body)}));}
-  let statusResponse=await request({action:'status',token});assert.equal(statusResponse.status,200);assert.deepEqual(await statusResponse.json(),{enabled:true,defaulted:true,matched_count:2},'missing sharing choice defaults to enabled and returns the anonymous exposure count');assert.equal(upserts.length,1);assert.equal(upserts[0].enabled,true);
-  statusResponse=await request({action:'status',token});assert.equal(statusResponse.status,200);assert.deepEqual(await statusResponse.json(),{enabled:true,defaulted:false,matched_count:2},'existing default choice is not presented as a new choice');
-  assert.equal((await request({action:'sharing',token,enabled:false})).status,200);statusResponse=await request({action:'status',token});assert.deepEqual(await statusResponse.json(),{enabled:false,defaulted:false,matched_count:2},'explicit opt-out remains off while historical anonymous count stays available');
+  let statusResponse=await request({action:'status',token});assert.equal(statusResponse.status,200);assert.deepEqual(await statusResponse.json(),{enabled:true,defaulted:true,matched_count:2,api_version:2},'missing sharing choice defaults to enabled and returns the anonymous exposure count');assert.equal(upserts.length,1);assert.equal(upserts[0].enabled,true);
+  statusResponse=await request({action:'status',token});assert.equal(statusResponse.status,200);assert.deepEqual(await statusResponse.json(),{enabled:true,defaulted:false,matched_count:2,api_version:2},'existing default choice is not presented as a new choice');
+  assert.equal((await request({action:'sharing',token,enabled:false})).status,200);statusResponse=await request({action:'status',token});assert.deepEqual(await statusResponse.json(),{enabled:false,defaulted:false,matched_count:2,api_version:2},'explicit opt-out remains off while historical anonymous count stays available');
   for(const mode of ['shape','overlap'])for(const policy of ['balanced','long','recent']){
     const r=await request({...base,match_mode:mode,reference_policy:policy,min_history:8,user_id:'someone-else',test_all_database:true});assert.equal(r.status,200);
     assert.equal(r.headers.get('Cache-Control'),'private, no-store');
@@ -24,6 +24,13 @@ const {stripTypeScriptTypes}=require('node:module');
   await request(base);assert.equal(calls.at(-1).name,'score_tracker_trajectory_match_adaptive','old explicit-mode clients remain compatible');
   const legacy={...base};delete legacy.match_mode;await request(legacy);assert.equal(calls.at(-1).name,'score_tracker_trajectory_match','oldest clients retain equal-length API');
   await request({...legacy,reference_policy:'long'});assert.equal(calls.at(-1).name,'score_tracker_trajectory_match_configured','settings work with default shape mode');
+  for(const mode of ['shape','overlap'])for(const policy of ['balanced','long','recent']){
+    const r=await request({...base,api_version:2,match_mode:mode,reference_policy:policy,min_history:2,same_category:true,user_id:'other'});assert.equal(r.status,200);
+    assert.equal(calls.at(-1).name,'score_tracker_trajectory_match_v2');assert.equal(calls.at(-1).parameters.p_user_id,'verified-user');assert.equal(calls.at(-1).parameters.p_same_category,true);assert.equal(calls.at(-1).parameters.p_min_history,2);
+  }
+  for(const fields of [{api_version:3},{api_version:null},{api_version:'2'},{api_version:2,min_history:1},{api_version:2,same_category:'false'},{api_version:2,same_category:null}]){
+    const n=calls.length;assert.equal((await request({...base,...fields})).status,400);assert.equal(calls.length,n);
+  }
   const n=calls.length;assert.equal((await request({...base,token:'wrong'})).status,401);expired=true;assert.equal((await request(base)).status,401);assert.equal(calls.length,n,'invalid or expired sessions cannot match');expired=false;
   assert.equal((await request(null)).status,400);assert.equal((await request([])).status,400);assert.equal((await request({...base,padding:'x'.repeat(8192)})).status,413);
   assert.equal((await handler(new Request('https://test.local/trajectories'))).status,405);
