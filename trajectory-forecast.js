@@ -9,6 +9,10 @@
     });return out;
   }
   function clamp(v) {return Math.max(0,Math.min(100,v));}
+  function median(values) {
+    var sorted=values.slice().sort(function(a,b){return a-b;}),middle=Math.floor(sorted.length/2);
+    return sorted.length%2?sorted[middle]:(sorted[middle-1]+sorted[middle])/2;
+  }
   function align(own,peer,mode) {
     var offset=mode==='shape'?own[own.length-1]-peer.history[peer.history.length-1]:0;
     return {offset:offset,history:peer.history.map(function(v){return clamp(v+offset);}),future:peer.future.map(function(v){return clamp(v+offset);})};
@@ -29,18 +33,27 @@
     changes.sort(function(a,b){return a-b;});
     var volatility=changes.length?changes[Math.floor(changes.length/2)]:0;
     // Shared Gaussian bandwidth includes recent own volatility, so agreement does not imply certainty.
-    var bandwidth=Math.max(0.5,0.35*Math.sqrt(variance),0.35*volatility),density=[],area=[0],peak=-1,center=0;
+    // A robust own-history baseline protects against a single unusual exam.
+    // The fixed 25% reference contribution was selected on earlier rolling-origin
+    // cases, excluding showcase/admin1, before evaluating later held-out cases.
+    var recent=own.slice(-3).filter(Number.isFinite),baseline=median(recent);
+    var center=clamp(0.75*baseline+0.25*mean),bandwidth=Math.max(0.5,0.35*Math.sqrt(variance),0.35*volatility),density=[],area=[0];
     // Integrate only the valid 0–100 domain, at 0.1 percentage-point resolution.
     for(var i=0;i<=1000;i++){
       var x=i/10,p=0;samples.forEach(function(s){p+=s.weight*Math.exp(-0.5*Math.pow((x-s.value)/bandwidth,2));});density.push(p);
-      if(p>peak+1e-12||(Math.abs(p-peak)<=1e-12&&Math.abs(x-mean)<Math.abs(center-mean))){peak=p;center=x;}
       if(i)area.push(area[i-1]+(density[i-1]+p)*0.05);
     }
     function quantile(q){
       var target=area[1000]*q;for(var k=1;k<=1000;k++)if(area[k]>=target){var span=area[k]-area[k-1];return (k-1+(span?(target-area[k-1])/span:0))/10;}return 100;
     }
-    var low=Math.min(center,quantile(0.1)),high=Math.max(center,quantile(0.9));
-    return {center:center,low:clamp(center-(center-low)*cfg.width),high:clamp(center+(high-center)*cfg.width),count:samples.length,bandwidth:bandwidth,samples:samples};
+    // Preserve both reference disagreement and own-history variability. This is
+    // a descriptive reference range, not a calibrated confidence interval.
+    var ownSpread=Math.max(0.5,volatility);
+    var low=Math.min(center,quantile(0.1),clamp(baseline-ownSpread)),high=Math.max(center,quantile(0.9),clamp(baseline+ownSpread));
+    var latest=own[own.length-1];
+    // Ignore differences below the displayed precision when describing disagreement.
+    var disagreement=samples.some(function(s){return s.value<latest-0.05;})&&samples.some(function(s){return s.value>latest+0.05;});
+    return {center:center,ownCenter:baseline,referenceCenter:mean,low:clamp(center-(center-low)*cfg.width),high:clamp(center+(high-center)*cfg.width),count:samples.length,disagreement:disagreement,bandwidth:bandwidth,samples:samples};
   }
   window.__stTrajectoryForecast={settings:settings,align:align,estimate:estimate};
 })();
