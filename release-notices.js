@@ -51,6 +51,9 @@
     old.back.remove();document.body.style.overflow=old.overflow;
     if(lastFocus&&lastFocus.isConnected)lastFocus.focus();lastFocus=null;queuePump();
   }
+  function mountSupport(back,item) {
+    window.__scoreTrackerSupport?.decorateRelease(back,item,function(){close('open_support');window.__scoreTrackerSupport.open('release');});
+  }
   function show(item) {
     injectStyle();if(item.kind==='tip')return showTip(item);
     var outdated=item.kind==='release'&&compare(item.id,CURRENT)>0,back=document.createElement('div');back.className='rn-back';back.id='releaseNotice';
@@ -72,6 +75,7 @@
     var button=back.querySelector('.rn-actions > .rn-action');button.focus();back.querySelector('.rn-close').onclick=function(){close('close_button');};back.onclick=function(e){if(e.target===back)close('backdrop');};
     back.onkeydown=function(e){if(e.key==='Escape'){e.preventDefault();close('escape');}if(e.key==='Tab'){var buttons=back.querySelectorAll('button:not([disabled]):not([hidden]),textarea,input,select'),first=buttons[0],last=buttons[buttons.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}};
     button.onclick=async function(){if(!outdated){track(item.kind==='release'?'update_acknowledged':'announcement_acknowledged',{target_version:item.id,source:item.source});close('acknowledged');return;}button.disabled=true;button.textContent='正在更新…';try{sessionStorage.setItem('st_notice_update_pending',JSON.stringify({user_id:item.user.id,from:CURRENT,to:item.id}));}catch(_){}await Promise.race([Promise.resolve(track('update_apply',{from:CURRENT,to:item.id,source:item.source})),new Promise(function(resolve){setTimeout(resolve,500);})]);var url=new URL(location.href);url.searchParams.set('__update',Date.now());location.replace(url.href);};
+    mountSupport(back,modal);
   }
   function mountComments(item,back) {
     if(item.kind!=='announcement'||!item.commentsEnabled)return;
@@ -154,5 +158,5 @@
   window.addEventListener('online',function(){if(Date.now()-lastCheck>=PERIOD)check('online',false);});
   window.addEventListener('storage',function(e){if(e.key==='st_token'&&user()&&e.newValue!==user().token){pending=[];if(modal)close('account_changed');}});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',sync,{once:true});else sync();
-  window.__releaseNotices={check:check,compareVersions:compare,currentVersion:function(){return CURRENT;},openAnnouncement:function(){track('announcement_manual_opened',{source:'settings'});return check('manual_announcement',true,'announcement');}};
+  window.__releaseNotices={check:check,compareVersions:compare,currentVersion:function(){return CURRENT;},refreshSupport:function(){if(modal)mountSupport(modal.back,modal);},openAnnouncement:function(){track('announcement_manual_opened',{source:'settings'});return check('manual_announcement',true,'announcement');}};
 })();
