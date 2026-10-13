@@ -12836,7 +12836,6 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   window.__releaseNotices={check:check,compareVersions:compare,currentVersion:function(){return CURRENT;},openAnnouncement:function(){track('announcement_manual_opened',{source:'settings'});return check('manual_announcement',true,'announcement');}};
 })();
 
-
 /* ===== account-recovery.js ===== */
 /* Account recovery: anonymous tickets, private lookup, and new-account pickup. */
 (function () {
@@ -12905,7 +12904,6 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   ticketScreen=function(){var result=ticketScreenBeforeClaimEnhance.apply(this,arguments);enhanceClaimForm();enhanceTicketStatus();return result;};
   attachForgot();startUpdateMonitor();window.addEventListener('storage',updateForgotBadge);document.addEventListener('visibilitychange',function(){if(!document.hidden)checkRecentUpdates()});window.__accountRecovery={open:function(){screen='apply';renderRecovery()},checkUpdates:checkRecentUpdates};
 })();
-
 
 /* ===== trajectory-forecast.js ===== */
 /* A descriptive estimate from anonymous references, not a calibrated probability. */
@@ -13460,4 +13458,3 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     };
   };
 })();
-
