@@ -2,6 +2,11 @@
 (function(){
   'use strict';
   if(typeof accountHtml!=='function'||typeof bindPage!=='function')return;
+  if(!document.getElementById('announcement-settings-style')){
+    var style=document.createElement('style');style.id='announcement-settings-style';
+    style.textContent='.announcement-settings-card{margin-top:18px;display:flex;flex-direction:column;align-items:flex-start;gap:16px}.announcement-settings-card .card-sub{line-height:1.7}.announcement-settings-status{margin:0;font-size:12px;line-height:1.6;color:var(--muted)}.announcement-settings-status:empty{display:none}';
+    document.head.appendChild(style);
+  }
   var previousAccountHtml=accountHtml;
   accountHtml=function accountHtmlWithAnnouncements(){
     return previousAccountHtml.apply(this,arguments)+'<section class="card account-card announcement-settings-card" id="announcementSettingsCard"><div><h3 class="card-title">公告</h3><p class="card-sub">重新查看当前公告，也可以切换到之前发布过的公告。</p></div><button class="secondary" type="button" id="openAnnouncementSettings">打开公告</button><p class="announcement-settings-status" id="announcementSettingsStatus" role="status"></p></section>';
