@@ -734,6 +734,7 @@
       '</div>' +
       '<div class="modal-body">' +
       '<section class="nl-entry-pane nl-entry-image-pane" data-entry-pane="image" hidden>' +
+      '<div class="nl-entry-quota"><div class="nl-entry-quota-head"><strong class="nl-entry-quota-count" role="status">正在读取今日额度…</strong><button class="secondary nl-entry-quota-refresh" type="button">刷新额度</button></div><p class="nl-entry-quota-note"></p><details class="nl-entry-quota-details" hidden><summary>额度规则与下一档</summary><div class="nl-entry-quota-rules"></div></details></div>' +
       '<div class="nl-entry-upload-card"><label class="nl-entry-file-button"><span>选择成绩单图片</span><small>支持多选，最多 6 张</small><input class="nl-entry-files" type="file" accept="image/*" multiple></label><p>可按成绩单顺序选择多张截图，系统会合并识别同一次考试。长图会自动分段，保留小字细节。</p></div>' +
       '<div class="nl-entry-image-list" aria-live="polite"><span class="nl-entry-empty">还没有选择图片</span></div>' +
       '<div class="nl-entry-progress" hidden aria-live="polite"><div class="nl-entry-progress-head"><span>识别进度 · 总计</span><strong class="nl-entry-elapsed">0.0s</strong></div><ol class="nl-entry-progress-steps"><li class="nl-entry-progress-step" data-progress-step="0"><span class="nl-entry-progress-dot">1</span><span class="nl-entry-progress-step-label">测试连接性</span><strong class="nl-entry-progress-step-time" data-progress-time="0">—</strong></li><li class="nl-entry-progress-step" data-progress-step="1"><span class="nl-entry-progress-dot">2</span><span class="nl-entry-progress-step-label">准备清晰图片</span><strong class="nl-entry-progress-step-time" data-progress-time="1">—</strong></li><li class="nl-entry-progress-step" data-progress-step="2"><span class="nl-entry-progress-dot">3</span><span class="nl-entry-progress-step-label">发送图片与请求</span><strong class="nl-entry-progress-step-time" data-progress-time="2">—</strong></li><li class="nl-entry-progress-step" data-progress-step="3"><span class="nl-entry-progress-dot">4</span><span class="nl-entry-progress-step-label">等待 AI 识别</span><strong class="nl-entry-progress-step-time" data-progress-time="3">—</strong></li><li class="nl-entry-progress-step" data-progress-step="4"><span class="nl-entry-progress-dot">5</span><span class="nl-entry-progress-step-label">整理可编辑结果</span><strong class="nl-entry-progress-step-time" data-progress-time="4">—</strong></li></ol></div>' +
@@ -778,6 +779,99 @@
     var selectedFiles = [];
     var visionText = '';
     var visionPayload = null;
+    var quotaState = null;
+    var quotaBusy = false;
+    var visionBusy = false;
+    var quotaVersion = 0;
+    var quotaTimer = null;
+    var quotaRetryAt = 0;
+    var quotaCount = backdrop.querySelector('.nl-entry-quota-count');
+    var quotaNote = backdrop.querySelector('.nl-entry-quota-note');
+    var quotaDetails = backdrop.querySelector('.nl-entry-quota-details');
+    var quotaRules = backdrop.querySelector('.nl-entry-quota-rules');
+    var quotaRefresh = backdrop.querySelector('.nl-entry-quota-refresh');
+    function quotaBlocked() {
+      return !quotaState || !quotaState.enabled || !quotaState.eligible || !quotaState.quota.service_enabled ||
+        quotaState.quota.remaining <= 0 || quotaState.quota.global_remaining <= 0 || Date.now() < quotaRetryAt;
+    }
+    function syncVisionButton() {
+      var hasResult = !!visionText || (visionOutput && !visionOutput.hidden);
+      visionSubmitButton.disabled = visionBusy || (!hasResult && (quotaBusy || quotaBlocked() || !selectedFiles.length));
+    }
+    function renderQuota() {
+      if (!backdrop.isConnected || !quotaState) return;
+      var q = quotaState.quota;
+      var period = q.period || 'day';
+      var prefixes = {lifetime:'体验',month:'本月',week:'本周',day:'今日'};
+      var units = {lifetime:'次（一次性）',month:'次/月',week:'次/周',day:'次/日'};
+      var countText = (prefixes[period] || '当前周期') + '剩余 ' + q.remaining + ' / ' + q.limit + ' 次 · ' + q.tier_name;
+      if (quotaCount.textContent !== countText) quotaCount.textContent = countText;
+      var resetAt = q.remaining > 0 && q.global_remaining <= 0 ? q.global_resets_at : q.resets_at;
+      var reset = resetAt ? new Date(resetAt) : null;
+      var resetText = reset && !isNaN(reset.getTime()) ? ' · ' + reset.toLocaleString([], {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) + ' 刷新' : period === 'lifetime' ? ' · 一次性额度，不自动恢复' : '';
+      var wait = Math.max(0, Math.ceil((quotaRetryAt - Date.now()) / 1000));
+      var status = !quotaState.enabled || !q.service_enabled ? '识图服务当前未启用' : !quotaState.eligible ? '当前账号尚未获得内测资格' :
+        q.remaining <= 0 ? (period === 'lifetime' ? '一次性体验额度已用完' : (prefixes[period] || '当前周期') + '个人额度已用完') : q.global_remaining <= 0 ? '今日全站额度已用完' : wait ? '请在 ' + wait + ' 秒后再次识别' : '当前周期已使用 ' + q.used + ' 次';
+      quotaNote.textContent = status + resetText + '。每次提交识别计 1 次（多张图片合并为一次）；进入识别调用后失败也计次。刷新额度、测试连接和确认填入不计次。';
+      quotaRules.textContent = '';
+      quotaDetails.hidden = !q.tier_enabled;
+      if (q.tier_enabled) {
+        var progress = document.createElement('p');
+        progress.textContent = '当前：有效成绩考试 ' + q.valid_exams + ' 场，注册 ' + q.account_days + ' 天。空考试和仅填写目标分不计入。';
+        quotaRules.appendChild(progress);
+        if (q.next_tier) {
+          var next = document.createElement('p');
+          next.textContent = '下一档「' + q.next_tier.name + '」：还需 ' + Math.max(0, q.next_tier.min_exams - q.valid_exams) + ' 场有效考试、' + Math.max(0, q.next_tier.min_account_days - q.account_days) + ' 天注册时间，可用 ' + (q.next_tier.quota_limit ?? q.next_tier.daily_limit) + ' ' + (units[q.next_tier.period || 'day'] || '次') + '。';
+          quotaRules.appendChild(next);
+        }
+        (q.tiers || []).forEach(function (tier) {
+          var row = document.createElement('p');
+          row.textContent = tier.name + ' · 至少 ' + tier.min_exams + ' 场有效考试且注册满 ' + tier.min_account_days + ' 天 · ' + (tier.quota_limit ?? tier.daily_limit) + ' ' + (units[tier.period || 'day'] || '次');
+          quotaRules.appendChild(row);
+        });
+      }
+      syncVisionButton();
+    }
+    function acceptQuota(payload) {
+      if (!payload || !payload.quota || !backdrop.isConnected) return;
+      quotaVersion++;
+      quotaState = {quota:payload.quota, enabled:payload.enabled === undefined ? (!quotaState || quotaState.enabled) : payload.enabled, eligible:payload.eligible === undefined ? (!quotaState || quotaState.eligible) : payload.eligible};
+      quotaRetryAt = Date.now() + Math.max(0, Number(payload.quota.retry_after_seconds) || 0) * 1000;
+      if (quotaTimer) clearInterval(quotaTimer);
+      quotaTimer = null;
+      if (quotaRetryAt > Date.now()) quotaTimer = setInterval(function () {
+        renderQuota();
+        if (Date.now() >= quotaRetryAt) { clearInterval(quotaTimer); quotaTimer = null; }
+      }, 1000);
+      renderQuota();
+    }
+    async function loadQuota() {
+      if (quotaBusy || !backdrop.isConnected) return;
+      quotaBusy = true;
+      quotaRefresh.disabled = true;
+      syncVisionButton();
+      var version = quotaVersion;
+      var token = localStorage.getItem('st_token') || '';
+      try {
+        var response = await requestWithTimeout(VISION_ENDPOINT, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token:token, action:'quota'})}, 15000);
+        var payload = await response.json();
+        if (!backdrop.isConnected || token !== (localStorage.getItem('st_token') || '') || version !== quotaVersion) return;
+        if (!response.ok || !payload.quota) throw new Error(payload.error || '额度读取失败');
+        acceptQuota(payload);
+      } catch (e) {
+        if (backdrop.isConnected && version === quotaVersion) {
+          quotaState = null;
+          quotaCount.textContent = '额度暂时无法读取';
+          quotaNote.textContent = (e.message || '请稍后重试') + '，点击“刷新额度”重试。';
+          quotaDetails.hidden = true;
+        }
+      } finally {
+        quotaBusy = false;
+        quotaRefresh.disabled = false;
+        syncVisionButton();
+      }
+    }
+    quotaRefresh.onclick = loadQuota;
 
     if (promptBox) promptBox.textContent = promptText;
     if (copyButton) copyButton.onclick = async function () {
@@ -788,6 +882,8 @@
     };
 
     function close() {
+      quotaVersion++;
+      if (quotaTimer) clearInterval(quotaTimer);
       if (visionTimer) {
         clearInterval(visionTimer);
         visionTimer = null;
@@ -900,6 +996,7 @@
       if (shouldTrack !== false) trackUsage('quick_entry_mode_changed', { mode: name });
       clearError();
       if (name === 'text') textarea.focus();
+      if (name === 'image') loadQuota();
     }
     backdrop.querySelectorAll('[data-entry-tab]').forEach(function (tab) {
       tab.onclick = function () { setTab(tab.dataset.entryTab); };
@@ -909,7 +1006,7 @@
       imageList.innerHTML = '';
       if (!selectedFiles.length) {
         imageList.innerHTML = '<span class="nl-entry-empty">还没有选择图片</span>';
-        visionSubmitButton.disabled = true;
+        syncVisionButton();
         return;
       }
       selectedFiles.forEach(function (file, index) {
@@ -929,7 +1026,7 @@
         };
         imageList.appendChild(row);
       });
-      visionSubmitButton.disabled = false;
+      syncVisionButton();
     }
     fileInput.onchange = function () {
       var incoming = Array.prototype.slice.call(fileInput.files || []).filter(function (file) {
@@ -982,6 +1079,7 @@
       }
       if (typeof onResponse === 'function') onResponse(response);
       var payload = await response.json().catch(function () { return {}; });
+      acceptQuota(payload);
       if (!response.ok) {
         var requestStatus = Number(response.status || 0);
         var upstreamStatus = Number(payload.upstream_status || requestStatus || 0);
@@ -1138,7 +1236,15 @@
         error.textContent = '请先选择至少 1 张成绩单图片。';
         return;
       }
+      if (visionBusy) return;
+      if (quotaBusy || !quotaState) await loadQuota();
+      if (quotaBlocked()) {
+        error.textContent = quotaNote.textContent || '请刷新额度后再试。';
+        syncVisionButton();
+        return;
+      }
       var files = selectedFiles.slice();
+      visionBusy = true;
       visionSubmitButton.disabled = true;
       fileInput.disabled = true;
       imageList.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
@@ -1184,8 +1290,11 @@
         visionSubmitButton.disabled = false;
         visionSubmitButton.textContent = '识别图片';
       } finally {
+        visionBusy = false;
         fileInput.disabled = false;
         imageList.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
+        syncVisionButton();
+        await loadQuota();
       }
     };
 
@@ -1264,6 +1373,9 @@
     '.nl-entry-tab{flex:1;border:1px solid var(--line,#e8ebf0);border-bottom:0;border-radius:12px 12px 0 0;background:var(--cell,#f7f9fc);color:var(--muted,#788392);padding:9px 10px;font-size:12px;font-weight:700;cursor:pointer}',
     '.nl-entry-tab.is-active{background:var(--panel-solid,#fff);color:var(--accent,#5d72e8);border-color:#98a6f2;box-shadow:0 -2px 0 #98a6f2 inset}',
     '.nl-entry-pane{padding-top:2px}',
+    '.nl-entry-quota{border:1px solid var(--line,#e8ebf0);border-radius:12px;padding:12px;margin-bottom:12px;background:var(--cell,#f7f9fc);font-size:11px;line-height:1.6}',
+    '.nl-entry-quota-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.nl-entry-quota-count{color:var(--accent,#5d72e8);font-size:12px}.nl-entry-quota-refresh{padding:5px 8px;font-size:10px;white-space:nowrap}',
+    '.nl-entry-quota-note{margin:7px 0 0;color:var(--muted,#788392)}.nl-entry-quota-details{margin-top:8px;color:var(--text,#18212f)}.nl-entry-quota-details summary{cursor:pointer}.nl-entry-quota-rules p{margin:6px 0 0}',
     '.nl-entry-upload-card{border:1px dashed #9aa9ec;border-radius:14px;background:linear-gradient(135deg,#f6f7ff,#fbfcff);padding:18px;text-align:center}',
     '.nl-entry-file-button{display:inline-flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:var(--accent,#5d72e8);font-weight:750;font-size:13px}',
     '.nl-entry-file-button small{font-size:10px;color:var(--muted,#788392);font-weight:500}',

@@ -15,7 +15,7 @@ const read=f=>fs.readFileSync(path.join(__dirname,'..',f),'utf8'),tick=ms=>new P
         return Promise.resolve(result).then(resolve,reject);
       }};return q;
   }};
-  vm.runInNewContext(stripTypeScriptTypes(read('supabase/functions/score-tracker-admin/index.ts').replace(/^import .*;\s*$/gm,'')),{
+  vm.runInNewContext(stripTypeScriptTypes(read('supabase/functions/score-tracker-admin/vision-tiers.ts').replace(/^export /gm,'')+'\n'+read('supabase/functions/score-tracker-admin/index.ts').replace(/^import .*;\s*$/gm,'')),{
     Deno:{env:{get:()=>''},serve:fn=>handler=fn},createClient:()=>db,crypto:require('node:crypto').webcrypto,TextEncoder,Response,Request,URL,Map,Set,Uint8Array,atob,btoa,setTimeout,clearTimeout,console:{log(){},error(){}},fetch:async()=>{throw Error('Unexpected network')}
   });
   const request=()=>new Request('https://admin.test?action=feature_votes',{headers:{'x-score-token':'test-admin'}});

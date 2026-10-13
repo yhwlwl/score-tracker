@@ -36,7 +36,7 @@ const content='考试名字在哪里改？<img src=x onerror=alert(1)>',feedback
   let handler,role='admin',rpcError=null,rpcCalls=[];
   const db={from:()=>({select:()=>({eq:()=>({maybeSingle:async()=>({data:role==='none'?null:{id:'admin',is_admin:role==='admin',session_expires_at:new Date(Date.now()+60000).toISOString()}})})})}),rpc:async(name,args)=>{rpcCalls.push({name,args});return{data:feedbackId,error:rpcError}}};
   const context={Deno:{env:{get:()=>''},serve:fn=>handler=fn},createClient:()=>db,crypto,TextEncoder,Response,Request,URL,Map,Set,console,Uint8Array,atob,btoa,setTimeout,clearTimeout,fetch:async()=>{throw Error('Unexpected network')}};
-  vm.runInNewContext(stripTypeScriptTypes(read('supabase/functions/score-tracker-admin/index.ts').replace(/^import .*;\s*$/gm,'')),context);
+  vm.runInNewContext(stripTypeScriptTypes(read('supabase/functions/score-tracker-admin/vision-tiers.ts').replace(/^export /gm,'')+'\n'+read('supabase/functions/score-tracker-admin/index.ts').replace(/^import .*;\s*$/gm,'')),context);
   const request=(id=feedbackId,token='admin-token')=>new Request('https://admin.test?action=feature_suggestion_convert',{method:'POST',headers:{'x-score-token':token,'content-type':'application/json'},body:JSON.stringify({id})});
   let response=await handler(request());assert.equal(response.status,200);assert.equal((await response.json()).feedback_id,feedbackId);assert.equal(rpcCalls[0].args.p_admin_id,'admin');
   rpcCalls=[];role='user';response=await handler(request());assert.equal(response.status,401);assert.equal(rpcCalls.length,0);role='none';response=await handler(request());assert.equal(response.status,401);role='admin';response=await handler(request('invalid'));assert.equal(response.status,400);assert.equal(rpcCalls.length,0);
