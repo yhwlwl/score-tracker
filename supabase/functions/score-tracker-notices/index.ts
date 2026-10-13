@@ -119,8 +119,10 @@ Deno.serve(async req => {
       await audit(body.event_type,user,body,req,{kind:['release','announcement','tip'].includes(body.kind)?body.kind:null});return json({ok:true});
     }
     if(['announcement_comments','announcement_comment_add','announcement_comment_delete'].includes(action)&&req.method==='POST'){
-      const c=await config();
-      if(!c.announcement_enabled||body.notice_id!==c.announcement_id)return json({error:'公告已更新，请重新打开'},409);
+      const c=await config(action==='announcement_comments');
+      const isCurrent=body.notice_id===c.announcement_id;
+      const notice=isCurrent?announcementSnapshot(c):action==='announcement_comments'?announcementHistory(c).find(item=>item.id===body.notice_id):null;
+      if(!notice||(action!=='announcement_comments'&&(!c.announcement_enabled||!isCurrent)))return json({error:'公告已更新，请重新打开'},409);
       if(action==='announcement_comment_delete'){
         if(!UUID.test(body.id))return json({error:'无效的评论'},400);
         let q=db.from('score_tracker_announcement_comments').delete().eq('id',body.id).eq('notice_id',c.announcement_id);
@@ -129,7 +131,7 @@ Deno.serve(async req => {
         if(!r.data?.length)return json({error:'只能删除自己的评论'},403);
         return json({ok:true});
       }
-      if(!c.announcement_comments_enabled)return json({error:'这条公告已关闭评论'},403);
+      if(action==='announcement_comment_add'&&!c.announcement_comments_enabled)return json({error:'这条公告已关闭评论'},403);
       if(action==='announcement_comment_add'){
         if(typeof body.content!=='string'||!body.content.trim()||body.content.trim().length>1000)return json({error:'评论请填写 1～1000 字'},400);
         const r=await db.rpc('score_tracker_add_announcement_comment',{p_user_id:user.id,p_notice_id:c.announcement_id,p_content:body.content.trim()});
@@ -137,12 +139,12 @@ Deno.serve(async req => {
         return json({ok:true});
       }
       const cursor=String(body.before||'');if(cursor&&!/^\d{1,18}$/.test(cursor))return json({error:'无效的分页'},400);
-      let q=db.from('score_tracker_announcement_comments').select('id,sequence,user_id,content,created_at,author:score_tracker_users(username)').eq('notice_id',c.announcement_id).order('sequence',{ascending:false}).limit(31);
-      if(!user.is_admin&&c.announcement_comments_public===false)q=q.eq('user_id',user.id);
+      let q=db.from('score_tracker_announcement_comments').select('id,sequence,user_id,content,created_at,author:score_tracker_users(username)').eq('notice_id',notice.id).order('sequence',{ascending:false}).limit(31);
+      if(!user.is_admin&&notice.comments_public===false)q=q.eq('user_id',user.id);
       if(cursor)q=q.lt('sequence',cursor);
       const r=await q;if(r.error)throw r.error;
-      const rows=(r.data||[]).slice(0,30).map(x=>({id:String(x.id),content:x.content,sequence:String(x.sequence),created_at:x.created_at,author:x.author?.username||'用户',can_delete:user.is_admin||x.user_id===user.id}));
-      return json({rows,next:r.data?.length>30?rows.at(-1).sequence:null});
+      const rows=(r.data||[]).slice(0,30).map(x=>({id:String(x.id),content:x.content,sequence:String(x.sequence),created_at:x.created_at,author:x.author?.username||'用户',can_delete:isCurrent&&(user.is_admin||x.user_id===user.id)}));
+      return json({rows,next:r.data?.length>30?rows.at(-1).sequence:null,read_only:!isCurrent});
     }
     if(action==='notice_check'&&req.method==='POST'){
       const [c,r]=await Promise.all([config(),db.from('score_tracker_notification_receipts').select('kind,notice_id').eq('user_id',user.id).order('shown_at',{ascending:false}).limit(200)]);if(r.error)throw r.error;return json({config:c,seen:r.data||[]});
