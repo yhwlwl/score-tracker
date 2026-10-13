@@ -9,17 +9,9 @@ const db = createClient(
 
 const DEFAULT_VISION_MODEL = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free";
 const DEFAULT_VISION_BASE_URL = "https://openrouter.ai/api/v1";
-const DEFAULT_AI_DAILY_LIMIT = 10;
-const DEFAULT_AI_GLOBAL_DAILY_LIMIT = 100;
-const DEFAULT_AI_COOLDOWN_SECONDS = 15;
 const DEFAULT_UPSTREAM_TIMEOUT_MS = 45000;
 const DATABASE_TIMEOUT_MS = 8000;
 const CACHE_TTL_MS = 30000;
-
-function safeConfigInt(value: unknown, fallback: number, min: number, max: number) {
-  const n = Number(value);
-  return Number.isInteger(n) && n >= min && n <= max ? n : fallback;
-}
 
 function normalizeBaseUrl(value: unknown) {
   const raw = String(value ?? DEFAULT_VISION_BASE_URL).trim().replace(/\/+$/, "");
@@ -87,7 +79,7 @@ async function visionConfig() {
 
   const result = await withTimeout(
     db.from("score_tracker_ai_configs")
-      .select("openrouter_api_key,base_url,model,enabled,beta_only,daily_limit,global_daily_limit,cooldown_seconds")
+      .select("openrouter_api_key,base_url,model,enabled,beta_only")
       .eq("id", "score_vision")
       .maybeSingle(),
     DATABASE_TIMEOUT_MS,
@@ -103,9 +95,6 @@ async function visionConfig() {
     configured: !!row?.openrouter_api_key || !!Deno.env.get("OPENROUTER_API_KEY"),
     disabled: row?.enabled === false,
     betaOnly: row?.beta_only !== false,
-    dailyLimit: safeConfigInt(row?.daily_limit, DEFAULT_AI_DAILY_LIMIT, 1, 1000),
-    globalDailyLimit: safeConfigInt(row?.global_daily_limit, DEFAULT_AI_GLOBAL_DAILY_LIMIT, 1, 10000),
-    cooldownSeconds: safeConfigInt(row?.cooldown_seconds, DEFAULT_AI_COOLDOWN_SECONDS, 0, 86400),
   };
   visionConfigCache = { expiresAt: now + CACHE_TTL_MS, value };
   return value;
@@ -160,15 +149,13 @@ async function isVisionBetaUser(username: unknown) {
   return allowed;
 }
 
-async function claimAiRequest(userId: string, limits: { dailyLimit: number; globalDailyLimit: number; cooldownSeconds: number }) {
-  const result = await db.rpc("claim_score_tracker_ai_request", {
+async function visionQuota(userId: string, consume = false) {
+  const result = await db.rpc("score_tracker_vision_quota", {
     p_user_id: userId,
-    p_daily_limit: limits.dailyLimit,
-    p_global_daily_limit: limits.globalDailyLimit,
-    p_cooldown_seconds: limits.cooldownSeconds,
+    p_consume: consume,
   });
   if (result.error) throw result.error;
-  return result.data?.[0] ?? null;
+  return result.data ?? null;
 }
 
 function cleanText(value: unknown, max = 80) {
@@ -296,6 +283,8 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   const requestId = crypto.randomUUID();
   const startedAt = Date.now();
+  let quota: any = null;
+  const reply = (body: Record<string, unknown>, status = 200) => json({ ...body, ...(quota ? { quota } : {}) }, status);
   const mark = (phase: string, extra: Record<string, unknown> = {}) => {
     console.log("vision_timing", JSON.stringify({
       request_id: requestId,
@@ -348,6 +337,12 @@ Deno.serve(async (req) => {
       }
       return json({ eligible, enabled: !config.disabled, beta_only: config.betaOnly });
     }
+    if (body.action === "quota") {
+      quota = await withTimeout(visionQuota(user.id), DATABASE_TIMEOUT_MS, "rate_limit_timeout");
+      const eligible = !config.betaOnly || await isVisionBetaUser(user.username);
+      return reply({ enabled: !config.disabled && config.configured && !!config.baseUrl, eligible, beta_only: config.betaOnly });
+    }
+    if (body.action && body.action !== "connectivity_test") return json({ error: "Unknown action" }, 400);
     if (body.action === "connectivity_test") {
       const connectivityStartedAt = Date.now();
       if (config.disabled) return json({ error: "识图功能当前未启用，请联系管理员", code: "vision_disabled", request_status: 503 }, 503);
@@ -364,6 +359,8 @@ Deno.serve(async (req) => {
         if (!allowed) return json({ error: "图片识别目前处于内测阶段", code: "vision_beta_only", request_status: 403 }, 403);
       }
 
+      quota = await withTimeout(visionQuota(user.id), DATABASE_TIMEOUT_MS, "rate_limit_timeout");
+      if (!quota?.allowed) return reply({ error: "暂时无法识别，请查看剩余额度或稍后重试", code: "ai_rate_limited", retry_after_seconds: quota?.retry_after_seconds || 0 }, 429);
       const requestBody: Record<string, unknown> = {
         model: config.model,
         messages: [{ role: "user", content: "ping" }],
@@ -429,6 +426,7 @@ Deno.serve(async (req) => {
 
     if (config.disabled) return json({ error: "识图功能当前未启用，请联系管理员" }, 503);
     if (!config.apiKey) return json({ error: "识图服务尚未配置识别服务 Key，请联系管理员" }, 503);
+    if (!config.baseUrl) return json({ error: "识别服务 Base URL 配置无效，请联系管理员", code: "invalid_base_url" }, 503);
     if (config.betaOnly) {
       let allowed = false;
       try {
@@ -442,10 +440,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    let quota;
     try {
       quota = await withTimeout(
-        claimAiRequest(user.id, config),
+        visionQuota(user.id, true),
         DATABASE_TIMEOUT_MS,
         "rate_limit_timeout",
       );
@@ -455,12 +452,14 @@ Deno.serve(async (req) => {
       return json({ error: "识别服务限流检查暂不可用，请稍后再试", code: "rate_limit_unavailable", request_status: 0 }, 503);
     }
     if (!quota?.allowed) {
+      const periodLabel = quota?.period === "month" ? "本月" : quota?.period === "week" ? "本周" : "今日";
       const reason = quota?.reason === "global_limit"
         ? "当前识别服务今日总额度已用完，请明天再试"
-        : quota?.reason === "daily_limit"
-          ? "你今天的识别次数已用完，请明天再试"
+        : quota?.reason === "daily_limit" || quota?.reason === "period_limit"
+          ? quota?.period === "lifetime" ? "一次性体验额度已用完，达到下一档条件后可继续使用" : `${periodLabel}识别额度已用完，请在额度刷新后再试`
+          : quota?.reason === "vision_disabled" ? "识图功能当前未启用，请联系管理员"
           : "识别请求过于频繁，请稍后再试";
-      return json({
+      return reply({
         error: reason,
         code: "ai_rate_limited",
         request_status: 429,
@@ -476,8 +475,6 @@ Deno.serve(async (req) => {
       content.push({type:"text", text:`第 ${part.source_index + 1} 张成绩单：${description}。`});
       content.push({ type:"image_url", image_url:{url:image, detail:"high"} });
     });
-
-    if (!config.baseUrl) return json({ error: "识别服务 Base URL 配置无效，请联系管理员", code: "invalid_base_url", request_status: 0 }, 503);
 
     const requestBody: Record<string, unknown> = {
       model: config.model,
@@ -511,7 +508,7 @@ Deno.serve(async (req) => {
     } catch (error) {
       const timedOut = error instanceof Error && error.name === "AbortError";
       mark("upstream_failed", { status: timedOut ? 504 : 502 });
-      return json({
+      return reply({
         error: timedOut ? "识别服务请求超时，请稍后再试" : "识别服务网络错误，请稍后再试",
         code: timedOut ? "upstream_timeout" : "upstream_network_error",
         request_status: 0,
@@ -525,23 +522,23 @@ Deno.serve(async (req) => {
       console.error("vision upstream error", JSON.stringify({ status: upstreamStatus, code: payload?.error?.code, message: detail }));
       const shared = { status: upstreamStatus, upstream_status: upstreamStatus, upstream_message: detail || ("HTTP " + upstreamStatus) };
       if (upstreamStatus === 401 || upstreamStatus === 403) {
-        return json({ ...shared, error: "识别服务鉴权失败，请检查 Base URL 和 Key", code: "upstream_auth_failed" }, 502);
+        return reply({ ...shared, error: "识别服务鉴权失败，请检查 Base URL 和 Key", code: "upstream_auth_failed" }, 502);
       }
       if (upstreamStatus === 429) {
-        return json({ ...shared, error: "识别服务请求过于频繁，请稍后再试", code: "upstream_rate_limited" }, 429);
+        return reply({ ...shared, error: "识别服务请求过于频繁，请稍后再试", code: "upstream_rate_limited" }, 429);
       }
       if (upstreamStatus === 402) {
-        return json({ ...shared, error: "识别服务额度不足或模型不可用", code: "upstream_billing_or_model_error" }, 503);
+        return reply({ ...shared, error: "识别服务额度不足或模型不可用", code: "upstream_billing_or_model_error" }, 503);
       }
-      return json({ ...shared, error: "识别服务暂不可用", code: "upstream_error" }, 502);
+      return reply({ ...shared, error: "识别服务暂不可用", code: "upstream_error" }, 502);
     }
     const finishReason = payload?.choices?.[0]?.finish_reason;
     mark("model_output", {finish_reason:finishReason, completion_tokens:payload?.usage?.completion_tokens, reasoning_tokens:payload?.usage?.completion_tokens_details?.reasoning_tokens});
-    if (finishReason === "length" || finishReason === "max_tokens") return json({error:"识别结果没能完整返回，请减少图片数量或分段截图后再试", code:"model_output_truncated", request_status:200, upstream_status:200}, 422);
+    if (finishReason === "length" || finishReason === "max_tokens") return reply({error:"识别结果没能完整返回，请减少图片数量或分段截图后再试", code:"model_output_truncated", request_status:200, upstream_status:200}, 422);
     const text = outputText(payload);
     if (!text) {
       mark("empty_model_output");
-      return json({ error: "没有识别到可用内容，请换一张更清晰的图片", code: "empty_model_output" }, 422);
+      return reply({ error: "没有识别到可用内容，请换一张更清晰的图片", code: "empty_model_output" }, 422);
     }
 
     let parsed: any;
@@ -553,7 +550,7 @@ Deno.serve(async (req) => {
         request_id: requestId,
         message: error instanceof Error ? error.message : String(error),
       }));
-      return json({ error: "识别结果格式异常，请重试", code: "invalid_model_output", request_status: 200, upstream_status: 200 }, 422);
+      return reply({ error: "识别结果格式异常，请重试", code: "invalid_model_output", request_status: 200, upstream_status: 200 }, 422);
     }
 
     try {
@@ -561,17 +558,17 @@ Deno.serve(async (req) => {
       const fieldCount = usableFieldCount(normalized);
       if (!fieldCount) {
         mark("no_usable_fields", {subject_count:normalized.subjects.length});
-        return json({error:"还没读到成绩或考试信息，可以裁剪成绩区域后再试", code:"no_usable_fields", request_status:200, upstream_status:200}, 422);
+        return reply({error:"还没读到成绩或考试信息，可以裁剪成绩区域后再试", code:"no_usable_fields", request_status:200, upstream_status:200}, 422);
       }
       mark("completed", { subject_count: normalized.subjects.length, field_count:fieldCount });
-      return json(normalized);
+      return reply(normalized);
     } catch (error) {
       mark("model_normalize_failed");
       console.error("vision normalize error", JSON.stringify({
         request_id: requestId,
         message: error instanceof Error ? error.message : String(error),
       }));
-      return json({ error: "识别结果处理失败，请重试", code: "invalid_model_output", request_status: 200, upstream_status: 200 }, 422);
+      return reply({ error: "识别结果处理失败，请重试", code: "invalid_model_output", request_status: 200, upstream_status: 200 }, 422);
     }
   } catch (error) {
     const message = cleanText(error instanceof Error ? error.message : error) || "识别失败，请稍后再试";
@@ -580,7 +577,7 @@ Deno.serve(async (req) => {
     const code = isServiceError ? error.code : "vision_handler_error";
     mark("handler_error", { status });
     console.error("vision handler error", JSON.stringify({ request_id: requestId, message }));
-    return json({
+    return reply({
       error: isServiceError ? "识别服务暂不可用，请稍后再试" : "识别失败，请稍后再试",
       code,
       request_status: 0,

@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { readSupport, saveSupport } from './support.ts';
 
 const db = createClient(Deno.env.get('SUPABASE_URL') || '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '', {auth:{persistSession:false,autoRefreshToken:false}});
 const cors = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type, x-score-token','Access-Control-Allow-Methods':'GET, POST, OPTIONS'};
@@ -51,10 +52,19 @@ Deno.serve(async req => {
   let user=null,body={},action='';
   try {
     body=req.method==='POST'?await req.json():{};action=new URL(req.url).searchParams.get('action')||String(body.action||'');
+    if(action==='support_public'&&req.method==='POST')return json({config:await readSupport(db,true)});
     if(action==='notice_public'&&req.method==='POST')return json({config:await config()});
     if(action==='notice_history'&&req.method==='POST'){const c=await config(true),releases=releaseHistory(c,c),announcements=announcementHistory(c);delete c.release_history;delete c.announcement_history;return json({config:c,releases,announcements});}
     user=await auth(req.headers.get('x-score-token')||String(body.token||''));if(!user)return json({error:'登录已失效，请重新登录'},401);
     if((action.startsWith('notification_')||['feature_completion_admin','feature_option_complete','feature_option_active'].includes(action))&&!user.is_admin)return json({error:'只有管理员可以修改这些内容'},403);
+    if(action==='notification_support_config'&&req.method==='GET'){
+      try{return json({config:await readSupport(db)});}catch(e){return json({error:e.status?e.message:'暂时无法读取赞赏设置'},e.status||500);}
+    }
+    if(action==='notification_support_save'&&req.method==='POST'){
+      let saved;try{saved=await saveSupport(db,body,user.id);}catch(e){return json({error:e.message||'赞赏设置保存失败'},e.status||400);}
+      try{await audit('support_config_saved',user,body,req,{revision:saved.revision});}catch(e){console.error('support_config_audit_error',e);}
+      return json({ok:true,config:saved});
+    }
     if(action==='feature_completion_admin'&&req.method==='GET'){
       const r=await db.from('score_tracker_feature_vote_options').select('id,completed_at,is_active');if(r.error)throw r.error;return json({options:r.data||[]});
     }

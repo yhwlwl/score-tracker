@@ -44,5 +44,6 @@
    "trajectory-forecast.js",
    "similar-trajectories.js",
   "school-settings.js",
-  "announcement-settings.js"
+  "announcement-settings.js",
+  "author-support.js"
 ]
