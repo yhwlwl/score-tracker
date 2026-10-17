@@ -71,7 +71,7 @@ async function auth(token: string) {
   if (!token) return null;
   const r = await db
     .from("score_tracker_users")
-    .select("id,username,original_username,session_expires_at,exam_category_label,exam_category_options")
+    .select("id,username,original_username,session_expires_at,exam_category_label,exam_category_options,participant_defaults")
     .eq("session_token_hash", await sha(token))
     .maybeSingle();
   if (r.error) throw r.error;
@@ -100,6 +100,50 @@ const text = (v: any, max = 40) => {
 };
 const cleanSubjects = (v: any) =>
   Array.isArray(v) ? [...new Set(v.map((x) => text(x, 40)).filter(Boolean))] as string[] : [];
+
+function participantPatch(raw: any) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw) || Object.keys(raw).length > 40) throw new Error("默认人数格式不正确");
+  const patch: Record<string, Record<string, number | null>> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (!(key === "total" || /^s:.{1,40}$/.test(key) || /^m:[0-9a-f-]{36}$/i.test(key))) throw new Error("默认人数项目不正确");
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("默认人数格式不正确");
+    const row: Record<string, number | null> = {};
+    for (const [scope, v] of Object.entries(value)) {
+      if (scope !== "year" && scope !== "class") throw new Error("默认人数范围不正确");
+      if (v === null || v === "") row[scope] = null;
+      else {
+        const n = (typeof v === "number" || typeof v === "string") ? pint(v) : null;
+        if (n === null) throw new Error("参考人数请输入 1～10000000 的整数，或留空");
+        row[scope] = n;
+      }
+    }
+    if (Object.keys(row).length) patch[key] = row;
+  }
+  return patch;
+}
+
+async function saveParticipantDefaults(uid: string, patch: Record<string, Record<string, number | null>>, firstOnly = false) {
+  // Compare-and-swap keeps simultaneous devices from discarding each other's settings.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const before = await db.from("score_tracker_users").select("participant_defaults").eq("id", uid).single();
+    if (before.error) throw before.error;
+    const current = before.data.participant_defaults || {}, next: any = { ...current };
+    for (const [key, values] of Object.entries(patch)) {
+      const row = { ...(next[key] || {}) };
+      for (const [scope, value] of Object.entries(values)) {
+        if (!firstOnly || (!Object.prototype.hasOwnProperty.call(row, scope) && value !== null)) row[scope] = value;
+      }
+      if (Object.keys(row).length) next[key] = row;
+    }
+    if (Object.keys(next).length > 200) throw new Error("默认人数项目过多，请联系管理员");
+    if (JSON.stringify(next) === JSON.stringify(current)) return current;
+    const saved = await db.from("score_tracker_users").update({ participant_defaults: next })
+      .eq("id", uid).eq("participant_defaults", JSON.stringify(current)).select("participant_defaults").maybeSingle();
+    if (saved.error) throw saved.error;
+    if (saved.data) return saved.data.participant_defaults;
+  }
+  throw new Error("人数设置刚刚发生变化，请再保存一次");
+}
 
 async function subjects(uid: string) {
   let r = await db
@@ -263,6 +307,7 @@ async function list(user: any) {
     user: { id: user.id, username: user.username, originalUsername: user.original_username || user.username },
     subjects: configured,
     classification: classification(user),
+    participantDefaults: user.participant_defaults || {},
     modules,
     exams,
     goal: goalRes && goalRes.goal ? goalRes.goal : null,
@@ -670,6 +715,13 @@ Deno.serve(async (req: Request) => {
     const user = await auth(String(body.token ?? ""));
     if (!user) return out({ error: "登录已失效，请重新登录", code: "UNAUTHORIZED" }, 401);
     const action = String(body.action ?? "");
+    if (action === "save_participant_defaults") {
+      try {
+        return out({ participantDefaults: await saveParticipantDefaults(user.id, participantPatch(body.defaults)) });
+      } catch (e) {
+        return out({ error: e instanceof Error ? e.message : "默认人数保存失败" }, 400);
+      }
+    }
     if (action === "feature_vote_status" || action === "feature_vote_overview") return out(await featureVoteOverview(user.id));
     if (action === "feature_vote_submit") {
       const r = await submitFeatureVote(user.id, body.optionIds, body.customRequest);
@@ -689,7 +741,17 @@ Deno.serve(async (req: Request) => {
       }
     }
     if (action === "save_exam") {
+      let defaults;
+      try { defaults = body.participantDefaults ? participantPatch(body.participantDefaults) : {}; }
+      catch (e) { return out({ error: e instanceof Error ? e.message : "默认人数格式不正确" }, 400); }
       const r = await saveExam(user.id, body.exam ?? {});
+      if (!r.error && r.created && Object.keys(defaults).length) {
+        try { return out({ ...r, participantDefaults: await saveParticipantDefaults(user.id, defaults, true) }); }
+        catch (e) {
+          console.error("participant_defaults_remember_failed", e);
+          return out({ ...r, participantDefaultsWarning: "考试已保存，默认人数暂未记住，可在科目设置中保存。" });
+        }
+      }
       return r.error ? out({ error: r.error }, r.status) : out(r);
     }
     if (action === "change_password") {

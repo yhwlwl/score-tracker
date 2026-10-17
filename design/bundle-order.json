@@ -45,5 +45,6 @@
    "similar-trajectories.js",
   "school-settings.js",
   "announcement-settings.js",
-  "author-support.js"
+  "author-support.js",
+  "participant-defaults.js"
 ]
