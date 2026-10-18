@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const API = '/api/score-tracker-api';
-  const APP_VERSION = (document.querySelector('meta[name="application-version"]') || {}).content || 'unknown';
+  const appVersion = () => window.__releaseNotices?.currentVersion?.() || (document.querySelector('meta[name="application-version"]') || {}).content || 'unknown';
   const nativeFetch = window.fetch.bind(window);
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
@@ -32,7 +32,7 @@
     appPage: currentPage(), referrerOrigin: document.referrer || '', firstReferrer, utmSource, utmCampaign,
     userAgent: navigator.userAgent, browserLanguage: navigator.language, clientTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     screenWidth: screen.width, screenHeight: screen.height, viewportWidth: innerWidth, viewportHeight: innerHeight,
-    isPwa: matchMedia('(display-mode: standalone)').matches || navigator.standalone === true, appVersion: window.__releaseNotices?.currentVersion?.() || APP_VERSION,
+    isPwa: matchMedia('(display-mode: standalone)').matches || navigator.standalone === true, appVersion: appVersion(),
   });
   async function call(action, payload = {}) {
     const r = await nativeFetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, token: localStorage.getItem('st_token') || '', ...payload }) });
