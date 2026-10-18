@@ -618,7 +618,8 @@ function annotateTrendV33(html){
   if(!any)return html;
   var gr=asPercent?Number(goal)/max*100:Number(goal);
   vals.push(gr);
-  var axis=(typeof fullTrendAxisV25==="function")?fullTrendAxisV25(vals,"scoreFinal"):{min:0,max:100,ticks:5};
+  var range=html.match(/data-axis-min="([\d.]+)" data-axis-max="([\d.]+)"/);
+  var axis=range?{min:Number(range[1]),max:Number(range[2])}:((typeof fullTrendAxisV25==="function")?fullTrendAxisV25(vals,"scoreFinal"):{min:0,max:100,ticks:5});
   if(!axis||axis.max<=axis.min)return html;
   var T=20,B=46,ch=H0-T-B,y=T+(axis.max-gr)/(axis.max-axis.min)*ch;
   if(y<T-2||y>T+ch+2)return html;

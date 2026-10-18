@@ -62,26 +62,31 @@ function filenameV30(scopeLabel,ext){
 }
 
 /* ================= CSV 宽表 ================= */
+function averageV30(ex,key,scope){return numV30(ex.averages&&ex.averages[key]&&ex.averages[key][scope]);}
+function averageTextV30(ex,key){return [['class','班级均分'],['year','年级均分']].map(function(p){var v=averageV30(ex,key,p[0]);return v===null?'':p[1]+' '+String(v);}).filter(Boolean).join(' ｜ ');}
 function csvCellV30(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
 function buildCsvV30(exams,scopeLabel){
   var subjects=subjectsUnionV30(exams),mods=modulesV30();
   var head=['日期','考试名称','分类','结束日期'];
-  subjects.forEach(function(s){head.push(s+' 目标',s+' 最终分',s+' 最终满分',s+' 原始分',s+' 原始满分',s+' 年排',s+' 年级人数',s+' 班排',s+' 班级人数',s+' 年位比%',s+' 班位比%',s+' 不计总分');});
-  head.push('总分','原始总分','总排名(年)','年级人数(总)','总班排','班级人数(总)','总年位比%','总班位比%');
-  mods.forEach(function(m){head.push(m.name+' 年排',m.name+' 年人数',m.name+' 班排',m.name+' 班人数');});
+  subjects.forEach(function(s){head.push(s+' 目标',s+' 最终分',s+' 最终满分',s+' 原始分',s+' 原始满分',s+' 年排',s+' 年级人数',s+' 班排',s+' 班级人数',s+' 年位比%',s+' 班位比%',s+' 不计总分',s+' 班级均分',s+' 年级均分');});
+  head.push('总分','原始总分','总排名(年)','年级人数(总)','总班排','班级人数(总)','总年位比%','总班位比%','总分班级均分','总分年级均分');
+  mods.forEach(function(m){head.push(m.name+' 年排',m.name+' 年人数',m.name+' 班排',m.name+' 班人数',m.name+' 班级均分',m.name+' 年级均分');});
   var lines=[head.map(csvCellV30).join(',')];
   exams.forEach(function(ex){
     var row=[ex.exam_date||'',ex.name||'',ex.grade_level||'',ex.end_date||''];
     subjects.forEach(function(s){
       var r=(ex.scores||{})[s]||{};
       row.push(fmtV30(numV30(r.target)),fmtV30(numV30(r.actual)),r.max===''||r.max==null?'':fmtV30(numV30(r.max)),fmtV30(numV30(r.raw)),r.rawMax===''||r.rawMax==null?'':fmtV30(numV30(r.rawMax)),fmtV30(numV30(r.rank)),fmtV30(numV30(r.participants)),fmtV30(numV30(r.classRank)),fmtV30(numV30(r.classParticipants)),fmtV30(numV30(r.yearPositionPercent)),fmtV30(numV30(r.classPositionPercent)),r.excludeFromTotal?'是':'');
+      row.push(averageV30(ex,'s:'+s,'class'),averageV30(ex,'s:'+s,'year'));
     });
     row.push(fmtV30(sumTotalV30(ex,'actual')),fmtV30(sumTotalV30(ex,'raw')),
       fmtV30(numV30(ex.total_rank)),fmtV30(numV30(ex.total_participants)),fmtV30(numV30(ex.total_class_rank)),fmtV30(numV30(ex.total_class_participants)),fmtV30(numV30(ex.total_year_position_percent)),fmtV30(numV30(ex.total_class_position_percent)));
+    row.push(averageV30(ex,'total','class'),averageV30(ex,'total','year'));
     var ranks=(ex.moduleRanks)||{};
     mods.forEach(function(m){
       var r=ranks[m.id]||{};
       row.push(fmtV30(numV30(r.yearRank)),fmtV30(numV30(r.yearParticipants)),fmtV30(numV30(r.classRank)),fmtV30(numV30(r.classParticipants)));
+      row.push(averageV30(ex,'m:'+m.id,'class'),averageV30(ex,'m:'+m.id,'year'));
     });
     lines.push(row.map(csvCellV30).join(','));
   });
@@ -119,6 +124,7 @@ function buildTxtV30(exams,scopeLabel){
       var yp=numV30(r.yearPositionPercent);if(yp!==null)seg.push('年位比 前'+yp+'%');
       var cp=numV30(r.classPositionPercent);if(cp!==null)seg.push('班位比 前'+cp+'%');
       if(r.excludeFromTotal)seg.push('不计入总分');
+      var avg=averageTextV30(ex,'s:'+s);if(avg)seg.push(avg);
       out.push('  '+seg.join(' ｜ '));
     });
     var ranks=ex.moduleRanks||{};
@@ -132,9 +138,11 @@ function buildTxtV30(exams,scopeLabel){
       if(cs.raw!==null)seg.push('原始 '+cs.raw+(cs.rmax!==null?'/'+cs.rmax:''));
       var yr=rankTextV30(r&&r.yearRank,r&&r.yearParticipants);if(yr)seg.push('年排 '+yr);
       var cr=rankTextV30(r&&r.classRank,r&&r.classParticipants);if(cr)seg.push('班排 '+cr);
+      var avg=averageTextV30(ex,'m:'+mo.id);if(avg)seg.push(avg);
       if(seg.length>1)out.push('  '+seg.join(' ｜ '));
     });
     var tot=['—— 总分 '+fmtV30(sumTotalV30(ex,'actual')||'—')];
+    var avg=averageTextV30(ex,'total');if(avg)tot.push(avg);
     var rawT=sumTotalV30(ex,'raw');if(rawT!==null)tot.push('原始总分 '+rawT);
     var tr=rankTextV30(ex.total_rank,ex.total_participants);if(tr)tot.push('年排 '+tr);
     var tcr=rankTextV30(ex.total_class_rank,ex.total_class_participants);if(tcr)tot.push('班排 '+tcr);
@@ -358,14 +366,14 @@ function buildPrintHtmlV30(exams,scopeLabel){
       +'<td class="num">'+(escV30(rankTextV30(ex.total_class_rank,ex.total_class_participants))||'—')+'</td></tr>';
   }).join('');
   /* —— 逐考试明细块 —— */
-  function subjectRow(s,r){
+  function subjectRow(s,r,ex){
     var a=numV30(r.actual),m=numV30(r.max);
     if(a===null&&numV30(r.target)===null&&numV30(r.rank)===null&&numV30(r.classRank)===null)return '';
     var p=pctTextV30(a,m);
     var reached=(a!==null&&numV30(r.target)!==null)?a>=numV30(r.target):null;
     var fill=reached===null?'#5d72e8':(reached?'#2f9d76':'#e59b45');
     return '<tr>'
-      +'<td class="s-name"><b>'+escV30(s)+'</b>'+(r.excludeFromTotal?'<span class="dim">（不计总分）</span>':'')+'</td>'
+      +'<td class="s-name"><b>'+escV30(s)+'</b>'+(r.excludeFromTotal?'<span class="dim">（不计总分）</span>':'')+(averageTextV30(ex,'s:'+s)?'<br><small class="dim">'+escV30(averageTextV30(ex,'s:'+s))+'</small>':'')+'</td>'
       +'<td class="num">'+(fmtV30(numV30(r.target))||'—')+(reached!==null?(reached?' <i class="ok">达标</i>':' <i class="miss">差'+fmtV30(numV30(r.target)-a)+'</i>'):'')+'</td>'
       +'<td class="num strong">'+(a!==null?a:'—')+'<span class="dim">'+(m!==null?'/'+m:'')+'</span></td>'
       +'<td class="rate">'+(p?'<span class="track"><span class="fill" style="width:'+p+'%;background:'+fill+'"></span></span><span class="lab">'+p+'%</span>':'—')+'</td>'
@@ -374,7 +382,7 @@ function buildPrintHtmlV30(exams,scopeLabel){
       +'<td class="num">'+(escV30(rankTextV30(r.classRank,r.classParticipants))||'—')+'</td></tr>';
   }
   var blocks=exams.map(function(ex,i){
-    var rows=subjectsUnionV30([ex]).map(function(s){return subjectRow(s,(ex.scores||{})[s]||{});}).filter(Boolean).join('');
+    var rows=subjectsUnionV30([ex]).map(function(s){return subjectRow(s,(ex.scores||{})[s]||{},ex);}).filter(Boolean).join('');
     if(!rows)rows='<tr><td colspan="7" class="dim">本次考试暂无成绩数据</td></tr>';
     var comboLines='';
     var ranks=ex.moduleRanks||{};
@@ -388,9 +396,11 @@ function buildPrintHtmlV30(exams,scopeLabel){
       if(cs.raw!==null)seg.push('原始 '+cs.raw+(cs.rmax!==null?'/'+cs.rmax:''));
       var yr=rankTextV30(r&&r.yearRank,r&&r.yearParticipants);if(yr)seg.push('年排 '+escV30(yr));
       var cr=rankTextV30(r&&r.classRank,r&&r.classParticipants);if(cr)seg.push('班排 '+escV30(cr));
+      var avg=averageTextV30(ex,'m:'+mo.id);if(avg)seg.push(escV30(avg));
       if(seg.length)comboLines+='<div class="combo">组合「'+escV30(mo.name)+'」　'+seg.join('　·　')+'</div>';
     });
     var totBits=[];
+    var avg=averageTextV30(ex,'total');if(avg)totBits.push(escV30(avg));
     var ft=sumTotalV30(ex,'actual');if(ft!==null)totBits.push('总分 <b>'+ft+'</b>');
     var rt=sumTotalV30(ex,'raw');if(rt!==null)totBits.push('原始总分 '+rt);
     var yp=numV30(ex.total_year_position_percent);if(yp!==null)totBits.push('年位比 前'+yp+'%');

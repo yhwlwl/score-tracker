@@ -359,12 +359,15 @@
     if(!exams.length)return '<div class="empty-chart"><div><div class="empty-icon">⌁</div>记录考试后，这里会自动出现趋势线</div></div>';
     var isTotal=state.subject==='总分';
     var points=exams.map(function(e){return{
+      exam:e,
       name:e.name,date:e.exam_date,
       actual:isTotal?totalRate(e,'actual'):scoreRate(e,state.subject,'actual'),
       target:isTotal?totalRate(e,'target'):scoreRate(e,state.subject,'target')
     };});
     var vals=[];
     points.forEach(function(p){if(p.actual!==null)vals.push(p.actual);if(p.target!==null)vals.push(p.target);});
+    var extra=window.ScoreAverages?window.ScoreAverages.series():[];
+    points.forEach(function(p){extra.forEach(function(s){var v=s.value(p.exam);if(v!==null)vals.push(v);});});
     if(!vals.length)return '<div class="empty-chart"><div><div class="empty-icon">⌁</div>这个科目还没有成绩数据</div></div>';
     // 动态纵轴，与主成绩图同算法（v3 chartHtml）
     var axis=fullTrendAxisV25(vals,'scoreFinal');
@@ -377,18 +380,18 @@
       var v=axis.max-(axis.max-axis.min)*i/axis.ticks,yy=T+ch*i/axis.ticks;
       grid+='<line x1="'+L+'" y1="'+yy+'" x2="'+(W-R)+'" y2="'+yy+'" stroke="#edf0f4"/><text x="'+(L-9)+'" y="'+(yy+4)+'" text-anchor="end" class="axis-label">'+Math.round(v)+'%</text>';
     }
-    function line(key,color,dash){
+    function line(key,color,dash,reader,label){
       var d='',started=false,circles='';
       points.forEach(function(p,i){
-        var v=p[key];if(v===null){started=false;return;}
+        var v=reader?reader(p.exam):p[key];if(v===null){started=false;return;}
         var xx=x(i),yy=y(v);
         d+=(started?'L':'M')+' '+xx+' '+yy+' ';started=true;
-        circles+='<circle cx="'+xx+'" cy="'+yy+'" r="5" fill="#fff" stroke="'+color+'" stroke-width="3" data-tip="'+escapeHtml(p.name)+' · '+(key==='actual'?'真实':'目标')+' '+formatPercent(v)+'"/>';
+        circles+='<circle cx="'+xx+'" cy="'+yy+'" r="5" fill="#fff" stroke="'+color+'" stroke-width="3" data-tip="'+escapeHtml(p.name)+' · '+(label||(key==='actual'?'真实':'目标'))+' '+formatPercent(v)+'"/>';
       });
       return '<path d="'+d+'" fill="none" stroke="'+color+'" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"'+(dash?' stroke-dasharray="'+dash+'"':'')+'/>'+circles;
     }
     var labels=points.map(function(p,i){return '<text x="'+x(i)+'" y="'+(H-17)+'" text-anchor="middle" class="axis-label">'+fmtDate(p.date)+'</text>';}).join('');
-    return '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'+grid+line('target','#32a77a','7 7')+line('actual','#5d72e8')+labels+'</svg><div class="tooltip-card" id="chartTip"></div>';
+    return '<svg viewBox="0 0 '+W+' '+H+'" data-axis-min="'+axis.min+'" data-axis-max="'+axis.max+'" preserveAspectRatio="none">'+grid+line('actual','#5d72e8')+line('target','#32a77a','7 7')+extra.map(function(s){return line('',s.color,s.dash,s.value,s.label);}).join('')+labels+'</svg><div class="tooltip-card" id="chartTip"></div>';
   }
 
   var chartHtmlBeforeV25=(typeof chartHtml==='function')?chartHtml:null;
@@ -627,6 +630,7 @@
         ];
       }
     }
+    if(window.ScoreAverages)series=series.concat(window.ScoreAverages.series().map(function(s){return Object.assign({},s,{color:customTrendColorV25(s.label,s.color)});}));
     var visible=series.filter(function(s){return !hiddenTrendLineV25(s.label)&&exams.some(function(e){return s.value(e)!==null;});});
     if(!visible.length)return '<div class="empty-chart"><div><div class="empty-icon">⌁</div>当前还没有可用于完整趋势的数据</div></div>';
     var points=exams.map(function(e){return{exam:e,values:visible.map(function(s){return s.value(e);})};});

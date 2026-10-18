@@ -705,16 +705,13 @@ function kpiHtmlV32(f,mode){
     /* 纯分数形态:不硬凑位比,给同卷可比的指标 */
     var met=0,tot=0;
     f.exams.forEach(function(e){var t=totalTargetV32(e),a=totalActualV32(e);if(t!==null&&a!==null){tot++;if(a>=t)met++;}});
-    var d=f.latestScore!==null&&f.prevScore!==null?f.latestScore-f.prevScore:null;
     var lr=f.exams.length?examRateV32(f.exams[f.exams.length-1]):null;
-    var pr=f.exams.length>1?examRateV32(f.exams[f.exams.length-2]):null;
-    var dd=(pr!==null&&lr!==null)?r32(lr-pr):null;
     return '<div class="card"><div class="card-title-row"><div><h3 class="card-title">① 总览</h3>'
       +'<p class="card-sub">当前考试只录了分数——分数仅在相同试卷范围内可比</p></div>'
       +'<span class="sv31-tag">排名分析待补录名次后解锁</span></div>'
       +'<div class="sv31-kpi">'
-      +stat("最近总分",f.latestScore===null?"—":String(Math.round(f.latestScore)),d===null?"":("较上次 "+(d>=0?"+":"")+Math.round(d)+" 分"),d===null?"flat":(d>=0?"up":"down"))
-      +stat("整卷得分率 · 最近一次",lr===null?"—":lr+"<small>%</small>",dd===null?"":("较上次 "+(dd>=0?"+":"")+dd+" 个百分点"),dd===null?"flat":(dd>=0?"up":"down"))
+      +stat("最近总分",f.latestScore===null?"—":String(Math.round(f.latestScore)),"","")
+      +stat("整卷得分率 · 最近一次",lr===null?"—":lr+"<small>%</small>","","")
       +stat("目标完成情况",(tot?met+"<small> / "+tot+" 次</small>":"—"),"按每张卷子各自算","flat")
       +"</div></div>";
   }
@@ -726,7 +723,6 @@ function kpiHtmlV32(f,mode){
   var stRankDelta=ts.length>=2?(pbIsLast?"个人历史最好":"较历史最好差 "+r32(Math.abs(ts[ts.length-1].pos-pbTotal))+" 个百分点"):"";
   var met=0,tot=0;
   f.exams.forEach(function(e){var t=totalTargetV32(e),a=totalActualV32(e);if(t!==null&&a!==null){tot++;if(a>=t)met++;}});
-  var d=f.latestScore!==null&&f.prevScore!==null?f.latestScore-f.prevScore:null;
   var tsLast=ts.length?ts[ts.length-1]:null;
   var lastNote=exNoteV32(tsLast,f);
   var stRankLatest=stat("年级排名 · 最近一次",fmtPos32(f.overallLatest),stRankDelta,pbIsLast?"up":"info",(f.overallLatest!==null&&tsLast)?lastNote:"");
@@ -736,23 +732,20 @@ function kpiHtmlV32(f,mode){
   var stGoal,stScore;
   if(scopeSubj){
     /* 单科口径:目标/得分按该科每场单独算,不再显示全校总分 */
-    var sr=f.series[scopeSubj]||[],scLast=null,scPrev=null;
-    sr.forEach(function(x){var a=n32(x.actual);if(a!==null){scPrev=scLast;scLast=a;}});
-    var sd=(scPrev!==null&&scLast!==null)?r32(scLast-scPrev):null;
+    var sr=f.series[scopeSubj]||[],scLast=null;
+    sr.forEach(function(x){var a=n32(x.actual);if(a!==null)scLast=a;});
     met=0;tot=0;
     sr.forEach(function(x){var t=n32(x.target),a=n32(x.actual);if(t!==null&&a!==null){tot++;if(a>=t)met++;}});
     stGoal=stat("目标完成情况 · "+esc32(scopeSubj),(tot?met+"<small> / "+tot+" 场</small>":"—"),"按该科每场目标单独算","flat");
-    stScore=stat(esc32(scopeSubj)+" 最近得分",scLast===null?"—":String(Math.round(scLast)),sd===null?"":((sd>=0?"+":"")+Math.round(sd)+"分 · 受试卷难度影响"),sd===null?"flat":(sd>=0?"up":"down"));
+    stScore=stat(esc32(scopeSubj)+" 最近得分",scLast===null?"—":String(Math.round(scLast)),"","");
   }else{
     stGoal=stat("目标完成情况",(tot?met+"<small> / "+tot+" 次</small>":"—"),"按每张卷子各自算","flat");
-    stScore=stat("最近总分(仅参考)",f.latestScore===null?"—":String(Math.round(f.latestScore)),d===null?"":((d>=0?"+":"")+Math.round(d)+"分 · 受试卷难度影响"),d===null?"flat":(d>=0?"up":"down"));
+    stScore=stat("最近总分(仅参考)",f.latestScore===null?"—":String(Math.round(f.latestScore)),"","");
   }
   var kpis;
   if(mode==="score"){
     var lr=f.exams.length?examRateV32(f.exams[f.exams.length-1]):null;
-    var prr=f.exams.length>1?examRateV32(f.exams[f.exams.length-2]):null;
-    var ddr=(prr!==null&&lr!==null)?r32(lr-prr):null;
-    var stRate=stat("整卷得分率 · 最近一次",lr===null?"—":lr+"<small>%</small>",ddr===null?"":("较上次 "+(ddr>=0?"+":"")+ddr+" 个百分点"),ddr===null?"flat":(ddr>=0?"up":"down"));
+    var stRate=stat("整卷得分率 · 最近一次",lr===null?"—":lr+"<small>%</small>","","");
     kpis=stScore+stRate+stGoal+stRankLatest+(f.overallMedian3!==null?stMedian:"")+stCls;
   }else{
     kpis=stRankLatest+stMedian+stCls+stGoal+stScore;

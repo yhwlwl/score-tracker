@@ -111,15 +111,7 @@
       for(var i=exams.length-1;i>=0;i--){
         var exam=exams[i],override=num(exam?.total_actual_score);
         if(override===null)continue;
-        var subjects=typeof effectiveScoreSubjectsV20==='function'?effectiveScoreSubjectsV20(exam):[];
-        var previous=null;
-        for(var j=i-1;j>=0;j--){
-          var prevSubjects=typeof effectiveScoreSubjectsV20==='function'?effectiveScoreSubjectsV20(exams[j]):[];
-          if(subjects.length&&typeof sameSubjectSetV20==='function'&&!sameSubjectSetV20(subjects,prevSubjects))continue;
-          var pv=totalFor(exams[j],'actual');
-          if(pv!==null){previous=pv;break;}
-        }
-        manual={label:'最近一次真实总分',value:override,exam:exam,delta:previous===null?null:override-previous,deltaLabel:'较上次'};
+        manual={label:'最近一次真实总分',value:override,exam:exam,delta:previousTotalDeltaV20(exams,i,exam,override,totalScopeSubjectsV20(exam)),deltaLabel:'较上次同口径'};
         break;
       }
       if(!manual)return base;
