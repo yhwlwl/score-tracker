@@ -95,16 +95,18 @@ function edgeHarness(slug) {
   const config = {enabled:true,beta_only:false,openrouter_api_key:'fixture-key',base_url:'https://model.test/v1',model:'vision-model',daily_limit:10,global_daily_limit:100,cooldown_seconds:0,tier_enabled:true,tier_rules:serialize(tiers)};
   const quota = {allowed:true,limit:10,used:0,remaining:10,global_remaining:100,service_enabled:true,retry_after_seconds:0,tier_name:'初用',tier_enabled:true,valid_exams:0,account_days:0,tiers:serialize(tiers),next_tier:serialize(tiers[1]),resets_at:'2099-01-01T00:00:00Z'};
   const db = {from(name) {
-    return {select(){return this},eq(){return this},upsert(data){saved=data;Object.assign(config,data);return this},
+    return {select(){return this},eq(){return this},insert(){return this},update(){return this},then(resolve,reject){return Promise.resolve({data:null,error:null}).then(resolve,reject)},upsert(data){saved=data;Object.assign(config,data);return this},
       maybeSingle:async()=>({data:name==='score_tracker_users'?{id:user,username:'admin',is_admin:true,session_expires_at:'2099-01-01'}:name==='score_tracker_ai_configs'?config:null,error:null}),
       single:async()=>({data:config,error:null})};
   },rpc:async(name,args)=>{
-    assert.equal(name,'score_tracker_vision_quota');
-    if(args.p_consume&&quota.allowed){consumed++;quota.used++;quota.remaining--;}
-    return {data:{...quota},error:null};
+    if(name==='score_tracker_vision_refund'){quota.used--;quota.remaining++;return {data:true,error:null};}
+    assert(['score_tracker_vision_quota','score_tracker_vision_reserve'].includes(name));
+    const claim=(args.p_consume||name==='score_tracker_vision_reserve')&&quota.allowed;
+    if(claim){consumed++;quota.used++;quota.remaining--;}
+    return {data:{...quota,consumed:!!claim},error:null};
   }};
   const context={Deno:{env:{get:()=>''},serve:fn=>handler=fn},createClient:()=>db,URL,Response,TextEncoder,crypto,AbortController,setTimeout,clearTimeout,console:{log(){},error(){}},fetch:async()=>{providerCalls++;return new Response(JSON.stringify({error:{message:'fixture failure'}}),{status:502})}};
-  const source = (slug==='score-tracker-admin'?helper+'\n':'') + read('supabase/functions/'+slug+'/index.ts').replace(/^import .*;\s*$/gm,'');
+  const source = (slug==='score-tracker-admin'?helper+'\n': ['reliability.ts','audit.ts'].map(p=>read('supabase/functions/score-tracker-vision-preview/'+p).replace(/^import .*;\s*$/gm,'').replace(/^export /gm,'')).join('\n')+'\n') + read('supabase/functions/'+slug+'/index.ts').replace(/^import .*;\s*$/gm,'');
   vm.runInNewContext(stripTypeScriptTypes(source),context);
   return {config,quota,get saved(){return saved},get providerCalls(){return providerCalls},get consumed(){return consumed},call:body=>handler(new Request('https://test/?action='+(body.action||''),{method:'POST',headers:{'Content-Type':'application/json','x-score-token':'fixture-token'},body:JSON.stringify({token:'fixture-token',...body})}))};
 }
@@ -127,7 +129,7 @@ async function edgeTests() {
   r=await v.call({action:'connectivity_test'});assert.equal(r.status,429);assert.equal(v.providerCalls,0);
   for(const [period,text] of [['month','本月'],['week','本周'],['lifetime','一次性']]){v.quota.period=period;v.quota.reason='period_limit';r=await v.call({images:['data:image/png;base64,AAAA']});data=await r.json();assert.equal(r.status,429);assert(data.error.includes(text));assert.equal(data.quota.period,period);}
   v.quota.allowed=true;v.quota.remaining=1;
-  r=await v.call({images:['data:image/png;base64,AAAA']});data=await r.json();assert.equal(r.status,502);assert.equal(data.quota.remaining,0);assert.equal(v.consumed,1);assert.equal(v.providerCalls,1);
+  r=await v.call({images:['data:image/png;base64,AAAA']});data=await r.json();assert.equal(r.status,502);assert.equal(data.quota.remaining,1);assert.equal(v.consumed,1);assert.equal(v.providerCalls,2);assert.equal(data.quota_refunded,true);
   r=await v.call({token:''});assert.equal(r.status,401);
   const invalid=edgeHarness('score-tracker-vision-preview');invalid.config.base_url='http://invalid.test';
   r=await invalid.call({images:['data:image/png;base64,AAAA']});assert.equal(r.status,503);assert.equal(invalid.consumed,0);assert.equal(invalid.providerCalls,0);

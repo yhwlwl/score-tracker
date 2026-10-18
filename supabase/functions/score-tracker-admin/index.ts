@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { visionRecords, visionRecordDetail, deleteVisionRecord } from "./vision-records.ts";
 import { DEFAULT_VISION_TIERS, validateVisionTiers } from "./vision-tiers.ts";
 
 const U=Deno.env.get('SUPABASE_URL')||'',S=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||'';
@@ -30,7 +31,7 @@ async function sha(v){const d=await crypto.subtle.digest('SHA-256',new TextEncod
 const unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 const b64=a=>{let s='';for(const b of a)s+=String.fromCharCode(b);return btoa(s)};
 async function hp(p,salt){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(p),{name:'PBKDF2'},false,['deriveBits']);const bits=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt,iterations:150000},k,256);return b64(new Uint8Array(bits))}
-async function auth(token){if(!token)return null;const {data}=await db.from('score_tracker_users').select('id,username,is_admin,session_expires_at').eq('session_token_hash',await sha(token)).maybeSingle();if(!data||!data.is_admin||!data.session_expires_at||new Date(data.session_expires_at).getTime()<Date.now())return null;return data}
+async function auth(token){if(!token)return null;const {data,error}=await db.from('score_tracker_users').select('id,username,is_admin,session_expires_at').eq('session_token_hash',await sha(token)).maybeSingle();if(error)throw error;if(!data||!data.is_admin||!data.session_expires_at||new Date(data.session_expires_at).getTime()<Date.now())return null;return data}
 async function login(username,password){const {data:u}=await db.from('score_tracker_users').select('id,username,password_hash,password_salt,is_admin').eq('username',String(username||'').trim().toLowerCase()).maybeSingle();if(!u||!u.is_admin||await hp(String(password||''),unb64(u.password_salt))!==u.password_hash)return null;const bytes=new Uint8Array(32);crypto.getRandomValues(bytes);const token=b64(bytes).replaceAll('+','-').replaceAll('/','_').replaceAll('=',''),expires=new Date(Date.now()+30*86400000).toISOString();await db.from('score_tracker_users').update({session_token_hash:await sha(token),session_expires_at:expires,updated_at:new Date().toISOString()}).eq('id',u.id);return{token,user:{id:u.id,username:u.username}}}
 const group=(a,key)=>{const m=new Map();for(const x of a){const k=key(x);if(!k)continue;m.set(k,(m.get(k)||0)+1)}return[...m].map(([key,count])=>({key,count})).sort((a,b)=>b.count-a.count)};
 function source(l){const r=l.first_referrer||l.referrer_origin||'';if(!r)return'直接访问 / 无 Referrer';try{const h=new URL(r).hostname.replace(/^www\./,'');if(/score-tracker|vercel\.app/.test(h))return'站内 / Preview';if(h.includes('weixin'))return'微信';if(h.includes('baidu'))return'百度';if(h.includes('bing'))return'Bing';if(h.includes('github'))return'GitHub';return h}catch{return String(r).slice(0,80)}}
@@ -80,6 +81,9 @@ async function boot(){if(!T)return login();try{await api('ping');shell();await l
 Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('action');if(!action)return new Response(html,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow, noarchive'}});try{
   if(action==='login'&&req.method==='POST'){const b=await req.json(),x=await login(b.username,b.password);return x?json(x):json({error:'管理员用户名或密码不正确'},401)}
   const admin=await auth(req.headers.get('x-score-token')||'');if(!admin)return json({error:'unauthorized'},401);if(action==='ping')return json({ok:true});
+  if(action==='vision_requests'&&req.method==='GET')return json(await visionRecords(db,q.searchParams));
+  if(action==='vision_request_detail'&&req.method==='GET'){const record=await visionRecordDetail(db,q.searchParams.get('id')||'');return record?json({record}):json({error:'记录不存在'},404)}
+  if(action==='vision_record_delete'&&req.method==='POST'){const body=await req.json();const result=await deleteVisionRecord(db,String(body.id||''));return json(result,result.error?result.status:200)}
   if(action==='feedback_reply'&&req.method==='POST'){const b=await req.json(),id=String(b.id||''),content=String(b.content||'').trim().slice(0,5000);if(!content)return json({error:'empty'},400);const {error}=await db.from('score_tracker_feedback_replies').insert({feedback_id:id,author_user_id:admin.id,author_type:'admin',content});if(error)throw error;await db.from('score_tracker_feedback_submissions').update({status:'reviewing'}).eq('id',id).eq('status','new');return json({ok:true})}
   if(action==='feedback_status'&&req.method==='POST'){const b=await req.json(),status=String(b.status||'');if(!['new','reviewing','planned','resolved','closed'].includes(status))return json({error:'bad_status'},400);const {error}=await db.from('score_tracker_feedback_submissions').update({status}).eq('id',String(b.id||''));if(error)throw error;return json({ok:true})}
   if(action==='ai_config_save'&&req.method==='POST'){

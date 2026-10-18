@@ -1,5 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { OUTPUT_TOKENS, readDatabase, requestOptions, recognizeWithRecovery, safeMessage } from "./reliability.ts";
+import { background, imageStats, saveImages, startAudit, finishAudit } from "./audit.ts";
 
 const db = createClient(
   Deno.env.get("SUPABASE_URL") ?? "",
@@ -9,7 +11,6 @@ const db = createClient(
 
 const DEFAULT_VISION_MODEL = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free";
 const DEFAULT_VISION_BASE_URL = "https://openrouter.ai/api/v1";
-const DEFAULT_UPSTREAM_TIMEOUT_MS = 45000;
 const DATABASE_TIMEOUT_MS = 8000;
 const CACHE_TTL_MS = 30000;
 
@@ -59,18 +60,6 @@ async function withTimeout<T>(operation: PromiseLike<T>, timeoutMs: number, code
   }
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = DEFAULT_UPSTREAM_TIMEOUT_MS) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(url, { ...init, signal: controller.signal });
-    const payload = await response.json().catch(() => ({}));
-    return { response, payload };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 let visionConfigCache: { expiresAt: number; value: any } | null = null;
 
 async function visionConfig() {
@@ -78,10 +67,10 @@ async function visionConfig() {
   if (visionConfigCache && visionConfigCache.expiresAt > now) return visionConfigCache.value;
 
   const result = await withTimeout(
-    db.from("score_tracker_ai_configs")
+    readDatabase(() => db.from("score_tracker_ai_configs")
       .select("openrouter_api_key,base_url,model,enabled,beta_only")
       .eq("id", "score_vision")
-      .maybeSingle(),
+      .maybeSingle()),
     DATABASE_TIMEOUT_MS,
     "vision_config_timeout",
   );
@@ -101,7 +90,7 @@ async function visionConfig() {
 }
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-score-request-id",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
@@ -115,10 +104,11 @@ async function sha(value: string) {
 }
 async function auth(token: string) {
   if (!token) return null;
-  const { data, error } = await db.from("score_tracker_users")
+  const tokenHash = await sha(token);
+  const { data, error } = await readDatabase(() => db.from("score_tracker_users")
     .select("id,username,session_expires_at")
-    .eq("session_token_hash", await sha(token))
-    .maybeSingle();
+    .eq("session_token_hash", tokenHash)
+    .maybeSingle());
   if (error) throw error;
   if (!data?.session_expires_at || new Date(data.session_expires_at).getTime() < Date.now()) return null;
   return data;
@@ -134,11 +124,11 @@ async function isVisionBetaUser(username: unknown) {
   if (cached && cached.expiresAt > Date.now()) return cached.allowed;
 
   const result = await withTimeout(
-    db.from("score_tracker_ai_beta_users")
+    readDatabase(() => db.from("score_tracker_ai_beta_users")
       .select("username_key")
       .eq("username_key", usernameKey)
       .eq("enabled", true)
-      .maybeSingle(),
+      .maybeSingle()),
     DATABASE_TIMEOUT_MS,
     "vision_beta_timeout",
   );
@@ -150,10 +140,10 @@ async function isVisionBetaUser(username: unknown) {
 }
 
 async function visionQuota(userId: string, consume = false) {
-  const result = await db.rpc("score_tracker_vision_quota", {
+  const result = await readDatabase(() => db.rpc("score_tracker_vision_quota", {
     p_user_id: userId,
     p_consume: consume,
-  });
+  }));
   if (result.error) throw result.error;
   return result.data ?? null;
 }
@@ -187,13 +177,6 @@ function parseJson(text: string) {
     throw new Error("模型没有返回可解析的结构化结果");
   }
 }
-function outputText(payload: any) {
-  const content = payload?.choices?.[0]?.message?.content;
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) return content.map((item: any) => typeof item?.text === "string" ? item.text : "").join("");
-  return "";
-}
-
 function normalize(raw: any, context: any) {
   const warnings = Array.isArray(raw?.warnings) ? raw.warnings.map((x: unknown) => cleanText(x, 160)).filter(Boolean) : [];
   const allowedCategories = Array.isArray(context?.classificationOptions) ? context.classificationOptions.map((x: unknown) => String(x)) : [];
@@ -281,24 +264,60 @@ function imageParts(images: string[], input: unknown) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-  const requestId = crypto.randomUUID();
+  let requestId = crypto.randomUUID();
   const startedAt = Date.now();
-  let quota: any = null;
-  const reply = (body: Record<string, unknown>, status = 200) => json({ ...body, ...(quota ? { quota } : {}) }, status);
-  const mark = (phase: string, extra: Record<string, unknown> = {}) => {
-    console.log("vision_timing", JSON.stringify({
-      request_id: requestId,
-      phase,
-      elapsed_ms: Date.now() - startedAt,
-      ...extra,
-    }));
+  let quota: any = null, user: any = null, config: any = null;
+  let auditStarted = false, phase = "request_received", action = "recognize";
+  let images: string[] = [], parts: any[] = [], stats: any[] = [], attempts: any[] = [], rawOutput = "";
+  const timings: any[] = [];
+  let auditDiagnostics: Record<string, unknown> = {};
+  const diagnose = (error: any) => {
+    const detail = { code: safeMessage(error?.code || "", 100), name: safeMessage(error?.name || "", 80),
+      message: safeMessage(error?.message || error), details: safeMessage(error?.details || ""), hint: safeMessage(error?.hint || "") };
+    auditDiagnostics.database_error = detail;
+    return detail;
+  };
+  const mark = (next: string, extra: Record<string, unknown> = {}) => {
+    phase = next;
+    timings.push({ phase, elapsed_ms: Date.now() - startedAt });
+    console.log("vision_timing", JSON.stringify({ request_id: requestId, action, phase, elapsed_ms: Date.now() - startedAt, ...extra }));
+  };
+  const reply = async (body: Record<string, any>, status = 200) => {
+    const elapsed = Date.now() - startedAt;
+    if (status >= 400) console.error("vision_failure", JSON.stringify({ request_id: requestId, action, stage: phase,
+      code: body.code || "vision_service_error", http_status: status, upstream_status: body.upstream_status ?? null,
+      message: safeMessage(body.upstream_message || body.error), attempts: attempts.length, elapsed_ms: elapsed }));
+    if (auditStarted) {
+      const succeeded = status < 400 && Array.isArray(body.subjects);
+      const record = { status: succeeded ? "succeeded" : quota?.consumed || status >= 500 ? "failed" : "rejected", http_status: status,
+        error_code: status >= 400 ? body.code || "vision_service_error" : null, error_stage: status >= 400 ? phase : null,
+        error_message: status >= 400 ? safeMessage(body.upstream_message || body.error) : null,
+        duration_ms: elapsed, upstream_status: body.upstream_status ?? (succeeded ? 200 : null), attempts,
+        result: succeeded ? body : null, raw_output: rawOutput || null, storage_status: succeeded ? "pending" : "not_requested" };
+      Object.assign(record, { diagnostics: { ...auditDiagnostics, timings } });
+      try {
+        const refunded = await withTimeout(finishAudit(db, requestId, record), 5000, "audit_write_timeout");
+        if (refunded) {
+          body.quota_refunded = true;
+          try { quota = await withTimeout(visionQuota(user.id), 2500, "quota_refresh_timeout"); } catch (_) {}
+        }
+      } catch (error) {
+        console.error("vision_audit_write_failed", JSON.stringify({request_id:requestId, message:safeMessage((error as any)?.message || error)}));
+        background(finishAudit(db, requestId, record), requestId);
+      }
+      if (succeeded) background(saveImages(db, requestId, user.id, images, stats), requestId);
+    }
+    return json({ ...body, request_id: requestId, ...(status >= 400 ? { stage: phase } : {}),
+      diagnostics: { model: config?.model || null, attempt_count: attempts.length, elapsed_ms: elapsed, max_output_tokens: OUTPUT_TOKENS },
+      ...(quota ? { quota } : {}) }, status);
   };
 
   try {
-    mark("request_received");
     const body = await req.json().catch(() => ({}));
-
-    let user;
+    if (!body || typeof body !== "object" || Array.isArray(body)) return reply({error:"请求内容不完整，请重新选择图片",code:"invalid_request_body"},400);
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.request_id || "")) requestId = body.request_id;
+    action = body.action || "recognize";
+    mark("request_received");
     try {
       user = await withTimeout(auth(String(body.token ?? "")), DATABASE_TIMEOUT_MS, "auth_timeout");
       mark(user ? "auth_ok" : "auth_rejected");
@@ -306,13 +325,12 @@ Deno.serve(async (req) => {
       mark("auth_failed");
       console.error("vision auth error", JSON.stringify({
         request_id: requestId,
-        message: error instanceof Error ? error.message : String(error),
+        ...diagnose(error),
       }));
-      return json({ error: "登录状态检查暂不可用，请稍后再试", code: "auth_unavailable", request_status: 0 }, 503);
+      return reply({ error: "登录状态检查暂不可用，请稍后再试", code: "auth_unavailable", request_status: 0 }, 503);
     }
-    if (!user) return json({ error: "登录已失效，请重新登录" }, 401);
+    if (!user) return reply({ error: "登录已失效，请重新登录", code: "UNAUTHORIZED" }, 401);
 
-    let config;
     try {
       config = await withTimeout(visionConfig(), DATABASE_TIMEOUT_MS, "vision_config_timeout");
       mark("config_ok");
@@ -320,136 +338,109 @@ Deno.serve(async (req) => {
       mark("config_failed");
       console.error("vision config error", JSON.stringify({
         request_id: requestId,
-        message: error instanceof Error ? error.message : String(error),
+        ...diagnose(error),
       }));
-      return json({ error: "识别服务配置暂不可用，请稍后再试", code: "vision_config_unavailable", request_status: 0 }, 503);
+      return reply({ error: "识别服务配置暂不可用，请稍后再试", code: "vision_config_unavailable", request_status: 0 }, 503);
     }
     if (body.action === "beta_status") {
       if (config.disabled || !config.configured) {
-        return json({ eligible: false, enabled: !config.disabled, beta_only: config.betaOnly });
+        return reply({ eligible: false, enabled: !config.disabled, beta_only: config.betaOnly });
       }
       let eligible = false;
       try {
         eligible = config.betaOnly && await isVisionBetaUser(user.username);
       } catch (error) {
         console.error("vision beta status", error instanceof Error ? error.message : error);
-        return json({ error: "识别服务资格检查暂不可用", code: "beta_status_unavailable" }, 503);
+        return reply({ error: "识别服务资格检查暂不可用", code: "beta_status_unavailable" }, 503);
       }
-      return json({ eligible, enabled: !config.disabled, beta_only: config.betaOnly });
+      return reply({ eligible, enabled: !config.disabled, beta_only: config.betaOnly });
     }
     if (body.action === "quota") {
       quota = await withTimeout(visionQuota(user.id), DATABASE_TIMEOUT_MS, "rate_limit_timeout");
       const eligible = !config.betaOnly || await isVisionBetaUser(user.username);
       return reply({ enabled: !config.disabled && config.configured && !!config.baseUrl, eligible, beta_only: config.betaOnly });
     }
-    if (body.action && body.action !== "connectivity_test") return json({ error: "Unknown action" }, 400);
+    if (body.action && body.action !== "connectivity_test" && body.action !== "recognize") return reply({ error: "Unknown action" }, 400);
     if (body.action === "connectivity_test") {
       const connectivityStartedAt = Date.now();
-      if (config.disabled) return json({ error: "识图功能当前未启用，请联系管理员", code: "vision_disabled", request_status: 503 }, 503);
-      if (!config.apiKey) return json({ error: "识图服务尚未配置识别服务 Key，请联系管理员", code: "missing_api_key", request_status: 503 }, 503);
-      if (!config.baseUrl) return json({ error: "识别服务 Base URL 配置无效，请联系管理员", code: "invalid_base_url", request_status: 503 }, 503);
+      if (config.disabled) return reply({ error: "识图功能当前未启用，请联系管理员", code: "vision_disabled", request_status: 503 }, 503);
+      if (!config.apiKey) return reply({ error: "识图服务尚未配置识别服务 Key，请联系管理员", code: "missing_api_key", request_status: 503 }, 503);
+      if (!config.baseUrl) return reply({ error: "识别服务 Base URL 配置无效，请联系管理员", code: "invalid_base_url", request_status: 503 }, 503);
       if (config.betaOnly) {
         let allowed = false;
         try {
           allowed = await isVisionBetaUser(user.username);
         } catch (error) {
           console.error("vision beta connectivity", error instanceof Error ? error.message : error);
-          return json({ error: "识别服务资格检查暂不可用，请稍后再试", code: "beta_access_unavailable", request_status: 0 }, 503);
+          return reply({ error: "识别服务资格检查暂不可用，请稍后再试", code: "beta_access_unavailable", request_status: 0 }, 503);
         }
-        if (!allowed) return json({ error: "图片识别目前处于内测阶段", code: "vision_beta_only", request_status: 403 }, 403);
+        if (!allowed) return reply({ error: "图片识别目前处于内测阶段", code: "vision_beta_only", request_status: 403 }, 403);
       }
 
       quota = await withTimeout(visionQuota(user.id), DATABASE_TIMEOUT_MS, "rate_limit_timeout");
       if (!quota?.allowed) return reply({ error: "暂时无法识别，请查看剩余额度或稍后重试", code: "ai_rate_limited", retry_after_seconds: quota?.retry_after_seconds || 0 }, 429);
-      const requestBody: Record<string, unknown> = {
-        model: config.model,
-        messages: [{ role: "user", content: "ping" }],
-        temperature: 0,
-        max_tokens: 1,
-      };
-      if (isOpenRouterBase(config.baseUrl)) requestBody.provider = { data_collection: "deny" };
-      const requestHeaders: Record<string, string> = {
-        "Authorization": `Bearer ${config.apiKey}`,
-        "Content-Type": "application/json",
-      };
-      if (isOpenRouterBase(config.baseUrl)) {
-        requestHeaders["HTTP-Referer"] = "https://score.yhwlwl.xyz";
-        requestHeaders["X-Title"] = "Score Tracker Preview";
-      }
-      mark("connectivity_test_start");
-      try {
-        const upstream = await fetchWithTimeout(config.baseUrl + "/chat/completions", {
-          method: "POST",
-          headers: requestHeaders,
-          body: JSON.stringify(requestBody),
-        }, 10000);
-        const latencyMs = Date.now() - connectivityStartedAt;
-        mark("connectivity_test_response", { status: upstream.response.status, latency_ms: latencyMs });
-        if (!upstream.response.ok) {
-          const detail = upstreamMessage(upstream.payload);
-          return json({
-            error: "识别服务连接测试失败",
-            code: "connectivity_upstream_error",
-            request_status: 502,
-            upstream_status: upstream.response.status,
-            upstream_message: detail || ("HTTP " + upstream.response.status),
-            latency_ms: latencyMs,
-          }, 502);
-        }
-        return json({ ok: true, status: upstream.response.status, latency_ms: latencyMs, model: config.model });
-      } catch (error) {
-        const timedOut = error instanceof Error && error.name === "AbortError";
-        const latencyMs = Date.now() - connectivityStartedAt;
-        mark("connectivity_test_failed", { status: timedOut ? 504 : 502, latency_ms: latencyMs });
-        return json({
-          error: timedOut ? "识别服务连接测试超时，请稍后再试" : "识别服务连接测试失败",
-          code: timedOut ? "connectivity_timeout" : "connectivity_network_error",
-          request_status: 0,
-          upstream_status: 0,
-          upstream_message: cleanText(error instanceof Error ? error.message : error, 240),
-          latency_ms: latencyMs,
-        }, timedOut ? 504 : 502);
-      }
+      mark("connectivity_ready");
+      return reply({ ok: true, status: 200, check: "configuration_and_access", latency_ms: Date.now() - connectivityStartedAt, model: config.model });
     }
 
-    const images = Array.isArray(body.images) ? body.images : [];
-    if (!images.length || images.length > 12) return json({ error: "请选择 1～6 张图片，长图可以自动分段", code:"image_count_invalid" }, 400);
-    const parts = imageParts(images, body.image_parts);
-    if (!parts) return json({error:"图片分段信息不完整，请重新选择图片", code:"image_parts_invalid"}, 400);
+    mark("image_validation");
+    images = Array.isArray(body.images) ? body.images : [];
+    if (!images.length || images.length > 12) return reply({ error: "请选择 1～6 张图片，长图可以自动分段", code:"image_count_invalid" }, 400);
+    parts = imageParts(images, body.image_parts);
+    if (!parts) return reply({error:"图片分段信息不完整，请重新选择图片", code:"image_parts_invalid"}, 400);
     let totalSize = 0;
     for (const image of images) {
-      if (typeof image !== "string" || !/^data:image\/(?:jpeg|jpg|png|webp);base64,/i.test(image)) return json({ error: "仅支持 JPG、PNG、WEBP 图片" }, 400);
-      if (image.length > 3_800_000) return json({ error: "单张图片处理后仍过大，请裁剪后再试" }, 400);
+      if (typeof image !== "string" || !/^data:image\/(?:jpeg|jpg|png|webp);base64,/i.test(image)) return reply({ error: "仅支持 JPG、PNG、WEBP 图片" }, 400);
+      if (image.length > 3_800_000) return reply({ error: "单张图片处理后仍过大，请裁剪后再试" }, 400);
+      const encoded = image.slice(image.indexOf(",") + 1);
+      if (!encoded.length || encoded.length % 4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)) return reply({error:"图片内容不完整，请重新选择图片",code:"image_encoding_invalid"},400);
       totalSize += image.length;
     }
-    if (totalSize > 18_000_000) return json({ error: "图片总大小过大，请分批识别" }, 400);
+    if (totalSize > 18_000_000) return reply({ error: "图片总大小过大，请分批识别" }, 400);
 
-    if (config.disabled) return json({ error: "识图功能当前未启用，请联系管理员" }, 503);
-    if (!config.apiKey) return json({ error: "识图服务尚未配置识别服务 Key，请联系管理员" }, 503);
-    if (!config.baseUrl) return json({ error: "识别服务 Base URL 配置无效，请联系管理员", code: "invalid_base_url" }, 503);
+    if (config.disabled) return reply({ error: "识图功能当前未启用，请联系管理员" }, 503);
+    if (!config.apiKey) return reply({ error: "识图服务尚未配置识别服务 Key，请联系管理员" }, 503);
+    if (!config.baseUrl) return reply({ error: "识别服务 Base URL 配置无效，请联系管理员", code: "invalid_base_url" }, 503);
     if (config.betaOnly) {
       let allowed = false;
       try {
         allowed = await isVisionBetaUser(user.username);
       } catch (error) {
         console.error("vision beta access", error instanceof Error ? error.message : error);
-        return json({ error: "识别服务资格检查暂不可用，请稍后再试", code: "beta_access_unavailable", request_status: 0 }, 503);
+        return reply({ error: "识别服务资格检查暂不可用，请稍后再试", code: "beta_access_unavailable", request_status: 0 }, 503);
       }
       if (!allowed) {
-        return json({ error: "图片识别目前处于内测阶段", code: "vision_beta_only", request_status: 403 }, 403);
+        return reply({ error: "图片识别目前处于内测阶段", code: "vision_beta_only", request_status: 403 }, 403);
       }
     }
 
+    stats = imageStats(images, parts, body.image_stats);
+    mark("audit_start");
+    auditDiagnostics = { client_request_id: safeMessage(req.headers.get("x-score-request-id") || "", 100),
+      client_protocol: body.client_protocol === 2 ? 2 : 1, app_version: safeMessage(body.app_version || "", 40), output_tokens: OUTPUT_TOKENS, prompt_version: "2026-10-17" };
+    const initial = await withTimeout(startAudit(db, {
+      request_id: requestId, user_id: user.id, model: config.model, provider_host: new URL(config.baseUrl).hostname,
+      image_count: images.length, source_image_count: new Set(parts.map(p => p.source_index)).size,
+      image_bytes: stats.reduce((sum, item) => sum + item.bytes, 0), image_meta: stats,
+      diagnostics: auditDiagnostics,
+    }), DATABASE_TIMEOUT_MS, "audit_start_timeout");
+    if (initial.existing) {
+      const existing = initial.existing;
+      if (existing.status === "succeeded") return reply({ ...existing.result, replayed: true });
+      return reply({ error: existing.status === "running" ? "这次识别仍在进行，请稍等" : "这次识别已结束，请重新点击识别",
+        code: "request_already_processed" }, 409);
+    }
+    auditStarted = true;
     try {
-      quota = await withTimeout(
-        visionQuota(user.id, true),
-        DATABASE_TIMEOUT_MS,
-        "rate_limit_timeout",
-      );
+      const claimed = await withTimeout(readDatabase(() => db.rpc("score_tracker_vision_reserve", {
+        p_user_id: user.id, p_request_id: requestId,
+      })), DATABASE_TIMEOUT_MS, "rate_limit_timeout");
+      if (claimed.error) throw claimed.error;
+      quota = claimed.data;
       mark("quota_checked");
     } catch (error) {
-      console.error("vision quota check", error instanceof Error ? error.message : error);
-      return json({ error: "识别服务限流检查暂不可用，请稍后再试", code: "rate_limit_unavailable", request_status: 0 }, 503);
+      console.error("vision_quota_check_failed", JSON.stringify({request_id:requestId,...diagnose(error)}));
+      return reply({ error: "识别服务限流检查暂不可用，请稍后再试", code: "rate_limit_unavailable", request_status: 0 }, 503);
     }
     if (!quota?.allowed) {
       const periodLabel = quota?.period === "month" ? "本月" : quota?.period === "week" ? "本周" : "今日";
@@ -480,7 +471,8 @@ Deno.serve(async (req) => {
       model: config.model,
       messages: [{ role: "user", content }],
       temperature: 0.1,
-      max_tokens: 6400,
+      max_tokens: OUTPUT_TOKENS,
+      ...requestOptions(config.model, isOpenRouterBase(config.baseUrl)),
     };
     if (isOpenRouterBase(config.baseUrl)) requestBody.provider = { data_collection: "deny" };
 
@@ -493,87 +485,29 @@ Deno.serve(async (req) => {
       requestHeaders["X-Title"] = "Score Tracker Preview";
     }
 
-    mark("upstream_start", { image_count: images.length, source_image_count:new Set(parts.map((p) => p.source_index)).size, image_chars:totalSize, image_detail:"high" });
-    let response: Response;
-    let payload: any;
-    try {
-      const upstream = await fetchWithTimeout(config.baseUrl + "/chat/completions", {
-        method: "POST",
-        headers: requestHeaders,
-        body: JSON.stringify(requestBody),
-      });
-      response = upstream.response;
-      payload = upstream.payload;
-      mark("upstream_response", { status: response.status });
-    } catch (error) {
-      const timedOut = error instanceof Error && error.name === "AbortError";
-      mark("upstream_failed", { status: timedOut ? 504 : 502 });
-      return reply({
-        error: timedOut ? "识别服务请求超时，请稍后再试" : "识别服务网络错误，请稍后再试",
-        code: timedOut ? "upstream_timeout" : "upstream_network_error",
-        request_status: 0,
-        upstream_status: 0,
-        upstream_message: cleanText(error instanceof Error ? error.message : error, 240),
-      }, timedOut ? 504 : 502);
-    }
-    if (!response.ok) {
-      const detail = upstreamMessage(payload);
-      const upstreamStatus = response.status;
-      console.error("vision upstream error", JSON.stringify({ status: upstreamStatus, code: payload?.error?.code, message: detail }));
-      const shared = { status: upstreamStatus, upstream_status: upstreamStatus, upstream_message: detail || ("HTTP " + upstreamStatus) };
-      if (upstreamStatus === 401 || upstreamStatus === 403) {
-        return reply({ ...shared, error: "识别服务鉴权失败，请检查 Base URL 和 Key", code: "upstream_auth_failed" }, 502);
-      }
-      if (upstreamStatus === 429) {
-        return reply({ ...shared, error: "识别服务请求过于频繁，请稍后再试", code: "upstream_rate_limited" }, 429);
-      }
-      if (upstreamStatus === 402) {
-        return reply({ ...shared, error: "识别服务额度不足或模型不可用", code: "upstream_billing_or_model_error" }, 503);
-      }
-      return reply({ ...shared, error: "识别服务暂不可用", code: "upstream_error" }, 502);
-    }
-    const finishReason = payload?.choices?.[0]?.finish_reason;
-    mark("model_output", {finish_reason:finishReason, completion_tokens:payload?.usage?.completion_tokens, reasoning_tokens:payload?.usage?.completion_tokens_details?.reasoning_tokens});
-    if (finishReason === "length" || finishReason === "max_tokens") return reply({error:"识别结果没能完整返回，请减少图片数量或分段截图后再试", code:"model_output_truncated", request_status:200, upstream_status:200}, 422);
-    const text = outputText(payload);
-    if (!text) {
-      mark("empty_model_output");
-      return reply({ error: "没有识别到可用内容，请换一张更清晰的图片", code: "empty_model_output" }, 422);
-    }
+    mark("upstream_start", { image_count: images.length, source_image_count: new Set(parts.map(p => p.source_index)).size, image_chars: totalSize, image_detail: "high", max_output_tokens: OUTPUT_TOKENS });
+    const outcome = await recognizeWithRecovery({
+      url: config.baseUrl + "/chat/completions", headers: requestHeaders, body: requestBody, requestId, mark,
+      budgetMs: Math.max(1, Math.min(body.client_protocol === 2 ? 90000 : 45000, (body.client_protocol === 2 ? 103000 : 50000) - (Date.now() - startedAt))),
+      attemptTimeoutMs: body.client_protocol === 2 ? 60000 : 35000,
+      validate: (text) => {
+        const normalized = normalize(parseJson(text), context);
+        if (!usableFieldCount(normalized)) throw new Error("no_usable_fields");
+        return normalized;
+      },
+    });
+    attempts = outcome.attempts;
+    rawOutput = outcome.raw_output || "";
+    if (!outcome.ok) return reply({ error: outcome.error, code: outcome.code, upstream_status: outcome.upstream_status,
+      upstream_message: outcome.upstream_message || "", request_status: outcome.upstream_status }, outcome.status);
+    mark("completed", { subject_count: outcome.result.subjects.length, field_count: usableFieldCount(outcome.result), attempt_count: attempts.length });
+    return reply(outcome.result);
 
-    let parsed: any;
-    try {
-      parsed = parseJson(text);
-    } catch (error) {
-      mark("model_parse_failed");
-      console.error("vision model output parse error", JSON.stringify({
-        request_id: requestId,
-        message: error instanceof Error ? error.message : String(error),
-      }));
-      return reply({ error: "识别结果格式异常，请重试", code: "invalid_model_output", request_status: 200, upstream_status: 200 }, 422);
-    }
-
-    try {
-      const normalized = normalize(parsed, context);
-      const fieldCount = usableFieldCount(normalized);
-      if (!fieldCount) {
-        mark("no_usable_fields", {subject_count:normalized.subjects.length});
-        return reply({error:"还没读到成绩或考试信息，可以裁剪成绩区域后再试", code:"no_usable_fields", request_status:200, upstream_status:200}, 422);
-      }
-      mark("completed", { subject_count: normalized.subjects.length, field_count:fieldCount });
-      return reply(normalized);
-    } catch (error) {
-      mark("model_normalize_failed");
-      console.error("vision normalize error", JSON.stringify({
-        request_id: requestId,
-        message: error instanceof Error ? error.message : String(error),
-      }));
-      return reply({ error: "识别结果处理失败，请重试", code: "invalid_model_output", request_status: 200, upstream_status: 200 }, 422);
-    }
   } catch (error) {
-    const message = cleanText(error instanceof Error ? error.message : error) || "识别失败，请稍后再试";
+    const message = safeMessage((error as any)?.message || error) || "识别失败，请稍后再试";
     const isServiceError = error instanceof VisionServiceError;
-    const status = isServiceError ? error.status : 500;
+    diagnose(error);
+    const status = message === "request_id_conflict" ? 409 : isServiceError ? error.status : 500;
     const code = isServiceError ? error.code : "vision_handler_error";
     mark("handler_error", { status });
     console.error("vision handler error", JSON.stringify({ request_id: requestId, message }));
