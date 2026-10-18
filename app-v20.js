@@ -81,6 +81,45 @@ function sameSubjectSetV20(a,b){
   return aa.every(function(x,i){return x===bb[i];});
 }
 
+function totalScopeSubjectsV20(exam){
+  var moduleNames=typeof moduleNamesV18==='function'?moduleNamesV18():new Set();
+  return Object.entries(exam?.scores||{}).filter(function(entry){
+    return !moduleNames.has(entry[0])&&!entry[1]?.excludeFromTotal;
+  }).map(function(entry){return entry[0];}).sort();
+}
+
+function sameScoreBasisV20(a,b,subjects){
+  return (subjects||[]).every(function(name){
+    var am=num(a?.scores?.[name]?.max),bm=num(b?.scores?.[name]?.max);
+    return am===null||bm===null||Math.abs(am-bm)<0.000001;
+  });
+}
+
+function previousSubjectDeltaV20(exams,index,subject,value){
+  var latest=exams[index];
+  for(var j=index-1;j>=0;j--){
+    var previous=exams[j],previousValue=examScore(previous,subject,'actual');
+    if(previousValue===null||!sameScoreBasisV20(latest,previous,[subject]))continue;
+    return value-previousValue;
+  }
+  return null;
+}
+
+function previousTotalDeltaV20(exams,index,latest,value,subjects){
+  var names=subjects||totalScopeSubjectsV20(latest);
+  for(var j=index-1;j>=0;j--){
+    var previous=exams[j],previousNames=totalScopeSubjectsV20(previous);
+    if(!sameSubjectSetV20(names,previousNames)||!sameScoreBasisV20(latest,previous,names))continue;
+    var previousValue=num(previous.total_actual_score);
+    if(previousValue===null){
+      if(!sameSubjectSetV20(names,effectiveScoreSubjectsV20(previous)))continue;
+      previousValue=totalFor(previous,'actual');
+    }
+    if(previousValue!==null)return value-previousValue;
+  }
+  return null;
+}
+
 function latestMetricV20(){
   var exams=sortedVisibleExamsV20();
   for(var i=exams.length-1;i>=0;i--){
@@ -89,35 +128,23 @@ function latestMetricV20(){
 
     if(subjects.length===1){
       var subject=subjects[0],value=examScore(latest,subject,'actual');
-      var previous=null;
-      for(var j=i-1;j>=0;j--){
-        var pv=examScore(exams[j],subject,'actual');
-        if(pv!==null){previous={exam:exams[j],value:pv};break;}
-      }
       return {
         label:'最近一次'+subject+'成绩',
         value:value,
         exam:latest,
-        delta:previous?value-previous.value:null,
+        delta:previousSubjectDeltaV20(exams,i,subject,value),
         deltaLabel:'较上次同科'
       };
     }
 
     var value=totalFor(latest,'actual');
     if(value===null)continue;
-    var previous=null;
-    for(var j=i-1;j>=0;j--){
-      var prevSubjects=effectiveScoreSubjectsV20(exams[j]);
-      if(!sameSubjectSetV20(subjects,prevSubjects))continue;
-      var pv=totalFor(exams[j],'actual');
-      if(pv!==null){previous={exam:exams[j],value:pv};break;}
-    }
     return {
       label:'最近一次真实总分',
       value:value,
       exam:latest,
-      delta:previous?value-previous.value:null,
-      deltaLabel:'较上次'
+      delta:previousTotalDeltaV20(exams,i,latest,value,subjects),
+      deltaLabel:'较上次同口径'
     };
   }
   return null;
@@ -130,7 +157,7 @@ function patchLatestHeroV20(){
   var metric=latestMetricV20();
   if(!metric)return;
   var delta=metric.delta;
-  card.innerHTML=`<div><div class="stat-label">${escapeHtml(metric.label)}</div><div class="stat-value">${formatScore(metric.value)}</div><div class="stat-sub">${escapeHtml(metric.exam.name)} · ${fmtDate(metric.exam.exam_date)}</div></div>${delta===null?'':`<span class="trend-pill">${delta>=0?'↗':'↘'} ${metric.deltaLabel} ${delta>=0?'+':''}${formatScore(delta)} 分</span>`}`;
+  card.innerHTML=`<div><div class="stat-label">${escapeHtml(metric.label)}</div><div class="stat-value">${formatScore(metric.value)}</div><div class="stat-sub">${escapeHtml(metric.exam.name)} · ${fmtDate(metric.exam.exam_date)}</div></div>${delta===null||delta===undefined?'':`<span class="trend-pill${delta<0?' down':''}">${delta>=0?'↗':'↘'} ${escapeHtml(metric.deltaLabel||'较上次同口径')} ${delta>=0?'+':''}${formatScore(delta)} 分</span>`}${metric.comparison?`<span class="hero-average">${escapeHtml(metric.comparison)}</span>`:''}`;
 }
 
 function decorateRecordGroupCollapseV20(){

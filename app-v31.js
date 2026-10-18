@@ -46,6 +46,7 @@ function injectStylesV31(){
     '.tip-banner-v31 .t-x{flex:none;border:0;background:var(--cell,#f3f4f7);width:26px;height:26px;border-radius:8px;font-size:14px;color:var(--muted,#667085);cursor:pointer;font-family:inherit}',
     '.lg-hint-v31{font-size:10px;color:var(--muted,#98a1ae);opacity:.75;margin-left:2px;white-space:nowrap;pointer-events:none;-webkit-user-select:none;user-select:none}',
     '.stat-rank-v31{font-size:11px;color:var(--muted,#98a1ae);margin-top:3px;font-weight:600;font-variant-numeric:tabular-nums}',
+    '.hero-stat .trend-pill.down{background:var(--danger-soft,#fff0f0);color:var(--danger,#d9534f)}',
     '.update-bar-v31{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom));z-index:96;display:flex;align-items:center;gap:12px;background:var(--panel-solid,#fff);color:var(--text,#18212f);border:1px solid var(--accent,#5d72e8);border-radius:16px;padding:12px 14px;box-sizing:border-box;width:min(620px,calc(100vw - 24px));box-shadow:var(--nav-shadow,0 10px 35px rgba(28,39,63,.2));font-size:12.5px;line-height:1.55;animation:v31rise .3s cubic-bezier(.2,.8,.25,1)}',
     '.update-bar-v31>span:nth-child(2){min-width:0;flex:1;overflow-wrap:anywhere}',
     '.update-copy-v31{min-width:0;flex:1;line-height:1.55}',
@@ -170,13 +171,13 @@ patchLatestHeroV20=function(){
   if(!metric){if(patchHeroV20Base)patchHeroV20Base();return;}
   var subjects=(typeof effectiveScoreSubjectsV20==='function')?effectiveScoreSubjectsV20(metric.exam):[];
   var rank=subjects.length===1?rankLineV31(metric.exam,subjects[0]):rankLineV31(metric.exam,null);
-  var delta=metric.delta;
   card.innerHTML='<div><div class="stat-label">'+escapeHtml(metric.label)+'</div>'
     +'<div class="stat-value">'+formatScore(metric.value)+'</div>'
     +'<div class="stat-sub">'+escapeHtml(metric.exam.name)+' · '+fmtDate(metric.exam.exam_date)+'</div>'
     +(rank?'<div class="stat-rank-v31">🏆 '+escV31(rank)+'</div>':'')
+    +(metric.delta===null||metric.delta===undefined?'':'<span class="trend-pill'+(metric.delta<0?' down':'')+'">'+(metric.delta>=0?'↗':'↘')+' '+escV31(metric.deltaLabel||'较上次同口径')+' '+(metric.delta>=0?'+':'')+formatScore(metric.delta)+' 分</span>')
     +'</div>'
-    +(delta===null?'':'<span class="trend-pill">'+(delta>=0?'↗':'↘')+' '+metric.deltaLabel+' '+(delta>=0?'+':'')+formatScore(delta)+' 分</span>');
+    +(metric.comparison?'<span class="hero-average">'+escapeHtml(metric.comparison)+'</span>':'');
 };
 
 /* ================= 渲染钩子 ================= */

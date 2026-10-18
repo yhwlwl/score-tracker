@@ -307,12 +307,14 @@ function recentHtml() {
 function chartHtml() {
   if (!state.exams.length) return `<div class="empty-chart"><div><div class="empty-icon">⌁</div>记录考试后，这里会自动出现趋势线</div></div>`;
   const points = state.exams.map((e) => ({
+    exam: e,
     name: e.name,
     date: e.exam_date,
     actual: state.subject === '总分' ? totalFor(e, 'actual') : examScore(e, state.subject, 'actual'),
     target: state.subject === '总分' ? totalFor(e, 'target') : examScore(e, state.subject, 'target')
   }));
-  const vals = points.flatMap((p) => [p.actual, p.target]).filter((v) => v !== null);
+  const extra = window.ScoreAverages ? window.ScoreAverages.series() : [];
+  const vals = points.flatMap((p) => [p.actual, p.target, ...extra.map((s) => s.value(p.exam))]).filter((v) => v !== null);
   if (!vals.length) return `<div class="empty-chart"><div><div class="empty-icon">⌁</div>这个科目还没有成绩数据</div></div>`;
   let max = Math.max(...vals), min = Math.min(...vals);
   const pad = Math.max(10, (max - min) * 0.18);
@@ -330,12 +332,12 @@ function chartHtml() {
     const yy = T + (ch * i / ticks);
     grid += `<line x1="${L}" y1="${yy}" x2="${W - R}" y2="${yy}" stroke="#edf0f4"/><text x="${L - 9}" y="${yy + 4}" text-anchor="end" class="axis-label">${Math.round(v)}</text>`;
   }
-  const line = (key, color, dash = '') => {
+  const line = (key, color, dash = '', reader = null, label = '') => {
     let d = '';
     let started = false;
     let circles = '';
     points.forEach((p, i) => {
-      const v = p[key];
+      const v = reader ? reader(p.exam) : p[key];
       if (v === null) {
         started = false;
         return;
@@ -343,13 +345,13 @@ function chartHtml() {
       const xx = x(i), yy = y(v);
       d += `${started ? 'L' : 'M'} ${xx} ${yy} `;
       started = true;
-      circles += `<circle cx="${xx}" cy="${yy}" r="5" fill="#fff" stroke="${color}" stroke-width="3" data-tip="${escapeHtml(p.name)} · ${key === 'actual' ? '真实' : '目标'} ${formatScore(v)}"/>`;
+      circles += `<circle cx="${xx}" cy="${yy}" r="5" fill="#fff" stroke="${color}" stroke-width="3" data-tip="${escapeHtml(p.name)} · ${label || (key === 'actual' ? '真实' : '目标')} ${reader ? window.ScoreAverages.format(v) : formatScore(v)}"/>`;
     });
     return `<path d="${d}" fill="none" stroke="${color}" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" ${dash ? `stroke-dasharray="${dash}"` : ''}/>${circles}`;
   };
   const labels = points.map((p, i) => `<text x="${x(i)}" y="${H - 17}" text-anchor="middle" class="axis-label">${fmtDate(p.date)}</text>`).join('');
-  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${grid}${/* 线序与图例一致:真实(蓝)在前,目标(绿虚线)在后——v29 图例换色按位置配对,顺序相反会把颜色套到错误的线上 */
-  line('actual', '#5d72e8')}${line('target', '#32a77a', '7 7')}${labels}</svg><div class="tooltip-card" id="chartTip"></div>`;
+  return `<svg viewBox="0 0 ${W} ${H}" data-axis-min="${min}" data-axis-max="${max}" preserveAspectRatio="none">${grid}${/* Keep series order aligned with the legend. */
+  line('actual', '#5d72e8')}${line('target', '#32a77a', '7 7')}${extra.map((s) => line('', s.color, s.dash, s.value, s.label)).join('')}${labels}</svg><div class="tooltip-card" id="chartTip"></div>`;
 }
 
 function radarCardHtml() {
