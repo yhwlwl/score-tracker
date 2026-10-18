@@ -126,7 +126,12 @@
       if(config)latestConfig=config;
       if(!initialReady&&config&&results[1].status==='fulfilled'){
         initialReady=true;
-        if(results[1].value.build===LOADED_BUILD&&compare(config.version,CURRENT)>=0)CURRENT=version(config.version);
+        if(results[1].value.build===LOADED_BUILD&&compare(config.version,CURRENT)>=0){
+          CURRENT=version(config.version);
+          // Legacy telemetry and recognition read the live meta, not the footer.
+          var versionMeta=document.querySelector('meta[name="application-version"]');
+          if(versionMeta)versionMeta.setAttribute('content',CURRENT);
+        }
         mountFooter();
       }
       if(config&&results[1].status==='fulfilled'&&u.id!=='guest')try{var info=JSON.parse(sessionStorage.getItem('st_notice_update_pending')||'null');if(info&&info.user_id===u.id){track(compare(CURRENT,info.to)>=0?'update_completed':'update_reload_still_old',{from:info.from,to:info.to});sessionStorage.removeItem('st_notice_update_pending');}}catch(_){}

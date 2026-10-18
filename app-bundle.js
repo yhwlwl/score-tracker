@@ -127,7 +127,7 @@
 (() => {
   'use strict';
   const API = '/api/score-tracker-api';
-  const APP_VERSION = (document.querySelector('meta[name="application-version"]') || {}).content || 'unknown';
+  const appVersion = () => window.__releaseNotices?.currentVersion?.() || (document.querySelector('meta[name="application-version"]') || {}).content || 'unknown';
   const nativeFetch = window.fetch.bind(window);
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
@@ -158,7 +158,7 @@
     appPage: currentPage(), referrerOrigin: document.referrer || '', firstReferrer, utmSource, utmCampaign,
     userAgent: navigator.userAgent, browserLanguage: navigator.language, clientTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     screenWidth: screen.width, screenHeight: screen.height, viewportWidth: innerWidth, viewportHeight: innerHeight,
-    isPwa: matchMedia('(display-mode: standalone)').matches || navigator.standalone === true, appVersion: window.__releaseNotices?.currentVersion?.() || APP_VERSION,
+    isPwa: matchMedia('(display-mode: standalone)').matches || navigator.standalone === true, appVersion: appVersion(),
   });
   async function call(action, payload = {}) {
     const r = await nativeFetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, token: localStorage.getItem('st_token') || '', ...payload }) });
@@ -12835,7 +12835,12 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       if(config)latestConfig=config;
       if(!initialReady&&config&&results[1].status==='fulfilled'){
         initialReady=true;
-        if(results[1].value.build===LOADED_BUILD&&compare(config.version,CURRENT)>=0)CURRENT=version(config.version);
+        if(results[1].value.build===LOADED_BUILD&&compare(config.version,CURRENT)>=0){
+          CURRENT=version(config.version);
+          // Legacy telemetry and recognition read the live meta, not the footer.
+          var versionMeta=document.querySelector('meta[name="application-version"]');
+          if(versionMeta)versionMeta.setAttribute('content',CURRENT);
+        }
         mountFooter();
       }
       if(config&&results[1].status==='fulfilled'&&u.id!=='guest')try{var info=JSON.parse(sessionStorage.getItem('st_notice_update_pending')||'null');if(info&&info.user_id===u.id){track(compare(CURRENT,info.to)>=0?'update_completed':'update_reload_still_old',{from:info.from,to:info.to});sessionStorage.removeItem('st_notice_update_pending');}}catch(_){}
