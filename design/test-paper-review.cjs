@@ -1,0 +1,169 @@
+// NODE_PATH=<directory containing jsdom and @electric-sql/pglite> node design/test-paper-review.cjs
+const assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path'), vm = require('node:vm');
+const { stripTypeScriptTypes } = require('node:module');
+const { JSDOM, VirtualConsole } = require('jsdom');
+const { PGlite } = require('@electric-sql/pglite');
+const root = path.resolve(__dirname, '..'), read = file => fs.readFileSync(path.join(root, file), 'utf8');
+const code = file => stripTypeScriptTypes(read(file).replace(/^import[^\n]*\n/gm, '').replace(/^export /gm, ''));
+const tick = () => new Promise(r => setTimeout(r, 30));
+const uid = '00000000-0000-4000-8000-000000000001', other = '00000000-0000-4000-8000-000000000002';
+const examId = '00000000-0000-4000-8000-000000000003', draftId = '00000000-0000-4000-8000-000000000004';
+const rid = '00000000-0000-4000-8000-000000000005';
+const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aL1sAAAAASUVORK5CYII=';
+const input = { request_id: rid, draft_id: draftId, subject: '数学', consent: true, work_on_paper: true, pages: [{ role: 'paper', url: png }] };
+const raw = { complete: true, coverage: '第1页的两道题', overview: '第2题符号转换需要核对。', strengths: ['第1题计算正确'], priorities: ['重新写出第2题的移项步骤'], warnings: [], questions: [
+  { label: '1', stem: '1 + 1 = ?', pages: [1], answer: '2', reference: '2', max_score: 5, teacher_score: 5, estimated_score: 5, score_evidence: '第1页右侧批改5分', knowledge: ['运算'], status: 'answered', confidence: 'high', loss_reason: '未见失分', suggestion: '保持验算' },
+  { label: '2', stem: '解方程 x + 2 = 5', pages: [1], answer: 'x = 7', reference: 'x = 3', max_score: 5, teacher_score: 0, estimated_score: 0, score_evidence: '第1页第2题批改0分', knowledge: ['方程'], status: 'answered', confidence: 'medium', loss_reason: '移项时符号未变', evidence: 'x=5+2', suggestion: '在等号两边同时减去2' },
+] };
+function harness() {
+  let handler, modelReply = raw, failWrites = false;
+  const tables = { score_tracker_users: [{ id: uid, session_token_hash: '', session_expires_at: '2099-01-01' }], score_tracker_paper_settings: [{ id: 'default', enabled: true, api_key: 'fixture-only-key', base_url: 'https://model.test/v1', model: 'test-vision' }], score_tracker_paper_reviews: [], score_tracker_exams: [{ id: examId, user_id: uid }], score_tracker_scores: [{ id: 's1', exam_id: examId, user_id: uid, subject: '数学' }] };
+  const calls = [], writes = [], background = [], upstream = [];
+  const db = { from(table) {
+    let filters = [], action = 'select', value, single = false, sort, maximum;
+    const q = { select() { return q; }, eq(k,v) { filters.push(r=>r[k]===v); return q; }, is(k,v) { filters.push(r=>(r[k]??null)===v);return q; }, in(k,v) { filters.push(r=>v.includes(r[k]));return q; },
+      or(scope) { filters.push(r=>scope.includes(r.exam_id||'__none') || scope.includes(r.draft_id||'__none'));return q; }, order(k) { sort=k;return q; }, limit(n) { maximum=n;return q; }, update(v) { action='update';value=v;return q; }, delete() { action='delete';return q; }, single() { single=true;return run(); }, maybeSingle() { single=true;return run(); }, then(a,b) { return run().then(a,b); } };
+    async function run() {
+      let found = (tables[table] || []).filter(r=>filters.every(f=>f(r)));
+      calls.push(table);
+      if (action !== 'select') { writes.push(table); if(failWrites)return {error:{code:'fail'}}; }
+      if(action==='update')found.forEach(r=>Object.assign(r, structuredClone(value)));
+      if(action==='delete')tables[table]=tables[table].filter(r=>!found.includes(r));
+      if(sort)found.sort((a,b)=>String(b[sort]).localeCompare(String(a[sort])));
+      if(maximum)found=found.slice(0,maximum);
+      return { data: structuredClone(single ? found[0] || null : found), error: null };
+    } return q;
+  }, async rpc(name, p) {
+    calls.push(name);
+    const quota = { enabled: true, limit: 3, used: tables.score_tracker_paper_reviews.length, remaining: 3-tables.score_tracker_paper_reviews.length, global_available: true };
+    if(name==='score_tracker_paper_quota')return {data:quota};
+    assert.equal(name,'score_tracker_paper_reserve');
+    const previous=tables.score_tracker_paper_reviews.find(r=>r.request_id===p.p_request_id);
+    if(previous)return {data: previous.user_id===p.p_user_id&&previous.fingerprint===p.p_fingerprint?{allowed:true,created:false,quota}:{allowed:false,reason:'conflict',message:'conflict'}};
+    tables.score_tracker_paper_reviews.push({request_id:p.p_request_id,user_id:p.p_user_id,draft_id:p.p_draft_id,exam_id:p.p_exam_id,subject:p.p_subject,fingerprint:p.p_fingerprint,status:'running',created_at:new Date().toISOString(),corrections:[],revision:0});
+    return {data:{allowed:true,created:true,quota}};
+  } };
+  const scope = { createClient:()=>db, Deno:{env:{get:()=>''},serve:fn=>handler=fn}, EdgeRuntime:{waitUntil:p=>background.push(p)}, crypto, TextEncoder, TextDecoder, Uint8Array, URL, Request, Response, Date, AbortController, setTimeout, clearTimeout, atob, console,
+    fetch:async(url,options)=>{upstream.push(JSON.parse(options.body));return new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify(modelReply)}}]}));} };
+  vm.createContext(scope);
+  ['supabase/functions/score-tracker-vision-preview/reliability.ts','supabase/functions/score-tracker-paper-review/model.ts','supabase/functions/score-tracker-paper-review/index.ts'].forEach(f=>vm.runInContext(code(f),scope));
+  return { scope, tables, calls, writes, upstream, background, set reply(v){modelReply=v}, set fail(v){failWrites=v}, async init(){tables.score_tracker_users[0].session_token_hash=Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode('test-token'))).toString('hex')},
+    call:body=>handler(new Request('https://test.local/api',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:'test-token',...body})})), handler, drain:()=>Promise.all(background) };
+}
+async function backend() {
+  const h=harness();await h.init();
+  assert.equal((await h.call({action:'quota',token:'bad'})).status,401);
+  assert.equal((await h.call({action:'start',...input,consent:false})).status,400);
+  assert.equal((await h.call({action:'start',...input,pages:[{role:'paper',url:'https://internal.test/image'}]})).status,400);
+  assert.equal((await h.call({action:'start',...input,pages:[{role:'paper',url:'data:image/png;base64,YWJjZA=='}]})).status,400);
+  assert.equal((await h.call({action:'start',...input,exam_id:other})).status,404);
+  assert.equal((await h.call({action:'start',...input})).status,202);await h.drain();
+  let r=await h.call({action:'get',request_id:rid}),report=(await r.json()).review;
+  assert.equal(report.status,'succeeded');assert.equal(report.result.questions[1].teacher_score,0);
+  assert.equal((await h.call({action:'start',...input})).status,202);assert.equal(h.upstream.length,1,'idempotent start does not call model twice');
+  assert.equal((await h.call({action:'start',...input,subject:'历史'})).status,409);
+  const corrections=[{id:'1',teacher_score:5,max_score:5,answer:'2',verified:true,corrected:false},{id:'2',teacher_score:0,max_score:5,answer:'7',verified:true,corrected:true}];
+  assert.equal((await h.call({action:'correct',request_id:rid,revision:0,corrections:[{...corrections[0],teacher_score:9}]})).status,400);
+  r=await h.call({action:'correct',request_id:rid,revision:0,corrections});assert.equal(r.status,200);report=(await r.json()).review;
+  assert.equal(report.revision,1);assert.equal(report.result.questions[1].answer,'x = 7','original model evidence retained');
+  assert.equal((await h.call({action:'correct',request_id:rid,revision:0,corrections})).status,409);
+  assert.equal((await h.call({action:'attach',draft_id:draftId,exam_id:other})).status,404);
+  assert.equal((await h.call({action:'attach',draft_id:draftId,exam_id:examId})).status,200);
+  assert.equal(h.tables.score_tracker_paper_reviews[0].exam_id,examId);
+  h.tables.score_tracker_paper_reviews[0].user_id=other;
+  for(const action of ['get','correct','delete'])assert.equal((await h.call({action,request_id:rid})).status,404,'cross-owner '+action);
+  h.tables.score_tracker_paper_reviews[0].user_id=uid;
+  assert.equal((await h.call({action:'delete',request_id:rid})).status,200);
+  assert.equal(h.tables.score_tracker_paper_reviews.length,0);
+  assert(h.writes.every(n=>n==='score_tracker_paper_reviews'),'no writes to scores, old configs, auth or vision usage');
+  assert(!h.calls.includes('score_tracker_vision_quota'));
+  const paperOnly=h.scope.normalizeReport(raw,{...input,work_on_paper:false});
+  assert.equal(paperOnly.questions[0].teacher_score,null);assert.equal(paperOnly.questions[0].estimated_score,null);assert.equal(paperOnly.priorities.length,0);
+  assert.equal(h.scope.normalizeReport({...raw,questions:[{...raw.questions[0],teacher_score:99}]},input).questions[0].teacher_score,null);
+  assert.equal(h.scope.normalizeReport({...raw,questions:[{...raw.questions[0],score_evidence:''}]},input).questions[0].teacher_score,null);
+  assert.equal(h.scope.normalizeReport({...raw,questions:[{...raw.questions[0],teacher_score:'0'}]},input).questions[0].teacher_score,null);
+  console.log('PASS: actual Edge handler, auth/ownership, image validation, idempotency, score evidence, paper-only mode, correction conflicts, deletion and legacy isolation');
+  return report;
+}
+async function migration() {
+  const db=new PGlite();
+  await db.exec(`create role anon;create role authenticated;create role service_role;create table score_tracker_users(id uuid primary key);create table score_tracker_exams(id uuid primary key,user_id uuid);create table score_tracker_ai_configs(id text primary key,enabled boolean,openrouter_api_key text,base_url text,model text);insert into score_tracker_users values('${uid}'),('${other}');insert into score_tracker_exams values('${examId}','${uid}');insert into score_tracker_ai_configs values('score_vision',true,'fixture','https://model.test/v1','fixture');`);
+  const file=fs.readdirSync(path.join(root,'supabase/migrations')).find(f=>f.endsWith('_paper_review_beta.sql'));
+  await db.exec(read('supabase/migrations/'+file));
+  const call=async(id,user=uid,fingerprint='same')=>(await db.query('select score_tracker_paper_reserve($1,$2,$3,null,$4,$5) q',[user,id,draftId,'数学',fingerprint])).rows[0].q;
+  let q=await call(rid);assert.equal(q.created,true);assert.equal(q.quota.used,1);
+  q=await call(rid);assert.equal(q.created,false);
+  assert.equal((await call(rid,other)).reason,'conflict');
+  assert.equal((await call(crypto.randomUUID())).reason,'cooldown');
+  await db.exec('update score_tracker_paper_settings set cooldown_seconds=0');
+  assert.equal((await call(crypto.randomUUID())).created,true);assert.equal((await call(crypto.randomUUID())).created,true);
+  assert.equal((await call(crypto.randomUUID())).reason,'user_limit');
+  await db.exec(`delete from score_tracker_paper_reviews where user_id='${uid}'`);
+  assert.equal((await call(crypto.randomUUID())).reason,'user_limit','deletion does not reset quota');
+  await db.exec('update score_tracker_paper_settings set global_daily_limit=3');
+  assert.equal((await call(crypto.randomUUID(),other)).reason,'global_limit');
+  const old=(await db.query("select * from score_tracker_ai_configs where id='score_vision'")).rows[0];assert.equal(old.model,'fixture');assert.equal(old.enabled,true);
+  for(const role of ['anon','authenticated']) {
+    await db.exec('set role '+role);
+    await assert.rejects(()=>db.query('select * from public.score_tracker_paper_reviews'));
+    await assert.rejects(()=>db.query('select score_tracker_paper_quota($1)',[uid]));
+    await db.exec('reset role');
+  }
+  const rls=(await db.query("select relname,relrowsecurity from pg_class where relname in ('score_tracker_paper_reviews','score_tracker_paper_settings','score_tracker_paper_usage')")).rows;assert(rls.every(r=>r.relrowsecurity));
+  await db.close();console.log('PASS: PostgreSQL migration, independent ledgers, duplicate reservation, personal/global caps, cooldown, delete-resistant quota, RLS and denied public RPC access');
+}
+async function ui(report) {
+  const errors=[],calls=[],vc=new VirtualConsole();vc.on('jsdomError',e=>{if(!e.message.includes('CSS'))errors.push(e.message)});
+  const dom=new JSDOM(read('index.html').replace(/<script[\s\S]*?<\/script>/g,''),{url:'https://test.local/',runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:vc}),w=dom.window,d=w.document;
+  w.matchMedia=()=>({matches:false,addEventListener(){},addListener(){}});w.scrollTo=()=>{};w.setInterval=()=>1;w.confirm=()=>true;w.AbortController=AbortController;
+  let savedReport=structuredClone(report), failAttach=false, startAttempts=0;
+  w.fetch=async(url,options)=>{
+    const body=JSON.parse(options?.body||'{}');calls.push({url:String(url),...body});let data={ok:true};
+    if(String(url).includes('paper-review')) {
+      if(body.action==='quota')data={quota:{enabled:true,limit:3,remaining:3,global_available:true}};
+      if(body.action==='list')data={reviews:[savedReport]};
+      if(body.action==='start') {
+        startAttempts++;
+        if(startAttempts===1)throw new TypeError('fixture network interruption before reservation');
+        savedReport.request_id=body.request_id;data={request_id:body.request_id,quota:{enabled:true,limit:3,remaining:2,global_available:true}};
+      }
+      if(body.action==='get'){
+        if(body.request_id!==savedReport.request_id)return new Response(JSON.stringify({error:'not found'}),{status:404});
+        data={review:savedReport};
+      }
+      if(body.action==='correct'){savedReport={...savedReport,corrections:body.corrections,revision:savedReport.revision+1};data={review:savedReport};}
+      if(body.action==='attach'&&failAttach)return new Response(JSON.stringify({error:'attach failed'}),{status:503});
+    } else if(body.action==='save_exam')data={ok:true,id:examId,created:true};
+    else if(body.action==='list_modules')data={modules:[]};
+    else if(['bootstrap','list_exams'].includes(body.action))data={user:{id:uid,username:'fixture'},subjects:[{name:'数学',defaultMax:150},{name:'历史',defaultMax:100}],modules:[],exams:[],participantDefaults:{},classification:{label:'年级',options:['高二']}};
+    return new Response(JSON.stringify(data));
+  };
+  w.eval(read('app-bundle.js')+'\nwindow.state=state;');for(const f of ['app-v36.js','app-v37.js','app-v38.js'])w.eval(read(f));await tick();
+  Object.assign(w.state,{user:{id:uid,username:'fixture'},token:'test-token',subjectConfigs:[{name:'数学',defaultMax:150},{name:'历史',defaultMax:100}],modulesV18:[],allExams:[],exams:[],page:'home'});w.applyExamSubjectsV10([],w.state.subjectConfigs);
+  w.openExam();await tick();let modal=w.state.modal;
+  assert.equal(modal.querySelectorAll('.pr-entry').length,2);assert.equal(calls.filter(c=>c.url.includes('paper-review')).length,0,'no feature requests until entry is used');
+  modal.querySelector('#examName').value='普通考试';modal.querySelector('.actual-v16').value='100';await w.saveExam(null,modal);await tick();
+  assert.equal(calls.filter(c=>c.url.includes('paper-review')).length,0,'ordinary save untouched');
+  w.openExam();modal=w.state.modal;modal.querySelector('.actual-v16').value='88';modal.querySelector('.pr-entry').click();await tick();await tick();
+  let dialog=d.querySelector('.pr-dialog');assert(dialog);assert.equal(w.state.modal,modal,'nested view preserves the exam editor');
+  assert.equal(dialog.querySelectorAll('input[type=file]').length,3);assert(!dialog.textContent.includes('fixture-only-key'));
+  modal._paperReview.sessions['数学'].pages=[{role:'paper',url:png,name:'fixture.png'}];
+  dialog.querySelector('#pr-consent').checked=true;dialog.querySelector('#pr-consent').dispatchEvent(new w.Event('change',{bubbles:true}));
+  dialog.querySelector('[data-pr=start]').click();await tick();await tick();assert(dialog.querySelector('[data-pr=start]').textContent.includes('继续确认'));
+  dialog.querySelector('[data-pr=start]').click();await tick();await tick();
+  const starts=calls.filter(c=>c.action==='start');assert.equal(starts.length,2);assert.equal(starts[0].request_id,starts[1].request_id,'ambiguous network failure preserves request id and payload');
+  dialog.querySelector('[data-pr=history]').click();await tick();dialog.querySelector('[data-pr^="report:"]').click();await tick();
+  assert.equal(dialog.querySelectorAll('.pr-question').length,2);
+  assert.equal(dialog.querySelector('[data-pr-score]').textContent,'5 / 10');
+  const second=dialog.querySelectorAll('.pr-question')[1];second.querySelector('[data-field=teacher_score]').value='3';second.querySelector('[data-field=teacher_score]').dispatchEvent(new w.Event('input',{bubbles:true}));
+  dialog.querySelector('[data-pr=save]').click();await tick();assert.equal(dialog.querySelector('[data-pr-score]').textContent,'8 / 10');assert.equal(modal.querySelector('.actual-v16').value,'88','review never overwrites exam scores');
+  dialog.querySelector('[data-pr=close]').click();assert(!d.querySelector('.pr-dialog'));assert.equal(modal.querySelector('.actual-v16').value,'88');
+  const draft=modal._paperReview.draftId;modal.querySelector('#examName').value='关联测试';failAttach=true;await w.saveExam(null,modal);await tick();
+  assert(calls.some(c=>c.action==='attach'&&c.exam_id===examId&&c.draft_id===draft));assert(!w.state.modal,'attachment failure does not fail exam save');
+  failAttach=false;w.openExam({id:examId,name:'关联测试',exam_date:'2026-10-18',scores:{数学:{actual:88,max:150}}});await tick();modal=w.state.modal;assert.equal(modal._paperReview.draftId,draft,'association survives reopen');
+  modal.querySelector('.pr-entry').click();await tick();w.state.token='another-account';modal.querySelector('.pr-entry').click();await tick();
+  d.body.appendChild(d.createElement('div'));await tick();assert(!d.querySelector('.pr-dialog'),'account change clears report display');
+  assert.deepEqual(errors,[]);dom.window.close();console.log('PASS: bundled UI, simple entries, lazy API use, editor preservation, review editing, score isolation, attachment failure recovery and account change');
+}
+module.exports={harness,uid,examId,input,raw};
+if(require.main===module)(async()=>{const report=await backend();await migration();await ui(report)})().catch(e=>{console.error(e);process.exitCode=1});

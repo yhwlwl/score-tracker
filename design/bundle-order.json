@@ -47,5 +47,6 @@
   "announcement-settings.js",
   "author-support.js",
   "participant-defaults.js",
-  "exam-averages.js"
+  "exam-averages.js",
+  "paper-review.js"
 ]
