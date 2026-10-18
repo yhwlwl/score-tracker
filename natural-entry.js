@@ -735,9 +735,9 @@
       '<div class="modal-body">' +
       '<section class="nl-entry-pane nl-entry-image-pane" data-entry-pane="image" hidden>' +
       '<div class="nl-entry-quota"><div class="nl-entry-quota-head"><strong class="nl-entry-quota-count" role="status">正在读取今日额度…</strong><button class="secondary nl-entry-quota-refresh" type="button">刷新额度</button></div><p class="nl-entry-quota-note"></p><details class="nl-entry-quota-details" hidden><summary>额度规则与下一档</summary><div class="nl-entry-quota-rules"></div></details></div>' +
-      '<div class="nl-entry-upload-card"><label class="nl-entry-file-button"><span>选择成绩单图片</span><small>支持多选，最多 6 张</small><input class="nl-entry-files" type="file" accept="image/*" multiple></label><p>可按成绩单顺序选择多张截图，系统会合并识别同一次考试。长图会自动分段，保留小字细节。</p></div>' +
+      '<div class="nl-entry-upload-card"><label class="nl-entry-file-button"><span>选择成绩单图片</span><small>支持多选，最多 6 张</small><input class="nl-entry-files" type="file" accept="image/*" multiple></label><p>可按成绩单顺序选择多张截图，系统会合并识别同一次考试。长图会自动分段，保留小字细节。</p><p class="nl-entry-help">识别成功后，图片和结果会保存下来，仅供管理员核对准确性。</p></div>' +
       '<div class="nl-entry-image-list" aria-live="polite"><span class="nl-entry-empty">还没有选择图片</span></div>' +
-      '<div class="nl-entry-progress" hidden aria-live="polite"><div class="nl-entry-progress-head"><span>识别进度 · 总计</span><strong class="nl-entry-elapsed">0.0s</strong></div><ol class="nl-entry-progress-steps"><li class="nl-entry-progress-step" data-progress-step="0"><span class="nl-entry-progress-dot">1</span><span class="nl-entry-progress-step-label">测试连接性</span><strong class="nl-entry-progress-step-time" data-progress-time="0">—</strong></li><li class="nl-entry-progress-step" data-progress-step="1"><span class="nl-entry-progress-dot">2</span><span class="nl-entry-progress-step-label">准备清晰图片</span><strong class="nl-entry-progress-step-time" data-progress-time="1">—</strong></li><li class="nl-entry-progress-step" data-progress-step="2"><span class="nl-entry-progress-dot">3</span><span class="nl-entry-progress-step-label">发送图片与请求</span><strong class="nl-entry-progress-step-time" data-progress-time="2">—</strong></li><li class="nl-entry-progress-step" data-progress-step="3"><span class="nl-entry-progress-dot">4</span><span class="nl-entry-progress-step-label">等待 AI 识别</span><strong class="nl-entry-progress-step-time" data-progress-time="3">—</strong></li><li class="nl-entry-progress-step" data-progress-step="4"><span class="nl-entry-progress-dot">5</span><span class="nl-entry-progress-step-label">整理可编辑结果</span><strong class="nl-entry-progress-step-time" data-progress-time="4">—</strong></li></ol></div>' +
+      '<div class="nl-entry-progress" hidden aria-live="polite"><div class="nl-entry-progress-head"><span>识别进度 · 总计</span><strong class="nl-entry-elapsed">0.0s</strong></div><ol class="nl-entry-progress-steps"><li class="nl-entry-progress-step" data-progress-step="0"><span class="nl-entry-progress-dot">1</span><span class="nl-entry-progress-step-label">检查登录与额度</span><strong class="nl-entry-progress-step-time" data-progress-time="0">—</strong></li><li class="nl-entry-progress-step" data-progress-step="1"><span class="nl-entry-progress-dot">2</span><span class="nl-entry-progress-step-label">准备清晰图片</span><strong class="nl-entry-progress-step-time" data-progress-time="1">—</strong></li><li class="nl-entry-progress-step" data-progress-step="2"><span class="nl-entry-progress-dot">3</span><span class="nl-entry-progress-step-label">上传并识别图片</span><strong class="nl-entry-progress-step-time" data-progress-time="2">—</strong></li><li class="nl-entry-progress-step" data-progress-step="3"><span class="nl-entry-progress-dot">4</span><span class="nl-entry-progress-step-label">读取识别结果</span><strong class="nl-entry-progress-step-time" data-progress-time="3">—</strong></li><li class="nl-entry-progress-step" data-progress-step="4"><span class="nl-entry-progress-dot">5</span><span class="nl-entry-progress-step-label">整理可编辑结果</span><strong class="nl-entry-progress-step-time" data-progress-time="4">—</strong></li></ol></div>' +
       '<p class="nl-entry-vision-edit-hint" hidden>识别结果可直接编辑，确认无误后再点击“确认并填入”。</p>' +
       '<textarea class="nl-entry-vision-output" aria-label="识别结果，可编辑" spellcheck="false" hidden></textarea>' +
       '<div class="modal-actions"><button class="primary nl-entry-vision-submit" type="button" disabled>识别图片</button></div>' +
@@ -770,6 +770,7 @@
     var visionTimer = null;
     var visionStartedAt = 0;
     var visionRecognitionDurationMs = null;
+    var visionRequestId = "";
     var visionProgressStep = 0;
     var visionStepStartedAt = 0;
     var visionStepDurationsMs = [];
@@ -1057,7 +1058,10 @@
     async function callVision(prepared, onResponse) {
       var token = localStorage.getItem('st_token') || '';
       if (!token) {
-        var authError = new Error('请先登录后再使用拍照录入。（HTTP 401）');
+        var authError = new Error('请先登录后再使用拍照录入。');
+        authError.code = 'client_not_authenticated';
+        authError.stage = 'authentication';
+        authError.requestId = visionRequestId;
         authError.requestStatus = 401;
         authError.upstreamStatus = 0;
         throw authError;
@@ -1067,11 +1071,14 @@
         response = await requestWithTimeout(VISION_ENDPOINT, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: token, images: prepared.images, image_parts: prepared.parts, context: visionContext(modal) })
-        }, 60000);
+          body: JSON.stringify({ action: "recognize", client_protocol: 2, token: token, request_id: visionRequestId, images: prepared.images, image_parts: prepared.parts, image_stats: prepared.stats, app_version: document.querySelector('meta[name="application-version"]')?.content || "", context: visionContext(modal) })
+        }, 120000);
       } catch (cause) {
         var timedOut = cause && (cause.name === 'AbortError' || cause.name === 'TimeoutError');
         var networkError = new Error(timedOut ? '识别服务响应超时，请稍后重试。' : '无法连接识别服务，请检查网络后重试。');
+        networkError.code = timedOut ? "client_timeout" : "client_network_error";
+        networkError.stage = "request_transport";
+        networkError.requestId = visionRequestId;
         networkError.requestStatus = timedOut ? 504 : 0;
         networkError.upstreamStatus = 0;
         networkError.upstreamMessage = cause && cause.message ? String(cause.message).slice(0, 180) : '';
@@ -1082,52 +1089,16 @@
       acceptQuota(payload);
       if (!response.ok) {
         var requestStatus = Number(response.status || 0);
-        var upstreamStatus = Number(payload.upstream_status || requestStatus || 0);
+        var upstreamStatus = Number(payload.upstream_status == null ? requestStatus : payload.upstream_status);
         var detail = payload.upstream_message ? String(payload.upstream_message).slice(0, 180) : '';
         var retryAfter = Number(payload.retry_after_seconds || 0);
         if (!detail && retryAfter > 0) detail = '约 ' + retryAfter + ' 秒后可重试';
         var label = payload.error || '识图服务暂时不可用';
-        var suffix = '（HTTP ' + (upstreamStatus || requestStatus || 0) + (detail ? '：' + detail : '') + '）';
-        var serviceError = new Error(String(label) + suffix);
-        serviceError.code = payload.code || 'vision_service_error';
-        serviceError.requestStatus = requestStatus;
-        serviceError.upstreamStatus = upstreamStatus;
-        serviceError.upstreamMessage = detail;
-        throw serviceError;
-      }
-      return payload;
-    }
-    async function callVisionConnectivity() {
-      var token = localStorage.getItem('st_token') || '';
-      if (!token) {
-        var authError = new Error('请先登录后再使用拍照录入。（HTTP 401）');
-        authError.requestStatus = 401;
-        authError.upstreamStatus = 0;
-        throw authError;
-      }
-      var response;
-      try {
-        response = await requestWithTimeout(VISION_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: token, action: 'connectivity_test' })
-        }, 15000);
-      } catch (cause) {
-        var timedOut = cause && (cause.name === 'AbortError' || cause.name === 'TimeoutError');
-        var networkError = new Error(timedOut ? '识别服务连接测试超时，请稍后重试。' : '无法连接识别服务，请检查网络后重试。');
-        networkError.requestStatus = timedOut ? 504 : 0;
-        networkError.upstreamStatus = 0;
-        networkError.upstreamMessage = cause && cause.message ? String(cause.message).slice(0, 180) : '';
-        throw networkError;
-      }
-      var payload = await response.json().catch(function () { return {}; });
-      if (!response.ok) {
-        var requestStatus = Number(response.status || 0);
-        var upstreamStatus = Number(payload.upstream_status || requestStatus || 0);
-        var detail = payload.upstream_message ? String(payload.upstream_message).slice(0, 180) : '';
-        var label = payload.error || '识图服务连接测试失败';
-        var suffix = '（HTTP ' + (upstreamStatus || requestStatus || 0) + (detail ? '：' + detail : '') + '）';
-        var serviceError = new Error(String(label) + suffix);
+        var serviceError = new Error(String(label) + (payload.quota_refunded ? '，本次次数已返还。' : ''));
+        serviceError.requestId = payload.request_id || visionRequestId;
+        serviceError.stage = payload.stage || 'recognition';
+        serviceError.diagnostics = payload.diagnostics || {};
+        serviceError.quotaRefunded = !!payload.quota_refunded;
         serviceError.code = payload.code || 'vision_service_error';
         serviceError.requestStatus = requestStatus;
         serviceError.upstreamStatus = upstreamStatus;
@@ -1142,6 +1113,11 @@
         error_count: 1,
         code: String(error && error.code || ''),
         stage: String(error && error.stage || ''),
+        request_id: String(error && error.requestId || visionRequestId || ''),
+        attempt_count: Number(error && error.diagnostics && error.diagnostics.attempt_count || 0),
+        model: String(error && error.diagnostics && error.diagnostics.model || ''),
+        upstream_message: String(error && error.upstreamMessage || '').slice(0, 600),
+        quota_refunded: !!(error && error.quotaRefunded),
         request_status: Number(error && (error.requestStatus || error.status) || 0),
         upstream_status: Number(error && error.upstreamStatus || 0),
         recognition_duration_ms: visionRecognitionDurationMs === null ? null : Math.round(visionRecognitionDurationMs),
@@ -1204,6 +1180,7 @@
       try {
         var count = await applyResult(modal, parsed);
         trackUsage('quick_entry_image_recognition_succeeded', {
+          request_id: visionPayload && visionPayload.request_id || visionRequestId,
           image_count: selectedFiles.length,
           field_count: parsed.fieldCount,
           applied_count: count,
@@ -1249,16 +1226,11 @@
       fileInput.disabled = true;
       imageList.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
       visionSubmitButton.textContent = '识别中…';
+      visionRequestId = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) { var n = Math.random() * 16 | 0; return (c === 'x' ? n : (n & 3 | 8)).toString(16); });
       startVisionProgress();
-      trackUsage('quick_entry_image_recognition_started', { image_count: selectedFiles.length });
+      trackUsage('quick_entry_image_recognition_started', { request_id: visionRequestId, image_count: selectedFiles.length });
       try {
-        await callVisionConnectivity();
-        if (!backdrop.isConnected) return;
         setVisionProgress(1);
-        trackUsage('quick_entry_image_connectivity_test_succeeded', {
-          image_count: selectedFiles.length,
-          duration_ms: visionStepDurationsMs[0] === null ? null : Math.round(visionStepDurationsMs[0])
-        });
         var prepared = await encodeImages(files);
         if (!backdrop.isConnected) return;
         trackUsage('quick_entry_images_prepared', {image_count:files.length, prepared_image_count:prepared.images.length, total_bytes:prepared.total_bytes, images:prepared.stats});
@@ -1275,6 +1247,8 @@
         }
         finishVisionProgress(true);
         trackUsage('quick_entry_image_recognition_completed', {
+          request_id: visionPayload.request_id || visionRequestId,
+          attempt_count: Number(visionPayload.diagnostics && visionPayload.diagnostics.attempt_count || 0),
           image_count: files.length,
           prepared_image_count: prepared.images.length,
           subject_count: visionPayload && Array.isArray(visionPayload.subjects) ? visionPayload.subjects.length : 0,
