@@ -11,6 +11,18 @@
 - 保存考试后，以已保存的科目清单关联报告。关联失败不会重放或阻止原考试保存；本机记录保留草稿编号，下次编辑这场考试时重试。未保存考试的报告由本机草稿编号找回，清理浏览器数据会失去未关联草稿的入口。
 - 上传图片只在当前浏览器表单、处理过程和模型请求中使用，本站不持久保存原图；结构化报告与核对记录存于账号下。第三方模型按其服务条款处理图片，上传前有明确确认。没有默认训练授权或公开题库。可删除报告；删除考试 / 账号时关联报告由外键清除。
 
+## 分析诊断记录
+
+`score_tracker_paper_reviews` 增加了与成绩识图一致的服务端排障字段：`started_at`、`duration_ms`、`model`、`provider_host`、`upstream_status`、`error_code`、`error_stage`、`error_detail`、`attempts`、`diagnostics`、`raw_output`、`image_count`、`image_bytes` 和 `image_meta`。
+
+`attempts` 保存每次实际调用的开始时间、时限、耗时、上游请求编号与 HTTP 状态、错误码和脱敏错误、重试原因、输出截断原因、解析错误、输出字符数、prompt / completion / reasoning token 数。`diagnostics` 保存阶段时间线、总预算、输出限制、各角色页数和日志落库异常。图片只记录页码、角色、MIME 和解码后字节数，不保存原图、文件名、密码、会话令牌或 API key。`raw_output` 保存最多 100000 字符的脱敏模型输出，不保存模型思考原文，报告删除时一起删除。
+
+检查点和每次调用的记录会顺序落库，并通过 `paper_review_event` 写入带 request_id 的运行日志；即使最终保存失败，运行日志仍保留阶段与错误码。成功仅在报告保存成功后记录。超过 3 分钟仍未完成的任务标为 `analysis_incomplete`，保留原有尝试明细，不冒充已确认的模型超时。历史失败记录无法补回当时未采集的细节，新增字段保留空值。
+
+用户接口只额外返回自身报告的 `error_code`、`error_stage`、`duration_ms` 和准确的友好错误提示；原始输出、上游错误、尝试明细及诊断元数据仅服务端可读。请求在鉴权、输入检查、配置或额度阶段被拒绝时，记录到运行日志，不额外生成或消费一份分析报告。
+
+本次修补不调整 90 秒模型总预算、60 秒单次调用时限、原有重试策略或计次规则。用 `node design/test-paper-review-diagnostics.cjs` 验证成功、超时、网络异常、鉴权、限流、输出截断、解析失败、保存失败、重复请求、脱敏与访问隔离。
+
 ## 隔离与上线
 
 迁移只新增 `score_tracker_paper_settings`、`score_tracker_paper_reviews`、`score_tracker_paper_usage` 和两个 `score_tracker_paper_*` RPC。不修改旧表列、触发器、成绩 API、识图接口或识图额度。

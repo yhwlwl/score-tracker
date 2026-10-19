@@ -16,21 +16,22 @@ const raw = { complete: true, coverage: '第1页的两道题', overview: '第2�
   { label: '2', stem: '解方程 x + 2 = 5', pages: [1], answer: 'x = 7', reference: 'x = 3', max_score: 5, teacher_score: 0, estimated_score: 0, score_evidence: '第1页第2题批改0分', knowledge: ['方程'], status: 'answered', confidence: 'medium', loss_reason: '移项时符号未变', evidence: 'x=5+2', suggestion: '在等号两边同时减去2' },
 ] };
 function harness() {
-  let handler, modelReply = raw, failWrites = false;
+  let handler, modelReply = raw, failWrites = false, transport = null;
   const tables = { score_tracker_users: [{ id: uid, session_token_hash: '', session_expires_at: '2099-01-01' }], score_tracker_paper_settings: [{ id: 'default', enabled: true, api_key: 'fixture-only-key', base_url: 'https://model.test/v1', model: 'test-vision' }], score_tracker_paper_reviews: [], score_tracker_exams: [{ id: examId, user_id: uid }], score_tracker_scores: [{ id: 's1', exam_id: examId, user_id: uid, subject: '数学' }] };
-  const calls = [], writes = [], background = [], upstream = [];
+  const calls = [], writes = [], background = [], upstream = [], logs = [];
   const db = { from(table) {
-    let filters = [], action = 'select', value, single = false, sort, maximum;
-    const q = { select() { return q; }, eq(k,v) { filters.push(r=>r[k]===v); return q; }, is(k,v) { filters.push(r=>(r[k]??null)===v);return q; }, in(k,v) { filters.push(r=>v.includes(r[k]));return q; },
+    let filters = [], action = 'select', value, single = false, sort, maximum, columns;
+    const q = { select(fields) { columns=fields;return q; }, eq(k,v) { filters.push(r=>r[k]===v); return q; }, is(k,v) { filters.push(r=>(r[k]??null)===v);return q; }, in(k,v) { filters.push(r=>v.includes(r[k]));return q; },
       or(scope) { filters.push(r=>scope.includes(r.exam_id||'__none') || scope.includes(r.draft_id||'__none'));return q; }, order(k) { sort=k;return q; }, limit(n) { maximum=n;return q; }, update(v) { action='update';value=v;return q; }, delete() { action='delete';return q; }, single() { single=true;return run(); }, maybeSingle() { single=true;return run(); }, then(a,b) { return run().then(a,b); } };
     async function run() {
       let found = (tables[table] || []).filter(r=>filters.every(f=>f(r)));
       calls.push(table);
-      if (action !== 'select') { writes.push(table); if(failWrites)return {error:{code:'fail'}}; }
+      if (action !== 'select') { writes.push(table); if(failWrites===true || typeof failWrites==='function'&&failWrites(value))return {error:{code:'fixture_database_error',message:'fixture database error fixture-only-key'}}; }
       if(action==='update')found.forEach(r=>Object.assign(r, structuredClone(value)));
       if(action==='delete')tables[table]=tables[table].filter(r=>!found.includes(r));
       if(sort)found.sort((a,b)=>String(b[sort]).localeCompare(String(a[sort])));
       if(maximum)found=found.slice(0,maximum);
+      if(columns&&columns!=='*')found=found.map(r=>Object.fromEntries(columns.split(',').filter(k=>k in r).map(k=>[k,r[k]])));
       return { data: structuredClone(single ? found[0] || null : found), error: null };
     } return q;
   }, async rpc(name, p) {
@@ -43,11 +44,12 @@ function harness() {
     tables.score_tracker_paper_reviews.push({request_id:p.p_request_id,user_id:p.p_user_id,draft_id:p.p_draft_id,exam_id:p.p_exam_id,subject:p.p_subject,fingerprint:p.p_fingerprint,status:'running',created_at:new Date().toISOString(),corrections:[],revision:0});
     return {data:{allowed:true,created:true,quota}};
   } };
-  const scope = { createClient:()=>db, Deno:{env:{get:()=>''},serve:fn=>handler=fn}, EdgeRuntime:{waitUntil:p=>background.push(p)}, crypto, TextEncoder, TextDecoder, Uint8Array, URL, Request, Response, Date, AbortController, setTimeout, clearTimeout, atob, console,
-    fetch:async(url,options)=>{upstream.push(JSON.parse(options.body));return new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify(modelReply)}}]}));} };
+  const scope = { createClient:()=>db, Deno:{env:{get:()=>''},serve:fn=>handler=fn}, EdgeRuntime:{waitUntil:p=>background.push(p)}, crypto, TextEncoder, TextDecoder, Uint8Array, URL, Request, Response, Date, AbortController, setTimeout, clearTimeout, atob,
+    console:{log(...args){logs.push(args)},error(...args){logs.push(args)},warn(...args){logs.push(args)}},
+    fetch:async(url,options)=>{upstream.push(JSON.parse(options.body));return transport?transport(url,options):new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify(modelReply)}}]}));} };
   vm.createContext(scope);
-  ['supabase/functions/score-tracker-vision-preview/reliability.ts','supabase/functions/score-tracker-paper-review/model.ts','supabase/functions/score-tracker-paper-review/index.ts'].forEach(f=>vm.runInContext(code(f),scope));
-  return { scope, tables, calls, writes, upstream, background, set reply(v){modelReply=v}, set fail(v){failWrites=v}, async init(){tables.score_tracker_users[0].session_token_hash=Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode('test-token'))).toString('hex')},
+  ['supabase/functions/score-tracker-vision-preview/reliability.ts','supabase/functions/score-tracker-paper-review/model.ts','supabase/functions/score-tracker-paper-review/audit.ts','supabase/functions/score-tracker-paper-review/index.ts'].forEach(f=>vm.runInContext(code(f),scope));
+  return { scope, tables, calls, writes, upstream, background, logs, set transport(v){transport=v},set reply(v){modelReply=v}, set fail(v){failWrites=v}, async init(){tables.score_tracker_users[0].session_token_hash=Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode('test-token'))).toString('hex')},
     call:body=>handler(new Request('https://test.local/api',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:'test-token',...body})})), handler, drain:()=>Promise.all(background) };
 }
 async function backend() {
