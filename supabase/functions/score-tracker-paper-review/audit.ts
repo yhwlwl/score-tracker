@@ -1,13 +1,15 @@
 import { readDatabase, safeMessage } from "../score-tracker-vision-preview/reliability.ts";
+import { STAGE_BUDGET_MS, REVIEW_OUTPUT_TOKENS, REVIEW_VERSION } from "./analysis.ts";
 
 const PAPER_AUDIT_TABLE = "score_tracker_paper_reviews";
-const ATTEMPT_FIELDS = ["attempt", "started_at", "timeout_ms", "max_tokens", "thinking", "json_mode", "duration_ms", "outcome", "recovery",
+const ATTEMPT_FIELDS = ["stage", "attempt", "started_at", "timeout_ms", "max_tokens", "thinking", "reasoning_effort", "prompt_hash", "image_count", "image_bytes", "json_mode", "duration_ms", "outcome", "recovery",
   "upstream_status", "upstream_request_id", "upstream_error_code", "upstream_message", "content_type", "finish_reason", "model",
   "prompt_tokens", "completion_tokens", "reasoning_tokens", "reasoning_chars", "output_chars", "parse_error", "network_error", "network_code"];
 
 export function paperFailure(code: string, status = 0) {
   const messages: Record<string, string> = {
-    upstream_timeout: "AI 分析等待超时，本次 90 秒内未能完成，请稍后重试",
+    upstream_timeout: "AI 未能在本阶段时限内完成，已保留排查记录，请稍后重试",
+    reasoning_not_supported: "当前 AI 服务不支持所需的推理配置，请联系管理员检查模型设置",
     upstream_network_error: "连接 AI 服务时发生网络中断，请稍后重试",
     upstream_rate_limited: "AI 服务触发限流，请稍后重试",
     upstream_auth_failed: "AI 服务鉴权失败，请联系管理员检查服务配置",
@@ -24,19 +26,20 @@ export function paperFailure(code: string, status = 0) {
   return messages[code] || (code === "upstream_error" ? `AI 服务返回错误${status ? `（HTTP ${status}）` : ""}，请稍后重试` : messages.paper_handler_error);
 }
 
-export function paperAudit(db: any, input: any, user: string, config: any, startedAt = Date.now()) {
+export function paperAudit(db: any, input: any, user: string, config: any, startedAt = Date.now(), prior: any = {}) {
   const secret = String(config.api_key || "");
   const redact = (value: unknown, max = 1200) => safeMessage(secret ? String(value ?? "").split(secret).join("[hidden]") : value, max);
-  const attempts: any[] = [], phases: any[] = [], writeErrors: any[] = [];
+  const attempts: any[] = structuredClone(prior.attempts || []), phases: any[] = structuredClone(prior.diagnostics?.phases || []), writeErrors: any[] = structuredClone(prior.diagnostics?.audit_write_errors || []);
   let queue: Promise<unknown> = Promise.resolve();
   const imageMeta = input.pages.map((p: any) => {
     const encoded = p.url.slice(p.url.indexOf(",") + 1);
-    return { page: p.page, role: p.role, mime: p.url.slice(5, p.url.indexOf(";")), bytes: Math.floor(encoded.length * 3 / 4) - (encoded.endsWith("==") ? 2 : encoded.endsWith("=") ? 1 : 0) };
+    const decodedSize = (url: string) => { const b64 = url.slice(url.indexOf(",") + 1); return Math.floor(b64.length * 3 / 4) - (b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0); };
+    return { page: p.page, role: p.role, mime: p.url.slice(5, p.url.indexOf(";")), bytes: Math.floor(encoded.length * 3 / 4) - (encoded.endsWith("==") ? 2 : encoded.endsWith("=") ? 1 : 0), detail_regions: (p.regions || []).length, region_bytes: (p.regions || []).reduce((n: number, url: string) => n + decodedSize(url), 0) };
   });
   const base = { model: String(config.model).slice(0, 200), provider_host: new URL(config.base_url).hostname,
     started_at: new Date(startedAt).toISOString(), image_count: imageMeta.length,
-    image_bytes: imageMeta.reduce((n: number, p: any) => n + p.bytes, 0), image_meta: imageMeta };
-  const diagnostics: any = { version: 1, start_http_status: 202, budget_ms: 90000, attempt_timeout_ms: 60000, output_tokens: 12800,
+    image_bytes: imageMeta.reduce((n: number, p: any) => n + p.bytes + p.region_bytes, 0), image_meta: imageMeta };
+  const diagnostics: any = { version: 2, prompt_version: REVIEW_VERSION, start_http_status: 202, budget_per_stage_ms: STAGE_BUDGET_MS, output_tokens: REVIEW_OUTPUT_TOKENS,
     work_on_paper: input.work_on_paper, page_roles: Object.fromEntries(["paper", "work", "reference"].map(role => [role, imageMeta.filter((p: any) => p.role === role).length])),
     phases, audit_write_errors: writeErrors, last_stage: "reserved" };
   function fields() { return { ...base, attempts: JSON.parse(JSON.stringify(attempts)), diagnostics: JSON.parse(JSON.stringify(diagnostics)), duration_ms: Date.now() - startedAt }; }
@@ -56,7 +59,7 @@ export function paperAudit(db: any, input: any, user: string, config: any, start
         const value = extra[key];
         if (typeof value === "string") attempt[key] = redact(value, ["upstream_message", "parse_error", "network_error"].includes(key) ? 2000 : 240);
         else if (value === null || typeof value === "boolean" || typeof value === "number" && Number.isFinite(value)) attempt[key] = value;
-        else if (key === "thinking" && value && typeof value === "object") attempt[key] = { type: value.type, enabled: value.enabled };
+        else if (key === "thinking" && value && typeof value === "object") attempt[key] = { type: value.type, enabled: value.enabled, effort: value.effort };
       }
       attempts.push(attempt);
       log(phase, { attempt: attempt.attempt, outcome: attempt.outcome, upstream_status: attempt.upstream_status, duration_ms: attempt.duration_ms,

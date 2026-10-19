@@ -29,8 +29,16 @@ export function validateStart(body: any) {
     const valid = p.url.startsWith("data:image/jpeg;") ? head.startsWith("\xff\xd8\xff")
       : p.url.startsWith("data:image/png;") ? head.startsWith("\x89PNG\r\n\x1a\n") : head.startsWith("RIFF") && head.slice(8, 12) === "WEBP";
     if (!valid) throw new Error("无法读取这张图片，请重新选择");
+    const regions = Array.isArray(p.regions) ? p.regions : [];
+    if (regions.length > 6) throw new Error("图片局部过多");
+    for (const region of regions) {
+      if (typeof region !== "string" || region.length > 2800000 || !/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(region)) throw new Error("局部图片格式不正确");
+      const encoded = region.slice(region.indexOf(",") + 1);
+      if (encoded.length % 4 || !atob(encoded.slice(0, 32)).startsWith("\xff\xd8\xff")) throw new Error("局部图片数据不完整");
+      length += region.length;
+    }
     length += p.url.length;
-    return { role: p.role, page: i + 1, url: p.url };
+    return { role: p.role, page: i + 1, url: p.url, ...(regions.length ? { regions } : {}) };
   });
   if (length > 12000000) throw new Error("图片总大小过大，请减少页数后重试");
   if (!pages.some((p: any) => p.role === "paper")) throw new Error("请上传至少一张试卷题目图片");
@@ -79,7 +87,7 @@ export function normalizeCorrections(value: any, report: any) {
     seen.add(c.id);
     for (const key of ["teacher_score", "max_score"]) if (c[key] !== null && number(c[key]) === null) throw new Error("分数请输入有效数字或留空");
     if (c.teacher_score !== null && c.max_score !== null && c.teacher_score > c.max_score) throw new Error("得分不能高于满分");
-    return { id: q.id, teacher_score: number(c.teacher_score), max_score: number(c.max_score), answer: text(c.answer, 1800), verified: c.verified === true, corrected: c.corrected === true };
+    return { id: q.id, teacher_score: number(c.teacher_score), max_score: number(c.max_score), answer: text(c.answer, 4000), verified: c.verified === true, corrected: c.corrected === true };
   });
 }
 export function prompt(input: any) {

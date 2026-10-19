@@ -15,13 +15,26 @@ const raw = { complete: true, coverage: '第1页的两道题', overview: '第2�
   { label: '1', stem: '1 + 1 = ?', pages: [1], answer: '2', reference: '2', max_score: 5, teacher_score: 5, estimated_score: 5, score_evidence: '第1页右侧批改5分', knowledge: ['运算'], status: 'answered', confidence: 'high', loss_reason: '未见失分', suggestion: '保持验算' },
   { label: '2', stem: '解方程 x + 2 = 5', pages: [1], answer: 'x = 7', reference: 'x = 3', max_score: 5, teacher_score: 0, estimated_score: 0, score_evidence: '第1页第2题批改0分', knowledge: ['方程'], status: 'answered', confidence: 'medium', loss_reason: '移项时符号未变', evidence: 'x=5+2', suggestion: '在等号两边同时减去2' },
 ] };
+function facts(reply) {
+  return {...reply,total:{score:5,max:10,score_mark:{page:1,quote:'总分5分'},max_mark:{page:1,quote:'满分10分'}},questions:reply.questions.map(q=>({...q,work_pages:[1],subparts:[],score_mark:q.score_evidence?{page:1,quote:q.score_evidence,scope:'question',label:q.label}:null,max_mark:{page:1,quote:'本题'+q.max_score+'分'}}))};
+}
+function diagnosis(q) {
+  return {...q,correct_steps:q.label==='1'?['1+1=2']:[],first_issue:{location:'移项',observed:q.answer,explanation:q.loss_reason,correction:q.suggestion,certainty:q.label==='1'?'none':'confirmed'},transfer_rule:'等式两边进行同一运算',practice:'解x+3=8',practice_answer:'x=5',success_check:'能在两边同时减3',review_status:'reviewed'};
+}
+function stagedReply(reply,request) {
+  const p=request.messages[0].content[0].text;
+  if(p.includes('阶段一：'))return facts(reply);
+  if(p.includes('阶段二：')){const batch=JSON.parse(p.split('本批事实：')[1].split('\n')[0]);return {questions:batch.map(b=>diagnosis(reply.questions.find(q=>q.label===b.label)))};}
+  if(p.includes('独立资料复核：'))return {questions:reply.questions.map(q=>({label:q.label,kind:'written',answer:'',teacher_score:q.teacher_score,score_mark:{page:1,quote:q.score_evidence,scope:'question',label:q.label,location:'第1页对应题号旁'}}))};
+  return {...reply,question_updates:[],action_plan:[{title:'修正等式变形',questions:['2'],reason:'已有具体符号错误',task:'两边同时减去2后独立重做',success_check:'不看答案解出相似方程'}]};
+}
 function harness() {
   let handler, modelReply = raw, failWrites = false, transport = null;
   const tables = { score_tracker_users: [{ id: uid, session_token_hash: '', session_expires_at: '2099-01-01' }], score_tracker_paper_settings: [{ id: 'default', enabled: true, api_key: 'fixture-only-key', base_url: 'https://model.test/v1', model: 'test-vision' }], score_tracker_paper_reviews: [], score_tracker_exams: [{ id: examId, user_id: uid }], score_tracker_scores: [{ id: 's1', exam_id: examId, user_id: uid, subject: '数学' }] };
   const calls = [], writes = [], background = [], upstream = [], logs = [];
   const db = { from(table) {
     let filters = [], action = 'select', value, single = false, sort, maximum, columns;
-    const q = { select(fields) { columns=fields;return q; }, eq(k,v) { filters.push(r=>r[k]===v); return q; }, is(k,v) { filters.push(r=>(r[k]??null)===v);return q; }, in(k,v) { filters.push(r=>v.includes(r[k]));return q; },
+    const q = { select(fields) { columns=fields;return q; }, eq(k,v) { filters.push(r=>k.includes('->>')?r[k.split('->>')[0]]?.[k.split('->>')[1]]===v:r[k]===v); return q; }, is(k,v) { filters.push(r=>(r[k]??null)===v);return q; }, in(k,v) { filters.push(r=>v.includes(r[k]));return q; },
       or(scope) { filters.push(r=>scope.includes(r.exam_id||'__none') || scope.includes(r.draft_id||'__none'));return q; }, order(k) { sort=k;return q; }, limit(n) { maximum=n;return q; }, update(v) { action='update';value=v;return q; }, delete() { action='delete';return q; }, single() { single=true;return run(); }, maybeSingle() { single=true;return run(); }, then(a,b) { return run().then(a,b); } };
     async function run() {
       let found = (tables[table] || []).filter(r=>filters.every(f=>f(r)));
@@ -44,13 +57,13 @@ function harness() {
     tables.score_tracker_paper_reviews.push({request_id:p.p_request_id,user_id:p.p_user_id,draft_id:p.p_draft_id,exam_id:p.p_exam_id,subject:p.p_subject,fingerprint:p.p_fingerprint,status:'running',created_at:new Date().toISOString(),corrections:[],revision:0});
     return {data:{allowed:true,created:true,quota}};
   } };
-  const scope = { createClient:()=>db, Deno:{env:{get:()=>''},serve:fn=>handler=fn}, EdgeRuntime:{waitUntil:p=>background.push(p)}, crypto, TextEncoder, TextDecoder, Uint8Array, URL, Request, Response, Date, AbortController, setTimeout, clearTimeout, atob,
+  const scope = { createClient:()=>db, Deno:{env:{get:k=>k==='SUPABASE_URL'?'https://test.local':k==='SUPABASE_SERVICE_ROLE_KEY'?'fixture-service-key':''},serve:fn=>handler=fn}, EdgeRuntime:{waitUntil:p=>background.push(p)}, crypto, structuredClone, TextEncoder, TextDecoder, Uint8Array, URL, Request, Response, Date, AbortController, setTimeout, clearTimeout, atob,
     console:{log(...args){logs.push(args)},error(...args){logs.push(args)},warn(...args){logs.push(args)}},
-    fetch:async(url,options)=>{upstream.push(JSON.parse(options.body));return transport?transport(url,options):new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify(modelReply)}}]}));} };
+    fetch:async(url,options)=>{if(url.startsWith('https://test.local/functions/'))return handler(new Request(url,options));const request=JSON.parse(options.body);upstream.push(request);return transport?transport(url,options):new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify(stagedReply(modelReply,request))}}]}));} };
   vm.createContext(scope);
-  ['supabase/functions/score-tracker-vision-preview/reliability.ts','supabase/functions/score-tracker-paper-review/model.ts','supabase/functions/score-tracker-paper-review/audit.ts','supabase/functions/score-tracker-paper-review/index.ts'].forEach(f=>vm.runInContext(code(f),scope));
+  ['supabase/functions/score-tracker-vision-preview/reliability.ts','supabase/functions/score-tracker-paper-review/model.ts','supabase/functions/score-tracker-paper-review/analysis.ts','supabase/functions/score-tracker-paper-review/runtime.ts','supabase/functions/score-tracker-paper-review/audit.ts','supabase/functions/score-tracker-paper-review/pipeline.ts','supabase/functions/score-tracker-paper-review/index.ts'].forEach(f=>vm.runInContext(code(f),scope));
   return { scope, tables, calls, writes, upstream, background, logs, set transport(v){transport=v},set reply(v){modelReply=v}, set fail(v){failWrites=v}, async init(){tables.score_tracker_users[0].session_token_hash=Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode('test-token'))).toString('hex')},
-    call:body=>handler(new Request('https://test.local/api',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:'test-token',...body})})), handler, drain:()=>Promise.all(background) };
+    call:body=>handler(new Request('https://test.local/api',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:'test-token',...body})})), handler, drain:async()=>{for(let i=0;i<background.length;i++)await background[i]} };
 }
 async function backend() {
   const h=harness();await h.init();
@@ -62,7 +75,7 @@ async function backend() {
   assert.equal((await h.call({action:'start',...input})).status,202);await h.drain();
   let r=await h.call({action:'get',request_id:rid}),report=(await r.json()).review;
   assert.equal(report.status,'succeeded');assert.equal(report.result.questions[1].teacher_score,0);
-  assert.equal((await h.call({action:'start',...input})).status,202);assert.equal(h.upstream.length,1,'idempotent start does not call model twice');
+  assert.equal((await h.call({action:'start',...input})).status,202);assert.equal(h.upstream.length,4,'idempotent start does not restart the staged analysis');
   assert.equal((await h.call({action:'start',...input,subject:'历史'})).status,409);
   const corrections=[{id:'1',teacher_score:5,max_score:5,answer:'2',verified:true,corrected:false},{id:'2',teacher_score:0,max_score:5,answer:'7',verified:true,corrected:true}];
   assert.equal((await h.call({action:'correct',request_id:rid,revision:0,corrections:[{...corrections[0],teacher_score:9}]})).status,400);
@@ -156,6 +169,10 @@ async function ui(report) {
   const starts=calls.filter(c=>c.action==='start');assert.equal(starts.length,2);assert.equal(starts[0].request_id,starts[1].request_id,'ambiguous network failure preserves request id and payload');
   dialog.querySelector('[data-pr=history]').click();await tick();dialog.querySelector('[data-pr^="report:"]').click();await tick();
   assert.equal(dialog.querySelectorAll('.pr-question').length,2);
+  assert(dialog.querySelector('.pr-action-plan').compareDocumentPosition(dialog.querySelector('.pr-questions')) & w.Node.DOCUMENT_POSITION_FOLLOWING,'actionable overview precedes question detail');
+  assert.equal(dialog.querySelector('.pr-solution').open,false,'solution is optional');
+  assert.equal(dialog.querySelector('.pr-practice details').open,false,'practice answer stays hidden until requested');
+  dialog.querySelector('[data-pr="focus:2"]').click();assert.equal(dialog.querySelector('[data-question="2"]').open,true,'action links open the source diagnosis');
   assert.equal(dialog.querySelector('[data-pr-score]').textContent,'5 / 10');
   const second=dialog.querySelectorAll('.pr-question')[1];second.querySelector('[data-field=teacher_score]').value='3';second.querySelector('[data-field=teacher_score]').dispatchEvent(new w.Event('input',{bubbles:true}));
   dialog.querySelector('[data-pr=save]').click();await tick();assert.equal(dialog.querySelector('[data-pr-score]').textContent,'8 / 10');assert.equal(modal.querySelector('.actual-v16').value,'88','review never overwrites exam scores');
@@ -167,5 +184,5 @@ async function ui(report) {
   d.body.appendChild(d.createElement('div'));await tick();assert(!d.querySelector('.pr-dialog'),'account change clears report display');
   assert.deepEqual(errors,[]);dom.window.close();console.log('PASS: bundled UI, simple entries, lazy API use, editor preservation, review editing, score isolation, attachment failure recovery and account change');
 }
-module.exports={harness,uid,examId,input,raw};
+module.exports={harness,uid,examId,input,raw,rid,stagedReply};
 if(require.main===module)(async()=>{const report=await backend();await migration();await ui(report)})().catch(e=>{console.error(e);process.exitCode=1});
