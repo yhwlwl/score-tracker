@@ -19,13 +19,14 @@ function facts(reply) {
   return {...reply,total:{score:5,max:10,score_mark:{page:1,quote:'总分5分'},max_mark:{page:1,quote:'满分10分'}},questions:reply.questions.map(q=>({...q,work_pages:[1],subparts:[],score_mark:q.score_evidence?{page:1,quote:q.score_evidence,scope:'question',label:q.label}:null,max_mark:{page:1,quote:'本题'+q.max_score+'分'}}))};
 }
 function diagnosis(q) {
-  return {...q,correct_steps:q.label==='1'?['1+1=2']:[],first_issue:{location:'移项',observed:q.answer,explanation:q.loss_reason,correction:q.suggestion,certainty:q.label==='1'?'none':'confirmed'},transfer_rule:'等式两边进行同一运算',practice:'解x+3=8',practice_answer:'x=5',success_check:'能在两边同时减3',review_status:'reviewed'};
+  return {...q,wins:[{skill:'已正确识别本题运算',observed:q.answer,basis:'work',significance:'保留已经写出的等式关系'}],difficulty:{overall:2,evidence_quote:q.stem.slice(0,5),reason:'常规等式运算',dimensions:{thinking:{score:2,reason:'需要等式变形'},calculation:{score:1,reason:'简单整数运算'}}},cause_analysis:{observation:'答案与等式不对应',hypotheses:[{kind:'execution',explanation:'可能是等式变形时执行失误',evidence:q.answer,counter_evidence:'仅凭答案不能确认当时思路',check:'不看答案口述第一步，再独立计算',if_confirmed:'保留等式两边同一运算并分步检查'}]},correct_steps:q.label==='1'?['1+1=2']:[],first_issue:{location:'移项',observed:q.answer,explanation:q.loss_reason,correction:q.suggestion,certainty:q.label==='1'?'none':'confirmed'},transfer_rule:'等式两边进行同一运算',practice:'解x+3=8',practice_answer:'x=5',success_check:'能在两边同时减3',review_status:'reviewed'};
 }
 function stagedReply(reply,request) {
   const p=request.messages[0].content[0].text;
   if(p.includes('阶段一：'))return facts(reply);
+  if(p.includes('识别作答：'))return facts(reply);
   if(p.includes('阶段二：')){const batch=JSON.parse(p.split('本批事实：')[1].split('\n')[0]);return {questions:batch.map(b=>diagnosis(reply.questions.find(q=>q.label===b.label)))};}
-  if(p.includes('独立资料复核：'))return {questions:reply.questions.map(q=>({label:q.label,kind:'written',answer:'',teacher_score:q.teacher_score,score_mark:{page:1,quote:q.score_evidence,scope:'question',label:q.label,location:'第1页对应题号旁'}}))};
+  if(p.includes('独立资料复核：')){const labels=JSON.parse(p.split('题目身份：')[1].split('\n')[0]).map(q=>q.label);return {questions:reply.questions.filter(q=>labels.includes(q.label)).map(q=>({label:q.label,kind:'written',answer:'',teacher_score:q.teacher_score,score_mark:{page:1,quote:q.score_evidence,scope:'question',label:q.label,location:'第1页对应题号旁'}}))};}
   return {...reply,question_updates:[],action_plan:[{title:'修正等式变形',questions:['2'],reason:'已有具体符号错误',task:'两边同时减去2后独立重做',success_check:'不看答案解出相似方程'}]};
 }
 function harness() {
@@ -61,7 +62,7 @@ function harness() {
     console:{log(...args){logs.push(args)},error(...args){logs.push(args)},warn(...args){logs.push(args)}},
     fetch:async(url,options)=>{if(url.startsWith('https://test.local/functions/'))return handler(new Request(url,options));const request=JSON.parse(options.body);upstream.push(request);return transport?transport(url,options):new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify(stagedReply(modelReply,request))}}]}));} };
   vm.createContext(scope);
-  ['supabase/functions/score-tracker-vision-preview/reliability.ts','supabase/functions/score-tracker-paper-review/model.ts','supabase/functions/score-tracker-paper-review/analysis.ts','supabase/functions/score-tracker-paper-review/runtime.ts','supabase/functions/score-tracker-paper-review/audit.ts','supabase/functions/score-tracker-paper-review/pipeline.ts','supabase/functions/score-tracker-paper-review/index.ts'].forEach(f=>vm.runInContext(code(f),scope));
+  ['supabase/functions/score-tracker-vision-preview/reliability.ts','supabase/functions/score-tracker-paper-review/model.ts','supabase/functions/score-tracker-paper-review/learner.ts','supabase/functions/score-tracker-paper-review/analysis.ts','supabase/functions/score-tracker-paper-review/reading.ts','supabase/functions/score-tracker-paper-review/runtime.ts','supabase/functions/score-tracker-paper-review/audit.ts','supabase/functions/score-tracker-paper-review/pipeline.ts','supabase/functions/score-tracker-paper-review/index.ts'].forEach(f=>vm.runInContext(code(f),scope));
   return { scope, tables, calls, writes, upstream, background, logs, set transport(v){transport=v},set reply(v){modelReply=v}, set fail(v){failWrites=v}, async init(){tables.score_tracker_users[0].session_token_hash=Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode('test-token'))).toString('hex')},
     call:body=>handler(new Request('https://test.local/api',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:'test-token',...body})})), handler, drain:async()=>{for(let i=0;i<background.length;i++)await background[i]} };
 }
@@ -75,7 +76,7 @@ async function backend() {
   assert.equal((await h.call({action:'start',...input})).status,202);await h.drain();
   let r=await h.call({action:'get',request_id:rid}),report=(await r.json()).review;
   assert.equal(report.status,'succeeded');assert.equal(report.result.questions[1].teacher_score,0);
-  assert.equal((await h.call({action:'start',...input})).status,202);assert.equal(h.upstream.length,4,'idempotent start does not restart the staged analysis');
+  assert.equal((await h.call({action:'start',...input})).status,202);assert.equal(h.upstream.length,6,'idempotent start does not restart the staged analysis');
   assert.equal((await h.call({action:'start',...input,subject:'历史'})).status,409);
   const corrections=[{id:'1',teacher_score:5,max_score:5,answer:'2',verified:true,corrected:false},{id:'2',teacher_score:0,max_score:5,answer:'7',verified:true,corrected:true}];
   assert.equal((await h.call({action:'correct',request_id:rid,revision:0,corrections:[{...corrections[0],teacher_score:9}]})).status,400);
@@ -166,16 +167,17 @@ async function ui(report) {
   dialog.querySelector('#pr-consent').checked=true;dialog.querySelector('#pr-consent').dispatchEvent(new w.Event('change',{bubbles:true}));
   dialog.querySelector('[data-pr=start]').click();await tick();await tick();assert(dialog.querySelector('[data-pr=start]').textContent.includes('继续确认'));
   dialog.querySelector('[data-pr=start]').click();await tick();await tick();
-  const starts=calls.filter(c=>c.action==='start');assert.equal(starts.length,2);assert.equal(starts[0].request_id,starts[1].request_id,'ambiguous network failure preserves request id and payload');
+  const starts=calls.filter(c=>c.action==='start');assert.equal(starts[0].exam_context.score,88,'current draft numeric context is included');assert.equal(starts.length,2);assert.equal(starts[0].request_id,starts[1].request_id,'ambiguous network failure preserves request id and payload');
   dialog.querySelector('[data-pr=history]').click();await tick();dialog.querySelector('[data-pr^="report:"]').click();await tick();
-  assert.equal(dialog.querySelectorAll('.pr-question').length,2);
+  assert.equal(dialog.querySelectorAll('.pr-question').length,2);assert(dialog.querySelector('.pr-wins'));assert(dialog.querySelector('.pr-wins').compareDocumentPosition(dialog.querySelector('.pr-questions')) & w.Node.DOCUMENT_POSITION_FOLLOWING);assert.equal(dialog.querySelectorAll('[data-question=\"1\"] .pr-solution').length,0,'full-credit question has no repeated solution');assert(dialog.querySelector('.pr-difficulty-table'));assert(dialog.querySelector('[data-field=cause]'));
   assert(dialog.querySelector('.pr-action-plan').compareDocumentPosition(dialog.querySelector('.pr-questions')) & w.Node.DOCUMENT_POSITION_FOLLOWING,'actionable overview precedes question detail');
   assert.equal(dialog.querySelector('.pr-solution').open,false,'solution is optional');
   assert.equal(dialog.querySelector('.pr-practice details').open,false,'practice answer stays hidden until requested');
   dialog.querySelector('[data-pr="focus:2"]').click();assert.equal(dialog.querySelector('[data-question="2"]').open,true,'action links open the source diagnosis');
   assert.equal(dialog.querySelector('[data-pr-score]').textContent,'5 / 10');
-  const second=dialog.querySelectorAll('.pr-question')[1];second.querySelector('[data-field=teacher_score]').value='3';second.querySelector('[data-field=teacher_score]').dispatchEvent(new w.Event('input',{bubbles:true}));
-  dialog.querySelector('[data-pr=save]').click();await tick();assert.equal(dialog.querySelector('[data-pr-score]').textContent,'8 / 10');assert.equal(modal.querySelector('.actual-v16').value,'88','review never overwrites exam scores');
+  const second=dialog.querySelectorAll('.pr-question')[1];second.querySelector('[data-field=cause]').value='time';second.querySelector('[data-field=cause]').dispatchEvent(new w.Event('input',{bubbles:true}));assert(second.querySelector('.pr-reflection-route').textContent.includes('限时'));second.querySelector('[data-field=reflection_note]').value='还剩一分钟';second.querySelector('[data-field=teacher_score]').value='3';second.querySelector('[data-field=teacher_score]').dispatchEvent(new w.Event('input',{bubbles:true}));
+  dialog.querySelector('[data-pr=save]').click();await tick();assert.equal(dialog.querySelector('[data-pr-score]').textContent,'8 / 10');assert.equal(modal.querySelector('.actual-v16').value,'88','review never overwrites exam scores');assert.equal(calls.filter(c=>c.action==='correct').at(-1).corrections[1].reflection.cause,'time');
+  savedReport.status='running';savedReport.progress={version:3,phase:'diagnose',completed_steps:2,total_questions:15,completed_questions:9,current_questions:['14'],message:'分析失分步骤与可能原因',phase_started_at:new Date().toISOString()};dialog.querySelector('[data-pr=history]').click();await tick();dialog.querySelector('[data-pr^=\"report:\"]').click();await tick();assert.equal(dialog.querySelectorAll('.pr-milestones li').length,4);assert(dialog.textContent.includes('9'));assert(dialog.textContent.includes('14'));assert(dialog.textContent.includes('已等待'));savedReport.status='succeeded';
   dialog.querySelector('[data-pr=close]').click();assert(!d.querySelector('.pr-dialog'));assert.equal(modal.querySelector('.actual-v16').value,'88');
   const draft=modal._paperReview.draftId;modal.querySelector('#examName').value='关联测试';failAttach=true;await w.saveExam(null,modal);await tick();
   assert(calls.some(c=>c.action==='attach'&&c.exam_id===examId&&c.draft_id===draft));assert(!w.state.modal,'attachment failure does not fail exam save');

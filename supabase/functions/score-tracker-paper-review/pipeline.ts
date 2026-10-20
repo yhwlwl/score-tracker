@@ -1,14 +1,27 @@
 import { readDatabase } from "../score-tracker-vision-preview/reliability.ts";
 import { paperAudit } from "./audit.ts";
 import { nextBatch, REVIEW_VERSION, extractionPrompt, normalizeEvidence, diagnosisPrompt, normalizeDiagnoses, verificationPrompt, reconcileEvidence, synthesisPrompt, assembleReport } from "./analysis.ts";
+import { analysisQueue, fullCredit, needsConfirmation } from "./learner.ts";
 import { reviewModel, imageContent } from "./runtime.ts";
+import { inventoryPrompt, normalizeInventory, workPrompt, normalizeWork } from "./reading.ts";
 
 const REVIEW_TABLE = "score_tracker_paper_reviews";
 export function progressFor(state: any) {
   const total = state.evidence?.questions?.length || 0, done = state.diagnoses?.length || 0;
-  return { version: 2, phase: state.phase, completed_questions: done, total_questions: total, updated_at: new Date().toISOString(),
-    resume_remaining: Math.max(0, 2 - (state.resume_count || 0)),
-    message: state.phase === "extract" ? (state.extraction_retry ? "正在复核批改数字与分数合计" : "正在核对题目、作答和批改分") : state.phase === "diagnose" ? `正在逐题推导与定位卡点（${done}/${total}）` : state.phase === "verify" ? "正在独立核对批改位置与填涂" : state.phase === "recheck" ? "正在复查有歧义的作答" : "正在复核解答与安排复习" };
+  const pending = state.evidence ? analysisQueue(state.evidence).filter((q: any) => !state.diagnoses?.some((d: any) => d.label === q.label)) : [];
+  const batch = state.phase === "diagnose" ? nextBatch(pending, 0).slice(0, state.batch_limit || 8) : [];
+  const positive = batch.length && batch.every(fullCredit), confirming = batch.length && batch.every(needsConfirmation);
+  const split = state.flow === "split_reading";
+  return { version: 3, phase: state.phase, completed_questions: done, total_questions: total, updated_at: new Date().toISOString(),
+    phase_started_at: state.phase_started_at || new Date().toISOString(), current_questions: state.phase === "verify" && state.verification_batch_limit ? state.evidence.questions.slice(state.verification_readings?.length || 0, (state.verification_readings?.length || 0) + state.verification_batch_limit).map((q: any) => q.label) : batch.map((q: any) => q.label),
+    run_started_at: state.run_started_at,
+    recognized_questions: total, readable_marks: state.evidence?.questions?.filter((q: any) => q.teacher_score !== null).length || 0,
+    strength_questions: state.diagnoses?.filter((d: any) => state.evidence?.questions?.some((q: any) => q.label === d.label && fullCredit(q))).length || 0,
+    steps: split ? state.has_work === false ? ["录入试题", "分析题目要求", "综合学习路线"] : ["录入试题", "匹配作答与批改", "独立核对资料", "分析优势和原因", "综合复盘与建议"] : undefined,
+    completed_steps: split && state.has_work === false ? (state.phase === "extract" ? 0 : state.phase === "diagnose" ? 1 : 2) : state.phase === "extract" ? 0 : state.phase === "read_work" ? 1 : (state.phase === "verify" ? 1 : ["diagnose", "recheck"].includes(state.phase) ? 2 : 3) + (split ? 1 : 0),
+    active_ms: state.active_ms || 0, resume_remaining: Math.max(0, 2 - (state.resume_count || 0)),
+    message: state.phase === "extract" ? (split ? "录入题目与印刷分值" : "录入题目、作答与批改分") : state.phase === "read_work" ? (state.work_retry ? "复核批改位置与分数合计" : "匹配作答、批改与成绩信息") : state.phase === "diagnose" ? (positive ? "提炼已得分题目的优势" : confirming ? "整理待核对信息与题目挑战" : "分析失分步骤与可能原因") : state.phase === "verify" ? "独立核对批改位置与填涂" : state.phase === "recheck" ? "复查有歧义的作答" : "综合试卷要求、优势与复习路线",
+    detail: state.phase === "extract" ? "保留作答原文；模糊字符和未批改分数会单独标记。" : state.phase === "verify" ? "核对题号与分数的对应关系，避免把相邻题的批改读错。" : state.phase === "diagnose" ? (positive ? "关注已展示的能力与解题亮点。" : confirming ? "作答或批改对应还不明确，先标出需要核对的位置。" : "区分可见错误和当时原因，检查难度、正确前缀与下一步验证。") : "结合已有证据整理结论、待确认的问题与不同原因对应的建议。" };
 }
 
 export async function runReviewStage(db: any, input: any, user: string, config: any, row: any, expectedClaim: string, dispatch: (claim: string) => Promise<void>) {
@@ -16,6 +29,8 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
   if (!expectedClaim || original.claim !== expectedClaim || row.status !== "running") return;
   // Each token can be claimed once. Duplicate deliveries cannot call the model twice.
   state.claim = crypto.randomUUID();
+  state.phase_started_at ||= new Date().toISOString();
+  const stageStarted = Date.now(), phaseBefore = state.phase;
   const audit = paperAudit(db, input, user, config, Date.parse(row.created_at), row);
   let outcome: any, ownsClaim = false;
   try {
@@ -23,28 +38,53 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
     if (claimed.error) throw claimed.error;
     if (!claimed.data) return;
     ownsClaim = true;
-    const stage = state.phase === "diagnose" ? `diagnose_${state.diagnoses?.length || 0}` : state.phase === "recheck" ? `recheck_${state.rechecked || 0}` : state.phase;
+    const stage = state.phase === "diagnose" ? `diagnose_${state.diagnoses?.length || 0}` : state.phase === "recheck" ? `recheck_${state.rechecked || 0}` : state.phase === "verify" && state.verification_batch_limit ? `verify_${state.verification_readings?.length || 0}` : state.phase;
     await audit.mark(stage + "_started");
     let promptText: string, selected: number[] | undefined, validate: (raw: any) => any, batch: any[] = [];
     if (state.phase === "extract") {
-      promptText = extractionPrompt(input, state.extraction_retry ? state.evidence?.score_check?.issues : undefined);
-      validate = raw => normalizeEvidence(raw, input);
+      promptText = state.flow === "split_reading" ? inventoryPrompt(input) : extractionPrompt(input, state.extraction_retry ? state.evidence?.score_check?.issues : undefined);
+      if (state.flow === "split_reading") selected = input.pages.filter((p: any) => p.role !== "work").map((p: any) => p.page);
+      validate = raw => state.flow === "split_reading" ? normalizeInventory(raw, input) : normalizeEvidence(raw, input);
+    } else if (state.phase === "read_work") {
+      promptText = workPrompt(input, state.evidence, !!state.work_retry);
+      selected = input.pages.filter((p: any) => p.role === "work" || input.work_on_paper && p.role === "paper").map((p: any) => p.page);
+      validate = raw => normalizeWork(raw, state.evidence, input);
     } else if (state.phase === "diagnose" || state.phase === "recheck") {
-      batch = (state.phase === "diagnose" ? nextBatch(state.evidence.questions, state.diagnoses.length) : nextBatch(state.evidence.questions.filter((q: any) => state.recheck_labels.includes(q.label)), state.rechecked || 0)).slice(0, state.batch_limit || 4);
+      batch = (state.phase === "diagnose" ? nextBatch(analysisQueue(state.evidence).filter((q: any) => !state.diagnoses.some((d: any) => d.label === q.label)), 0) : nextBatch(state.evidence.questions.filter((q: any) => state.recheck_labels.includes(q.label)), state.rechecked || 0)).slice(0, state.batch_limit || 8);
       promptText = diagnosisPrompt(input, state.evidence, batch);
       selected = [...new Set(batch.flatMap((q: any) => [...q.pages, ...q.work_pages, ...q.reference_pages]))] as number[];
       validate = raw => normalizeDiagnoses(raw, batch);
     } else if (state.phase === "verify") {
-      promptText = verificationPrompt(input, state.evidence);
+      const verifying = state.verification_batch_limit ? state.evidence.questions.slice(state.verification_readings?.length || 0, (state.verification_readings?.length || 0) + state.verification_batch_limit) : state.evidence.questions;
+      promptText = verificationPrompt(input, { ...state.evidence, questions: verifying });
       selected = input.pages.filter((p: any) => p.role === "work" || input.work_on_paper && p.role === "paper").map((p: any) => p.page);
-      validate = raw => reconcileEvidence(raw, state.evidence, input);
+      validate = raw => {
+        if (!state.verification_batch_limit) return reconcileEvidence(raw, state.evidence, input);
+        if (!Array.isArray(raw?.questions) || raw.questions.length !== verifying.length || new Set(raw.questions.map((q: any) => q.label)).size !== verifying.length || raw.questions.some((q: any) => !verifying.some((v: any) => v.label === q.label))) throw new Error("独立复核缺少本轮题号");
+        return { readings: raw.questions };
+      };
     } else if (state.phase === "synthesize") {
       promptText = synthesisPrompt(input, state.evidence, state.diagnoses);
       validate = raw => assembleReport(raw, state.evidence, input, state.diagnoses);
     } else throw new Error("unknown_pipeline_stage");
-    const effort = batch.length && batch.every((q: any) => q.teacher_score !== null && q.max_score !== null && q.teacher_score === q.max_score) ? "low" : undefined;
-    outcome = await reviewModel({ config, content: [{ type: "text", text: promptText }, ...imageContent(input, selected)], requestId: input.request_id, stage, effort, validate, mark: audit.mark });
-    if (!outcome.ok && /upstream_timeout|model_output_truncated/.test(outcome.code) && batch.length === 1) {
+    const effort = batch.length && (batch.every((q: any) => fullCredit(q) || needsConfirmation(q)) || batch.length === 1 && state.focused_retries?.includes(batch[0].label)) ? "low" : undefined;
+    outcome = await reviewModel({ config, content: [{ type: "text", text: promptText }, ...(state.phase === "synthesize" ? [] : imageContent(input, selected))], requestId: input.request_id, stage, effort, validate, mark: audit.mark });
+    const verifyRecovery = state.phase === "verify" && !outcome.ok && /upstream_timeout|model_output_truncated|invalid_model_output/.test(outcome.code);
+    if (verifyRecovery) {
+      if (!state.verification_batch_limit) state.verification_batch_limit = Math.max(1, Math.min(5, Math.floor(state.evidence.questions.length / 2)));
+      else if (state.verification_batch_limit > 1) state.verification_batch_limit = 1;
+      else {
+        const q = state.evidence.questions[state.verification_readings?.length || 0];
+        outcome = { ...outcome, ok: true, result: { readings: [{ label: q.label, kind: "unclear", teacher_score: null, uncertainties: ["此题批改位置未能独立核对，暂不确认分数"] }] } };
+      }
+      await audit.mark("smaller_verification_recovery");
+    }
+    const focusRetry = !outcome.ok && /upstream_timeout|model_output_truncated|invalid_model_output/.test(outcome.code) && batch.length === 1 && effort !== "low" && !state.focused_retries?.includes(batch[0].label);
+    if (focusRetry) {
+      state.focused_retries = [...(state.focused_retries || []), batch[0].label];
+      await audit.mark("focused_question_recovery");
+    }
+    if (!focusRetry && !outcome.ok && /upstream_timeout|model_output_truncated|invalid_model_output/.test(outcome.code) && batch.length === 1) {
       const q = batch[0];
       state.evidence.complete = false;
       state.evidence.warnings.push(`第${q.label}题暂未得到可靠解答，保留识别和批改信息，不据此判断失分原因`);
@@ -52,22 +92,37 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
       outcome.result = normalizeDiagnoses({ questions: [{ label: q.label, reference: q.provided_reference || "", reference_source: q.provided_reference ? "provided" : "ai", correct_steps: [], first_issue: { certainty: "uncertain" }, loss_reason: "暂未得到可靠诊断，不判断具体失分原因", suggestion: "请补充本题参考答案，或先与老师核对关键条件和作答后再复盘", uncertainties: ["本题解答尚待核验"], review_status: "unresolved" }] }, batch);
       await audit.mark("question_analysis_unresolved");
     }
-    if (!outcome.ok && /upstream_timeout|model_output_truncated/.test(outcome.code) && batch.length > 1) {
+    if (verifyRecovery && !outcome.ok) { /* Save progress and continue with fewer independent readings. */ }
+    else if (focusRetry) { /* Continue the same question once with a shorter, still-thinking pass. */ }
+    else if (!outcome.ok && /upstream_timeout|model_output_truncated|invalid_model_output/.test(outcome.code) && batch.length > 1) {
       state.batch_limit = 1;
       await audit.mark("smaller_batch_recovery");
     } else if (!outcome.ok && !outcome.partial) { await audit.finish("failed", outcome); return; }
     else if (state.phase === "extract") {
       state.evidence = outcome.result;
-      if (outcome.result.score_check.status === "conflict" && !state.extraction_retry) state.extraction_retry = 1;
+      if (state.flow === "split_reading") { state.phase = input.work_on_paper || input.pages.some((p: any) => p.role === "work") ? "read_work" : "diagnose"; state.diagnoses = []; }
+      else if (outcome.result.score_check.status === "conflict" && !state.extraction_retry) state.extraction_retry = 1;
       else { state.phase = input.work_on_paper || input.pages.some((p: any) => p.role === "work") ? "verify" : "diagnose"; state.diagnoses = []; }
+    } else if (state.phase === "read_work") {
+      state.evidence = outcome.result;
+      if (outcome.result.score_check.status === "conflict" && !state.work_retry) state.work_retry = 1;
+      else state.phase = "verify";
     } else if (state.phase === "diagnose") {
       state.diagnoses.push(...outcome.result);
       if (state.diagnoses.length >= state.evidence.questions.length) state.phase = !state.verification_done && (input.work_on_paper || input.pages.some((p: any) => p.role === "work")) ? "verify" : "synthesize";
     } else if (state.phase === "verify") {
+      if (outcome.result.readings) {
+        state.verification_readings = [...(state.verification_readings || []), ...outcome.result.readings];
+        if (state.verification_readings.length === state.evidence.questions.length) outcome.result = reconcileEvidence({ questions: state.verification_readings }, state.evidence, input);
+      }
+      if (!outcome.result.evidence) { /* More independent readings remain. */ }
+      else {
       state.evidence = outcome.result.evidence;
       state.verification_done = true;
       state.recheck_labels = outcome.result.changed.filter((label: string) => state.diagnoses.some((d: any) => d.label === label)); state.rechecked = 0;
       state.phase = state.recheck_labels.length ? "recheck" : state.diagnoses.length >= state.evidence.questions.length ? "synthesize" : "diagnose";
+      delete state.verification_readings;
+      }
     } else if (state.phase === "recheck") {
       for (const d of outcome.result) state.diagnoses[state.diagnoses.findIndex((q: any) => q.label === d.label)] = d;
       state.rechecked += outcome.result.length;
@@ -79,6 +134,8 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
       return;
     }
     state.claim = crypto.randomUUID();
+    state.active_ms = (state.active_ms || 0) + Date.now() - stageStarted;
+    if (state.phase !== phaseBefore || state.phase === "diagnose") state.phase_started_at = new Date().toISOString();
     await audit.mark(stage + "_completed");
     const saved = await readDatabase(() => db.from(REVIEW_TABLE).update({ analysis_state: state, progress: progressFor(state) }).eq("request_id", input.request_id).eq("user_id", user).eq("status", "running").select("request_id").maybeSingle());
     if (saved.error) throw saved.error;
@@ -93,4 +150,4 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
   }
 }
 
-export function initialState() { return { version: REVIEW_VERSION, phase: "extract", claim: crypto.randomUUID(), diagnoses: [] }; }
+export function initialState(hasWork = true) { return { version: REVIEW_VERSION, flow: "split_reading", has_work: hasWork, phase: "extract", run_started_at: new Date().toISOString(), phase_started_at: new Date().toISOString(), claim: crypto.randomUUID(), diagnoses: [] }; }

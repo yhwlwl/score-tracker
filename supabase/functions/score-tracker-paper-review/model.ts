@@ -87,7 +87,7 @@ export function normalizeCorrections(value: any, report: any) {
     seen.add(c.id);
     for (const key of ["teacher_score", "max_score"]) if (c[key] !== null && number(c[key]) === null) throw new Error("分数请输入有效数字或留空");
     if (c.teacher_score !== null && c.max_score !== null && c.teacher_score > c.max_score) throw new Error("得分不能高于满分");
-    return { id: q.id, teacher_score: number(c.teacher_score), max_score: number(c.max_score), answer: text(c.answer, 4000), verified: c.verified === true, corrected: c.corrected === true };
+    return { id: q.id, teacher_score: number(c.teacher_score), max_score: number(c.max_score), answer: text(c.answer, 4000), verified: c.verified === true, corrected: c.corrected === true, reflection: c.reflection && typeof c.reflection === "object" ? { cause: ["time", "idea", "execution", "reading", "expression", "uncertain"].includes(c.reflection.cause) ? c.reflection.cause : "uncertain", note: text(c.reflection.note, 500), source: "student_recollection" } : null };
   });
 }
 export function prompt(input: any) {

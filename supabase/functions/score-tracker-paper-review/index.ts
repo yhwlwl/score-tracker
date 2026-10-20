@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { readDatabase } from "../score-tracker-vision-preview/reliability.ts";
 import { MAX_BODY, UUID, text, validateStart, normalizeCorrections } from "./model.ts";
+import { examContext } from "./learner.ts";
 import { paperFailure } from "./audit.ts";
 import { runReviewStage, initialState, progressFor } from "./pipeline.ts";
 
@@ -40,7 +41,7 @@ async function userFor(token: any) {
 }
 async function ownedExam(user: string, id: string) {
   if (!UUID.test(id || "")) throw new Failure("考试编号无效");
-  const exam = await query(() => db.from("score_tracker_exams").select("id").eq("id", id).eq("user_id", user).maybeSingle());
+  const exam = await query(() => db.from("score_tracker_exams").select("id,exam_date,total_rank,total_participants,total_class_rank,total_class_participants").eq("id", id).eq("user_id", user).maybeSingle());
   if (!exam) throw new Failure("考试不存在或无权访问", 404);
   return exam;
 }
@@ -66,7 +67,7 @@ async function configForReview() {
   if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) throw new Failure("分析服务配置暂不可用", 503);
   return config;
 }
-async function fingerprintFor(input: any) { return sha(JSON.stringify({ subject: input.subject, draft: input.draft_id, exam: input.exam_id, work_on_paper: input.work_on_paper, pages: input.pages })); }
+async function fingerprintFor(input: any) { return sha(JSON.stringify({ subject: input.subject, draft: input.draft_id, exam: input.exam_id, work_on_paper: input.work_on_paper, pages: input.pages, exam_context: examContext(input.exam_context, input.exam_context?.source) })); }
 async function dispatchStage(input: any, claim: string) {
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 12000);
   try {
@@ -94,6 +95,7 @@ Deno.serve(async (req: Request) => {
       if (!row || row.status !== "running" || row.analysis_state?.claim !== body.claim) return out({ accepted: false }, 202);
       const input = validateStart({ ...body, draft_id: row.draft_id, exam_id: row.exam_id, subject: row.subject, consent: true });
       // Use the original attachment scope even if the user saved the exam mid-analysis.
+      input.exam_context = row.analysis_state.exam_context;
       const scope = row.analysis_state.original_exam_id;
       if (scope !== undefined) input.exam_id = scope;
       if (await fingerprintFor(input) !== row.fingerprint) throw new Failure("分析资料与原请求不一致", 409);
@@ -115,9 +117,13 @@ Deno.serve(async (req: Request) => {
       const state = row.analysis_state;
       if (row.status !== "failed" || !state?.phase || (state.resume_count || 0) >= 2) throw new Failure("这份报告无法继续，请重新开始分析", 409);
       const input = validateStart({ ...body, draft_id: row.draft_id, exam_id: state.original_exam_id ?? null, subject: row.subject });
+      input.exam_context = state.exam_context;
       if (await fingerprintFor(input) !== row.fingerprint) throw new Failure("资料与原请求不一致，请使用相同图片和页序", 409);
       const config = await configForReview();
-      const oldClaim = state.claim; state.claim = crypto.randomUUID(); state.resume_count = (state.resume_count || 0) + 1;
+      const oldClaim = state.claim; state.claim = crypto.randomUUID(); state.resume_count = (state.resume_count || 0) + 1; state.phase_started_at = new Date().toISOString();
+      state.run_started_at = state.phase_started_at;
+      if (state.phase === "verify" && /upstream_timeout|model_output_truncated/.test(row.error_code || "")) state.verification_batch_limit ||= Math.max(1, Math.min(5, Math.floor(state.evidence.questions.length / 2)));
+      if (state.phase === "extract" && !state.evidence) { state.flow = "split_reading"; state.has_work = input.work_on_paper || input.pages.some((p: any) => p.role === "work"); }
       if (!state.verification_done && state.evidence && (input.work_on_paper || input.pages.some((p: any) => p.role === "work"))) state.phase = "verify";
       const resumed = await query(() => db.from(TABLE).update({ status: "running", completed_at: null, error_code: null, error_stage: null, error_detail: null, error_message: null, analysis_state: state, progress: progressFor(state) }).eq("request_id", row.request_id).eq("user_id", user).eq("status", "failed").eq("analysis_state->>claim", oldClaim).select("*").maybeSingle());
       if (resumed) background(runReviewStage(db, input, user, config, resumed, state.claim, claim => dispatchStage(input, claim)));
@@ -127,10 +133,14 @@ Deno.serve(async (req: Request) => {
       stage = "input_validation";
       let input: any;
       try { input = validateStart(body); } catch (e) { throw new Failure((e as Error).message); }
+      input.exam_context = examContext(body.exam_context);
       if (input.exam_id) {
-        await ownedExam(user, input.exam_id);
-        const score = await query(() => db.from("score_tracker_scores").select("id").eq("exam_id", input.exam_id).eq("user_id", user).eq("subject", input.subject).maybeSingle());
+        const owned = await ownedExam(user, input.exam_id);
+        const score = await query(() => db.from("score_tracker_scores").select("id,actual_score,max_score,raw_score,raw_max_score,target_score,rank_position,participant_count,class_rank_position,class_participant_count").eq("exam_id", input.exam_id).eq("user_id", user).eq("subject", input.subject).maybeSingle());
         if (!score) throw new Failure("请先保存新增科目，再关联试卷");
+        input.exam_context = examContext({ score: score.actual_score, max: score.max_score, raw_score: score.raw_score, raw_max: score.raw_max_score, target: score.target_score,
+          year_rank: score.rank_position, year_count: score.participant_count || owned.total_participants, class_rank: score.class_rank_position, class_count: score.class_participant_count || owned.total_class_participants,
+          total_year_rank: owned.total_rank, total_year_count: owned.total_participants, total_class_rank: owned.total_class_rank, total_class_count: owned.total_class_participants, exam_date: owned.exam_date }, "saved_exam");
       }
       stage = "configuration";
       const config = await configForReview();
@@ -143,7 +153,7 @@ Deno.serve(async (req: Request) => {
       }
       console.log("paper_review_request", JSON.stringify({ request_id: requestId, action, stage: reserved.created ? "accepted" : "deduplicated", http_status: 202, duration_ms: Date.now() - startedAt }));
       if (reserved.created) {
-        const state = { ...initialState(), original_exam_id: input.exam_id };
+        const state = { ...initialState(input.work_on_paper || input.pages.some((p: any) => p.role === "work")), original_exam_id: input.exam_id, exam_context: input.exam_context };
         const row = await query(() => db.from(TABLE).update({ analysis_state: state, progress: progressFor(state) }).eq("request_id", input.request_id).eq("user_id", user).eq("status", "running").select("*").single());
         const task = background(runReviewStage(db, input, user, config, row, state.claim, claim => dispatchStage(input, claim)));
         if (typeof EdgeRuntime === "undefined") await task;
