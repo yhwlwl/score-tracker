@@ -74,7 +74,7 @@ async function evidenceRules(){
  h.scope.sampleFacts.questions[0].max_score=7;facts=evaluate('normalizeEvidence(sampleFacts,sampleInput)');assert.equal(facts.questions[0].max_score,null,'arithmetic evidence must match');
  h.scope.sampleFacts.questions[0].max_score=10;h.scope.sampleFacts.questions[0].max_mark={page:1,quote:'10分'};facts=evaluate('normalizeEvidence(sampleFacts,sampleInput)');
  h.scope.evidence=facts;h.scope.finalRaw={overview:'材料论证需要核对',strengths:[],questions:[{label:'1',reference:'结合材料给出论据',correct_steps:['已有论点'],first_issue:{certainty:'confirmed',observed:'没有材料依据'},review_status:'reviewed'}],action_plan:[{title:'补论据',questions:['1'],task:'引用材料并解释对应关系',success_check:'每个论点有材料支撑'}]};
- let result=evaluate('assembleReport(finalRaw,evidence,sampleInput)');assert.equal(result.questions[0].teacher_score,null);assert.equal(result.quality,'needs_review');
+ let result=evaluate('assembleReport(finalRaw,evidence,sampleInput)');assert.equal(result.questions[0].teacher_score,7,'aggregate conflict retains the observed individual mark');assert.equal(result.score_check.status,'conflict');assert.equal(result.quality,'needs_review');
  assert.equal(result.questions[0].first_issue.certainty,'uncertain','a fabricated quotation is never a confirmed first error');
  h.scope.independent={questions:[{label:'1',kind:'written',teacher_score:5,score_mark:{page:1,quote:'5分',scope:'question',label:'1',location:'第1页第1题旁'}}]};
  const reconciled=evaluate('reconcileEvidence(independent,evidence,sampleInput)');assert.equal(reconciled.evidence.questions[0].teacher_score,null,'disagreeing individual marks remain unknown even when sums could match');

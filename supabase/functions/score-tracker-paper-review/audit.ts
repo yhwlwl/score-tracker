@@ -31,7 +31,7 @@ export function paperAudit(db: any, input: any, user: string, config: any, start
   const redact = (value: unknown, max = 1200) => safeMessage(secret ? String(value ?? "").split(secret).join("[hidden]") : value, max);
   const attempts: any[] = structuredClone(prior.attempts || []), phases: any[] = structuredClone(prior.diagnostics?.phases || []), writeErrors: any[] = structuredClone(prior.diagnostics?.audit_write_errors || []);
   let queue: Promise<unknown> = Promise.resolve();
-  const imageMeta = input.pages.map((p: any) => {
+  const imageMeta = input.pages.filter((p: any) => p.url).map((p: any) => {
     const encoded = p.url.slice(p.url.indexOf(",") + 1);
     const decodedSize = (url: string) => { const b64 = url.slice(url.indexOf(",") + 1); return Math.floor(b64.length * 3 / 4) - (b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0); };
     return { page: p.page, role: p.role, mime: p.url.slice(5, p.url.indexOf(";")), bytes: Math.floor(encoded.length * 3 / 4) - (encoded.endsWith("==") ? 2 : encoded.endsWith("=") ? 1 : 0), detail_regions: (p.regions || []).length, region_bytes: (p.regions || []).reduce((n: number, url: string) => n + decodedSize(url), 0) };

@@ -72,8 +72,8 @@ export function normalizeReport(raw: any, input: any) {
     };
   });
   if (!questions.some((q: any) => q.stem)) throw new Error("题目文字没有读清，请重新拍摄");
-  if (!hasWork) warnings.unshift("未提供作答：本报告只分析题目和知识点，不评价个人掌握情况");
-  if (!input.pages.some((p: any) => p.role === "reference")) warnings.unshift("未提供参考答案，AI 解答和估分仅供核对");
+  if (!hasWork) warnings.unshift("补充答题卡后可继续分析本次作答");
+  // Reference provenance is displayed beside the solution, once.
   return { version: 1, questions, coverage: text(raw.coverage, 600) || "仅覆盖成功识别的题目，请与原卷逐一核对", complete: raw.complete === true,
     overview: hasWork ? text(raw.overview, 1800) : "已整理试卷题目与知识点。补充作答图片后，才能分析个人失分情况。",
     strengths: hasWork ? strings(raw.strengths, 5) : [], priorities: hasWork ? strings(raw.priorities, 5) : [], warnings: [...new Set(warnings)].slice(0, 16) };

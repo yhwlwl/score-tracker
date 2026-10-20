@@ -1,12 +1,20 @@
 import { readDatabase } from "../score-tracker-vision-preview/reliability.ts";
 import { paperAudit } from "./audit.ts";
-import { nextBatch, REVIEW_VERSION, extractionPrompt, normalizeEvidence, diagnosisPrompt, normalizeDiagnoses, verificationPrompt, reconcileEvidence, synthesisPrompt, assembleReport } from "./analysis.ts";
+import { nextBatch, REVIEW_VERSION, extractionPrompt, normalizeEvidence, diagnosisPrompt, normalizeDiagnoses, verificationPrompt, reconcileEvidence, synthesisPrompt, assembleReport, checkScores } from "./analysis.ts";
 import { analysisQueue, fullCredit, needsConfirmation } from "./learner.ts";
 import { reviewModel, imageContent } from "./runtime.ts";
 import { inventoryPrompt, normalizeInventory, workPrompt, normalizeWork } from "./reading.ts";
 
 const REVIEW_TABLE = "score_tracker_paper_reviews";
 export function progressFor(state: any) {
+  if (state.flow === "revision") return {
+    version: 3, flow: "revision", phase: state.phase, updated_at: new Date().toISOString(),
+    phase_started_at: state.phase_started_at, run_started_at: state.run_started_at,
+    steps: ["更新相关题目", "更新整体建议"], completed_steps: state.phase === "synthesize" ? 1 : 0,
+    current_questions: state.changed_labels, resume_remaining: Math.max(0, 2 - (state.resume_count || 0)),
+    message: state.phase === "synthesize" ? "正在更新整体建议" : "正在结合你的补充更新题目分析",
+    detail: "根据核对后的文字和回忆调整建议，完成后替换下方上一版分析。"
+  };
   const total = state.evidence?.questions?.length || 0, done = state.diagnoses?.length || 0;
   const pending = state.evidence ? analysisQueue(state.evidence).filter((q: any) => !state.diagnoses?.some((d: any) => d.label === q.label)) : [];
   const batch = state.phase === "diagnose" ? nextBatch(pending, 0).slice(0, state.batch_limit || 8) : [];
@@ -31,7 +39,7 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
   state.claim = crypto.randomUUID();
   state.phase_started_at ||= new Date().toISOString();
   const stageStarted = Date.now(), phaseBefore = state.phase;
-  const audit = paperAudit(db, input, user, config, Date.parse(row.created_at), row);
+  const audit = paperAudit(db, input, user, config, Date.parse(state.run_started_at || row.created_at), row);
   let outcome: any, ownsClaim = false;
   try {
     const claimed = await readDatabase(() => db.from(REVIEW_TABLE).update({ analysis_state: state, progress: progressFor(state) }).eq("request_id", input.request_id).eq("user_id", user).eq("status", "running").eq("analysis_state->>claim", expectedClaim).select("request_id").maybeSingle());
@@ -68,7 +76,7 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
       validate = raw => assembleReport(raw, state.evidence, input, state.diagnoses);
     } else throw new Error("unknown_pipeline_stage");
     const effort = batch.length && (batch.every((q: any) => fullCredit(q) || needsConfirmation(q)) || batch.length === 1 && state.focused_retries?.includes(batch[0].label)) ? "low" : undefined;
-    outcome = await reviewModel({ config, content: [{ type: "text", text: promptText }, ...(state.phase === "synthesize" ? [] : imageContent(input, selected))], requestId: input.request_id, stage, effort, validate, mark: audit.mark });
+    outcome = await reviewModel({ config, content: [{ type: "text", text: promptText }, ...(state.phase === "synthesize" || state.flow === "revision" ? [] : imageContent(input, selected))], requestId: input.request_id, stage, effort, validate, mark: audit.mark });
     const verifyRecovery = state.phase === "verify" && !outcome.ok && /upstream_timeout|model_output_truncated|invalid_model_output/.test(outcome.code);
     if (verifyRecovery) {
       if (!state.verification_batch_limit) state.verification_batch_limit = Math.max(1, Math.min(5, Math.floor(state.evidence.questions.length / 2)));
@@ -84,7 +92,7 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
       state.focused_retries = [...(state.focused_retries || []), batch[0].label];
       await audit.mark("focused_question_recovery");
     }
-    if (!focusRetry && !outcome.ok && /upstream_timeout|model_output_truncated|invalid_model_output/.test(outcome.code) && batch.length === 1) {
+    if (state.flow !== "revision" && !focusRetry && !outcome.ok && /upstream_timeout|model_output_truncated|invalid_model_output/.test(outcome.code) && batch.length === 1) {
       const q = batch[0];
       state.evidence.complete = false;
       state.evidence.warnings.push(`第${q.label}题暂未得到可靠解答，保留识别和批改信息，不据此判断失分原因`);
@@ -130,7 +138,7 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
     } else {
       await audit.mark("result_validated");
       await audit.finish("succeeded", outcome);
-      await readDatabase(() => db.from(REVIEW_TABLE).update({ analysis_state: {}, progress: { version: 2, phase: "completed", updated_at: new Date().toISOString(), message: "报告已完成" } }).eq("request_id", input.request_id).eq("user_id", user).eq("status", "succeeded"));
+      await readDatabase(() => db.from(REVIEW_TABLE).update({ analysis_state: {}, progress: { version: 2, phase: "completed", updated_at: new Date().toISOString(), message: state.flow === "revision" ? "分析已更新" : "报告已完成" } }).eq("request_id", input.request_id).eq("user_id", user).eq("status", "succeeded"));
       return;
     }
     state.claim = crypto.randomUUID();
@@ -151,3 +159,44 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
 }
 
 export function initialState(hasWork = true) { return { version: REVIEW_VERSION, flow: "split_reading", has_work: hasWork, phase: "extract", run_started_at: new Date().toISOString(), phase_started_at: new Date().toISOString(), claim: crypto.randomUUID(), diagnoses: [] }; }
+
+// Text-only revisions retain the original evidence and never claim to reread discarded images.
+export const MAX_REPORT_UPDATES = 5;
+export function revisionInput(row: any) {
+  const report = row.result, stored = report.source_pages;
+  const count = Math.max(1, ...report.questions.flatMap((q: any) => [...(q.pages || []), ...(q.work_pages || []), ...(q.reference_pages || [])]));
+  const source = stored?.length ? stored : Array.from({ length: count }, (_, i) => ({ page: i + 1, role: report.questions.some((q: any) => q.reference_pages?.includes(i + 1)) ? "reference" : report.questions.some((q: any) => q.work_pages?.includes(i + 1)) && !report.questions.some((q: any) => q.pages?.includes(i + 1)) ? "work" : "paper" }));
+  return { request_id: row.request_id, draft_id: row.draft_id, exam_id: row.exam_id, subject: row.subject,
+    pages: source.map((p: any) => ({ page: p.page, role: p.role, url: "" })),
+    work_on_paper: report.work_on_paper === true || (row.corrections || []).some((c: any) => c.answer || c.teacher_score !== null) || report.questions.some((q: any) => q.answer || q.teacher_score != null),
+    original_readings: report.original_readings, exam_context: report.exam_context, text_revision: true, update_count: report.update_count || 0, analysis_revision: row.revision };
+}
+export function revisionState(report: any, corrections: any[]) {
+  const meaningfulReflection = (r: any) => r && (r.cause !== "uncertain" || r.note) ? { cause: r.cause, note: r.note || "", source: "student_recollection" } : null;
+  const changed: string[] = [];
+  const questions = report.questions.map((q: any) => {
+    const c = corrections.find((c: any) => c.id === q.id);
+    const fields = ["label", "stem", "pages", "work_pages", "reference_pages", "answer", "status", "confidence", "subparts", "teacher_score", "max_score", "score_mark", "max_mark", "provided_reference", "kind", "score_verification", "answer_verification", "evidence_verified", "score_candidates", "answer_candidates", "student_reflection", "uncertainties"];
+    const fact: any = Object.fromEntries(fields.filter(k => q[k] !== undefined).map(k => [k, structuredClone(q[k])]));
+    fact.subparts ||= []; fact.pages ||= []; fact.work_pages ||= []; fact.reference_pages ||= []; fact.uncertainties ||= [];
+    if (!c) return fact;
+    const reflection = meaningfulReflection(c.reflection);
+    if (c.answer !== q.answer || c.teacher_score !== q.teacher_score || c.max_score !== q.max_score || JSON.stringify(reflection) !== JSON.stringify(meaningfulReflection(q.student_reflection))) changed.push(q.label);
+    if (c.answer !== q.answer) {
+      fact.answer = c.answer; fact.status = c.answer ? "answered" : "blank";
+      fact.subparts = []; fact.answer_verification = "user_corrected"; delete fact.answer_candidates;
+      fact.uncertainties = fact.uncertainties.filter((u: string) => !/填涂|选项读取|作答原文|写法/.test(u));
+    }
+    if (c.teacher_score !== q.teacher_score) {
+      fact.teacher_score = c.teacher_score; fact.score_verification = "user_corrected"; delete fact.score_candidates;
+      fact.score_mark = c.teacher_score === null ? null : { page: q.score_mark?.page || q.work_pages?.[0] || q.pages?.[0] || 1, quote: `用户核对：${c.teacher_score}分`, scope: "question", label: q.label, source: "user" };
+      fact.uncertainties = fact.uncertainties.filter((u: string) => !/批改分|分数|得分/.test(u));
+    }
+    fact.max_score = c.max_score; fact.student_reflection = reflection;
+    return fact;
+  });
+  const evidence = { questions, total: report.total || { score: null, max: null }, complete: report.complete, coverage: report.coverage,
+    score_groups: report.score_groups || [], context: report.context || [], warnings: [], score_check: checkScores(questions, report.total || { score: null, max: null }, report.complete) };
+  return { ...initialState(), flow: "revision", phase: "diagnose", changed_labels: changed, evidence, verification_done: true,
+    diagnoses: report.questions.filter((q: any) => !changed.includes(q.label)), exam_context: report.exam_context };
+}

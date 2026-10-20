@@ -14,7 +14,10 @@ export function examContext(value: any, source = "user_entry") {
 }
 export function fullCredit(q: any) { return typeof q.teacher_score === "number" && typeof q.max_score === "number" && q.teacher_score === q.max_score; }
 export function needsConfirmation(q: any) {
-  return q.status === "unclear" && !q.subparts?.length || q.teacher_score === null && ["single_choice", "multiple_choice"].includes(q.kind) && !q.provided_reference;
+  // A missing grade is independent of whether the student's work can be analysed.
+  const readablePart = q.subparts?.some((s: any) => s.status === "answered" && text(s.answer, 2200));
+  const answer = text(q.answer, 4000);
+  return q.status === "unclear" && !readablePart && (!answer || /^(?:选项读取存在歧义|题号不可辨|作答未读清|无法识别|\[待确认\])/.test(answer));
 }
 export function analysisQueue(evidence: any) {
   // Positive evidence can be read together; difficult losses retain an individual budget.

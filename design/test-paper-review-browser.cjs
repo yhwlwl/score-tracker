@@ -48,10 +48,10 @@ const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png
       await page.getByRole('button',{name:'旋转',exact:true}).click();
       await page.locator('#pr-consent').check();await page.getByRole('button',{name:'开始分析',exact:true}).click();
       await page.locator('.pr-question').first().waitFor({timeout:20000});
-      assert.equal(await page.locator('[data-pr-score]').textContent(),'待核对');
+      assert.equal(await page.locator('[data-pr-score]').textContent(),'—');
       await page.locator('.pr-question summary').first().click();await page.locator('.pr-question').first().locator('[data-field=verified]').check();
       await page.locator('.pr-question summary').nth(1).click();await page.locator('.pr-question').nth(1).locator('[data-field=verified]').check();
-      await page.getByRole('button',{name:'保存核对',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-pr-score]')?.textContent==='5 / 10');
+      await page.getByRole('button',{name:'保存并更新分析',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-pr-score]')?.textContent==='5 / 10');
       assert.equal(await page.locator('.actual-v16').first().inputValue(),'88');
       await page.locator('.pr-dialog').evaluate(el=>el.scrollTop=0);
       await page.screenshot({path:path.join(output,device.name+'-report.png')});

@@ -4,7 +4,7 @@ import { readDatabase } from "../score-tracker-vision-preview/reliability.ts";
 import { MAX_BODY, UUID, text, validateStart, normalizeCorrections } from "./model.ts";
 import { examContext } from "./learner.ts";
 import { paperFailure } from "./audit.ts";
-import { runReviewStage, initialState, progressFor } from "./pipeline.ts";
+import { runReviewStage, initialState, progressFor, revisionInput, revisionState, MAX_REPORT_UPDATES } from "./pipeline.ts";
 
 const db = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "", { auth: { persistSession: false, autoRefreshToken: false } });
 const TABLE = "score_tracker_paper_reviews";
@@ -93,12 +93,12 @@ Deno.serve(async (req: Request) => {
       if (!UUID.test(body.request_id || "") || !UUID.test(body.claim || "")) throw new Failure("分析编号无效");
       const row = await query(() => db.from(TABLE).select("*").eq("request_id", body.request_id).maybeSingle());
       if (!row || row.status !== "running" || row.analysis_state?.claim !== body.claim) return out({ accepted: false }, 202);
-      const input = validateStart({ ...body, draft_id: row.draft_id, exam_id: row.exam_id, subject: row.subject, consent: true });
+      const input = row.analysis_state.flow === "revision" ? revisionInput(row) : validateStart({ ...body, draft_id: row.draft_id, exam_id: row.exam_id, subject: row.subject, consent: true });
       // Use the original attachment scope even if the user saved the exam mid-analysis.
       input.exam_context = row.analysis_state.exam_context;
       const scope = row.analysis_state.original_exam_id;
       if (scope !== undefined) input.exam_id = scope;
-      if (await fingerprintFor(input) !== row.fingerprint) throw new Failure("分析资料与原请求不一致", 409);
+      if (row.analysis_state.flow !== "revision" && await fingerprintFor(input) !== row.fingerprint) throw new Failure("分析资料与原请求不一致", 409);
       const config = await configForReview();
       background(runReviewStage(db, input, row.user_id, config, row, body.claim, claim => dispatchStage(input, claim)));
       return out({ accepted: true }, 202);
@@ -116,9 +116,9 @@ Deno.serve(async (req: Request) => {
       if (row.status === "running") return out({ request_id: row.request_id }, 202);
       const state = row.analysis_state;
       if (row.status !== "failed" || !state?.phase || (state.resume_count || 0) >= 2) throw new Failure("这份报告无法继续，请重新开始分析", 409);
-      const input = validateStart({ ...body, draft_id: row.draft_id, exam_id: state.original_exam_id ?? null, subject: row.subject });
+      const input = state.flow === "revision" ? revisionInput(row) : validateStart({ ...body, draft_id: row.draft_id, exam_id: state.original_exam_id ?? null, subject: row.subject });
       input.exam_context = state.exam_context;
-      if (await fingerprintFor(input) !== row.fingerprint) throw new Failure("资料与原请求不一致，请使用相同图片和页序", 409);
+      if (state.flow !== "revision" && await fingerprintFor(input) !== row.fingerprint) throw new Failure("资料与原请求不一致，请使用相同图片和页序", 409);
       const config = await configForReview();
       const oldClaim = state.claim; state.claim = crypto.randomUUID(); state.resume_count = (state.resume_count || 0) + 1; state.phase_started_at = new Date().toISOString();
       state.run_started_at = state.phase_started_at;
@@ -179,14 +179,32 @@ Deno.serve(async (req: Request) => {
     }
     if (body.action === "correct") {
       const report = await reportFor(user, body.request_id);
-      if (report.status !== "succeeded") throw new Failure("请等待分析完成", 409);
+      if (!report.result || report.status === "running") throw new Failure("请等待分析完成", 409);
       if (body.revision !== report.revision) throw new Failure("报告已更新，请重新打开后核对", 409);
       let corrections: any;
-      try { corrections = normalizeCorrections(body.corrections, report.result); } catch (e) { throw new Failure((e as Error).message); }
-      const changed = await query(() => db.from(TABLE).update({ corrections, revision: report.revision + 1 }).eq("request_id", report.request_id).eq("user_id", user).eq("revision", report.revision).select(PUBLIC_FIELDS).maybeSingle());
+      try {
+        const incoming = normalizeCorrections(body.corrections, report.result);
+        corrections = [...(report.corrections || []).filter((c: any) => !incoming.some((v: any) => v.id === c.id)), ...incoming];
+      } catch (e) { throw new Failure((e as Error).message); }
+      const state = revisionState(report.result, corrections);
+      const reanalyse = body.reanalyze === true && state.changed_labels.length > 0;
+      const count = report.result.update_count || 0;
+      if (reanalyse && count >= MAX_REPORT_UPDATES) throw new Failure("本报告的5次分析更新已用完，可继续保存核对记录", 409);
+      const config = reanalyse ? await configForReview() : null;
+      const patch: any = { corrections, revision: report.revision + 1,
+        result: { ...report.result, analysis_stale: state.changed_labels.length > 0, update_count: count + (reanalyse ? 1 : 0) } };
+      if (!reanalyse && report.status === "failed") Object.assign(patch, { status: "succeeded", analysis_state: {}, error_message: null, error_code: null, error_stage: null, progress: { phase: "completed", message: "核对已保存" } });
+      if (reanalyse) patch.result.original_readings = report.result.original_readings || report.result.questions.map((q: any) => ({ label: q.label, answer: q.answer, subparts: q.subparts || [], teacher_score: q.teacher_score, max_score: q.max_score, score_mark: q.score_mark || null }));
+      if (reanalyse) Object.assign(patch, { status: "running", completed_at: null, error_message: null, error_code: null, error_stage: null, error_detail: null, analysis_state: state, progress: progressFor(state) });
+      const changed = await query(() => db.from(TABLE).update(patch).eq("request_id", report.request_id).eq("user_id", user).eq("revision", report.revision).eq("status", report.status).select("*").maybeSingle());
       if (!changed) throw new Failure("报告已更新，请重新打开后核对", 409);
-      return out({ review: changed });
+      if (reanalyse) {
+        const input = revisionInput(changed);
+        background(runReviewStage(db, input, user, config, changed, state.claim, claim => dispatchStage(input, claim)));
+      }
+      return out({ review: Object.fromEntries(PUBLIC_FIELDS.split(",").filter(k => k in changed).map(k => [k, changed[k]])) }, reanalyse ? 202 : 200);
     }
+
     if (body.action === "delete") {
       const report = await reportFor(user, body.request_id);
       if (report.status === "running") throw new Failure("请等待本次分析结束后删除", 409);
