@@ -8,6 +8,7 @@ const ATTEMPT_FIELDS = ["stage", "attempt", "started_at", "timeout_ms", "max_tok
 
 export function paperFailure(code: string, status = 0) {
   const messages: Record<string, string> = {
+    worker_deadline: "本轮执行已中断，进度已保存，可点击恢复分析继续",
     upstream_timeout: "AI 未能在本阶段时限内完成，已保留排查记录，请稍后重试",
     reasoning_not_supported: "当前 AI 服务不支持所需的推理配置，请联系管理员检查模型设置",
     upstream_network_error: "连接 AI 服务时发生网络中断，请稍后重试",

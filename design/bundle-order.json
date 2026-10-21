@@ -48,5 +48,6 @@
   "author-support.js",
   "participant-defaults.js",
   "exam-averages.js",
+  "paper-review-support.js",
   "paper-review.js"
 ]

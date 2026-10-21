@@ -4,8 +4,9 @@ import { readDatabase } from "../score-tracker-vision-preview/reliability.ts";
 import { MAX_BODY, UUID, text, validateStart, normalizeCorrections } from "./model.ts";
 import { examContext } from "./learner.ts";
 import { paperFailure } from "./audit.ts";
-import { runReviewStage, initialState, progressFor, revisionInput, revisionState, MAX_REPORT_UPDATES } from "./pipeline.ts";
+import { runReviewStage, initialState, progressFor, revisionInput, revisionState, MAX_REPORT_UPDATES, canRecoverText, checkpointInput, recoveryInfo } from "./pipeline.ts";
 
+const WORKER_STARTED_AT = Date.now();
 const db = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "", { auth: { persistSession: false, autoRefreshToken: false } });
 const TABLE = "score_tracker_paper_reviews";
 const PUBLIC_FIELDS = "request_id,draft_id,exam_id,subject,status,created_at,completed_at,result,corrections,revision,error_message,error_code,error_stage,duration_ms,progress";
@@ -51,10 +52,14 @@ async function reportFor(user: string, id: string) {
   if (!report) throw new Failure("报告不存在或已删除", 404);
   if (report.status === "running" && Date.now() - Date.parse(report.progress?.updated_at || report.created_at) > 240000) {
     const expired = await query(() => db.from(TABLE).update({ status: "failed", completed_at: new Date().toISOString(),
-      error_code: "analysis_incomplete", error_stage: "background", duration_ms: Date.now() - Date.parse(report.created_at),
+      error_code: "analysis_incomplete", error_stage: "background",
       error_message: paperFailure("analysis_incomplete") }).eq("request_id", id).eq("user_id", user).eq("status", "running").select("request_id").maybeSingle());
     if (expired) console.error("paper_review_incomplete", JSON.stringify({ request_id: id, code: "analysis_incomplete", stage: "background" }));
     report = await query(() => db.from(TABLE).select(PUBLIC_FIELDS).eq("request_id", id).eq("user_id", user).maybeSingle());
+  }
+  if (report.status === "failed") {
+    const privateRow = await query(() => db.from(TABLE).select("analysis_state").eq("request_id", id).eq("user_id", user).maybeSingle());
+    report.recovery = recoveryInfo(privateRow || {});
   }
   return report;
 }
@@ -65,7 +70,7 @@ async function configForReview() {
   let url: URL;
   try { url = new URL(config.base_url); } catch { throw new Failure("分析服务配置暂不可用", 503); }
   if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) throw new Failure("分析服务配置暂不可用", 503);
-  return config;
+  return { ...config, stage_deadline: WORKER_STARTED_AT + 140000 };
 }
 async function fingerprintFor(input: any) { return sha(JSON.stringify({ subject: input.subject, draft: input.draft_id, exam: input.exam_id, work_on_paper: input.work_on_paper, pages: input.pages, exam_context: examContext(input.exam_context, input.exam_context?.source) })); }
 async function dispatchStage(input: any, claim: string) {
@@ -93,12 +98,12 @@ Deno.serve(async (req: Request) => {
       if (!UUID.test(body.request_id || "") || !UUID.test(body.claim || "")) throw new Failure("分析编号无效");
       const row = await query(() => db.from(TABLE).select("*").eq("request_id", body.request_id).maybeSingle());
       if (!row || row.status !== "running" || row.analysis_state?.claim !== body.claim) return out({ accepted: false }, 202);
-      const input = row.analysis_state.flow === "revision" ? revisionInput(row) : validateStart({ ...body, draft_id: row.draft_id, exam_id: row.exam_id, subject: row.subject, consent: true });
+      const input: any = row.analysis_state.flow === "revision" ? revisionInput(row) : row.analysis_state.text_recovery && canRecoverText(row.analysis_state) ? checkpointInput(row) : validateStart({ ...body, draft_id: row.draft_id, exam_id: row.exam_id, subject: row.subject, consent: true });
       // Use the original attachment scope even if the user saved the exam mid-analysis.
       input.exam_context = row.analysis_state.exam_context;
       const scope = row.analysis_state.original_exam_id;
       if (scope !== undefined) input.exam_id = scope;
-      if (row.analysis_state.flow !== "revision" && await fingerprintFor(input) !== row.fingerprint) throw new Failure("分析资料与原请求不一致", 409);
+      if (row.analysis_state.flow !== "revision" && !input.text_recovery && await fingerprintFor(input) !== row.fingerprint) throw new Failure("分析资料与原请求不一致", 409);
       const config = await configForReview();
       background(runReviewStage(db, input, row.user_id, config, row, body.claim, claim => dispatchStage(input, claim)));
       return out({ accepted: true }, 202);
@@ -116,10 +121,14 @@ Deno.serve(async (req: Request) => {
       if (row.status === "running") return out({ request_id: row.request_id }, 202);
       const state = row.analysis_state;
       if (row.status !== "failed" || !state?.phase || (state.resume_count || 0) >= 2) throw new Failure("这份报告无法继续，请重新开始分析", 409);
-      const input = state.flow === "revision" ? revisionInput(row) : validateStart({ ...body, draft_id: row.draft_id, exam_id: state.original_exam_id ?? null, subject: row.subject });
+      const recoverSaved = canRecoverText(state) && (state.text_recovery || body.mode === "saved" || !body.pages?.length);
+      let input: any;
+      try { input = state.flow === "revision" ? revisionInput(row) : recoverSaved ? checkpointInput(row) : validateStart({ ...body, draft_id: row.draft_id, exam_id: state.original_exam_id ?? null, subject: row.subject }); }
+      catch (e) { throw new Failure((e as Error).message); }
       input.exam_context = state.exam_context;
-      if (state.flow !== "revision" && await fingerprintFor(input) !== row.fingerprint) throw new Failure("资料与原请求不一致，请使用相同图片和页序", 409);
+      if (state.flow !== "revision" && !recoverSaved && await fingerprintFor(input) !== row.fingerprint) throw new Failure("资料与原请求不一致，请使用相同图片和页序", 409);
       const config = await configForReview();
+      if (recoverSaved) { state.text_recovery = true; state.source_input ||= { work_on_paper: input.work_on_paper, pages: input.pages.map((p: any) => ({ page: p.page, role: p.role })) }; }
       const oldClaim = state.claim; state.claim = crypto.randomUUID(); state.resume_count = (state.resume_count || 0) + 1; state.phase_started_at = new Date().toISOString();
       state.run_started_at = state.phase_started_at;
       if (state.phase === "verify" && /upstream_timeout|model_output_truncated/.test(row.error_code || "")) state.verification_batch_limit ||= Math.max(1, Math.min(5, Math.floor(state.evidence.questions.length / 2)));
@@ -153,7 +162,7 @@ Deno.serve(async (req: Request) => {
       }
       console.log("paper_review_request", JSON.stringify({ request_id: requestId, action, stage: reserved.created ? "accepted" : "deduplicated", http_status: 202, duration_ms: Date.now() - startedAt }));
       if (reserved.created) {
-        const state = { ...initialState(input.work_on_paper || input.pages.some((p: any) => p.role === "work")), original_exam_id: input.exam_id, exam_context: input.exam_context };
+        const state = { ...initialState(input.work_on_paper || input.pages.some((p: any) => p.role === "work")), original_exam_id: input.exam_id, exam_context: input.exam_context, source_input: { work_on_paper: input.work_on_paper, pages: input.pages.map((p: any) => ({ page: p.page, role: p.role })) } };
         const row = await query(() => db.from(TABLE).update({ analysis_state: state, progress: progressFor(state) }).eq("request_id", input.request_id).eq("user_id", user).eq("status", "running").select("*").single());
         const task = background(runReviewStage(db, input, user, config, row, state.claim, claim => dispatchStage(input, claim)));
         if (typeof EdgeRuntime === "undefined") await task;

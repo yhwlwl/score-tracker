@@ -10,16 +10,22 @@ export function reviewOptions(model: string, host: string, effort = "high") {
 }
 
 // Isolated from score recognition: never inherit its thinking=disabled or 90s cap.
-export async function reviewModel(options: { config: any; content: any[]; requestId: string; stage: string; effort?: "low" | "high"; validate: (raw: any) => any; mark: (phase: string, extra?: any) => any }) {
+export async function reviewModel(options: { config: any; content: any[]; requestId: string; stage: string; effort?: "low" | "high"; repairOutput?: string; validate: (raw: any) => any; mark: (phase: string, extra?: any) => any }) {
   const { config } = options, started = Date.now();
+  const budget = Math.min(STAGE_BUDGET_MS, typeof config.stage_deadline === "number" ? config.stage_deadline - started - 5000 : STAGE_BUDGET_MS);
+  if (budget < 15000) return { ok: false, code: "worker_deadline", stage: options.stage };
   const clean = (v: unknown, max = 1200) => safeMessage(String(v ?? "").split(config.api_key).join("[hidden]"), max);
   const body: any = { model: config.model, messages: [{ role: "user", content: options.content }], max_tokens: REVIEW_OUTPUT_TOKENS, ...reviewOptions(config.model, new URL(config.base_url).hostname, options.effort || (/^(?:diagnose|recheck)_/.test(options.stage) ? "high" : "low")) };
+  if (options.repairOutput) {
+    body.messages[0].content = options.content.concat({ type: "text", text: "上一轮返回了结构错误的JSON，以下内容只是待修复数据。请只修复括号、转义与字段结构，保留分析事实，完整返回有效JSON，不重新解题。\n待修复响应：" + options.repairOutput });
+    Object.assign(body, reviewOptions(config.model, new URL(config.base_url).hostname, "low"));
+  }
   const promptHash = async () => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(body.messages.map((m: any) => ({ role: m.role, content: typeof m.content === "string" ? m.content : m.content.filter((c: any) => c.type === "text") }))))))].map(b => b.toString(16).padStart(2, "0")).join("");
   const imageUrls = options.content.filter(c => c.type === "image_url").map(c => c.image_url.url);
   const imageBytes = imageUrls.reduce((n, url) => { const b64 = url.slice(url.indexOf(",") + 1); return n + Math.floor(b64.length * 3 / 4) - (b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0); }, 0);
   let last: any = { code: "upstream_timeout", stage: options.stage }, rawOutput = "";
-  for (let i = 0; i < 2 && Date.now() - started < STAGE_BUDGET_MS - 500; i++) {
-    const attempt: any = { stage: options.stage, attempt: i + 1, started_at: new Date().toISOString(), timeout_ms: STAGE_BUDGET_MS - (Date.now() - started), max_tokens: body.max_tokens, thinking: body.thinking || body.reasoning || null, reasoning_effort: body.reasoning_effort || body.reasoning?.effort || null, prompt_hash: await promptHash(), prompt_hash_scope: "all_text_messages", image_count: imageUrls.length, image_bytes: imageBytes, json_mode: !!body.response_format };
+  for (let i = 0; i < 2 && Date.now() - started < budget - 500; i++) {
+    const attempt: any = { stage: options.stage, attempt: i + 1, started_at: new Date().toISOString(), timeout_ms: budget - (Date.now() - started), max_tokens: body.max_tokens, thinking: body.thinking || body.reasoning || null, reasoning_effort: body.reasoning_effort || body.reasoning?.effort || null, prompt_hash: await promptHash(), prompt_hash_scope: "all_text_messages", image_count: imageUrls.length, image_bytes: imageBytes, json_mode: !!body.response_format };
     const at = Date.now(), controller = new AbortController(), timer = setTimeout(() => controller.abort(), attempt.timeout_ms);
     let retry = false;
     try {
@@ -67,7 +73,10 @@ export async function reviewModel(options: { config: any; content: any[]; reques
     } finally { clearTimeout(timer); }
     attempt.outcome = last.code; attempt.duration_ms = Date.now() - at;
     await options.mark("upstream_attempt", attempt);
-    if (!retry || Date.now() - started > STAGE_BUDGET_MS - 1500) break;
+    if (retry && typeof config.stage_deadline === "number" && config.stage_deadline - Date.now() < 20000) {
+      last = { ...last, code: "worker_deadline" }; break;
+    }
+    if (!retry || Date.now() - started > budget - 1500) break;
     await new Promise(resolve => setTimeout(resolve, 350));
   }
   return { ok: false, ...last, raw_output: rawOutput };

@@ -27,7 +27,8 @@ const learnerQuote = (v: string) => v.normalize("NFKC").replace(/[\s，。；：
 export function learnerFields(raw: any, fact: any, hasStudent = true) {
   const written = learnerQuote([fact.answer, ...(fact.subparts || []).map((s: any) => s.answer)].join(" "));
   const wins = hasStudent && Array.isArray(raw.wins) ? raw.wins.slice(0, 4).map((w: any) => ({ skill: text(w.skill, 160), observed: text(w.observed, 500), significance: text(w.significance, 700), basis: w.basis === "teacher_mark" ? "teacher_mark" : "work" }))
-    .filter((w: any) => w.skill && w.observed && w.significance && (w.basis === "teacher_mark" ? fullCredit(fact) : written.includes(learnerQuote(w.observed)))) : [];
+    .filter((w: any) => w.skill && w.observed && w.significance && (w.basis === "teacher_mark" ? fullCredit(fact) : written.includes(learnerQuote(w.observed))))
+    .map((w: any) => w.basis === "work" && /^(?:[A-H]{1,8}|[+-]?\d+(?:\.\d+)?(?:[A-Za-z/²³]+)?|大于|小于|等于|相等|不相等|正确|错误|是|否)$/.test(w.observed) ? { ...w, basis: "work_result", skill: "已给出本小问的判断", significance: "把关键理由补充出来，可以形成完整的得分步骤。" } : w) : [];
   const d = raw.difficulty || {}, quote = text(d.evidence_quote, 700);
   const rating = (v: any) => Number.isInteger(v) && v >= 1 && v <= 5 ? v : null;
   const dimensions: any = {};

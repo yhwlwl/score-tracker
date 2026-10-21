@@ -76,7 +76,13 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
       validate = raw => assembleReport(raw, state.evidence, input, state.diagnoses);
     } else throw new Error("unknown_pipeline_stage");
     const effort = batch.length && (batch.every((q: any) => fullCredit(q) || needsConfirmation(q)) || batch.length === 1 && state.focused_retries?.includes(batch[0].label)) ? "low" : undefined;
-    outcome = await reviewModel({ config, content: [{ type: "text", text: promptText }, ...(state.phase === "synthesize" || state.flow === "revision" ? [] : imageContent(input, selected))], requestId: input.request_id, stage, effort, validate, mark: audit.mark });
+    outcome = await reviewModel({ config, content: [{ type: "text", text: promptText }, ...(state.phase === "synthesize" || (state.flow === "revision" || state.text_recovery) ? [] : imageContent(input, selected))], requestId: input.request_id, stage, effort, repairOutput: state.pending_repair?.stage === stage ? state.pending_repair.text : undefined, validate, mark: audit.mark });
+    const handoff = !outcome.ok && outcome.code === "worker_deadline" && (state.deadline_handoffs || 0) < 3;
+    if (handoff) {
+      state.deadline_handoffs = (state.deadline_handoffs || 0) + 1;
+      if (outcome.raw_output && /invalid_model_output|JSON|property|token/i.test(outcome.detail || "")) state.pending_repair = { stage, text: outcome.raw_output };
+      await audit.mark("worker_deadline_checkpoint");
+    }
     const verifyRecovery = state.phase === "verify" && !outcome.ok && /upstream_timeout|model_output_truncated|invalid_model_output/.test(outcome.code);
     if (verifyRecovery) {
       if (!state.verification_batch_limit) state.verification_batch_limit = Math.max(1, Math.min(5, Math.floor(state.evidence.questions.length / 2)));
@@ -100,7 +106,8 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
       outcome.result = normalizeDiagnoses({ questions: [{ label: q.label, reference: q.provided_reference || "", reference_source: q.provided_reference ? "provided" : "ai", correct_steps: [], first_issue: { certainty: "uncertain" }, loss_reason: "暂未得到可靠诊断，不判断具体失分原因", suggestion: "请补充本题参考答案，或先与老师核对关键条件和作答后再复盘", uncertainties: ["本题解答尚待核验"], review_status: "unresolved" }] }, batch);
       await audit.mark("question_analysis_unresolved");
     }
-    if (verifyRecovery && !outcome.ok) { /* Save progress and continue with fewer independent readings. */ }
+    if (handoff) { /* Persist before the instance expires, then continue with another delivery. */ }
+    else if (verifyRecovery && !outcome.ok) { /* Save progress and continue with fewer independent readings. */ }
     else if (focusRetry) { /* Continue the same question once with a shorter, still-thinking pass. */ }
     else if (!outcome.ok && /upstream_timeout|model_output_truncated|invalid_model_output/.test(outcome.code) && batch.length > 1) {
       state.batch_limit = 1;
@@ -141,6 +148,7 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
       await readDatabase(() => db.from(REVIEW_TABLE).update({ analysis_state: {}, progress: { version: 2, phase: "completed", updated_at: new Date().toISOString(), message: state.flow === "revision" ? "分析已更新" : "报告已完成" } }).eq("request_id", input.request_id).eq("user_id", user).eq("status", "succeeded"));
       return;
     }
+    if (outcome.ok || outcome.partial) { delete state.pending_repair; delete state.deadline_handoffs; }
     state.claim = crypto.randomUUID();
     state.active_ms = (state.active_ms || 0) + Date.now() - stageStarted;
     if (state.phase !== phaseBefore || state.phase === "diagnose") state.phase_started_at = new Date().toISOString();
@@ -199,4 +207,24 @@ export function revisionState(report: any, corrections: any[]) {
     score_groups: report.score_groups || [], context: report.context || [], warnings: [], score_check: checkScores(questions, report.total || { score: null, max: null }, report.complete) };
   return { ...initialState(), flow: "revision", phase: "diagnose", changed_labels: changed, evidence, verification_done: true,
     diagnoses: report.questions.filter((q: any) => !changed.includes(q.label)), exam_context: report.exam_context };
+}
+
+export function canRecoverText(state: any) {
+  return !!state?.evidence?.questions?.length && ["diagnose", "recheck", "synthesize"].includes(state.phase)
+    && (state.verification_done === true || state.has_work === false)
+    && state.evidence.questions.every((q: any) => typeof q.label === "string" && typeof q.stem === "string" && q.stem);
+}
+export function checkpointInput(row: any) {
+  const state = row.analysis_state, source = state.source_input;
+  const meta = source?.pages || row.image_meta || [];
+  const pages = meta.length ? meta.map((p: any) => ({ page: p.page, role: p.role, url: "" })) : [{ page: 1, role: "paper", url: "" }];
+  return { request_id: row.request_id, draft_id: row.draft_id, exam_id: state.original_exam_id ?? row.exam_id ?? null,
+    subject: row.subject, pages, work_on_paper: source?.work_on_paper ?? state.has_work !== false,
+    exam_context: state.exam_context, text_recovery: true };
+}
+export function recoveryInfo(row: any) {
+  const state = row.analysis_state || {}, available = !!state.phase && (state.resume_count || 0) < 2;
+  return { available, mode: state.flow === "revision" || canRecoverText(state) ? "saved" : "images",
+    completed: state.diagnoses?.length || 0, total: state.evidence?.questions?.length || 0,
+    questions: (state.evidence?.questions || []).map((q: any) => ({ label: q.label, stem: q.stem, answer: q.answer, teacher_score: q.teacher_score, max_score: q.max_score })) };
 }
