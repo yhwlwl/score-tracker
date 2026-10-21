@@ -4,6 +4,18 @@ const {harness,input,stagedReply,raw}=require('./test-paper-review.cjs');
 const root=path.resolve(__dirname,'..');
 (async()=>{
   const h=harness();await h.init();
+  const {uid,examId}=require('./test-paper-review.cjs'), newDraft=crypto.randomUUID();
+  const listRows=[
+    {request_id:'old-unattached',user_id:uid,draft_id:input.draft_id,exam_id:null,subject:input.subject},
+    {request_id:'current-exam',user_id:uid,draft_id:input.draft_id,exam_id:examId,subject:input.subject},
+    {request_id:'other-exam',user_id:uid,draft_id:input.draft_id,exam_id:crypto.randomUUID(),subject:input.subject},
+    {request_id:'other-owner',user_id:crypto.randomUUID(),draft_id:input.draft_id,exam_id:null,subject:input.subject},
+    {request_id:'other-subject',user_id:uid,draft_id:input.draft_id,exam_id:null,subject:'历史'}
+  ];h.tables.score_tracker_paper_reviews.push(...listRows);
+  async function listed(exam_id){const response=await h.call({action:'list',draft_id:newDraft,subject:input.subject,exam_id});assert.equal(response.status,200);return (await response.json()).reviews.map(r=>r.request_id).sort();}
+  assert.deepEqual(await listed(null),['old-unattached'],'new browser draft finds this account’s unattached report');
+  assert.deepEqual(await listed(examId),['current-exam','old-unattached'],'saved exam includes unattached reports but not another exam or owner');
+  h.tables.score_tracker_paper_reviews.length=0;
   h.transport=(url,options)=>{
     const request=JSON.parse(options.body),prompt=request.messages[0].content[0].text;
     if(prompt.includes('阶段二：')&&JSON.parse(prompt.split('本批事实：')[1].split('\n')[0]).some(q=>q.label==='2'))return new Response(JSON.stringify({error:{message:'unauthorized'}}),{status:401});

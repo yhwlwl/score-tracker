@@ -36,7 +36,7 @@ function harness() {
   const db = { from(table) {
     let filters = [], action = 'select', value, single = false, sort, maximum, columns;
     const q = { select(fields) { columns=fields;return q; }, eq(k,v) { filters.push(r=>k.includes('->>')?r[k.split('->>')[0]]?.[k.split('->>')[1]]===v:r[k]===v); return q; }, is(k,v) { filters.push(r=>(r[k]??null)===v);return q; }, in(k,v) { filters.push(r=>v.includes(r[k]));return q; },
-      or(scope) { filters.push(r=>scope.includes(r.exam_id||'__none') || scope.includes(r.draft_id||'__none'));return q; }, order(k) { sort=k;return q; }, limit(n) { maximum=n;return q; }, update(v) { action='update';value=v;return q; }, delete() { action='delete';return q; }, single() { single=true;return run(); }, maybeSingle() { single=true;return run(); }, then(a,b) { return run().then(a,b); } };
+      or(scope) { filters.push(r=>scope.split(',').some(term=>{const [key,op,...rest]=term.split('.'),value=rest.join('.');return op==='is'&&value==='null'?r[key]==null:op==='eq'&&r[key]===value;}));return q; }, order(k) { sort=k;return q; }, limit(n) { maximum=n;return q; }, update(v) { action='update';value=v;return q; }, delete() { action='delete';return q; }, single() { single=true;return run(); }, maybeSingle() { single=true;return run(); }, then(a,b) { return run().then(a,b); } };
     async function run() {
       let found = (tables[table] || []).filter(r=>filters.every(f=>f(r)));
       calls.push(table);

@@ -274,8 +274,8 @@
     }
     function history() {
       if (!tab('history')) return;
-      main.innerHTML = '<h3>本科目的分析记录</h3><p class="pr-muted">保存考试后，报告会关联到当前科目。试卷原图请留在自己的设备中。</p>' +
-        (reviews.length ? reviews.map(function (r) { return '<button type="button" class="pr-history" data-pr="report:' + r.request_id + '"><span>' + esc(new Date(r.created_at).toLocaleString('zh-CN')) + '</span><b>' + ({ running: '分析中', succeeded: '查看报告', failed: '未完成' })[r.status] + ' →</b></button>'; }).join('') : '<div class="pr-empty">还没有报告，上传这次考试的试卷试试。</div>');
+      main.innerHTML = '<h3>本科目的分析记录</h3><p class="pr-muted">显示本次考试的报告，以及本科目尚未关联考试的报告。试卷原图请留在自己的设备中。</p>' +
+        (reviews.length ? reviews.map(function (r) { return '<button type="button" class="pr-history" data-pr="report:' + r.request_id + '"><span>' + esc(new Date(r.created_at).toLocaleString('zh-CN')) + '<small class="pr-muted"> · ' + (r.exam_id ? '本次考试' : '未关联考试') + '</small></span><b>' + ({ running: '分析中', succeeded: '查看报告', failed: '未完成' })[r.status] + ' →</b></button>'; }).join('') : '<div class="pr-empty">还没有报告，上传这次考试的试卷试试。</div>');
     }
     async function refresh() {
       var responses = await Promise.allSettled([api(ctx, 'quota'), api(ctx, 'list', { draft_id: ctx.draftId, exam_id: ctx.examId || null, subject: subject })]);

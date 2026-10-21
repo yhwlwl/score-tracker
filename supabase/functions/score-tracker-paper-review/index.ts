@@ -174,7 +174,8 @@ Deno.serve(async (req: Request) => {
       if (!UUID.test(body.draft_id || "")) throw new Failure("草稿编号无效");
       if (body.exam_id) await ownedExam(user, body.exam_id);
       const subject = text(body.subject, 40);
-      const scope = body.exam_id ? `exam_id.eq.${body.exam_id},and(draft_id.eq.${body.draft_id},exam_id.is.null)` : `draft_id.eq.${body.draft_id}`;
+      // Unattached reports belong to the account, not to one browser's local draft ID.
+      const scope = body.exam_id ? `exam_id.eq.${body.exam_id},exam_id.is.null` : "exam_id.is.null";
       const reviews = await query(() => db.from(TABLE).select("request_id,subject,status,created_at,exam_id").eq("user_id", user).eq("subject", subject).or(scope).order("created_at", { ascending: false }).limit(20));
       return out({ reviews });
     }
