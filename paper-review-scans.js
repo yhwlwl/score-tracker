@@ -52,7 +52,7 @@
       if (!file.files.length) return; var message = panel.querySelector('.ps-upload-note'); file.disabled = true;
       try {
         if (!panel.querySelector('[data-scan-consent]').checked) throw new Error('请先确认保存扫描件');
-        if (pages.length >= 8) throw new Error('本份报告已保存8页扫描件');
+        if (pages.length >= 15) throw new Error('本份报告已保存15张扫描件');
         message.textContent = '正在保存扫描件…'; var p = await window.ScorePaperReview.prepare(file.files[0]);
         await api('save_materials', { consent: true, subject: r.subject, draft_id: r.draft_id, exam_id: r.exam_id, title: r.title, options: r.options });
         await api('upload_page', { page: pages.length+1, role: panel.querySelector('[data-add-kind]').value, url: p.url });

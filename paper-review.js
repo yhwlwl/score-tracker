@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var support = window.ScorePaperSupport;
-  var ENDPOINT = '/api/score-tracker-paper-review', MAX_PAGES = 8;
+  var ENDPOINT = '/api/score-tracker-paper-review', MAX_PAGES = 15;
   var roleNames = { paper: '试卷', work: '答题卡 / 作答', reference: '参考答案' };
   var esc = function (v) { return escapeHtml(String(v == null ? '' : v)); };
   function number(v) { return v === '' || v == null || !Number.isFinite(Number(v)) ? null : Number(v); }
@@ -286,11 +286,11 @@
             return '<article class="pr-page"><img src="' + p.url + '" alt="' + esc(roleNames[role] + '第' + (pages.indexOf(p) + 1) + '页') + '"><div class="pr-page-info">第 ' + (i + 1) + ' 页 · ' + esc(p.name) + '</div><div class="pr-page-actions">' + button('前移', 'up:' + i) + button('旋转', 'rotate:' + i) + button('移除', 'remove:' + i) + '</div></article>';
           }).join('') + '</div></section>';
         }).join('') + '<label class="pr-check"><input type="checkbox" id="pr-work" ' + (session.workOnPaper ? 'checked' : '') + '>试卷图片中包含我的作答 / 老师批改</label>' +
-        '<details class="pr-help"><summary>上传与分析说明</summary><p>支持 JPG、PNG、WebP，共 1～8 页，每张原图不超过 10MB。拍清题号、文字、步骤和批改痕迹，裁掉姓名、考号等信息。PDF 请先转成图片。</p><p>看不清会标为待核对；AI 估分与老师批改分分开显示，不会自动填入考试成绩。无作答时仅整理题目。编辑中的图片会暂存在当前设备7天。提交后扫描件和录入内容保存到当前账号，可跨设备查看和恢复；删除报告会同时删除扫描件。</p><p>试用次数独立于成绩识图。开始分析后计次，失败也计次；重复提交同一请求、查看和手动核对不重复计次。北京时间每天 0 点重置。</p></details>' +
-        '<label class="pr-check pr-consent"><input type="checkbox" id="pr-consent" ' + (session.consent ? 'checked' : '') + '>同意将这些图片及本次分数、排名等考试数值发送给第三方 AI 服务分析，并在账号内保存扫描件与报告</label><div class="pr-footer"><span>' + session.pages.length + ' / 8 页</span>' + button(session.resumeTarget ? '恢复这份分析' : session.pending ? (session.retrySubmission ? '继续确认本次分析' : '查看进行中的分析') : busy ? '处理图片中…' : '开始分析', session.resumeTarget ? 'resume' : 'start', 'pr-primary') + '</div>';
+        '<details class="pr-help"><summary>上传与分析说明</summary><p>支持 JPG、PNG、WebP，共 1～' + MAX_PAGES + ' 张，每张原图不超过 10MB。拍清题号、文字、步骤和批改痕迹，裁掉姓名、考号等信息。PDF 请先转成图片。</p><p>看不清会标为待核对；AI 估分与老师批改分分开显示，不会自动填入考试成绩。无作答时仅整理题目。编辑中的图片会暂存在当前设备7天。提交后扫描件和录入内容保存到当前账号，可跨设备查看和恢复；删除报告会同时删除扫描件。</p><p>试用次数独立于成绩识图。开始分析后计次，失败也计次；重复提交同一请求、查看和手动核对不重复计次。北京时间每天 0 点重置。</p></details>' +
+        '<label class="pr-check pr-consent"><input type="checkbox" id="pr-consent" ' + (session.consent ? 'checked' : '') + '>同意将这些图片及本次分数、排名等考试数值发送给第三方 AI 服务分析，并在账号内保存扫描件与报告</label><div class="pr-footer"><span>' + session.pages.length + ' / ' + MAX_PAGES + ' 张</span>' + button(session.resumeTarget ? '恢复这份分析' : session.pending ? (session.retrySubmission ? '继续确认本次分析' : '查看进行中的分析') : busy ? '处理图片中…' : '开始分析', session.resumeTarget ? 'resume' : 'start', 'pr-primary') + '</div>';
       main.querySelectorAll('input[type=file]').forEach(function (input) { input.onchange = async function () {
         var files = Array.from(input.files || []); if (!files.length || busy) return;
-        if (files.length + session.pages.length > MAX_PAGES) return note('每次最多 8 页，请先移除多余图片', true);
+        if (files.length + session.pages.length > MAX_PAGES) return note('每次最多 ' + MAX_PAGES + ' 张，请先移除多余图片', true);
         busy = true; note('正在处理图片…'); upload();
         try {
           var added = [];

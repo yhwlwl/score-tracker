@@ -1,6 +1,20 @@
 const assert=require('node:assert/strict'),vm=require('node:vm');
 const {harness,uid,examId,input,rid}=require('./test-paper-review.cjs');
 (async()=>{
+ const cap=harness();await cap.init();
+ assert.equal(vm.runInContext('validateStart({...limitInput,pages:Array.from({length:15},()=>limitInput.pages[0])}).pages.length',Object.assign(cap.scope,{limitInput:input})),15);
+ assert.throws(()=>vm.runInContext('validateStart({...limitInput,pages:Array.from({length:16},()=>limitInput.pages[0])})',cap.scope),/1～15/);
+ const capCall=async(body,status=200)=>{const response=await cap.call(body);const data=await response.json();assert.equal(response.status,status,JSON.stringify(data));return data;};
+ await capCall({action:'save_materials',...input,options:{purpose:'record'}});
+ for(let page=1;page<=15;page++)await capCall({action:'upload_page',request_id:rid,page,role:page===1?'paper':'work',url:input.pages[0].url});
+ assert.equal((await capCall({action:'sources',request_id:rid})).pages.length,15);
+ await capCall({action:'upload_page',request_id:rid,page:16,role:'work',url:input.pages[0].url},400);
+ await capCall({action:'save_materials',...input,page_count:10,options:{purpose:'record'}});
+ assert.equal(cap.blobs.size,10,'shortening a draft above the old 8-page limit removes only trailing pages');
+ for(let page=11;page<=15;page++)await capCall({action:'upload_page',request_id:rid,page,role:'work',url:input.pages[0].url});
+ await capCall({action:'start',request_id:rid,use_saved:true,consent:true,work_on_paper:true},202);await cap.drain();
+ assert.equal(cap.tables.score_tracker_paper_reviews[0].status,'succeeded','15 saved scans can start and complete the reading pipeline');
+ console.log('PASS: 15-image upload, 16th-image rejection, 10-page draft truncation, saved scans and analysis start');
  const h=harness();await h.init();
  const call=async(body,status=200)=>{const res=await h.call(body);const data=await res.json();assert.equal(res.status,status,JSON.stringify({body:{action:body.action},data}));return data};
  const options={purpose:'record',modules:[],review_before_analysis:true,time_budget_minutes:3,detail:'brief'};

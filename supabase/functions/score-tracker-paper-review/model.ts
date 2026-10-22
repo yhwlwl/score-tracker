@@ -1,6 +1,8 @@
 import { reviewSettings } from "./options.ts";
 // Bounded, evidence-first contract. AI output is untrusted data, never HTML or SQL.
-export const MAX_PAGES = 8;
+export const MAX_PAGES = 15;
+export const MAX_IMAGE_DATA = MAX_PAGES * 2800000;
+export const MAX_MATERIAL_BYTES = MAX_PAGES * 2100000;
 export const MAX_BODY = 12500000;
 export const ROLES = ["paper", "work", "reference"];
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -19,7 +21,7 @@ export function validateStart(body: any) {
   const subject = text(body.subject, 40);
   if (!subject || subject !== body.subject) throw new Error("请先选择科目");
   if (body.consent !== true) throw new Error("请确认将图片发送给 AI 分析服务");
-  if (!Array.isArray(body.pages) || !body.pages.length || body.pages.length > MAX_PAGES) throw new Error("每次请选择 1～8 张图片");
+  if (!Array.isArray(body.pages) || !body.pages.length || body.pages.length > MAX_PAGES) throw new Error(`每次请选择 1～${MAX_PAGES} 张图片`);
   let length = 0;
   const pages = body.pages.map((p: any, i: number) => {
     if (!ROLES.includes(p?.role) || typeof p.url !== "string" || p.url.length > 2800000 || !/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(p.url)) throw new Error("图片格式或大小不正确，请使用 JPG、PNG、WebP");
@@ -41,7 +43,7 @@ export function validateStart(body: any) {
     length += p.url.length;
     return { role: p.role, page: i + 1, url: p.url, ...(regions.length ? { regions } : {}) };
   });
-  if (length > 12000000) throw new Error("图片总大小过大，请减少页数后重试");
+  if (length > MAX_IMAGE_DATA) throw new Error("图片总大小过大，请压缩图片后重试");
   if (!pages.some((p: any) => p.role === "paper")) throw new Error("请上传至少一张试卷题目图片");
   return { subject, pages, options: reviewSettings(body.options), draft_id: body.draft_id, exam_id: body.exam_id || null, request_id: body.request_id, work_on_paper: body.work_on_paper === true };
 }

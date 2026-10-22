@@ -1,4 +1,4 @@
-import { UUID, validateStart, text, number } from './model.ts';
+import { UUID, validateStart, text, number, MAX_PAGES, MAX_MATERIAL_BYTES } from './model.ts';
 import { reviewSettings, scanRegions } from './options.ts';
 const MATERIALS = 'score_tracker_paper_materials', SCAN_BUCKET = 'score-tracker-paper-scans';
 export class WorkspaceError extends Error { status: number; constructor(message: string, status = 400) { super(message); this.status = status; } }
@@ -59,7 +59,7 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
         title: text(body.title, 100), options: reviewSettings(body.options), pages: [], submitted: !!row }));
     } else if (!row) {
       const count = body.page_count;
-      const pages = Number.isInteger(count) && count >= 1 && count <= 8 ? m.pages.slice(0, count) : m.pages;
+      const pages = Number.isInteger(count) && count >= 1 && count <= MAX_PAGES ? m.pages.slice(0, count) : m.pages;
       const changed = await materialQuery(db.from(MATERIALS).update({ title: text(body.title, 100), subject, exam_id: body.exam_id || null, options: reviewSettings(body.options), pages, revision: m.revision + 1 }).eq('request_id', body.request_id).eq('user_id', user).eq('revision', m.revision).select('request_id').maybeSingle());
       if (!changed) throw new WorkspaceError('资料已在另一处更新，请刷新后重试', 409);
       const removed = m.pages.slice(pages.length);
@@ -70,7 +70,7 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
   if (!row && !m) throw new WorkspaceError('记录不存在或无权访问', 404);
   if (action === 'upload_page') {
     if (!m || row?.status === 'running') throw new WorkspaceError('请先保存资料信息，或等待分析完成', 409);
-    const n = body.page; if (!Number.isInteger(n) || n < 1 || n > 8 || n > m.pages.length + 1) throw new WorkspaceError('请按页序上传，最多8页');
+    const n = body.page; if (!Number.isInteger(n) || n < 1 || n > MAX_PAGES || n > m.pages.length + 1) throw new WorkspaceError(`请按页序上传，最多${MAX_PAGES}张`);
     // Apply the same byte/signature checks used by analysis without allowing URLs.
     let p: any; try { p = validateStart({ request_id: body.request_id, draft_id: m.draft_id, subject: m.subject, consent: true, pages: [{ role: 'paper', url: body.url }] }).pages[0]; } catch (e) { throw new WorkspaceError((e as Error).message); }
     if (!['paper','work','reference'].includes(body.role)) throw new WorkspaceError('图片类别无效');
@@ -79,7 +79,7 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
     const path = `${user}/${body.request_id}/${n}-${crypto.randomUUID()}`;
     const pages = [...m.pages]; const previous = pages[n - 1];
     pages[n - 1] = { page: n, role: body.role, path, mime, bytes: bytes.length };
-    if (pages.reduce((sum: number, p: any) => sum + p.bytes, 0) > 8800000) throw new WorkspaceError('本份资料较大，请压缩图片或减少页数');
+    if (pages.reduce((sum: number, p: any) => sum + p.bytes, 0) > MAX_MATERIAL_BYTES) throw new WorkspaceError('本份资料较大，请压缩图片或减少页数');
     const r = await db.storage.from(SCAN_BUCKET).upload(path, bytes, { contentType: mime, upsert: false });
     if (r.error) throw new WorkspaceError('图片上传未完成，请重试', 503);
     try {
