@@ -37,6 +37,8 @@ const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png
    },{uid,examId,open});}
    await page.goto('http://127.0.0.1:'+server.address().port);await page.waitForFunction(()=>window.ScorePaperHub);await setup(true);
    await page.locator('.pr-entry').first().click();await page.locator('.ph-create').waitFor();
+   await page.waitForTimeout(100);
+   assert.equal(await page.locator('#dsbRoot').count(),0,'deferred deep-analysis mount must stay out of the AI tab');
    assert.equal(await page.locator('[data-analysis-tab=ai]').getAttribute('aria-selected'),'true');
    assert.equal(await page.locator('.ph-create [name=exam_id]').inputValue(),examId,'old entry carries exam association');
    await page.locator('[name=review_before_analysis]').check();await page.locator('[name=time_budget_minutes]').selectOption('3');await page.locator('[name=detail]').selectOption('brief');
@@ -65,11 +67,12 @@ const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png
    await page.locator('[data-filter=subject]').selectOption('历史');await page.waitForFunction(()=>document.querySelectorAll('.ph-card').length===1);assert((await page.locator('.ph-card').textContent()).includes('旧报告'));
    await page.locator('[data-filter=subject]').selectOption('');await page.waitForFunction(()=>document.querySelectorAll('.ph-card').length===2);
    await page.screenshot({path:path.join(output,device.name+'-all-reports.png')});
-   await page.locator('[data-analysis-tab=stats]').click();assert(await page.locator('.sv31-page').count());assert.equal(await page.locator('.ph-workspace').count(),0,'separate peer tab, not a card inserted in score analysis');
+   await page.locator('[data-analysis-tab=stats]').click();assert(await page.locator('.sv31-page').count());await page.locator('#dsbRoot').waitFor();assert.equal(await page.locator('.ph-workspace').count(),0,'separate peer tab, not a card inserted in score analysis');
    await page.locator('[data-analysis-tab=ai]').click();await page.locator('[data-hub="open:'+saved.request_id+'"]').click();await page.locator('.pr-result-top').waitFor();
    await page.getByRole('button',{name:'关联考试 / 名称',exact:true}).click();await page.locator('.ph-link-form [name=exam]').selectOption('');await page.getByRole('button',{name:'保存关联',exact:true}).click();await page.locator('.ph-message').filter({hasText:'关联已保存'}).waitFor();
    await page.reload();await page.waitForFunction(()=>window.ScorePaperHub);await setup(false);await page.locator('[data-hub="open:'+saved.request_id+'"]').click();await page.locator('.pr-result-top').waitFor();await page.locator('[data-question="2"]>summary').click();await page.locator('[data-question="2"] .ps-region').waitFor();
    assert.equal(await page.locator('.ps-library .ps-pages img').count(),1,'scans survive reload');assert.equal(h.tables.score_tracker_paper_reviews[0].exam_id,null);
+   assert.equal(await page.locator('#dsbRoot').count(),0,'deep analysis must not reappear after report reload');
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'no horizontal page overflow');assert.deepEqual(errors,[]);
    await page.screenshot({path:path.join(output,device.name+'-report.png')});await page.close();console.log('PASS',device.name,'entry, preferences, draft, OCR, scan crop, resume, 10-point report, tabs, archive, association, reload, no errors/overflow');
   }
