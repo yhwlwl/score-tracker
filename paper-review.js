@@ -99,7 +99,7 @@
   function difficultySections(q) {
     var d = q.difficulty; if (!d) return '';
     var names = { thinking: '思考 / 建模', calculation: '计算负担', reading: '信息整合', expression: '表达论证' };
-    return '<details class="pr-difficulty"><summary>题目挑战 ' + d.overall + ' / 5 · AI 估计</summary><p class="pr-text">' + esc(d.reason) + '</p><div class="pr-dimensions">' + Object.keys(names).map(function (axis) { var a = d.dimensions[axis]; return a && a.score != null ? '<span>' + names[axis] + ' <b>' + a.score + '/5</b><small>' + esc(a.reason) + '</small></span>' : ''; }).join('') + '</div><p class="pr-evidence">题目依据：' + esc(d.evidence_quote) + '</p></details>';
+    return '<details class="pr-difficulty"><summary>题目挑战 ' + d.overall + ' / ' + (d.scale || 5) + ' · AI 估计</summary><p class="pr-text">' + esc(d.reason) + '</p><div class="pr-dimensions">' + Object.keys(names).map(function (axis) { var a = d.dimensions[axis]; return a && a.score != null ? '<span>' + names[axis] + ' <b>' + a.score + '/' + (d.scale || 5) + '</b><small>' + esc(a.reason) + '</small></span>' : ''; }).join('') + '</div><p class="pr-evidence">题目依据：' + esc(d.evidence_quote) + '</p></details>';
   }
   function reflectionRoute(q, cause) {
     var h = q.cause_analysis && q.cause_analysis.hypotheses.find(function (h) { return h.kind === cause; });
@@ -107,7 +107,7 @@
     return { time: '先做不看答案的起步验证，区分会做但没时间与尚未掌握；能独立起步后，再记录限时重做的耗时。', idea: '从报告指出的正确前缀开始，只看一条起步提示，再遮住提示独立说出为什么这样选方法。', execution: '保留已列对的关系，分段完成计算或论证；每段检查条件、单位或材料依据，定位具体断点。', reading: '先复述题目要求和限制，再标出误读处；改一个条件，检查解法是否随之变化。', expression: '先口述完整理由，再对照题目要求补齐可评分的步骤或材料依据。', uncertain: '做完上面的小验证后，可以在这里补充当时卡住的位置。' }[cause] || '';
   }
   function causeSections(q, correction) {
-    var c = q.cause_analysis; if (q.analysis_mode === 'strength' || q.analysis_mode === 'needs_confirmation') return '';
+    var c = q.cause_analysis; if (!c || q.analysis_mode === 'strength' || q.analysis_mode === 'needs_confirmation') return '';
     var reflection = correction && correction.reflection, cause = reflection && reflection.cause || 'uncertain';
     return '<section class="pr-cause"><h4>找到更适合你的练法</h4>' + (c && c.observation ? '<p class="pr-text"><b>卷面能看到：</b>' + esc(c.observation) + '</p>' : '') +
       (c && c.hypotheses.length ? c.hypotheses.map(function (h) { return '<article><p class="pr-text"><b>先试一下：</b>' + esc(h.check) + '</p><details><summary>为什么做这个验证</summary><p>' + esc(h.explanation) + '</p><p class="pr-evidence">' + esc(h.evidence) + (h.counter_evidence ? '；' + esc(h.counter_evidence) : '') + '</p></details></article>'; }).join('') : '') +
@@ -130,6 +130,11 @@
     rank('本学科年排', 'year_rank', 'year_count'); rank('本学科班排', 'class_rank', 'class_count'); rank('总分年排', 'total_year_rank', 'total_year_count'); rank('总分班排', 'total_class_rank', 'total_class_count');
     return '<details class="pr-context"><summary>本次分析采用的考试信息</summary><p class="pr-muted">' + (c.source === 'saved_exam' ? '来自本账号已保存的考试数值。' : '来自开始分析时考试表单的数值。') + '原始分、最终分和不同范围的排名分别保留；不从排名推断具体失分原因。</p>' + bullets(lines) + '</details>';
   }
+  function settingsSection(report) {
+    var s = report.options; if (!s) return '';
+    var names = { strengths: '优势与得分步骤', difficulty: '题目难度', causes: '失分诊断', solutions: '关键解答', practice: '针对性练习', patterns: '跨题共性', plan: '复习计划' };
+    return '<details class="pr-context"><summary>本份报告的分析设置</summary><p>' + (s.purpose === 'record' ? '只录入题目、作答和批改' : (s.modules || []).map(function (k) { return names[k]; }).filter(Boolean).join(' · ')) + '</p><p>讲解：' + ({ brief: '简洁', standard: '标准', detailed: '详细' })[s.detail] + ' · 每轮时间预算：' + s.time_budget_minutes + ' 分钟</p>' + (s.goal ? '<p class="pr-text">学习目标：' + esc(s.goal) + '</p>' : '') + '</details>';
+  }
   function scoreBreakdown(report) {
     var scored = report.questions.filter(function (q) { return typeof q.teacher_score === 'number' && typeof q.max_score === 'number'; });
     var losses = scored.filter(function (q) { return q.teacher_score < q.max_score; }).sort(function (a, b) { return (b.max_score - b.teacher_score) - (a.max_score - a.teacher_score); });
@@ -142,10 +147,11 @@
     return { text: lines.join(''), count: scored.length, lost: lost };
   }
   function reportSections(report) {
+    if (report.record_only) return contextSections(report);
     var html = contextSections(report) + (report.presentation_version >= 3 ? positiveSections(report) : '') + '<section class="pr-insight"><h3>这次表现说明什么</h3>' + (/learner-v[1-6]$/.test(report.prompt_version || '') && scoreBreakdown(report).text ? '<p class="pr-text">' + esc(scoreBreakdown(report).text) + '</p><details><summary>查看原综合评价</summary><p class="pr-text">' + esc(report.overview) + '</p></details>' : '<p class="pr-text">' + esc(report.overview) + '</p>') +
       (report.context_summary ? '<p class="pr-evidence">考试背景：' + esc(report.context_summary) + '</p>' : '') +
       (report.presentation_version < 3 && report.strengths.length ? '<h4>已经做到的</h4>' + bullets(report.strengths) : '') + '</section>';
-    if (report.paper_profile) html += '<section class="pr-insight"><h3>这张试卷要求什么</h3><p class="pr-text">' + esc(report.paper_summary || '') + '</p><p class="pr-muted">' + esc(report.paper_profile.note) + ' 已评价 ' + report.paper_profile.rated_questions + ' / ' + report.paper_profile.total_questions + ' 题。</p><details><summary>查看每题挑战评分</summary><div class="pr-table-scroll"><table class="pr-difficulty-table"><thead><tr><th>题号</th><th>综合</th><th>思考</th><th>计算</th><th>主导挑战</th></tr></thead><tbody>' + report.questions.map(function (q) { var d = q.difficulty; return '<tr><td>' + esc(q.label) + '</td><td>' + (d ? d.overall + '/5' : '—') + '</td><td>' + (d && d.dimensions.thinking.score != null ? d.dimensions.thinking.score : '—') + '</td><td>' + (d && d.dimensions.calculation.score != null ? d.dimensions.calculation.score : '—') + '</td><td>' + esc(d && d.reason || '') + '</td></tr>'; }).join('') + '</tbody></table></div></details></section>';
+    if (report.paper_profile) html += '<section class="pr-insight"><h3>这张试卷要求什么</h3><p class="pr-text">' + esc(report.paper_summary || '') + '</p><p class="pr-muted">' + esc(report.paper_profile.note) + ' 已评价 ' + report.paper_profile.rated_questions + ' / ' + report.paper_profile.total_questions + ' 题。</p><details><summary>查看每题挑战评分</summary><div class="pr-table-scroll"><table class="pr-difficulty-table"><thead><tr><th>题号</th><th>综合</th><th>思考</th><th>计算</th><th>主导挑战</th></tr></thead><tbody>' + report.questions.map(function (q) { var d = q.difficulty; return '<tr><td>' + esc(q.label) + '</td><td>' + (d ? d.overall + '/' + (d.scale || 5) : '—') + '</td><td>' + (d && d.dimensions.thinking.score != null ? d.dimensions.thinking.score : '—') + '</td><td>' + (d && d.dimensions.calculation.score != null ? d.dimensions.calculation.score : '—') + '</td><td>' + esc(d && d.reason || '') + '</td></tr>'; }).join('') + '</tbody></table></div></details></section>';
     if (report.version >= 2) {
       if (report.score_groups && report.score_groups.length) html += '<section class="pr-insight"><h3>分组表现</h3><div class="pr-loss-map">' + report.score_groups.map(function (g) { return '<span>' + esc(g.label) + ' <b>' + esc(g.teacher_score) + (g.max_score == null ? '' : ' / ' + esc(g.max_score)) + '</b></span>'; }).join('') + '</div><p class="pr-muted">来自图中明确的分组批改分，没有分摊到各小题。</p></section>';
       if (report.score_check && report.score_check.status === 'matched') {
@@ -159,6 +165,7 @@
     return html;
   }
   function questionSections(q, correction) {
+    if (q.record_only) return '';
     var html = difficultySections(q) + (q.correct_steps && q.correct_steps.length ? '<h4>已经做对的步骤</h4>' + bullets(q.correct_steps) : '');
     if (q.analysis_mode === 'strength') return difficultySections(q) + (q.wins && q.wins.length ? bullets(support.wins(q).map(function (w) { return w.skill + '：' + w.significance + '（依据：' + w.observed + '）'; })) : '') + '<p class="pr-muted">本题老师已给满分。保留成功方法即可。</p>';
     if (q.analysis_mode === 'needs_confirmation') return html + '<p class="pr-text">' + esc(q.suggestion || '在上方补充本题作答，保存后更新分析。') + '</p>';
@@ -180,27 +187,29 @@
     return { score: val('.actual-v16', card), max: val('.max-v16', card), raw_score: val('.raw-v16', card), raw_max: val('.rawmax-v16', card), target: val('.target-v16', card), year_rank: val('.year-rank-v16', card), year_count: val('.year-participants-v16', card) || val('#totalParticipantsV16'), class_rank: val('.class-rank-v16', card), class_count: val('.class-participants-v16', card) || val('#totalClassParticipantsV16'), total_year_rank: val('#totalRankV16'), total_year_count: val('#totalParticipantsV16'), total_class_rank: val('#totalClassRankV16'), total_class_count: val('#totalClassParticipantsV16') };
   }
   function show(ctx, subject, trigger) {
-    if (!current(ctx) || !ctx.modal.isConnected) return toast('请重新打开考试');
+    if (!current(ctx) || !(ctx.host || ctx.modal).isConnected) return toast('请重新打开考试');
     if (ctx.dialog) return;
     if (!ctx.draftId) ctx.draftId = draftFor(ctx.user, ctx.examId);
     var session = ctx.sessions[subject] || (ctx.sessions[subject] = { pages: [], workOnPaper: true, consent: false, pending: null });
-    var dialog = document.createElement('dialog'); dialog.className = 'pr-dialog'; dialog.setAttribute('aria-labelledby', 'pr-title');
+    var dialog = document.createElement(ctx.host ? 'section' : 'dialog'); dialog.className = ctx.host ? 'pr-dialog pr-inline' : 'pr-dialog'; dialog.setAttribute('aria-labelledby', 'pr-title');
     var busy = false, dirty = false, closed = false, timer, selected = null, reviews = [], quota = null, view = 'upload';
     var cacheScope = ctx.draftId + '|' + subject, cacheQueue = Promise.resolve(), restoredUploads = false;
     ctx.dialog = dialog;
-    dialog.innerHTML = '<header class="pr-head"><div><span class="pr-eyebrow">' + esc(subject) + ' · BETA</span><h2 id="pr-title">AI 试卷分析</h2></div>' + button('返回考试', 'close') + '</header><div class="pr-content"><div class="pr-message" role="status" aria-live="polite"></div><div class="pr-tabs">' + button('上传资料', 'upload', 'is-active') + button('分析记录', 'history') + '</div><div class="pr-main"></div></div>';
-    document.body.appendChild(dialog);
+    dialog.innerHTML = '<header class="pr-head"><div><span class="pr-eyebrow">' + esc(subject) + ' · BETA</span><h2 id="pr-title">AI 试卷分析</h2></div>' + button(ctx.host ? '返回全部分析' : '返回考试', 'close') + '</header><div class="pr-content"><div class="pr-message" role="status" aria-live="polite"></div><div class="pr-tabs">' + button('上传资料', 'upload', 'is-active') + button('分析记录', 'history') + '</div><div class="pr-main"></div></div>';
+    (ctx.host || document.body).appendChild(dialog);
     if (dialog.showModal) dialog.showModal(); else dialog.setAttribute('open', '');
     var main = dialog.querySelector('.pr-main'), message = dialog.querySelector('.pr-message');
     function note(text, error) { message.textContent = text || ''; message.classList.toggle('is-error', !!error); }
-    function alive() { return !closed && current(ctx) && ctx.modal.isConnected && state.modal === ctx.modal; }
+    function alive() { return !closed && current(ctx) && (ctx.host ? ctx.host.isConnected && state.page === 'stats' && state.analysisTab === 'ai' : ctx.modal.isConnected && state.modal === ctx.modal); }
     function close(force) {
       if (!force && dirty && !confirm('核对修改尚未保存，确定返回考试吗？')) return;
       closed = true; clearTimeout(timer); cleanup.disconnect(); ctx.dialog = null;
-      if (dialog.close) dialog.close(); dialog.remove(); if (trigger.isConnected) trigger.focus();
+      if (dialog.close) dialog.close(); dialog.remove(); if (ctx.host && ctx.onClose && !force) ctx.onClose(); else if (trigger && trigger.isConnected) trigger.focus();
     }
-    var cleanup = new MutationObserver(function () { if (!ctx.modal.isConnected || state.modal !== ctx.modal || !current(ctx)) close(true); });
-    cleanup.observe(document.body, { childList: true });
+    var cleanup = new MutationObserver(function () { if (!(ctx.host || ctx.modal).isConnected || (!ctx.host && state.modal !== ctx.modal) || !current(ctx)) close(true); });
+    ctx.canLeave = function () { return !dirty || confirm('核对修改尚未保存，确定离开吗？'); };
+    ctx.dispose = function () { close(true); };
+    cleanup.observe(document.body, { childList: true, subtree: true });
     dialog.addEventListener('cancel', function (e) { e.preventDefault(); close(false); });
     function tab(next) {
       if (dirty && !confirm('核对修改尚未保存，确定切换吗？')) return false;
@@ -210,7 +219,15 @@
     }
     function snapshot() {
       var payload = session.payload && Object.assign({}, session.payload); if (payload) delete payload.pages;
-      return { scope: cacheScope, pages: session.pages, workOnPaper: session.workOnPaper, consent: session.consent, pending: session.pending, payload: payload, retrySubmission: !!session.retrySubmission };
+      return { scope: cacheScope, pages: session.pages, workOnPaper: session.workOnPaper, consent: session.consent, pending: session.pending, payload: payload, retrySubmission: !!session.retrySubmission, cloudDraftId: session.cloudDraftId, cloudReady: session.cloudReady };
+    }
+    async function saveCloud(id) {
+      await api(ctx, 'save_materials', { request_id: id, draft_id: ctx.draftId, exam_id: ctx.examId || null, subject: subject, title: ctx.title || '', options: ctx.options, page_count: session.pages.length, consent: true });
+      for (var pi = 0; pi < session.pages.length; pi++) {
+        note('正在保存扫描件 ' + (pi + 1) + ' / ' + session.pages.length);
+        await api(ctx, 'upload_page', { request_id: id, page: pi + 1, role: session.pages[pi].role, url: session.pages[pi].url });
+      }
+      session.cloudReady = true; session.cloudDraftId = id;
     }
     function persist() {
       var id = session.pending || session.cacheId || cacheScope, value = snapshot(); session.cacheId = id;
@@ -220,6 +237,7 @@
     function fill(saved) {
       if (!saved || saved.scope !== cacheScope || !Array.isArray(saved.pages)) return false;
       session.pages = saved.pages; session.workOnPaper = saved.workOnPaper; session.consent = saved.consent;
+      session.cloudDraftId = saved.cloudDraftId; session.cloudReady = saved.cloudReady;
       session.pending = saved.pending; session.cacheId = saved.id; session.retrySubmission = saved.retrySubmission;
       session.payload = saved.payload && Object.assign({}, saved.payload, { pages: saved.pages.map(function (p) { return { role: p.role, url: p.url, regions: p.regions || [] }; }) });
       restoredUploads = true; return true;
@@ -235,8 +253,8 @@
         session.resumeTarget = r.request_id; session.pending = r.request_id; session.cacheId = r.request_id; session.payload = null; if (!matching) session.pages = []; upload(); note('已恢复分析记录，请补充尚未保存到本机的原图。'); return;
       }
       var data = await api(ctx, 'resume', { request_id: r.request_id,
-        mode: matching && session.pages.length ? 'images' : 'saved',
-        pages: matching ? session.pages.map(function (p) { return { role: p.role, url: p.url, regions: p.regions || [] }; }) : [],
+        mode: ctx.host ? 'saved' : matching && session.pages.length ? 'images' : 'saved',
+        pages: !ctx.host && matching ? session.pages.map(function (p) { return { role: p.role, url: p.url, regions: p.regions || [] }; }) : [],
         work_on_paper: session.workOnPaper, consent: session.consent });
       session.pending = r.request_id; session.resumeTarget = null;
       if (session.pages.length) await persist();
@@ -253,8 +271,8 @@
             return '<article class="pr-page"><img src="' + p.url + '" alt="' + esc(roleNames[role] + '第' + (pages.indexOf(p) + 1) + '页') + '"><div class="pr-page-info">第 ' + (i + 1) + ' 页 · ' + esc(p.name) + '</div><div class="pr-page-actions">' + button('前移', 'up:' + i) + button('旋转', 'rotate:' + i) + button('移除', 'remove:' + i) + '</div></article>';
           }).join('') + '</div></section>';
         }).join('') + '<label class="pr-check"><input type="checkbox" id="pr-work" ' + (session.workOnPaper ? 'checked' : '') + '>试卷图片中包含我的作答 / 老师批改</label>' +
-        '<details class="pr-help"><summary>上传与分析说明</summary><p>支持 JPG、PNG、WebP，共 1～8 页，每张原图不超过 10MB。拍清题号、文字、步骤和批改痕迹，裁掉姓名、考号等信息。PDF 请先转成图片。</p><p>看不清会标为待核对；AI 估分与老师批改分分开显示，不会自动填入考试成绩。无作答时仅整理题目。未完成分析的上传资料会暂存于当前设备，方便中断后恢复；成功、删除或保存超过7天后清理。本站不保存原图。</p><p>试用次数独立于成绩识图。开始分析后计次，失败也计次；重复提交同一请求、查看和手动核对不重复计次。北京时间每天 0 点重置。</p></details>' +
-        '<label class="pr-check pr-consent"><input type="checkbox" id="pr-consent" ' + (session.consent ? 'checked' : '') + '>同意将这些图片及本次分数、排名等考试数值发送给第三方 AI 服务分析，并在账号内保存报告</label><div class="pr-footer"><span>' + session.pages.length + ' / 8 页</span>' + button(session.resumeTarget ? '恢复这份分析' : session.pending ? (session.retrySubmission ? '继续确认本次分析' : '查看进行中的分析') : busy ? '处理图片中…' : '开始分析', session.resumeTarget ? 'resume' : 'start', 'pr-primary') + '</div>';
+        '<details class="pr-help"><summary>上传与分析说明</summary><p>支持 JPG、PNG、WebP，共 1～8 页，每张原图不超过 10MB。拍清题号、文字、步骤和批改痕迹，裁掉姓名、考号等信息。PDF 请先转成图片。</p><p>看不清会标为待核对；AI 估分与老师批改分分开显示，不会自动填入考试成绩。无作答时仅整理题目。编辑中的图片会暂存在当前设备7天。提交后扫描件和录入内容保存到当前账号，可跨设备查看和恢复；删除报告会同时删除扫描件。</p><p>试用次数独立于成绩识图。开始分析后计次，失败也计次；重复提交同一请求、查看和手动核对不重复计次。北京时间每天 0 点重置。</p></details>' +
+        '<label class="pr-check pr-consent"><input type="checkbox" id="pr-consent" ' + (session.consent ? 'checked' : '') + '>同意将这些图片及本次分数、排名等考试数值发送给第三方 AI 服务分析，并在账号内保存扫描件与报告</label><div class="pr-footer"><span>' + session.pages.length + ' / 8 页</span>' + button(session.resumeTarget ? '恢复这份分析' : session.pending ? (session.retrySubmission ? '继续确认本次分析' : '查看进行中的分析') : busy ? '处理图片中…' : '开始分析', session.resumeTarget ? 'resume' : 'start', 'pr-primary') + '</div>';
       main.querySelectorAll('input[type=file]').forEach(function (input) { input.onchange = async function () {
         var files = Array.from(input.files || []); if (!files.length || busy) return;
         if (files.length + session.pages.length > MAX_PAGES) return note('每次最多 8 页，请先移除多余图片', true);
@@ -264,13 +282,25 @@
           for (var file of files) { var p = await prepare(file); p.role = input.dataset.role; added.push(p); }
           var all = session.pages.concat(added);
           if (all.reduce(function (n, p) { return n + p.url.length + (p.regions || []).reduce(function (sum, url) { return sum + url.length; }, 0); }, 0) > 12000000) throw new Error('图片总大小较大，请减少页数');
-          session.pages = all; restoredUploads = false; var saved = await persist(); note(saved ? '图片已保存，可检查方向和页序' : '图片已添加，请保持页面打开直到题目和作答读取完成。');
+          session.pages = all; session.cloudReady = false; restoredUploads = false; var saved = await persist(); note(saved ? '图片已保存，可检查方向和页序' : '图片已添加，请保持页面打开直到题目和作答读取完成。');
         } catch (e) { note(e.message, true); } finally { busy = false; if (alive()) upload(); }
       }; });
       main.querySelector('#pr-work').onchange = function (e) { session.workOnPaper = e.target.checked; persist(); };
       main.querySelector('#pr-consent').onchange = function (e) { session.consent = e.target.checked; persist(); };
       main.querySelector('[data-pr=start],[data-pr=resume]').disabled = busy || (!session.resumeTarget && (!session.pending && (!quota || !quota.enabled || quota.remaining <= 0 || !quota.global_available)));
       main.querySelectorAll('.pr-page-actions button').forEach(function (b) { b.disabled = busy; });
+      if (ctx.host && !session.pending) {
+        var footer = main.querySelector('.pr-footer'), draftButton = document.createElement('button');
+        draftButton.type = 'button'; draftButton.className = 'pr-button'; draftButton.textContent = '保存资料草稿'; draftButton.disabled = busy;
+        footer.insertBefore(draftButton, footer.lastElementChild);
+        draftButton.onclick = async function () {
+          if (!session.pages.some(function (p) { return p.role === 'paper'; })) return note('请先添加试卷图片', true);
+          if (!session.consent) return note('请先确认扫描件保存说明', true);
+          busy = true; draftButton.disabled = true;
+          try { await saveCloud(session.cloudDraftId || crypto.randomUUID()); await persist(); note('草稿已保存到账号，可从全部分析中继续录入'); }
+          catch (e) { note(e.message, true); } finally { busy = false; if (draftButton.isConnected) draftButton.disabled = false; }
+        };
+      }
     }
     function history() {
       if (!tab('history')) return;
@@ -285,13 +315,14 @@
       var failure = responses.find(function (r) { return r.status === 'rejected'; });
       if (failure) note(failure.reason.message, true);
       if (view === 'upload') upload(); else if (view === 'history') history();
-      if (reviews.some(function (r) { return r.status === 'succeeded'; })) trigger.textContent = '查看试卷分析';
+      if (trigger && reviews.some(function (r) { return r.status === 'succeeded'; })) trigger.textContent = '查看试卷分析';
     }
     function renderReport(r) {
       if (!alive()) return;
       selected = r; view = 'report'; dirty = false;
+      if (r.status === 'paused') { main.innerHTML = '<section class="pr-recovery"><h3>' + esc(r.progress && r.progress.message || '进度已保存') + '</h3><p>本轮已完成的内容已保存。核对资料后，可以继续剩余分析。</p>' + button('继续分析', 'resume', 'pr-primary') + button('删除记录', 'delete', 'pr-danger') + '</section>'; if (window.ScorePaperScans) window.ScorePaperScans.decorate(main, r, ctx, { api: api, load: load, note: note }); return; }
       if (r.status === 'running' && !r.result) {
-        main.innerHTML = runningReport(r);
+        main.innerHTML = runningReport(r) + button(r.pause_requested ? '完成当前步骤后暂停' : '暂停并保存进度', 'pause');
         clearTimeout(timer); timer = setTimeout(function () { load(r.request_id); }, 3000); return;
       }
       if (r.status === 'succeeded' && session.pending === r.request_id) { session.pending = null; session.payload = null; session.retrySubmission = false; support.uploads('delete', ctx.user, r.request_id); support.uploads('delete', ctx.user, cacheScope); session.cacheId = null; }
@@ -309,18 +340,18 @@
       var report = r.result, stats = summary(r);
       var updating = r.status === 'running', stale = report.analysis_stale;
       var updateNotice = updating ? '<aside class="pr-message" role="status"><b>' + esc(r.progress && r.progress.message || '正在更新分析') + '</b><p>下方保留上一版报告。更新完成后，将替换相关题目和整体建议。</p></aside>' : stale ? '<aside class="pr-message"><b>核对内容已保存，下面的分析仍为上一版。</b>' + (r.status === 'failed' ? '<p>' + esc(r.error_message) + '</p>' + ((r.progress && r.progress.resume_remaining || 0) > 0 ? button('继续更新分析', 'resume') : '') : '') + '</aside>' : '';
-      main.innerHTML = updateNotice + '<section class="pr-result-top"><span class="pr-eyebrow">本次试卷复盘</span><h3>这张卷子，接下来怎么学</h3><p>' + esc(report.coverage) + '</p>' +
+      main.innerHTML = updateNotice + '<section class="pr-result-top"><span class="pr-eyebrow">本次试卷复盘</span><h3>' + (report.record_only ? '题目与作答录入' : '这张卷子，接下来怎么学') + '</h3><p>' + esc(report.coverage) + '</p>' +
         (report.version >= 2 && report.total && report.total.score != null ? '<p class="pr-total">图中整卷得分：<b>' + esc(report.total.score) + (report.total.max == null ? '' : ' / ' + esc(report.total.max)) + '</b><span class="pr-muted"> · 来自原图批改</span></p>' : '') +
         '<div class="pr-stats"><div><b>' + report.questions.length + '</b><span>识别题目</span></div><div><b data-pr-verified>' + stats.verified + '</b><span>已核对</span></div><div><b data-pr-score>' + (stats.scored ? stats.score + ' / ' + stats.max : '—') + '</b><span>已核对题目得分</span></div></div><p class="pr-muted">仅汇总已核对且得分、满分完整的题目，不代表整卷成绩，不包含 AI 估分。大题批改分按原有层级保留。</p></section>' +
         (report.warnings.length || !report.complete ? '<details class="pr-open-questions"><summary>资料补充与核对</summary>' + (!report.complete ? '<p>可补充尚未覆盖的题目或作答，已完成部分见下方。</p>' : '') + bullets(report.warnings) + '</details>' : '') +
-        reportSections(report) + '<div class="pr-section-head"><h3>逐题诊断与核对</h3><span class="pr-muted">展开查看依据和推导</span></div><div class="pr-questions">' + report.questions.map(function (q) {
+        settingsSection(report) + reportSections(report) + '<div class="pr-section-head"><h3>' + (report.record_only ? '逐题录入与核对' : '逐题诊断与核对') + '</h3><span class="pr-muted">展开查看题目、作答与扫描件</span></div><div class="pr-questions">' + report.questions.map(function (q) {
           var c = (r.corrections || []).find(function (c) { return c.id === q.id; }) || { answer: q.answer, teacher_score: q.teacher_score, max_score: q.max_score };
-          return '<details class="pr-question" data-question="' + q.id + '"><summary><span>第 ' + esc(q.label) + ' 题 <small>' + esc(q.knowledge.join(' · ')) + '</small>' + (q.first_issue && q.first_issue.location && q.first_issue.certainty === 'confirmed' ? '<small class="pr-issue-preview">卡点：' + esc(q.first_issue.location) + '</small>' : '') + '</span><span class="pr-badge">' + (c.verified ? '已核对' : q.score_verification === 'conflict' ? '核对分数' : q.analysis_mode === 'needs_confirmation' ? '补充作答' : q.analysis_mode === 'strength' ? '已得满分' : q.teacher_score != null && q.max_score != null ? q.teacher_score + ' / ' + q.max_score + ' 分' : '查看分析') + '</span></summary><div class="pr-question-body"><p class="pr-muted">题目页：' + (q.pages.join('、') || '—') + (q.work_pages && q.work_pages.length ? ' · 作答页：' + q.work_pages.join('、') : '') + '</p><h4>题目</h4><p class="pr-text">' + esc(q.stem) + '</p><label>考试时的作答（可修正识别内容）<textarea data-field="answer" rows="3" maxlength="4000">' + esc(c.answer) + '</textarea></label>' +
+          return '<details class="pr-question" data-question="' + q.id + '"><summary><span>第 ' + esc(q.label) + ' 题 <small>' + esc(q.knowledge.join(' · ')) + '</small>' + (q.first_issue && q.first_issue.location && q.first_issue.certainty === 'confirmed' ? '<small class="pr-issue-preview">卡点：' + esc(q.first_issue.location) + '</small>' : '') + '</span><span class="pr-badge">' + (c.verified ? '已核对' : q.score_verification === 'conflict' ? '核对分数' : q.analysis_mode === 'needs_confirmation' ? '补充作答' : q.analysis_mode === 'strength' ? '已得满分' : q.teacher_score != null && q.max_score != null ? q.teacher_score + ' / ' + q.max_score + ' 分' : '查看分析') + '</span></summary><div class="pr-question-body"><p class="pr-muted">题目页：' + (q.pages.join('、') || '—') + (q.work_pages && q.work_pages.length ? ' · 作答页：' + q.work_pages.join('、') : '') + '</p><label>题目（可修正识别内容）<textarea data-field="stem" rows="3" maxlength="4500">' + esc(c.stem || q.stem) + '</textarea></label><label>考试时的作答（可修正识别内容）<textarea data-field="answer" rows="3" maxlength="4000">' + esc(c.answer) + '</textarea></label>' +
             '<div class="pr-score-fields"><label>老师批改得分<input data-field="teacher_score" type="number" min="0" max="9999" step="0.01" placeholder="未识别 / 未批改" value="' + esc(c.teacher_score) + '"></label><label>本题满分<input data-field="max_score" type="number" min="0" max="9999" step="0.01" placeholder="填写满分" value="' + esc(c.max_score) + '"></label></div><p class="pr-muted">批改依据：' + esc(q.score_evidence || '有批改分可在上方补充，留空表示未批改或未录入。') + '</p>' +
             (q.estimated_score !== null ? '<p class="pr-estimate">AI 估分：' + q.estimated_score + (q.max_score !== null ? ' / ' + q.max_score : '') + '，仅供参考</p>' + (q.estimate_evidence && q.estimate_evidence.quote ? '<p class="pr-evidence">评分细则依据：' + esc(q.estimate_evidence.quote) + '</p>' : '') : '') +
             questionSections(q, c) + '<div class="pr-checks"><label class="pr-check"><input type="checkbox" data-field="verified" ' + (c.verified ? 'checked' : '') + '>已对照原卷核对</label><label class="pr-check"><input type="checkbox" data-field="corrected" ' + (c.corrected ? 'checked' : '') + '>已完成订正</label></div></div></details>';
-        }).join('') + '</div><div class="pr-footer"><span class="pr-muted" data-pr-save-status>核对修改不会改变考试分数</span>' + button((report.update_count || 0) >= 5 ? '保存核对记录' : '保存并更新分析', 'save', 'pr-primary') + '</div><section class="pr-evaluation"><h3>失分分布（已核对题目）</h3><div data-pr-losses></div></section><div class="pr-footer">' + button('返回记录', 'history') + button('删除这份报告', 'delete', 'pr-danger') + '</div>';
-      losses(stats); support.renderMath(main);
+        }).join('') + '</div><div class="pr-footer"><span class="pr-muted" data-pr-save-status>核对修改不会改变考试分数</span>' + button(report.record_only || (report.update_count || 0) >= 5 ? '保存核对记录' : '保存并更新分析', 'save', 'pr-primary') + '</div><section class="pr-evaluation"><h3>失分分布（已核对题目）</h3><div data-pr-losses></div></section><div class="pr-footer">' + button('返回记录', 'history') + button('删除这份报告', 'delete', 'pr-danger') + '</div>';
+      losses(stats); support.renderMath(main); if (window.ScorePaperScans) window.ScorePaperScans.decorate(main, r, ctx, { api: api, load: load, note: note });
       if (updating) { main.querySelectorAll('input,textarea,select,[data-pr=save],[data-pr=delete]').forEach(function (el) { el.disabled = true; }); clearTimeout(timer); timer = setTimeout(function () { load(r.request_id); }, 3000); }
       if ((report.update_count || 0) >= 5) main.querySelector('[data-pr-save-status]').textContent = '5次分析更新已用完，可继续保存核对和订正记录';
       main.querySelectorAll('.pr-question input,.pr-question textarea,.pr-question select').forEach(function (el) { el.addEventListener('input', function () { dirty = true; if (el.dataset.field === 'cause') { var detail = el.closest('[data-question]'), q = report.questions.find(function (q) { return q.id === detail.dataset.question; }); detail.querySelector('.pr-reflection-route').textContent = reflectionRoute(q, el.value); } main.querySelector('[data-pr-save-status]').textContent = '有未保存的核对修改'; }); });
@@ -337,14 +368,17 @@
       if (session.pending && !session.retrySubmission) { view = 'report'; return load(session.pending); }
       if (!session.pages.some(function (p) { return p.role === 'paper'; })) return note('请先上传试卷题目', true);
       if (!session.consent) return note('请先确认图片分析与报告保存说明', true);
-      var id = session.pending || crypto.randomUUID(); session.pending = id; busy = true; upload(); note('正在提交，提交成功后将开始分析…');
+      var id = session.pending || session.cloudDraftId || crypto.randomUUID(); session.pending = id; busy = true; upload(); note('正在提交，提交成功后将开始分析…');
       try {
         var savedSubject = ctx.exam && ctx.exam.scores && ctx.exam.scores[subject];
         session.payload = session.payload || { request_id: id, draft_id: ctx.draftId, exam_id: savedSubject ? ctx.examId : null,
-          subject: subject, exam_context: formContext(ctx, subject), pages: session.pages.map(function (p) { return { role: p.role, url: p.url, regions: p.regions || [] }; }), work_on_paper: session.workOnPaper, consent: true };
+          subject: subject, title: ctx.title || '', options: ctx.options, exam_context: ctx.host ? ctx.examContext : formContext(ctx, subject), pages: session.pages.map(function (p) { return { role: p.role, url: p.url, regions: p.regions || [] }; }), work_on_paper: session.workOnPaper, consent: true };
         if (!await persist()) note('本机暂时无法保存图片；完成识别后仍可从保存的作答恢复。');
         await support.uploads('delete', ctx.user, cacheScope);
-        var data = await api(ctx, 'start', session.payload);
+        if (ctx.host && !session.cloudReady) {
+          await saveCloud(id);
+        }
+        var data = await api(ctx, 'start', ctx.host ? Object.assign({}, session.payload, { pages: undefined, use_saved: true }) : session.payload);
         session.retrySubmission = false; quota = data.quota; if (alive()) { view = 'report'; await load(id); }
       } catch (e) {
         // A timeout may occur after reservation; check the same ID before offering a new request.
@@ -363,9 +397,9 @@
         for (var field of ['teacher_score', 'max_score']) { if (!get(field).validity.valid) { detail.open = true; get(field).focus(); throw new Error('分数请输入 0～9999，最多两位小数'); } }
         var score = number(get('teacher_score').value), max = number(get('max_score').value);
         if (score !== null && max !== null && score > max) { detail.open = true; get('teacher_score').focus(); throw new Error('得分不能高于本小题满分'); }
-        corrections.push({ id: detail.dataset.question, answer: get('answer').value, teacher_score: score, max_score: max, verified: get('verified').checked, corrected: get('corrected').checked, reflection: get('cause') ? { cause: get('cause').value, note: get('reflection_note').value } : null });
+        corrections.push({ id: detail.dataset.question, stem: get('stem').value, answer: get('answer').value, teacher_score: score, max_score: max, verified: get('verified').checked, corrected: get('corrected').checked, reflection: get('cause') ? { cause: get('cause').value, note: get('reflection_note').value } : null });
       }
-      var result = await api(ctx, 'correct', { request_id: selected.request_id, revision: selected.revision, corrections: corrections, reanalyze: (selected.result.update_count || 0) < 5 });
+      var result = await api(ctx, 'correct', { request_id: selected.request_id, revision: selected.revision, corrections: corrections, reanalyze: !selected.result.record_only && (selected.result.update_count || 0) < 5 });
       if (alive()) { renderReport(result.review); note(result.review.status === 'running' ? '已保存，正在更新相关题目和整体建议' : '核对已保存'); }
     }
     dialog.addEventListener('click', async function (e) {
@@ -375,20 +409,23 @@
       if (busy && action !== 'history' && action !== 'upload') return;
       try {
         if (action === 'upload') upload();
+        else if (action === 'history' && ctx.host) { close(false); }
         else if (action === 'history') { if (tab('history')) { history(); await refresh(); } }
         else if (action === 'start') await start();
+        else if (action === 'pause') { await api(ctx, 'pause', { request_id: selected.request_id }); await load(selected.request_id); }
         else if (action === 'resume') { target.disabled = true; await resume(); }
         else if (action.startsWith('report:')) { if (tab('report')) await load(action.slice(7)); }
         else if (action === 'save') { target.disabled = true; await save(); }
         else if (action.startsWith('focus:')) { var detail = main.querySelector('[data-question="' + action.slice(6) + '"]'); if (detail) { detail.open = true; if (detail.scrollIntoView) detail.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }
         else if (action === 'delete' && selected && confirm('删除这份分析报告及核对记录？考试成绩不受影响。')) {
-          await api(ctx, 'delete', { request_id: selected.request_id }); await support.uploads('delete', ctx.user, selected.request_id); if (session.pending === selected.request_id || session.cacheId === selected.request_id) { session.pages = []; session.pending = null; session.payload = null; session.cacheId = null; } selected = null; dirty = false; note('报告已删除'); view = 'history'; await refresh();
-        } else if (action.startsWith('remove:')) { session.pages.splice(Number(action.split(':')[1]), 1); await persist(); upload(); }
-        else if (action.startsWith('up:')) { var i = Number(action.split(':')[1]); if (i > 0) { var p = session.pages.splice(i, 1)[0]; session.pages.splice(i - 1, 0, p); await persist(); upload(); } }
-        else if (action.startsWith('rotate:')) { busy = true; await rotate(session.pages[Number(action.split(':')[1])]); await persist(); busy = false; upload(); }
+          await api(ctx, 'delete', { request_id: selected.request_id }); await support.uploads('delete', ctx.user, selected.request_id); if (session.pending === selected.request_id || session.cacheId === selected.request_id) { session.pages = []; session.pending = null; session.payload = null; session.cacheId = null; } selected = null; dirty = false; note('报告已删除'); view = 'history'; if (ctx.host) close(false); else await refresh();
+        } else if (action.startsWith('remove:')) { session.pages.splice(Number(action.split(':')[1]), 1); session.cloudReady = false; await persist(); upload(); }
+        else if (action.startsWith('up:')) { var i = Number(action.split(':')[1]); if (i > 0) { var p = session.pages.splice(i, 1)[0]; session.pages.splice(i - 1, 0, p); session.cloudReady = false; await persist(); upload(); } }
+        else if (action.startsWith('rotate:')) { busy = true; await rotate(session.pages[Number(action.split(':')[1])]); session.cloudReady = false; await persist(); busy = false; upload(); }
       } catch (error) { if (alive()) note(error.message, true); }
       finally { busy = false; if (target.isConnected) target.disabled = false; }
     });
+    if (ctx.initialReport) { load(ctx.initialReport); return; }
     upload(); support.uploads('latest', ctx.user, cacheScope).then(function (saved) { if (alive() && !session.pages.length && !session.pending && !busy && fill(saved)) { if (session.pending) return load(session.pending).then(refresh); if (view === 'upload') upload(); } return refresh(); });
   }
 
@@ -403,7 +440,7 @@
       modal.querySelectorAll('.exam-subject-card-v10').forEach(function (card) {
         if (card.querySelector('.pr-entry')) return;
         var entry = document.createElement('button'); entry.type = 'button'; entry.className = 'pr-entry'; entry.textContent = 'AI 试卷分析';
-        entry.onclick = function () { var name = card.querySelector('.exam-subject-name-v10').value.trim(); if (name) show(ctx, name, entry); };
+        entry.onclick = function () { var name = card.querySelector('.exam-subject-name-v10').value.trim(); if (name) { if (window.ScorePaperHub) { if (!ctx.draftId) ctx.draftId = draftFor(ctx.user, ctx.examId); window.ScorePaperHub.enter(ctx, name, formContext(ctx, name)); } else show(ctx, name, entry); } };
         card.appendChild(entry);
       });
     }
@@ -434,7 +471,7 @@
     if (ctx && ctx.examId && ctx.draftId) api(ctx, 'attach', { draft_id: ctx.draftId, exam_id: ctx.examId }).catch(function () {});
     return result;
   };
-  window.ScorePaperReview = { summary: summary };
+  window.ScorePaperReview = { summary: summary, mount: show, api: api, prepare: prepare, draftFor: draftFor };
   var style = document.createElement('style');
   style.textContent = `
     .pr-progress{padding:18px 0}.pr-milestones{list-style:none;padding:0;margin:22px 0}.pr-milestones li{display:flex;align-items:center;gap:10px;padding:11px 0;color:var(--muted)}.pr-milestones li>span{display:grid;place-items:center;width:25px;height:25px;border-radius:50%;border:1px solid var(--line);flex:none}.pr-milestones small{margin-left:auto;font-size:11px}.pr-milestones .is-current{color:var(--accent);font-weight:700}.pr-milestones .is-current>span{background:var(--accent-soft)}.pr-milestones .is-done{color:var(--text)}.pr-wins{border-left:3px solid #43937a;padding:14px 16px}.pr-wins article+article{margin-top:15px}.pr-cause{border:1px solid var(--line);border-radius:12px;padding:12px;margin:16px 0}.pr-cause article{padding:10px 0}.pr-cause label{display:block;font-size:12px;margin-top:10px}.pr-cause select{display:block;width:100%;padding:9px;border:1px solid var(--line);border-radius:9px;background:var(--panel-solid);color:var(--text);font:inherit}.pr-reflection-route{padding:10px;background:var(--accent-soft);border-radius:8px}.pr-dimensions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.pr-dimensions>span{border:1px solid var(--line);border-radius:9px;padding:8px;font-size:12px}.pr-dimensions small{display:block;color:var(--muted);font-size:11px}.pr-table-scroll{overflow:auto}.pr-difficulty-table{width:100%;border-collapse:collapse;font-size:12px}.pr-difficulty-table th,.pr-difficulty-table td{padding:8px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}.pr-difficulty-table th{white-space:nowrap}

@@ -33,18 +33,20 @@ function harness() {
   let handler, modelReply = raw, failWrites = false, transport = null;
   const tables = { score_tracker_users: [{ id: uid, session_token_hash: '', session_expires_at: '2099-01-01' }], score_tracker_paper_settings: [{ id: 'default', enabled: true, api_key: 'fixture-only-key', base_url: 'https://model.test/v1', model: 'test-vision' }], score_tracker_paper_reviews: [], score_tracker_exams: [{ id: examId, user_id: uid }], score_tracker_scores: [{ id: 's1', exam_id: examId, user_id: uid, subject: '数学' }] };
   const calls = [], writes = [], background = [], upstream = [], logs = [];
-  const db = { from(table) {
-    let filters = [], action = 'select', value, single = false, sort, maximum, columns;
-    const q = { select(fields) { columns=fields;return q; }, eq(k,v) { filters.push(r=>k.includes('->>')?r[k.split('->>')[0]]?.[k.split('->>')[1]]===v:r[k]===v); return q; }, is(k,v) { filters.push(r=>(r[k]??null)===v);return q; }, in(k,v) { filters.push(r=>v.includes(r[k]));return q; },
+  const blobs = new Map();
+  const db = { storage: { from() { return { async upload(path,bytes){blobs.set(path,bytes);return {data:{path}}},async download(path){return blobs.has(path)?{data:new Blob([blobs.get(path)])}:{error:'missing'}},async remove(paths){paths.forEach(p=>blobs.delete(p));return {data:[]}},async createSignedUrls(paths){return {data:paths.map(path=>({signedUrl:'https://scan.test/'+path}))}} } } }, from(table) {
+    let offset = 0, filters = [], action = 'select', value, single = false, sort, maximum, columns;
+    const q = { range(a,b) {offset=a;maximum=b-a+1;return q;}, insert(v) {action='insert';value=v;return q;}, upsert(v) {action='upsert';value=v;return q;}, select(fields) { columns=fields;return q; }, eq(k,v) { filters.push(r=>k.includes('->>')?r[k.split('->>')[0]]?.[k.split('->>')[1]]===v:r[k]===v); return q; }, is(k,v) { filters.push(r=>(r[k]??null)===v);return q; }, in(k,v) { filters.push(r=>v.includes(r[k]));return q; },
       or(scope) { filters.push(r=>scope.split(',').some(term=>{const [key,op,...rest]=term.split('.'),value=rest.join('.');return op==='is'&&value==='null'?r[key]==null:op==='eq'&&r[key]===value;}));return q; }, order(k) { sort=k;return q; }, limit(n) { maximum=n;return q; }, update(v) { action='update';value=v;return q; }, delete() { action='delete';return q; }, single() { single=true;return run(); }, maybeSingle() { single=true;return run(); }, then(a,b) { return run().then(a,b); } };
     async function run() {
       let found = (tables[table] || []).filter(r=>filters.every(f=>f(r)));
       calls.push(table);
       if (action !== 'select') { writes.push(table); if(failWrites===true || typeof failWrites==='function'&&failWrites(value))return {error:{code:'fixture_database_error',message:'fixture database error fixture-only-key'}}; }
+      if(action==='insert'||action==='upsert'){tables[table] ||= []; if(action==='insert' && tables[table].some(r=>r.request_id===value.request_id))return {error:{code:'23505'}};const old=action==='upsert'&&tables[table].find(r=>r.user_id===value.user_id);if(old)Object.assign(old,structuredClone(value));else tables[table].push({revision:0,regions:{},created_at:new Date().toISOString(),...structuredClone(value)});found=[old||tables[table].at(-1)];}
       if(action==='update')found.forEach(r=>Object.assign(r, structuredClone(value)));
       if(action==='delete')tables[table]=tables[table].filter(r=>!found.includes(r));
       if(sort)found.sort((a,b)=>String(b[sort]).localeCompare(String(a[sort])));
-      if(maximum)found=found.slice(0,maximum);
+      if(maximum)found=found.slice(offset,offset+maximum);
       if(columns&&columns!=='*')found=found.map(r=>Object.fromEntries(columns.split(',').filter(k=>k in r).map(k=>[k,r[k]])));
       return { data: structuredClone(single ? found[0] || null : found), error: null };
     } return q;
@@ -58,12 +60,12 @@ function harness() {
     tables.score_tracker_paper_reviews.push({request_id:p.p_request_id,user_id:p.p_user_id,draft_id:p.p_draft_id,exam_id:p.p_exam_id,subject:p.p_subject,fingerprint:p.p_fingerprint,status:'running',created_at:new Date().toISOString(),corrections:[],revision:0});
     return {data:{allowed:true,created:true,quota}};
   } };
-  const scope = { createClient:()=>db, Deno:{env:{get:k=>k==='SUPABASE_URL'?'https://test.local':k==='SUPABASE_SERVICE_ROLE_KEY'?'fixture-service-key':''},serve:fn=>handler=fn}, EdgeRuntime:{waitUntil:p=>background.push(p)}, crypto, structuredClone, TextEncoder, TextDecoder, Uint8Array, URL, Request, Response, Date, AbortController, setTimeout, clearTimeout, atob,
+  const scope = { createClient:()=>db, Deno:{env:{get:k=>k==='SUPABASE_URL'?'https://test.local':k==='SUPABASE_SERVICE_ROLE_KEY'?'fixture-service-key':''},serve:fn=>handler=fn}, EdgeRuntime:{waitUntil:p=>background.push(p)}, crypto, structuredClone, TextEncoder, TextDecoder, Uint8Array, URL, Request, Response, Blob, btoa, Date, AbortController, setTimeout, clearTimeout, atob,
     console:{log(...args){logs.push(args)},error(...args){logs.push(args)},warn(...args){logs.push(args)}},
     fetch:async(url,options)=>{if(url.startsWith('https://test.local/functions/'))return handler(new Request(url,options));const request=JSON.parse(options.body);upstream.push(request);return transport?transport(url,options):new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify(stagedReply(modelReply,request))}}]}));} };
   vm.createContext(scope);
-  ['supabase/functions/score-tracker-vision-preview/reliability.ts','supabase/functions/score-tracker-paper-review/model.ts','supabase/functions/score-tracker-paper-review/learner.ts','supabase/functions/score-tracker-paper-review/analysis.ts','supabase/functions/score-tracker-paper-review/reading.ts','supabase/functions/score-tracker-paper-review/runtime.ts','supabase/functions/score-tracker-paper-review/audit.ts','supabase/functions/score-tracker-paper-review/pipeline.ts','supabase/functions/score-tracker-paper-review/index.ts'].forEach(f=>vm.runInContext(code(f),scope));
-  return { scope, tables, calls, writes, upstream, background, logs, set transport(v){transport=v},set reply(v){modelReply=v}, set fail(v){failWrites=v}, async init(){tables.score_tracker_users[0].session_token_hash=Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode('test-token'))).toString('hex')},
+  ['supabase/functions/score-tracker-vision-preview/reliability.ts','supabase/functions/score-tracker-paper-review/options.ts','supabase/functions/score-tracker-paper-review/model.ts','supabase/functions/score-tracker-paper-review/learner.ts','supabase/functions/score-tracker-paper-review/analysis.ts','supabase/functions/score-tracker-paper-review/reading.ts','supabase/functions/score-tracker-paper-review/runtime.ts','supabase/functions/score-tracker-paper-review/audit.ts','supabase/functions/score-tracker-paper-review/pipeline.ts','supabase/functions/score-tracker-paper-review/workspace.ts','supabase/functions/score-tracker-paper-review/index.ts'].forEach(f=>vm.runInContext(code(f),scope));
+  return { scope, blobs, tables, calls, writes, upstream, background, logs, set transport(v){transport=v},set reply(v){modelReply=v}, set fail(v){failWrites=v}, async init(){tables.score_tracker_users[0].session_token_hash=Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode('test-token'))).toString('hex')},
     call:body=>handler(new Request('https://test.local/api',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:'test-token',...body})})), handler, drain:async()=>{for(let i=0;i<background.length;i++)await background[i]} };
 }
 async function backend() {
@@ -126,6 +128,18 @@ async function migration() {
     await db.exec('reset role');
   }
   const rls=(await db.query("select relname,relrowsecurity from pg_class where relname in ('score_tracker_paper_reviews','score_tracker_paper_settings','score_tracker_paper_usage')")).rows;assert(rls.every(r=>r.relrowsecurity));
+  await db.exec('create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);');
+  const workspaceFile=fs.readdirSync(path.join(root,'supabase/migrations')).find(f=>f.endsWith('_paper_workspace.sql'));
+  await db.exec(read('supabase/migrations/'+workspaceFile));
+  const bucket=(await db.query("select * from storage.buckets where id='score-tracker-paper-scans'")).rows[0];assert.equal(bucket.public,false);
+  for(const role of ['anon','authenticated']) {
+    await db.exec('set role '+role);
+    await assert.rejects(()=>db.query('select * from score_tracker_paper_materials'));
+    await assert.rejects(()=>db.query('select * from score_tracker_paper_preferences'));
+    await db.exec('reset role');
+  }
+  await db.exec(`insert into score_tracker_paper_reviews(request_id,user_id,draft_id,exam_id,subject,fingerprint,status) values('${rid}','${uid}','${draftId}','${examId}','数学','fixture','paused');delete from score_tracker_exams where id='${examId}';`);
+  assert.equal((await db.query('select exam_id from score_tracker_paper_reviews where request_id=$1',[rid])).rows[0].exam_id,null,'exam deletion preserves reports and unlinks them');
   await db.close();console.log('PASS: PostgreSQL migration, independent ledgers, duplicate reservation, personal/global caps, cooldown, delete-resistant quota, RLS and denied public RPC access');
 }
 async function ui(report) {
@@ -154,7 +168,8 @@ async function ui(report) {
     else if(['bootstrap','list_exams'].includes(body.action))data={user:{id:uid,username:'fixture'},subjects:[{name:'数学',defaultMax:150},{name:'历史',defaultMax:100}],modules:[],exams:[],participantDefaults:{},classification:{label:'年级',options:['高二']}};
     return new Response(JSON.stringify(data));
   };
-  w.eval(read('app-bundle.js')+'\nwindow.state=state;');for(const f of ['app-v36.js','app-v37.js','app-v38.js'])w.eval(read(f));await tick();
+  w.eval(read('app-bundle.js')+'\nwindow.state=state;');w.ScorePaperHub=undefined; // Legacy mount remains supported; workspace navigation is tested separately.
+for(const f of ['app-v36.js','app-v37.js','app-v38.js'])w.eval(read(f));await tick();
   Object.assign(w.state,{user:{id:uid,username:'fixture'},token:'test-token',subjectConfigs:[{name:'数学',defaultMax:150},{name:'历史',defaultMax:100}],modulesV18:[],allExams:[],exams:[],page:'home'});w.applyExamSubjectsV10([],w.state.subjectConfigs);
   w.openExam();await tick();let modal=w.state.modal;
   assert.equal(modal.querySelectorAll('.pr-entry').length,2);assert.equal(calls.filter(c=>c.url.includes('paper-review')).length,0,'no feature requests until entry is used');

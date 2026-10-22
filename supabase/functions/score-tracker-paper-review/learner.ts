@@ -30,14 +30,16 @@ export function learnerFields(raw: any, fact: any, hasStudent = true) {
     .filter((w: any) => w.skill && w.observed && w.significance && (w.basis === "teacher_mark" ? fullCredit(fact) : written.includes(learnerQuote(w.observed))))
     .map((w: any) => w.basis === "work" && /^(?:[A-H]{1,8}|[+-]?\d+(?:\.\d+)?(?:[A-Za-z/²³]+)?|大于|小于|等于|相等|不相等|正确|错误|是|否)$/.test(w.observed) ? { ...w, basis: "work_result", skill: "已给出本小问的判断", significance: "把关键理由补充出来，可以形成完整的得分步骤。" } : w) : [];
   const d = raw.difficulty || {}, quote = text(d.evidence_quote, 700);
-  const rating = (v: any) => Number.isInteger(v) && v >= 1 && v <= 5 ? v : null;
+  // Unchanged diagnoses from older reports keep their original scale during a targeted update.
+  const scale = d.scale === 5 || (!d.scale && d.source === 'ai_judgment') ? 5 : 10;
+  const rating = (v: any) => Number.isInteger(v) && v >= 1 && v <= scale ? v : null;
   const dimensions: any = {};
   for (const axis of ["thinking", "calculation", "reading", "expression"]) {
     const item = d.dimensions?.[axis];
     dimensions[axis] = { score: rating(item?.score), reason: text(item?.reason, 300) };
     if (!dimensions[axis].reason) dimensions[axis].score = null;
   }
-  const difficulty = rating(d.overall) && quote && learnerQuote(fact.stem || "").includes(learnerQuote(quote)) ? { overall: rating(d.overall), evidence_quote: quote, reason: text(d.reason, 700), dimensions, source: "ai_judgment" } : null;
+  const difficulty = rating(d.overall) && quote && learnerQuote(fact.stem || "").includes(learnerQuote(quote)) ? { scale, overall: rating(d.overall), evidence_quote: quote, reason: text(d.reason, 700), dimensions, source: "ai_judgment" } : null;
   const c = raw.cause_analysis || {};
   const hypotheses = hasStudent && !fullCredit(fact) && !needsConfirmation(fact) && Array.isArray(c.hypotheses) ? c.hypotheses.slice(0, 3).map((h: any) => ({ kind: CAUSE_KINDS.includes(h.kind) ? h.kind : "uncertain", explanation: text(h.explanation, 800), evidence: text(h.evidence, 700), counter_evidence: text(h.counter_evidence, 700), check: text(h.check, 600), if_confirmed: text(h.if_confirmed, 800), status: "hypothesis" }))
     .filter((h: any) => h.explanation && h.evidence && h.check && h.if_confirmed) : [];
@@ -45,8 +47,9 @@ export function learnerFields(raw: any, fact: any, hasStudent = true) {
     cause_analysis: { observation: hasStudent && !fullCredit(fact) ? text(c.observation, 800) : "", hypotheses, question: hypotheses.length ? text(c.question, 400) : "" } };
 }
 export function paperProfile(questions: any[]) {
-  const rated = questions.filter(q => q.difficulty), counts = [1, 2, 3, 4, 5].map(level => ({ level, count: rated.filter(q => q.difficulty.overall === level).length }));
+  const rated = questions.filter(q => q.difficulty), counts = [1,2,3,4,5,6,7,8,9,10].map(level => ({ level, count: rated.filter(q => q.difficulty.scale === 10 && q.difficulty.overall === level).length }));
   return { source: "ai_judgment", rated_questions: rated.length, total_questions: questions.length, distribution: counts,
-    challenging_wins: questions.filter(q => q.difficulty?.overall >= 4 && q.wins.length).map(q => ({ label: q.label, partial: !fullCredit(q), wins: q.wins })),
-    note: "按题目要求估计挑战程度，1为直接应用，3为多步组合，5为复杂迁移；不是全体考生实测难度，也不代表做题者能力。" };
+    legacy_rated_questions: rated.filter(q => q.difficulty.scale !== 10).length,
+    challenging_wins: questions.filter(q => q.difficulty?.overall >= (q.difficulty?.scale === 5 ? 4 : 7) && q.wins.length).map(q => ({ label: q.label, partial: !fullCredit(q), wins: q.wins })),
+    note: "按题目要求估计挑战程度，满分10：1–2为直接应用，3–4为常规模型，5–6为多步组合，7–8为多条件迁移，9–10为复杂约束与创新；不是全体考生实测难度，也不代表做题者能力。" + (rated.some(q => q.difficulty.scale !== 10) ? " 部分旧题沿用五分制，具体标尺见各题。" : "") };
 }

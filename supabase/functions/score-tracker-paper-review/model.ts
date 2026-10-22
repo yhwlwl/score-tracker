@@ -1,3 +1,4 @@
+import { reviewSettings } from "./options.ts";
 // Bounded, evidence-first contract. AI output is untrusted data, never HTML or SQL.
 export const MAX_PAGES = 8;
 export const MAX_BODY = 12500000;
@@ -42,7 +43,7 @@ export function validateStart(body: any) {
   });
   if (length > 12000000) throw new Error("图片总大小过大，请减少页数后重试");
   if (!pages.some((p: any) => p.role === "paper")) throw new Error("请上传至少一张试卷题目图片");
-  return { subject, pages, draft_id: body.draft_id, exam_id: body.exam_id || null, request_id: body.request_id, work_on_paper: body.work_on_paper === true };
+  return { subject, pages, options: reviewSettings(body.options), draft_id: body.draft_id, exam_id: body.exam_id || null, request_id: body.request_id, work_on_paper: body.work_on_paper === true };
 }
 export function normalizeReport(raw: any, input: any) {
   if (!raw || !Array.isArray(raw.questions) || !raw.questions.length || raw.questions.length > 60) throw new Error("未识别到有效题目，建议减少页数或拍摄更清晰的图片");
@@ -87,7 +88,7 @@ export function normalizeCorrections(value: any, report: any) {
     seen.add(c.id);
     for (const key of ["teacher_score", "max_score"]) if (c[key] !== null && number(c[key]) === null) throw new Error("分数请输入有效数字或留空");
     if (c.teacher_score !== null && c.max_score !== null && c.teacher_score > c.max_score) throw new Error("得分不能高于满分");
-    return { id: q.id, teacher_score: number(c.teacher_score), max_score: number(c.max_score), answer: text(c.answer, 4000), verified: c.verified === true, corrected: c.corrected === true, reflection: c.reflection && typeof c.reflection === "object" ? { cause: ["time", "idea", "execution", "reading", "expression", "uncertain"].includes(c.reflection.cause) ? c.reflection.cause : "uncertain", note: text(c.reflection.note, 500), source: "student_recollection" } : null };
+    return { id: q.id, ...(typeof c.stem === "string" && c.stem.trim() ? { stem: text(c.stem, 4500) } : {}), teacher_score: number(c.teacher_score), max_score: number(c.max_score), answer: text(c.answer, 4000), verified: c.verified === true, corrected: c.corrected === true, reflection: c.reflection && typeof c.reflection === "object" ? { cause: ["time", "idea", "execution", "reading", "expression", "uncertain"].includes(c.reflection.cause) ? c.reflection.cause : "uncertain", note: text(c.reflection.note, 500), source: "student_recollection" } : null };
   });
 }
 export function prompt(input: any) {

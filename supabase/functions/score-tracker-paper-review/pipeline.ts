@@ -1,3 +1,4 @@
+import { reviewSettings } from "./options.ts";
 import { readDatabase } from "../score-tracker-vision-preview/reliability.ts";
 import { paperAudit } from "./audit.ts";
 import { nextBatch, REVIEW_VERSION, extractionPrompt, normalizeEvidence, diagnosisPrompt, normalizeDiagnoses, verificationPrompt, reconcileEvidence, synthesisPrompt, assembleReport, checkScores } from "./analysis.ts";
@@ -34,6 +35,7 @@ export function progressFor(state: any) {
 
 export async function runReviewStage(db: any, input: any, user: string, config: any, row: any, expectedClaim: string, dispatch: (claim: string) => Promise<void>) {
   const original = row.analysis_state || {}, state = structuredClone(original);
+  input.options = reviewSettings(input.options || row.options || state.options);
   if (!expectedClaim || original.claim !== expectedClaim || row.status !== "running") return;
   // Each token can be claimed once. Duplicate deliveries cannot call the model twice.
   state.claim = crypto.randomUUID();
@@ -46,6 +48,19 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
     if (claimed.error) throw claimed.error;
     if (!claimed.data) return;
     ownsClaim = true;
+    const settings = reviewSettings(input.options);
+    const pauseReason = row.pause_requested ? "manual" : state.phase === "diagnose" && settings.review_before_analysis && !state.input_confirmed ? "review" : (state.active_ms || 0) - (state.budget_start_ms || 0) >= settings.time_budget_minutes * 60000 ? "budget" : null;
+    if (pauseReason) {
+      state.pause_reason = pauseReason;
+      await readDatabase(() => db.from(REVIEW_TABLE).update({ status: "paused", pause_requested: false, analysis_state: state, progress: { ...progressFor(state), message: pauseReason === "review" ? "资料已录入，等待核对" : "已保存进度，可随时继续" } }).eq("request_id", input.request_id).eq("user_id", user).eq("status", "running").eq("analysis_state->>claim", state.claim));
+      return;
+    }
+    if (state.phase === "diagnose" && (settings.purpose === "record" || !settings.modules.length)) {
+      const result = assembleReport({ overview: "题目、作答与批改已录入。可展开逐题核对文字和对应扫描件。", warnings: [] }, state.evidence, { ...input, options: { ...settings, purpose: "record" } }, state.evidence.questions.map((q: any) => ({ label: q.label })));
+      await audit.finish("succeeded", { ok: true, result });
+      await readDatabase(() => db.from(REVIEW_TABLE).update({ analysis_state: {}, progress: { phase: "completed", message: "录入完成" } }).eq("request_id", input.request_id).eq("user_id", user).eq("status", "succeeded"));
+      return;
+    }
     const stage = state.phase === "diagnose" ? `diagnose_${state.diagnoses?.length || 0}` : state.phase === "recheck" ? `recheck_${state.rechecked || 0}` : state.phase === "verify" && state.verification_batch_limit ? `verify_${state.verification_readings?.length || 0}` : state.phase;
     await audit.mark(stage + "_started");
     let promptText: string, selected: number[] | undefined, validate: (raw: any) => any, batch: any[] = [];
@@ -75,7 +90,7 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
       promptText = synthesisPrompt(input, state.evidence, state.diagnoses);
       validate = raw => assembleReport(raw, state.evidence, input, state.diagnoses);
     } else throw new Error("unknown_pipeline_stage");
-    const effort = batch.length && (batch.every((q: any) => fullCredit(q) || needsConfirmation(q)) || batch.length === 1 && state.focused_retries?.includes(batch[0].label)) ? "low" : undefined;
+    const effort = settings.detail === "brief" ? "low" : batch.length && (batch.every((q: any) => fullCredit(q) || needsConfirmation(q)) || batch.length === 1 && state.focused_retries?.includes(batch[0].label)) ? "low" : undefined;
     outcome = await reviewModel({ config, content: [{ type: "text", text: promptText }, ...(state.phase === "synthesize" || (state.flow === "revision" || state.text_recovery) ? [] : imageContent(input, selected))], requestId: input.request_id, stage, effort, repairOutput: state.pending_repair?.stage === stage ? state.pending_repair.text : undefined, validate, mark: audit.mark });
     const handoff = !outcome.ok && outcome.code === "worker_deadline" && (state.deadline_handoffs || 0) < 3;
     if (handoff) {
@@ -177,19 +192,20 @@ export function revisionInput(row: any) {
   return { request_id: row.request_id, draft_id: row.draft_id, exam_id: row.exam_id, subject: row.subject,
     pages: source.map((p: any) => ({ page: p.page, role: p.role, url: "" })),
     work_on_paper: report.work_on_paper === true || (row.corrections || []).some((c: any) => c.answer || c.teacher_score !== null) || report.questions.some((q: any) => q.answer || q.teacher_score != null),
-    original_readings: report.original_readings, exam_context: report.exam_context, text_revision: true, update_count: report.update_count || 0, analysis_revision: row.revision };
+    options: reviewSettings(row.options || report.options), original_readings: report.original_readings, exam_context: report.exam_context, text_revision: true, update_count: report.update_count || 0, analysis_revision: row.revision };
 }
 export function revisionState(report: any, corrections: any[]) {
   const meaningfulReflection = (r: any) => r && (r.cause !== "uncertain" || r.note) ? { cause: r.cause, note: r.note || "", source: "student_recollection" } : null;
   const changed: string[] = [];
   const questions = report.questions.map((q: any) => {
     const c = corrections.find((c: any) => c.id === q.id);
-    const fields = ["label", "stem", "pages", "work_pages", "reference_pages", "answer", "status", "confidence", "subparts", "teacher_score", "max_score", "score_mark", "max_mark", "provided_reference", "kind", "score_verification", "answer_verification", "evidence_verified", "score_candidates", "answer_candidates", "student_reflection", "uncertainties"];
+    const fields = ["label", "stem", "source_regions", "pages", "work_pages", "reference_pages", "answer", "status", "confidence", "subparts", "teacher_score", "max_score", "score_mark", "max_mark", "provided_reference", "kind", "score_verification", "answer_verification", "evidence_verified", "score_candidates", "answer_candidates", "student_reflection", "uncertainties"];
     const fact: any = Object.fromEntries(fields.filter(k => q[k] !== undefined).map(k => [k, structuredClone(q[k])]));
     fact.subparts ||= []; fact.pages ||= []; fact.work_pages ||= []; fact.reference_pages ||= []; fact.uncertainties ||= [];
     if (!c) return fact;
     const reflection = meaningfulReflection(c.reflection);
-    if (c.answer !== q.answer || c.teacher_score !== q.teacher_score || c.max_score !== q.max_score || JSON.stringify(reflection) !== JSON.stringify(meaningfulReflection(q.student_reflection))) changed.push(q.label);
+    if (c.stem) fact.stem = c.stem;
+    if ((c.stem !== undefined && c.stem !== q.stem) || c.answer !== q.answer || c.teacher_score !== q.teacher_score || c.max_score !== q.max_score || JSON.stringify(reflection) !== JSON.stringify(meaningfulReflection(q.student_reflection))) changed.push(q.label);
     if (c.answer !== q.answer) {
       fact.answer = c.answer; fact.status = c.answer ? "answered" : "blank";
       fact.subparts = []; fact.answer_verification = "user_corrected"; delete fact.answer_candidates;
@@ -219,12 +235,12 @@ export function checkpointInput(row: any) {
   const meta = source?.pages || row.image_meta || [];
   const pages = meta.length ? meta.map((p: any) => ({ page: p.page, role: p.role, url: "" })) : [{ page: 1, role: "paper", url: "" }];
   return { request_id: row.request_id, draft_id: row.draft_id, exam_id: state.original_exam_id ?? row.exam_id ?? null,
-    subject: row.subject, pages, work_on_paper: source?.work_on_paper ?? state.has_work !== false,
+    subject: row.subject, options: reviewSettings(row.options || state.options), pages, work_on_paper: source?.work_on_paper ?? state.has_work !== false,
     exam_context: state.exam_context, text_recovery: true };
 }
 export function recoveryInfo(row: any) {
-  const state = row.analysis_state || {}, available = !!state.phase && (state.resume_count || 0) < 2;
+  const state = row.analysis_state || {}, available = !!state.phase && (row.status === "paused" || (state.resume_count || 0) < 2);
   return { available, mode: state.flow === "revision" || canRecoverText(state) ? "saved" : "images",
     completed: state.diagnoses?.length || 0, total: state.evidence?.questions?.length || 0,
-    questions: (state.evidence?.questions || []).map((q: any) => ({ label: q.label, stem: q.stem, answer: q.answer, teacher_score: q.teacher_score, max_score: q.max_score })) };
+    questions: (state.evidence?.questions || []).map((q: any) => ({ label: q.label, stem: q.stem, answer: q.answer, teacher_score: q.teacher_score, max_score: q.max_score, pages: q.pages, work_pages: q.work_pages, source_regions: q.source_regions })) };
 }
