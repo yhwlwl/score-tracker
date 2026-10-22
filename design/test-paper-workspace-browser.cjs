@@ -59,7 +59,13 @@ const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png
    await page.screenshot({path:path.join(output,device.name+'-ocr-scans.png')});
    await page.getByRole('button',{name:'保存核对并继续',exact:true}).click();await page.locator('.pr-result-top').waitFor({timeout:20000});
    assert.equal(h.tables.score_tracker_paper_reviews[0].result.questions[1].answer,'x=7（识别已核对）');
-   await page.locator('[data-question="2"]>summary').click();await page.locator('[data-question="2"] .ps-region').waitFor();
+   await page.locator('[data-pr="jump:highlights"]').click();await page.screenshot({path:path.join(output,device.name+'-report-top.png')});
+   await page.locator('[data-pr="filter:review"]').click();assert.equal(await page.locator('[data-question="1"]').isVisible(),false);
+   await page.locator('[data-pr="filter:confirm"]').click();assert(await page.locator('.pr-filter-empty').isVisible());
+   await page.locator('[data-pr="focus:2"]').first().click();assert(await page.locator('[data-question="2"]').isVisible());
+   assert.equal(await page.locator('[data-question="2"] [data-field=answer]').isVisible(),false,'edit controls do not bury the explanation');
+   await page.screenshot({path:path.join(output,device.name+'-question-explanation.png')});
+   await page.locator('[data-question="2"] .pr-source>summary').click();await page.locator('[data-question="2"] .ps-region').waitFor();
    assert((await page.locator('.pr-difficulty-table').textContent()).includes('/10'));
    const saved=structuredClone(h.tables.score_tracker_paper_reviews[0]);
    h.tables.score_tracker_paper_reviews.push({...structuredClone(saved),request_id:crypto.randomUUID(),subject:'历史',exam_id:null,title:'旧报告·历史'});
@@ -70,11 +76,31 @@ const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png
    await page.locator('[data-analysis-tab=stats]').click();assert(await page.locator('.sv31-page').count());await page.locator('#dsbRoot').waitFor();assert.equal(await page.locator('.ph-workspace').count(),0,'separate peer tab, not a card inserted in score analysis');
    await page.locator('[data-analysis-tab=ai]').click();await page.locator('[data-hub="open:'+saved.request_id+'"]').click();await page.locator('.pr-result-top').waitFor();
    await page.getByRole('button',{name:'关联考试 / 名称',exact:true}).click();await page.locator('.ph-link-form [name=exam]').selectOption('');await page.getByRole('button',{name:'保存关联',exact:true}).click();await page.locator('.ph-message').filter({hasText:'关联已保存'}).waitFor();
-   await page.reload();await page.waitForFunction(()=>window.ScorePaperHub);await setup(false);await page.locator('[data-hub="open:'+saved.request_id+'"]').click();await page.locator('.pr-result-top').waitFor();await page.locator('[data-question="2"]>summary').click();await page.locator('[data-question="2"] .ps-region').waitFor();
+   await page.reload();await page.waitForFunction(()=>window.ScorePaperHub);await setup(false);await page.locator('[data-hub="open:'+saved.request_id+'"]').click();await page.locator('.pr-result-top').waitFor();await page.locator('[data-question="2"]>summary').click();await page.locator('[data-question="2"] .pr-source>summary').click();await page.locator('[data-question="2"] .ps-region').waitFor();
    assert.equal(await page.locator('.ps-library .ps-pages img').count(),1,'scans survive reload');assert.equal(h.tables.score_tracker_paper_reviews[0].exam_id,null);
    assert.equal(await page.locator('#dsbRoot').count(),0,'deep analysis must not reappear after report reload');
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'no horizontal page overflow');assert.deepEqual(errors,[]);
-   await page.screenshot({path:path.join(output,device.name+'-report.png')});await page.close();console.log('PASS',device.name,'entry, preferences, draft, OCR, scan crop, resume, 10-point report, tabs, archive, association, reload, no errors/overflow');
+   await page.screenshot({path:path.join(output,device.name+'-report.png')});
+   // Existing long reports receive the layout without regeneration or source edits.
+   const old=h.tables.score_tracker_paper_reviews[0].result;
+   old.prompt_version='2026-10-learner-v6';old.overview='已经列出了受力方程，接下来需要检查运动方向和条件。'.repeat(15);
+   const longOverview=old.overview;
+   old.action_plan=Array.from({length:4},(_,i)=>({...structuredClone(old.action_plan[0]),title:'第'+(i+1)+'项复习安排'}));
+   const q=old.questions[1];q.reference='## 先写等式\n\n1. **等号两边做同一运算**。\n2. 把结果代回原式检查。\n\n$$\\begin{aligned}\nx+2&=5\\\\\nx&=3\n\\end{aligned}$$';q.difficulty.scale=5;
+   for(let i=3;i<=15;i++)old.questions.push({...structuredClone(old.questions[0]),id:String(i),label:String(i)});
+   await page.getByRole('button',{name:'返回全部分析',exact:true}).click();await page.locator('[data-hub="open:'+saved.request_id+'"]').click();await page.locator('.pr-result-top').waitFor();
+   assert.equal(await page.locator('.pr-questions>.pr-question').count(),15);
+   assert.equal(await page.locator('details.pr-overview').getAttribute('open'),null);assert.equal(await page.locator('details.pr-overview .pr-prose').textContent(),longOverview);
+   assert.equal(await page.locator('.pr-action-plan>.pr-action').count(),2,'only the first two tasks lead the report');
+   assert.equal(await page.locator('.pr-action-plan .pr-action').count(),4,'further tasks are preserved');
+   await page.locator('[data-question="2"]>summary').click();await page.locator('[data-question="2"] .pr-solution>summary').click();
+   await page.locator('[data-question="2"] .pr-solution .katex-display').waitFor();
+   assert.equal(await page.locator('.katex-error').count(),0);assert.equal(await page.locator('[data-question="2"] .pr-solution ol>li').count(),2);
+   assert((await page.locator('[data-question="2"] .pr-difficulty>summary').textContent()).includes('/ 5'),'legacy scale is not silently relabeled');
+   await page.locator('.pr-report-meta>summary').click();await page.getByText('查看每题挑战评分',{exact:true}).click();
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'expanded legacy difficulty table stays inside viewport');
+   assert.deepEqual(errors,[]);await page.screenshot({path:path.join(output,device.name+'-legacy-difficulty.png')});
+   await page.close();console.log('PASS',device.name,'entry, preferences, draft, OCR, scan crop, resume, 10-point report, tabs, archive, association, reload, legacy long report, prose/LaTeX, no errors/overflow');
   }
   console.log('SCREENSHOTS',output);
  }finally{await browser.close();server.close();}

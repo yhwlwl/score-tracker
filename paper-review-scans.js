@@ -47,7 +47,7 @@
     if (!main.isConnected || main.dataset.scanGeneration !== generation) return;
     var pages = source.pages || [], regions = source.regions || {}, panel = document.createElement('details'); panel.className = 'ps-library';
     panel.innerHTML = '<summary>扫描件 · ' + pages.length + ' 页</summary><p class="pr-muted">扫描件保存在当前账号。展开题目可查看或调整原题、作答区域。</p><div class="ps-pages">' + pages.map(function (p) { return '<a target="_blank" rel="noopener" href="' + esc(p.url) + '"><img loading="lazy" src="' + esc(p.url) + '" alt="第' + p.page + '页扫描件"><span>第' + p.page + '页 · ' + roles[p.role] + '</span></a>'; }).join('') + '</div>' + (r.status !== 'running' ? '<label>补充扫描件类别<select data-add-kind><option value="paper">原题</option><option value="work">作答</option><option value="reference">参考答案</option></select></label><label class="pr-check"><input type="checkbox" data-scan-consent>同意在账号中保存补充扫描件；裁掉姓名、考号等无关信息</label><label class="pr-button pr-file-label">补充扫描件<input type="file" accept="image/jpeg,image/png,image/webp" data-add-page></label>' : '') + '<p class="ps-upload-note" role="status"></p>';
-    main.prepend(panel);
+    var materials = main.querySelector('.pr-materials'); if (materials) materials.appendChild(panel); else main.prepend(panel);
     var file = panel.querySelector('[data-add-page]'); if (file) file.onchange = async function () {
       if (!file.files.length) return; var message = panel.querySelector('.ps-upload-note'); file.disabled = true;
       try {
@@ -60,7 +60,7 @@
       } catch (err) { message.textContent = err.message; } finally { file.disabled = false; file.value = ''; }
     };
     qs.forEach(function (q, i) {
-      var target = isPaused ? main.querySelector('[data-ocr="' + i + '"] .pr-question-body') : main.querySelector('[data-question="' + q.id + '"] .pr-question-body');
+      var target = isPaused ? main.querySelector('[data-ocr="' + i + '"] .pr-question-body') : main.querySelector('[data-question="' + q.id + '"] [data-scan-host]');
       if (!target) return;
       var zone = document.createElement('section'); zone.className = 'ps-question'; target.prepend(zone);
       var current = Object.prototype.hasOwnProperty.call(regions,q.label) ? regions[q.label] : q.source_regions || [];

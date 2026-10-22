@@ -81,5 +81,27 @@
       return w;
     });
   }
-  window.ScorePaperSupport = { uploads: uploads, renderMath: renderMath, legacyFormula: legacyFormula, wins: wins };
+  // Small, deliberately non-HTML renderer. Keep math opaque while formatting prose;
+  // quotes and editable source transcripts never pass through this formatter.
+  function prose(value) {
+    var math = [], source = String(value == null ? '' : value).replace(/\r\n?/g, '\n');
+    // Private-use markers supplied by model/user text must not impersonate placeholders.
+    source = source.replace(/[\uE000\uE001]/g, '');
+    source = source.replace(/\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$[^$\n]+\$/g, function (s) { math.push(s); return '\uE000' + (math.length - 1) + '\uE001'; });
+    function inline(s) {
+      return escapeHtml(s).replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\uE000(\d+)\uE001/g, function (_, n) { return escapeHtml(math[Number(n)] || ''); });
+    }
+    var html = '', paragraph = [], list = '', items = [];
+    function flush() { if (paragraph.length) { html += '<p>' + inline(paragraph.join('\n')) + '</p>'; paragraph = []; } if (items.length) { html += '<' + list + '>' + items.join('') + '</' + list + '>'; items = []; list = ''; } }
+    source.split('\n').forEach(function (line) {
+      var item = line.match(/^\s*(?:(\d+)[.)、]|([-*•]))\s+(.+)$/), heading = line.match(/^\s*#{1,6}\s+(.+)$/);
+      if (!line.trim()) { flush(); return; }
+      if (heading) { flush(); html += '<p class="pr-prose-heading"><strong>' + inline(heading[1]) + '</strong></p>'; return; }
+      if (item) { var kind = item[1] ? 'ol' : 'ul'; if (paragraph.length || list && list !== kind) flush(); list = kind; items.push('<li' + (item[1] ? ' value="' + Number(item[1]) + '"' : '') + '>' + inline(item[3]) + '</li>'); return; }
+      if (items.length) flush(); paragraph.push(line);
+    });
+    flush(); return '<div class="pr-text pr-prose">' + html + '</div>';
+  }
+  window.ScorePaperSupport = { uploads: uploads, renderMath: renderMath, legacyFormula: legacyFormula, wins: wins, prose: prose };
 })();

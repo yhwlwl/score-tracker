@@ -2,7 +2,7 @@ import { reviewSettings, settingsPrompt, applyModules, scanRegions } from "./opt
 import { text, number, normalizeReport } from "./model.ts";
 import { fullCredit, needsConfirmation, learnerFields, paperProfile } from "./learner.ts";
 
-export const REVIEW_VERSION = "2026-10-learner-v8";
+export const REVIEW_VERSION = "2026-10-learner-v9";
 export const BATCH_SIZE = 4;
 export const STAGE_BUDGET_MS = 125000;
 export const REVIEW_OUTPUT_TOKENS = 24576;
@@ -235,8 +235,8 @@ export function synthesisPrompt(input: any, evidence: any, diagnoses: any[]) {
 分数、满分、逐题得分、失分合计和比例由程序单独汇总；overview不重复这些数字或列举所谓全对题号，避免将多选部分得分写成全对。总体报告应回答：已掌握了什么？失分集中在何处？哪些跨题共性有证据、哪些只是待验证假设？先做哪2～4件事最合算，为什么，具体怎么做，如何确认已掌握？不能仅按丢分大小排序；兼顾基础前置、修复难度和迁移价值，不承诺提分。
 同一能力只有至少两道不同题有证据才能称反复出现；不能用单题扩大成整个章节薄弱，须考虑同知识点做对的反证。满分题不列补弱优先项；不要把不确定归因包装为性格/能力标签，也不能从答案倒推“没检查、不认真、忘记、缺乏意识”等行为或心理过程。检查清单可以作为建议，不能写成已经确认的失分原因。无作答时只做试卷结构与学习路线，不能生成个人优劣和失分归因。
 若上传成绩截图，使用确实可读的本次分数线/排名解释考试情境；无统计依据不写“中下”“前X%”等相对评价，不线性插值百分位。
-每个行动含题号、具体操作和可观察验收标准。每项针对不同卡点，重复目标应合并，不为凑数另添泛化的“养成习惯”行动。预计耗时仅为练习安排，不代表预计提分。验收只写检查方法和达标标准，不直接给出练习答案；选择逐题learning_tasks中的task_ids安排顺序，原样保留任务与验收，不生成另一个解法或修改练习；同一题不同小问可分别安排，重复任务只出现一次。报告简洁有信息增量，overview控制在300字左右，最多4个不同目标的行动。至少对主要卡点提供能直接继续写下去的提示。面向学生的内容不提“事实底稿、本批、候选诊断、JSON字段”等内部实现，只说明确实影响判断的资料缺口。
-仅返回JSON：{"overview":"3～5句有证据的能力结构与核心结论","strengths":["具体题号及已成立步骤"],"context_summary":"结合本次截图及考试表单数值；没有则留空","paper_summary":"试卷要求画像与本次发挥的关系","patterns":[{"title":"跨题共性或待验证假设","questions":["原卷题号"],"evidence":"各题的具体证据及反证","interpretation":"可复用结论","confidence":"high/medium/low"}],"action_plan":[{"title":"明确行动","questions":["需订正的题号"],"task_ids":["逐题learning_tasks中的id"],"reason":"为何优先及证据","task":"具体怎么做","success_check":"怎样证明已掌握","timebox":"建议练习时间"}],"uncertainties":["还不能确定什么，需要补充什么证据"],"warnings":[]}。`;
+每个行动含题号、具体操作和可观察验收标准。每项针对不同卡点，重复目标应合并，不为凑数另添泛化的“养成习惯”行动。预计耗时仅为练习安排，不代表预计提分。验收只写检查方法和达标标准，不直接给出练习答案；选择逐题learning_tasks中的task_ids安排顺序，原样保留任务与验收，不生成另一个解法或修改练习；同一题不同小问可分别安排，重复任务只出现一次。报告简洁有信息增量，overview控制在80～150字，最多4个不同目标的行动，最值得先做的放在前两项。至少对主要卡点提供能直接继续写下去的提示。面向学生的内容不提“事实底稿、本批、候选诊断、JSON字段”等内部实现，只说明确实影响判断的资料缺口。
+仅返回JSON：{"overview":"2～3句，说清已经做到什么、接下来先改哪里","strengths":["具体题号及已成立步骤"],"context_summary":"结合本次截图及考试表单数值；没有则留空","paper_summary":"试卷要求画像与本次发挥的关系","patterns":[{"title":"跨题共性或待验证假设","questions":["原卷题号"],"evidence":"各题的具体证据及反证","interpretation":"可复用结论","confidence":"high/medium/low"}],"action_plan":[{"title":"明确行动","questions":["需订正的题号"],"task_ids":["逐题learning_tasks中的id"],"reason":"为何优先及证据","task":"具体怎么做","success_check":"怎样证明已掌握","timebox":"建议练习时间"}],"uncertainties":["还不能确定什么，需要补充什么证据"],"warnings":[]}。`;
 }
 
 export function assembleReport(raw: any, evidence: any, input: any, diagnoses?: any[]) {
