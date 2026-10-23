@@ -14428,6 +14428,8 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     dialog.addEventListener('cancel', function (e) { e.preventDefault(); close(false); });
     function tab(next) {
       if (dirty && !confirm('核对修改尚未保存，确定切换吗？')) return false;
+      // Keep the live status node when the upload contents are replaced.
+      if (main.contains(message)) main.before(message);
       dirty = false; view = next; if (ctx.onView) ctx.onView(next);
       dialog.querySelectorAll('.pr-tabs button').forEach(function (b) { b.classList.toggle('is-active', b.dataset.pr === next); });
       return true;
@@ -14439,9 +14441,11 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     async function saveCloud(id) {
       if (ctx.options && ctx.options.config_version===2) ctx.options.work_location=session.workLocation || (session.workOnPaper?'paper':session.pages.some(function(p){return p.role==='work';})?'separate':'none');
       await api(ctx, 'save_materials', { request_id: id, draft_id: ctx.draftId, exam_id: ctx.examId || null, subject: subject, title: ctx.title || '', options: ctx.options, page_count: session.pages.length, consent: true });
+      session.cloudDraftId = id;
       for (var pi = 0; pi < session.pages.length; pi++) {
         note('正在保存扫描件 ' + (pi + 1) + ' / ' + session.pages.length);
-        await api(ctx, 'upload_page', { request_id: id, page: pi + 1, role: session.pages[pi].role, url: session.pages[pi].url });
+        try { await api(ctx, 'upload_page', { request_id: id, page: pi + 1, role: session.pages[pi].role, url: session.pages[pi].url }); }
+        catch (e) { e.message = '第 ' + (pi + 1) + ' 张扫描件保存失败：' + e.message; throw e; }
       }
       session.cloudReady = true; session.cloudDraftId = id;
     }
@@ -14503,6 +14507,8 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
         } catch (e) { note(e.message, true); } finally { busy = false; if (alive()) upload(); }
       }; });
       if (ctx.onUpload) ctx.onUpload(main);
+      main.querySelector('.pr-footer').prepend(message);
+      message.classList.add('pr-action-message');
       main.querySelectorAll('[name=pr_location]').forEach(function(el){el.onchange=function(){
         if(el.value==='none' && session.pages.some(function(p){return p.role==='work';})){el.checked=false;main.querySelector('[name=pr_location][value="'+location+'"]').checked=true;return note('已添加答题卡，请先移除作答图片再选择“暂时没有作答”',true);}
         session.workLocation=el.value;session.workOnPaper=el.value==='paper';session.cloudReady=false;persist();upload();
@@ -14541,6 +14547,8 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     }
     function renderReport(r) {
       if (!alive()) return;
+      if (main.contains(message)) main.before(message);
+      message.classList.remove('pr-action-message');
       selected = r; view = 'report'; dirty = false; if (ctx.onView) ctx.onView('report');
       if (r.status === 'paused') { main.innerHTML = '<section class="pr-recovery"><h3>' + esc(r.progress && r.progress.message || '进度已保存') + '</h3><p>本轮已完成的内容已保存。核对资料后，可以继续剩余分析。</p>' + button('继续分析', 'resume', 'pr-primary') + button('删除记录', 'delete', 'pr-danger') + '</section>'; if (window.ScorePaperScans) window.ScorePaperScans.decorate(main, r, ctx, { api: api, load: load, note: note }); return; }
       if (r.status === 'running' && !r.result) {
@@ -14592,7 +14600,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       if (ctx.beforeSubmit && !session.pending) { busy=true;try { subject = await ctx.beforeSubmit(); } catch(e) { return note(e.message,true); } finally {busy=false;} }
       if (!session.pages.some(function (p) { return p.role === 'paper'; })) return note('请先上传试卷题目', true);
       if (!session.consent) return note('请先确认图片分析与报告保存说明', true);
-      var id = session.pending || session.cloudDraftId || crypto.randomUUID(); session.pending = id; busy = true; upload(); note('正在提交，提交成功后将开始分析…');
+      var id = session.pending || session.cloudDraftId || crypto.randomUUID(), submitted = false; session.pending = id; busy = true; upload(); note('正在提交，提交成功后将开始分析…');
       try {
         var savedSubject = ctx.exam && ctx.exam.scores && ctx.exam.scores[subject];
         session.payload = session.payload || { request_id: id, draft_id: ctx.draftId, exam_id: savedSubject ? ctx.examId : null,
@@ -14602,9 +14610,16 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
         if (ctx.host && (!session.cloudReady || ctx.setup)) {
           await saveCloud(id);
         }
+        submitted = true;
         var data = await api(ctx, 'start', ctx.host ? Object.assign({}, session.payload, { pages: undefined, use_saved: true }) : session.payload);
         session.retrySubmission = false; quota = data.quota; if (alive()) { view = 'report'; await load(id); }
       } catch (e) {
+        if (!submitted) {
+          session.pending = null; session.payload = null; session.retrySubmission = false;
+          await persist();
+          if (alive()) { note(e.message + '；已保存的资料会保留，点击“开始分析”可重试。', true); upload(); }
+          return;
+        }
         // A timeout may occur after reservation; check the same ID before offering a new request.
         try { var existing = await api(ctx, 'get', { request_id: id }); session.retrySubmission = false; if (alive()) renderReport(existing.review); }
         catch (_) {
@@ -14726,6 +14741,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     .pr-question-filters{display:flex;gap:7px;flex-wrap:wrap;margin:14px 0}.pr-question-filters [aria-pressed=true]{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}.pr-main .pr-question[hidden],.pr-main [hidden]{display:none!important}.pr-main .pr-question{background:var(--panel-solid);overflow:hidden;scroll-margin-top:120px}.pr-main .pr-question>summary{padding:16px;font-size:14px;min-height:48px;list-style:none}.pr-main .pr-question>summary::-webkit-details-marker{display:none}.pr-main .pr-question>summary>span:first-child{flex:1;min-width:0;overflow-wrap:anywhere}.pr-main .pr-question summary small{font-size:11px;line-height:1.65;margin-top:4px}.pr-main .pr-badge{font-size:12px;flex:none}.pr-chevron{font-size:0;width:7px;height:7px;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:rotate(45deg);margin:0 3px 4px;flex:none}.pr-question[open]>summary>.pr-chevron{transform:rotate(225deg);margin-top:6px}.pr-main .pr-question[open]>summary{border-bottom:1px solid var(--line)}.pr-main .pr-question-body{padding:16px}.pr-main .pr-question-body h4{font-size:14px}.pr-main .pr-first-issue{margin:0 0 18px;padding:14px;border-left:3px solid #d99a57}.pr-main .pr-first-issue h4:first-child{margin-top:0}.pr-main .pr-full-credit{font-size:14px;font-weight:600}.pr-main .pr-source{margin-top:20px}.pr-main .pr-link{min-height:36px;padding:6px 12px}.pr-main .pr-check{font-size:12px}.pr-main .pr-context{padding:12px 0}.pr-main .pr-context>summary{cursor:pointer;font-weight:600}.pr-main .pr-report-meta .pr-insight{margin-bottom:18px}.pr-main .katex-error{overflow-wrap:anywhere}
     @media(max-width:520px){.pr-dialog{width:100%;max-width:100%;max-height:100dvh;height:100dvh;margin:0;border-radius:0;border:0}.pr-head{padding:15px 16px}.pr-content{padding:0 16px 24px}.pr-pages{grid-template-columns:repeat(2,minmax(0,1fr))}.pr-intro,.pr-main .pr-result-top{padding:18px}.pr-head h2{font-size:18px}.pr-stats b{font-size:20px}.pr-main .pr-question>summary{padding:14px;gap:8px}.pr-main .pr-report-nav .pr-button{font-size:12px;padding:8px}.pr-main .pr-difficulty-table thead{display:none}.pr-main .pr-difficulty-table tbody{display:block}.pr-main .pr-difficulty-table tr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);border-radius:10px;margin:10px 0;padding:8px}.pr-main .pr-difficulty-table td{padding:4px;border:0}.pr-main .pr-difficulty-table td:nth-child(1)::before{content:'题号 ';color:var(--muted)}.pr-main .pr-difficulty-table td:nth-child(2)::before{content:'综合 ';color:var(--muted)}.pr-main .pr-difficulty-table td:nth-child(3)::before{content:'思考 ';color:var(--muted)}.pr-main .pr-difficulty-table td:nth-child(4)::before{content:'计算 ';color:var(--muted)}.pr-main .pr-difficulty-table td:last-child{grid-column:1/-1;border-top:1px solid var(--line);margin-top:6px;padding-top:8px;font-size:13px;line-height:1.8}}@media(prefers-reduced-motion:reduce){.pr-spinner{animation:none}}
   `;
+  style.textContent += '.pr-action-message{flex:1 0 100%;min-width:0;margin:0 0 10px;box-sizing:border-box;line-height:1.7;overflow-wrap:anywhere}.pr-action-message:empty{display:none}.pr-footer:has(>.pr-action-message){flex-wrap:wrap}';
   document.head.appendChild(style);
 })();
 

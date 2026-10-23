@@ -131,6 +131,18 @@ async function migration() {
   await db.exec('create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);');
   const workspaceFile=fs.readdirSync(path.join(root,'supabase/migrations')).find(f=>f.endsWith('_paper_workspace.sql'));
   await db.exec(read('supabase/migrations/'+workspaceFile));
+  // Use PostgreSQL constraints, not only the in-memory API fixture, at page 9.
+  await db.query('insert into score_tracker_paper_materials(request_id,user_id,draft_id,subject,pages) values($1,$2,$3,$4,$5)',[rid,uid,draftId,'数学',JSON.stringify(Array(8).fill({page:1}))]);
+  const setPages=n=>db.query('update score_tracker_paper_materials set pages=$1 where request_id=$2',[JSON.stringify(Array(n).fill({page:1})),rid]);
+  await assert.rejects(()=>setPages(9),e=>e.code==='23514','reproduce the old ninth-page failure');
+  const pageLimitFile=fs.readdirSync(path.join(root,'supabase/migrations')).find(f=>f.endsWith('_paper_materials_fifteen_pages.sql'));
+  await db.exec(read('supabase/migrations/'+pageLimitFile));
+  await db.exec(read('supabase/migrations/'+pageLimitFile));
+  await setPages(9);await setPages(15);
+  await assert.rejects(()=>setPages(16),e=>e.code==='23514','reject a sixteenth page in PostgreSQL');
+  await assert.rejects(()=>db.query('update score_tracker_paper_materials set pages=$1 where request_id=$2',['{}',rid]),e=>e.code==='23514','retain the JSON array constraint');
+  assert.equal((await db.query('select jsonb_array_length(pages) n from score_tracker_paper_materials where request_id=$1',[rid])).rows[0].n,15,'failed writes preserve the saved pages');
+  console.log('PASS: real PostgreSQL ninth-page reproduction, migration replay, 9/15 accepted, 16/non-array rejected and saved scans preserved');
   const bucket=(await db.query("select * from storage.buckets where id='score-tracker-paper-scans'")).rows[0];assert.equal(bucket.public,false);
   for(const role of ['anon','authenticated']) {
     await db.exec('set role '+role);

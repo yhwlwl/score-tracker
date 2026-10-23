@@ -8,19 +8,23 @@ async function until(fn) { for (let i=0; i<160; i++) { if(fn()) return; await ti
   const h=harness(); await h.init();
   const opts={config_version:2,purpose:'analysis',review_before_analysis:true,analysis_scope:'all'};
   await h.call({action:'save_materials',...input,options:opts});
-  await h.call({action:'upload_page',request_id:rid,page:1,role:'paper',url:input.pages[0].url});
+  for(let page=1;page<=15;page++)await h.call({action:'upload_page',request_id:rid,page,role:page===1?'paper':'work',url:input.pages[0].url});
   const errors=[], calls=[], vc=new VirtualConsole();
   vc.on('jsdomError',e=>{ if(!e.message.includes('CSS'))errors.push(e.message); });
   const dom=new JSDOM(read('index.html').replace(/<script[\s\S]*?<\/script>/g,''),{url:'https://test.local/',runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:vc});
   const w=dom.window, d=w.document;
   w.matchMedia=()=>({matches:false,addEventListener(){},addListener(){}});w.scrollTo=()=>{};w.setInterval=()=>1;w.confirm=()=>true;w.AbortController=AbortController;
+  let failNinthPage=true;
   w.fetch=async (url,options)=>{
     if(String(url).startsWith('https://scan.test/')) {
       const bytes=h.blobs.get(new URL(url).pathname.slice(1));
       return {ok:!!bytes,blob:async()=>new w.Blob([bytes],{type:'image/png'})};
     }
     const body=JSON.parse(options?.body||'{}');calls.push(body);
-    if(String(url).includes('paper-review'))return h.call(body);
+    if(String(url).includes('paper-review')) {
+      if(body.action==='upload_page' && body.page===9 && failNinthPage) { failNinthPage=false;return new Response(JSON.stringify({error:'fixture-save-failure'}),{status:503}); }
+      return h.call(body);
+    }
     return new Response(JSON.stringify({ok:true,enabled:false,modules:[],exams:[],subjects:[],profile:{completed_at:'2026-10-01',school_prompted_at:'2026-10-01'}}));
   };
   w.eval(read('app-bundle.js')+'\nwindow.state=state;');
@@ -49,10 +53,17 @@ async function until(fn) { for (let i=0; i<160; i++) { if(fn()) return; await ti
   await until(()=>!d.querySelector('[data-pr=start]').disabled);
   d.querySelector('#pr-consent').checked=true;d.querySelector('#pr-consent').dispatchEvent(new w.Event('change',{bubbles:true}));
   d.querySelector('[data-pr=start]').click();
+  await until(()=>d.querySelector('.pr-footer > .pr-message')?.textContent.includes('第 9 张扫描件保存失败'));
+  const failure=d.querySelector('.pr-footer > .pr-message');
+  assert(!failure.textContent.includes('确认同一请求'),'saving scans is distinct from an ambiguous analysis reservation');
+  assert.equal(h.tables.score_tracker_paper_reviews.length,0,'failed material upload does not reserve AI usage');
+  assert.equal(d.querySelectorAll('.pr-page img').length,15,'all local images remain available for retry');
+  assert.equal(failure.parentElement.querySelector('[data-pr=start]').textContent,'开始分析');
+  d.querySelector('[data-pr=start]').click();
   try { await until(()=>h.tables.score_tracker_paper_reviews.length); }
   catch(e) { throw new Error(e.message+'; '+d.querySelector('.pr-message').textContent+'; calls='+calls.map(c=>c.action).join(',')+'; errors='+errors.join(',')); }
   await h.drain();
-  const start=calls.find(x=>x.action==='start');assert.equal(start.subject,'数学');assert.equal(start.options.analysis_scope,'selected');assert.equal(start.options.exam_experience.note,'最后两分钟没有做完');
+  const start=calls.find(x=>x.action==='start');assert.equal(start.request_id,rid,'retry keeps the same saved material request');assert.equal(calls.filter(x=>x.action==='start').length,1);assert.equal(start.subject,'数学');assert.equal(start.options.analysis_scope,'selected');assert.equal(start.options.exam_experience.note,'最后两分钟没有做完');
   d.querySelector('[data-pr^="report:"]').click();await until(()=>d.querySelector('.ps-verify'));
   const pick=d.querySelector('[name=detail_questions][value="2"]');pick.checked=true;
   d.querySelector('.ps-verify').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));

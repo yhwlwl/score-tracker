@@ -113,7 +113,7 @@ Deno.serve(async (req: Request) => {
       background(runReviewStage(db, input, row.user_id, config, row, body.claim, claim => dispatchStage(input, claim)));
       return out({ accepted: true }, 202);
     }
-    action = ["start", "resume", "get", "list", "attach", "correct", "delete", "quota"].includes(body.action) ? body.action : "unknown";
+    action = ["start", "resume", "get", "list", "attach", "correct", "delete", "quota", "list_all", "preferences", "save_materials", "upload_page", "sources", "save_regions", "link", "pause", "confirm_input", "delete_draft"].includes(body.action) ? body.action : "unknown";
     if (UUID.test(body.request_id || "")) requestId = body.request_id;
     stage = "authentication";
     const user = await userFor(body.token);

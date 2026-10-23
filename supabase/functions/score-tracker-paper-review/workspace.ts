@@ -2,7 +2,15 @@ import { UUID, validateStart, text, number, MAX_PAGES, MAX_MATERIAL_BYTES } from
 import { reviewSettings, preferenceSettings, scanRegions } from './options.ts';
 const MATERIALS = 'score_tracker_paper_materials', SCAN_BUCKET = 'score-tracker-paper-scans';
 export class WorkspaceError extends Error { status: number; constructor(message: string, status = 400) { super(message); this.status = status; } }
-async function materialQuery(op: PromiseLike<any>) { const r = await op; if (r.error) throw new WorkspaceError('资料保存未完成，请重试', 503); return r.data; }
+async function materialQuery(op: PromiseLike<any>) {
+  const r = await op;
+  if (r.error) {
+    const constraint = /constraint "([a-z0-9_]+)"/i.exec(r.error.message || '')?.[1];
+    console.error('paper_material_query_failed', JSON.stringify({ code: r.error.code || 'unknown', constraint }));
+    throw new WorkspaceError('资料保存未完成，请重试', 503);
+  }
+  return r.data;
+}
 export async function materialFor(db: any, user: string, id: string) {
   if (!UUID.test(id || '')) throw new WorkspaceError('分析编号无效');
   return materialQuery(db.from(MATERIALS).select('*').eq('request_id', id).eq('user_id', user).maybeSingle());
