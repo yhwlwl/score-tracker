@@ -23,6 +23,7 @@ function diagnosis(q) {
 }
 function stagedReply(reply,request) {
   const p=request.messages[0].content[0].text;
+  if(p.includes('独立答案核对与AI判分。'))return {questions:[]};
   if(p.includes('阶段一：'))return facts(reply);
   if(p.includes('识别作答：'))return facts(reply);
   if(p.includes('独立分数补读：')){const labels=JSON.parse(p.split('题目身份：')[1].split('\n')[0]).map(q=>q.label);return {questions:facts(reply).questions.filter(q=>labels.includes(q.label)).map(q=>({...q,score_mark:q.score_mark&&{...q.score_mark,location:'对应题号旁的批改分'}})),score_groups:[]};}
@@ -65,7 +66,7 @@ function harness() {
     console:{log(...args){logs.push(args)},error(...args){logs.push(args)},warn(...args){logs.push(args)}},
     fetch:async(url,options)=>{if(url.startsWith('https://test.local/functions/'))return handler(new Request(url,options));const request=JSON.parse(options.body);upstream.push(request);return transport?transport(url,options):new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify(stagedReply(modelReply,request))}}]}));} };
   vm.createContext(scope);
-  ['score-worth-model.js','supabase/functions/score-tracker-vision-preview/reliability.ts','supabase/functions/score-tracker-paper-review/options.ts','supabase/functions/score-tracker-paper-review/model.ts','supabase/functions/score-tracker-paper-review/learner.ts','supabase/functions/score-tracker-paper-review/account.ts','supabase/functions/score-tracker-paper-review/analysis.ts','supabase/functions/score-tracker-paper-review/reading.ts','supabase/functions/score-tracker-paper-review/runtime.ts','supabase/functions/score-tracker-paper-review/audit.ts','supabase/functions/score-tracker-paper-review/pipeline.ts','supabase/functions/score-tracker-paper-review/workspace.ts','supabase/functions/score-tracker-paper-review/index.ts'].forEach(f=>vm.runInContext(code(f),scope));
+  ['score-worth-model.js','supabase/functions/score-tracker-vision-preview/reliability.ts','supabase/functions/score-tracker-paper-review/options.ts','supabase/functions/score-tracker-paper-review/model.ts','supabase/functions/score-tracker-paper-review/learner.ts','supabase/functions/score-tracker-paper-review/account.ts','supabase/functions/score-tracker-paper-review/grading.ts','supabase/functions/score-tracker-paper-review/analysis.ts','supabase/functions/score-tracker-paper-review/reading.ts','supabase/functions/score-tracker-paper-review/runtime.ts','supabase/functions/score-tracker-paper-review/audit.ts','supabase/functions/score-tracker-paper-review/pipeline.ts','supabase/functions/score-tracker-paper-review/workspace.ts','supabase/functions/score-tracker-paper-review/index.ts'].forEach(f=>vm.runInContext(code(f),scope));
   return { scope, blobs, tables, calls, writes, upstream, background, logs, set transport(v){transport=v},set reply(v){modelReply=v}, set fail(v){failWrites=v}, async init(){tables.score_tracker_users[0].session_token_hash=Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode('test-token'))).toString('hex')},
     call:body=>handler(new Request('https://test.local/api',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:'test-token',...body})})), handler, drain:async()=>{for(let i=0;i<background.length;i++)await background[i]} };
 }

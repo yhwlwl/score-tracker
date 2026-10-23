@@ -2,16 +2,20 @@ import { reviewSettings } from "./options.ts";
 import { readDatabase } from "../score-tracker-vision-preview/reliability.ts";
 import { paperAudit } from "./audit.ts";
 import { nextBatch, REVIEW_VERSION, extractionPrompt, normalizeEvidence, diagnosisPrompt, normalizeDiagnoses, verificationPrompt, reconcileEvidence, synthesisPrompt, assembleReport, checkScores } from "./analysis.ts";
-import { analysisQueue, fullCredit, needsConfirmation } from "./learner.ts";
+import { analysisQueue, fullCredit, answerCorrect, needsConfirmation } from "./learner.ts";
 import { reviewModel, imageContent } from "./runtime.ts";
 import { inventoryPrompt, normalizeInventory, workPrompt, normalizeWork, scoreTargets, scoreReadViews, scoreViewContent, scoreReadingPrompt, mergeScoreReading } from "./reading.ts";
+import { gradingTargets, gradingPrompt, mergeGrading, gradingChecks } from './grading.ts';
 
 const REVIEW_TABLE = "score_tracker_paper_reviews";
 export function progressFor(state: any) {
+  if (state.phase === 'grade') return { version: 3, phase: 'grade', updated_at: new Date().toISOString(), active_ms: state.active_ms || 0,
+    steps: ['核对作答与答案', '独立复核AI判分', '更新报告'], completed_steps: state.grading_round ? 1 : 0,
+    message: `核对答案并判分（第${(state.grading_round || 0) + 1}轮）`, detail: '有答案先核对；没有答案独立求解。AI判分与老师批改分分开，不自动改考试成绩。' };
   if (state.flow === "score_refresh") return { version: 3, phase: state.phase, updated_at: new Date().toISOString(),
     steps: ["重新读取分数与满分", "更新报告与历史对照"], completed_steps: state.phase === "synthesize" ? 1 : 0,
     message: state.phase === "read_scores" ? `重新核对分数（第${(state.score_read_round || 0) + 1}轮，第${(state.score_read_view || 0) + 1}块）` : "更新总览和学习建议",
-    detail: "保留原来的题目、作答和解答，只补读分数，并据此更新报告。", active_ms: state.active_ms || 0 };
+    detail: "补读分数并核对答案，保留手动核对内容；若修正作答转录，会更新受影响的讲解。", active_ms: state.active_ms || 0 };
   if (state.flow === "revision") return {
     version: 3, flow: "revision", phase: state.phase, updated_at: new Date().toISOString(),
     phase_started_at: state.phase_started_at, run_started_at: state.run_started_at,
@@ -72,10 +76,23 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
       await readDatabase(() => db.from(REVIEW_TABLE).update({ analysis_state: {}, progress: { phase: "completed", message: "录入完成" } }).eq("request_id", input.request_id).eq("user_id", user).eq("status", "succeeded"));
       return;
     }
-    const stage = state.phase === "diagnose" ? `diagnose_${state.diagnoses?.length || 0}` : state.phase === "recheck" ? `recheck_${state.rechecked || 0}` : state.phase === "read_scores" ? `read_scores_${state.score_read_round || 0}_${state.score_read_done?.length || 0}_${state.score_read_view || 0}` : state.phase === "verify" && state.verification_batch_limit ? `verify_${state.verification_readings?.length || 0}` : state.phase;
+    if (state.phase === 'synthesize' && !state.grading_complete && settings.purpose !== 'record' && state.has_work !== false) {
+      const candidates = gradingTargets(state.evidence);
+      if (candidates.length) { state.phase = 'grade'; state.grading_targets = candidates.map((q: any) => q.label); state.grading_done = []; }
+      else state.grading_complete = true;
+    }
+    const stage = state.phase === 'grade' ? `grade_${state.grading_round || 0}_${state.grading_done?.length || 0}_${state.grading_view || 0}` : state.phase === "diagnose" ? `diagnose_${state.diagnoses?.length || 0}` : state.phase === "recheck" ? `recheck_${state.rechecked || 0}` : state.phase === "read_scores" ? `read_scores_${state.score_read_round || 0}_${state.score_read_done?.length || 0}_${state.score_read_view || 0}` : state.phase === "verify" && state.verification_batch_limit ? `verify_${state.verification_readings?.length || 0}` : state.phase;
     await audit.mark(stage + "_started");
-    let promptText: string, selected: number[] | undefined, validate: (raw: any) => any, batch: any[] = [], scoreLabels: string[] = [];
-    if (state.phase === "extract") {
+    let promptText: string, selected: number[] | undefined, validate: (raw: any) => any, batch: any[] = [], scoreLabels: string[] = [], gradeLabels: string[] = [], gradeImage = false;
+    if (state.phase === 'grade') {
+      gradeLabels = state.grading_batch || state.grading_targets.filter((l: string) => !(state.grading_done || []).includes(l)).slice(0, 3);
+      state.grading_batch = gradeLabels;
+      const questions = state.evidence.questions.filter((q: any) => gradeLabels.includes(q.label));
+      if (!state.grading_views) { state.grading_uses_images = input.pages.some((p: any) => p.url); state.grading_views = state.grading_uses_images ? scoreReadViews(input, state.evidence, gradeLabels) : [{ text_only: true }]; }
+      gradeImage = !state.grading_views[state.grading_view || 0].text_only;
+      promptText = gradingPrompt(input, questions, gradeImage);
+      validate = raw => mergeGrading(raw, state.evidence, gradeLabels, state.grading_readings, gradeImage);
+    } else if (state.phase === "extract") {
       promptText = state.flow === "split_reading" ? inventoryPrompt(input) : extractionPrompt(input, state.extraction_retry ? state.evidence?.score_check?.issues : undefined);
       if (state.flow === "split_reading") selected = input.pages.filter((p: any) => p.role !== "work").map((p: any) => p.page);
       validate = raw => state.flow === "split_reading" ? normalizeInventory(raw, input) : normalizeEvidence(raw, input);
@@ -91,7 +108,7 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
       validate = raw => mergeScoreReading(raw, state.evidence, input, scoreLabels);
     } else if (state.phase === "diagnose" || state.phase === "recheck") {
       batch = (state.phase === "diagnose" ? nextBatch(analysisQueue(state.evidence).filter((q: any) => !state.diagnoses.some((d: any) => d.label === q.label)), 0) : nextBatch(state.evidence.questions.filter((q: any) => state.recheck_labels.includes(q.label)), state.rechecked || 0)).slice(0, state.batch_limit || 8);
-      promptText = diagnosisPrompt(input, state.evidence, batch);
+      promptText = diagnosisPrompt(state.grading_text_recheck ? { ...input, answer_reread: true } : input, state.evidence, batch);
       selected = [...new Set(batch.flatMap((q: any) => [...q.pages, ...q.work_pages, ...q.reference_pages]))] as number[];
       validate = raw => normalizeDiagnoses(raw, batch);
     } else if (state.phase === "verify") {
@@ -107,8 +124,13 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
       promptText = synthesisPrompt(input, state.evidence, state.diagnoses);
       validate = raw => assembleReport(raw, state.evidence, input, state.diagnoses);
     } else throw new Error("unknown_pipeline_stage");
-    const effort = batch.length && (batch.every((q: any) => fullCredit(q) || needsConfirmation(q)) || batch.length === 1 && state.focused_retries?.includes(batch[0].label)) ? "low" : undefined;
-    outcome = await reviewModel({ config, content: [{ type: "text", text: promptText }, ...(state.phase === 'read_scores' ? scoreViewContent(input, state.score_views[state.score_read_view || 0]) : state.phase === "synthesize" || (state.flow === "revision" || state.text_recovery) ? [] : imageContent(input, selected))], requestId: input.request_id, stage, effort, repairOutput: state.pending_repair?.stage === stage ? state.pending_repair.text : undefined, validate, mark: audit.mark });
+    const effort = state.phase === 'grade' ? state.evidence.questions.filter((q: any) => gradeLabels.includes(q.label)).some((q: any) => !q.provided_reference) ? 'high' : 'low' : batch.length && (batch.every((q: any) => fullCredit(q) || answerCorrect(q) || needsConfirmation(q)) || batch.length === 1 && state.focused_retries?.includes(batch[0].label)) ? "low" : undefined;
+    outcome = await reviewModel({ config, content: [{ type: "text", text: promptText }, ...(state.phase === 'grade' ? gradeImage ? scoreViewContent(input, state.grading_views[state.grading_view || 0]) : [] : state.phase === 'read_scores' ? scoreViewContent(input, state.score_views[state.score_read_view || 0]) : state.phase === "synthesize" || (state.phase === 'recheck' && state.grading_text_recheck) || (state.flow === "revision" || state.text_recovery) ? [] : imageContent(input, selected))], requestId: input.request_id, stage, effort, repairOutput: state.pending_repair?.stage === stage ? state.pending_repair.text : undefined, validate, mark: audit.mark });
+    if (state.phase === 'grade' && !outcome.ok && /upstream_timeout|model_output_truncated|invalid_model_output/.test(outcome.code)) {
+      // A failed answer check must not erase the original report or invent a mark.
+      outcome = { ...outcome, ok: true, result: { evidence: state.evidence, readings: state.grading_readings || {}, changed: [] } };
+      await audit.mark('grading_view_unresolved');
+    }
     const handoff = !outcome.ok && outcome.code === "worker_deadline" && (state.deadline_handoffs || 0) < 3;
     if (handoff) {
       state.deadline_handoffs = (state.deadline_handoffs || 0) + 1;
@@ -155,7 +177,30 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
       delete state.pending_repair; // A whole-batch repair cannot be reused for the first individual question.
       await audit.mark("smaller_batch_recovery");
     } else if (!outcome.ok && !outcome.partial) { await audit.finish("failed", outcome); return; }
-    else if (state.phase === "extract") {
+    else if (state.phase === 'grade') {
+      state.evidence = outcome.result.evidence; state.grading_readings = outcome.result.readings;
+      state.grading_changed = [...new Set([...(state.grading_changed || []), ...outcome.result.changed])];
+      state.grading_view = (state.grading_view || 0) + 1;
+      const confirmed = gradeLabels.every(l => state.evidence.questions.find((q: any) => q.label === l)?.ai_grading?.status === 'confirmed');
+      if (confirmed || state.grading_view >= state.grading_views.length) {
+        state.grading_done = [...(state.grading_done || []), ...gradeLabels]; delete state.grading_batch; delete state.grading_views; state.grading_view = 0;
+        if (state.grading_targets.every((l: string) => state.grading_done.includes(l))) {
+          let remaining = gradingTargets(state.evidence);
+          const conflicts = gradingChecks(state.evidence.questions, state.evidence.score_groups).filter((g: any) => g.status === 'conflict');
+          if (conflicts.length && !state.grading_group_retry && (state.grading_round || 0) < 2) {
+            state.grading_group_retry = true;
+            for (const q of state.evidence.questions) if (q.teacher_score === null && q.ai_grading?.status === 'confirmed' && conflicts.some((g: any) => g.questions.includes(q.label))) q.ai_grading.status = 'group_recheck';
+            remaining = gradingTargets(state.evidence);
+          }
+          if (remaining.length && (state.grading_round || 0) < 2) { state.grading_round = (state.grading_round || 0) + 1; state.grading_targets = remaining.map((q: any) => q.label); state.grading_done = []; }
+          else {
+            state.grading_complete = true;
+            state.recheck_labels = (state.grading_changed || []).filter((l: string) => state.diagnoses.some((q: any) => q.label === l)); state.rechecked = 0;
+            state.grading_text_recheck = true; state.phase = state.recheck_labels.length ? 'recheck' : 'synthesize';
+          }
+        }
+      }
+    } else if (state.phase === "extract") {
       state.evidence = outcome.result;
       if (state.flow === "split_reading") { state.phase = input.work_on_paper || input.pages.some((p: any) => p.role === "work") ? "read_work" : "diagnose"; state.diagnoses = []; }
       else if (outcome.result.score_check.status === "conflict" && !state.extraction_retry) state.extraction_retry = 1;
@@ -261,13 +306,15 @@ export function revisionState(report: any, corrections: any[]) {
   const changed: string[] = [];
   const questions = report.questions.map((q: any) => {
     const c = corrections.find((c: any) => c.id === q.id);
-    const fields = ["label", "stem", "source_regions", "pages", "work_pages", "reference_pages", "answer", "status", "confidence", "subparts", "teacher_score", "max_score", "score_mark", "max_mark", "max_verification", "max_candidates", "provided_reference", "kind", "score_verification", "answer_verification", "evidence_verified", "score_candidates", "answer_candidates", "student_reflection", "uncertainties"];
+    const fields = ["label", "stem", "source_regions", "pages", "work_pages", "reference_pages", "answer", "status", "confidence", "subparts", "teacher_score", "max_score", "score_mark", "max_mark", "max_verification", "max_candidates", "provided_reference", "kind", "score_verification", "answer_verification", "evidence_verified", "score_candidates", "answer_candidates", "student_reflection", "uncertainties", "ai_grading"];
     const fact: any = Object.fromEntries(fields.filter(k => q[k] !== undefined).map(k => [k, structuredClone(q[k])]));
     fact.subparts ||= []; fact.pages ||= []; fact.work_pages ||= []; fact.reference_pages ||= []; fact.uncertainties ||= [];
     if (!c) return fact;
+    if (c.verified) fact.answer_verification = 'user_corrected';
     const reflection = meaningfulReflection(c.reflection);
     if (c.stem) fact.stem = c.stem;
     if ((c.stem !== undefined && c.stem !== q.stem) || c.answer !== q.answer || c.teacher_score !== q.teacher_score || c.max_score !== q.max_score || JSON.stringify(reflection) !== JSON.stringify(meaningfulReflection(q.student_reflection))) changed.push(q.label);
+    if (c.answer !== q.answer || c.max_score !== q.max_score || c.stem && c.stem !== q.stem) delete fact.ai_grading;
     if (c.answer !== q.answer) {
       fact.answer = c.answer; fact.status = c.answer ? "answered" : "blank";
       fact.subparts = []; fact.answer_verification = "user_corrected"; delete fact.answer_candidates;
@@ -289,7 +336,8 @@ export function revisionState(report: any, corrections: any[]) {
 }
 
 export function canRecoverText(state: any) {
-  return !!state?.evidence?.questions?.length && ["diagnose", "recheck", "synthesize"].includes(state.phase)
+  return !!state?.evidence?.questions?.length && ["diagnose", "recheck", "grade", "synthesize"].includes(state.phase)
+    && !(state.phase === 'grade' && state.grading_uses_images)
     && (state.verification_done === true || state.has_work === false)
     && state.evidence.questions.every((q: any) => typeof q.label === "string" && typeof q.stem === "string" && q.stem);
 }

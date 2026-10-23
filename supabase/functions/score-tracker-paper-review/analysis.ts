@@ -1,8 +1,9 @@
 import { reviewSettings, settingsPrompt, applyModules, scanRegions, detailedQuestion, REVIEW_MODULES } from "./options.ts";
 import { text, number, normalizeReport } from "./model.ts";
-import { fullCredit, needsConfirmation, learnerFields, paperProfile } from "./learner.ts";
+import { fullCredit, answerCorrect, needsConfirmation, learnerFields, paperProfile } from "./learner.ts";
+import { gradingChecks } from './grading.ts';
 
-export const REVIEW_VERSION = "2026-10-learner-v11";
+export const REVIEW_VERSION = "2026-10-learner-v12";
 export const BATCH_SIZE = 4;
 export const STAGE_BUDGET_MS = 125000;
 export const REVIEW_OUTPUT_TOKENS = 24576;
@@ -10,8 +11,8 @@ export function nextBatch(questions: any[], offset: number) {
   const batch: any[] = [];
   for (const q of questions.slice(offset)) {
     // A multi-step written problem gets its own reasoning budget.
-    const positive = fullCredit(q) || needsConfirmation(q);
-    if (batch.length && positive !== (fullCredit(batch[0]) || needsConfirmation(batch[0]))) break;
+    const positive = fullCredit(q) || answerCorrect(q) || needsConfirmation(q);
+    if (batch.length && positive !== (fullCredit(batch[0]) || answerCorrect(batch[0]) || needsConfirmation(batch[0]))) break;
     // A missing printed maximum must not pack several written problems together.
     // A known large teacher mark or two subquestions also establishes substantial work.
     const complex = !positive && (q.max_score >= 8 || q.teacher_score >= 8 || q.subparts?.length >= 2 || q.stem.length > 1400);
@@ -170,6 +171,8 @@ export function checkScores(questions: any[], total: any, complete: boolean, gro
 export function diagnosisPrompt(input: any, evidence: any, batch: any[]) {
   return `${common(input)}\n${settingsPrompt(input.options)}\n阶段二：按题目实际状态复盘，重点解释能力与卡点。只分析本批题目，不生成总体评价，不改教师分数或补写学生作答。${input.text_recovery ? "本次从已保存的题目、作答和批改继续分析，没有重新读取图片；不要声称重新核验了原图。" : input.text_revision ? "本次根据用户核对后的转录更新，没有重新读取图片。以student_reflection作为学生对考试经历的回忆，结合可见步骤调整建议；不要声称重新核验了原图。" : "须用原图核对关键字符、跨栏续写和批改位置。"}\n本次上下文：${JSON.stringify({ total: evidence.total, context: evidence.context, exam_context: input.exam_context, score_check: evidence.score_check })}\n本批事实：${JSON.stringify(batch.map(q => ({ ...q, detail_level: detailedQuestion(q, input.options) ? "detailed" : "overview", review_route: fullCredit(q) ? "strength_only" : needsConfirmation(q) ? "confirm_evidence_only" : "diagnose_breakpoint" })))}
 每题要求：
+${input.answer_reread ? '本轮作答文字已通过独立原图复核。以新的answer及ai_grading为准，只重做受影响题目的讲解；不能沿用旧OCR错误来批评学生，也不能声称这是学生自己改过答案。AI核对为正确的客观答案只说明答案正确，不编造学生未展示的解题方法，不称教师给了满分。' : ''}
+ai_grading.status=confirmed且verdict=correct的答案题，只分析已经答对的结果及可见的作答亮点，不重新求解，不给补弱练习或虚构失分原因；明确它是AI核对正确，不是教师满分记录。
 题干引文difficulty.evidence_quote须逐字摘自本批stem字段，作答引文须逐字摘自answer或subparts，不自行翻译后再引用。最终综合报告中的截图范围不明确时标“范围待确认”，不能擅自归到总分或本学科。
 先判断学生每句话在论证中的作用：实际过程等式、辅助假设、理想极限、反证还是上下界估计。构造理想情形来取得必要界限可能完全合法，不能一看到“忽略/不考虑”就断言学生把实际过程看错；应检查界限方向、所用状态以及能否用剩余条件收紧。只在该句被用于不成立的实际等式或推理时才判错。不能把正确但尚不够强的必要条件说成完全错误。
 本产品是学习复盘，不是整卷答案册。每道失分大题突出一个最有价值的断点，但必须检查所有小问之间的前置关系、完整过程和边界条件。reference控制在1000字内，给出关键推导与可核验的结论；后续未完成小问至少给出状态、条件和能继续写的下一步，不能省掉会改变结论的阶段。已经成立的前缀不重算。每个主要卡点配一个有足够条件的短练习或原题重做任务，答案独立放practice_answer。若范围或结论只用到部分必要条件，必须明确“还需结合其余条件收紧/核验”，不能把必要约束冒充最终答案。对不清楚的字符直接询问具体写法，其他可读部分继续分析。
@@ -287,11 +290,13 @@ export function groundActions(actions: any[], questions: any[]) {
 export function synthesisPrompt(input: any, evidence: any, diagnoses: any[]) {
   const compact = { total: evidence.total, score_check: evidence.score_check, score_groups: evidence.score_groups, context: evidence.context, exam_context: input.exam_context,
     account_context: input.options?.use_account_history === false ? { enabled: false } : input.account_context,
-    questions: evidence.questions.map((q: any) => ({ label: q.label, teacher_score: q.teacher_score, max_score: q.max_score, status: q.status })) };
+    ai_grade_checks: gradingChecks(evidence.questions, evidence.score_groups),
+    questions: evidence.questions.map((q: any) => ({ label: q.label, teacher_score: q.teacher_score, max_score: q.max_score, status: q.status, ai_grading: q.ai_grading })) };
   const accepted = assembleReport({}, evidence, (input.options as any)?.config_version === 2 ? { ...input, options: { ...input.options, modules: REVIEW_MODULES } } : input, diagnoses);
   const decisions = accepted.questions.map(d => ({ label: d.label, learning_tasks: d.learning_tasks, student_reflection: d.student_reflection, wins: d.wins, difficulty: d.difficulty, correct_steps: d.analysis_mode === "strength" ? [] : d.correct_steps, first_issue: d.first_issue, cause_analysis: d.cause_analysis, loss_reason: d.loss_reason, suggestion: d.suggestion, success_check: d.success_check, review_status: d.review_status, uncertainties: d.uncertainties }));
   return `${common(input)}\n${settingsPrompt(input.options)}\n阶段三：形成以学习者为中心的综合复盘。不要重新解题，不推导或修改参考答案。只根据以下已核验的证据安排学习决策。\n事实底稿：${JSON.stringify(compact)}\n候选逐题诊断：${JSON.stringify(decisions)}
 优先写做得不错的地方：不同能力的具体证据、失分大题里已有的高价值步骤、难度较高且已完成的部分。再区分具体错误与当时原因假设，不能把假设升级为事实；不知道就给最小验证。不得更改逐题事实或已核验的解答；question_updates和evidence_corrections返回空数组。
+ai_grading是独立核对答案后给出的AI判分，不是老师批改。confirmed的correct可说明答案正确，但不能称教师给了满分或编造学生未写的推理；conflict/pending不当成确定分数。ai_grade_checks只核对分组，不把整组得分平均拆开；有差异时说明需复核作答、参考答案或评分规则，不为凑分改数字。
 整体试卷画像paper_summary应解释主要要求、思考难度与计算负担的区别、覆盖范围与不确定性；没有全体学生统计不能称试卷客观难/简单。exam_context是用户填写的匿名数值，source=saved_exam来自该用户已保存记录；区分本学科/总分排名和原始分/最终分。account_context仅在用户允许时提供本账号同科历史数据：difficulty沿用成绩页的个人历史难度尺子，不能与逐题十分制挑战评分混用；prediction.source=reconstructed_before_exam表示只用考前记录按现行算法重算，不得声称是当时存下来的预测，不能用本次或后续成绩提高预测表现；trajectory仅比较同分类、参考人群相近的考试。历史数字均由程序计算，不自行重算或编造。可以据此解释本次与历史的相对位置、得分率变化和预测偏差，但排名变化不能证明某道题的错因。disabled/unavailable/unlinked或无相关记录时，不声称调用过历史，不虚构趋势。若账号数值与卷面冲突分别保留，请求核对，不用其中一项覆盖另一项。
 分数、满分、逐题得分、失分合计和比例由程序单独汇总；overview不重复这些数字或列举所谓全对题号，避免将多选部分得分写成全对。总体报告应回答：已掌握了什么？失分集中在何处？哪些跨题共性有证据、哪些只是待验证假设？先做哪2～4件事最合算，为什么，具体怎么做，如何确认已掌握？不能仅按丢分大小排序；兼顾基础前置、修复难度和迁移价值，不承诺提分。
 同一能力只有至少两道不同题有证据才能称反复出现；不能用单题扩大成整个章节薄弱，须考虑同知识点做对的反证。满分题不列补弱优先项；不要把不确定归因包装为性格/能力标签，也不能从答案倒推“没检查、不认真、忘记、缺乏意识”等行为或心理过程。检查清单可以作为建议，不能写成已经确认的失分原因。无作答时只做试卷结构与学习路线，不能生成个人优劣和失分归因。
@@ -312,7 +317,7 @@ export function assembleReport(raw: any, evidence: any, input: any, diagnoses?: 
   const questions = corrected.questions.map((q: any, i: number) => {
     const d = checked.find((d: any) => d.label === q.label)!;
     const learner = learnerFields(d, q, hasWork(input));
-    if (fullCredit(q)) { d.learning_tasks = []; d.reference = ""; d.estimated_score = null; d.practice = ""; d.practice_answer = ""; d.suggestion = ""; d.success_check = ""; d.first_issue = { location: "", observed: "", explanation: "", correction: "", certainty: "none" }; d.loss_reason = "教师明确给满分，重点保留本题已展示的能力"; d.review_status = "reviewed"; }
+    if (fullCredit(q) || answerCorrect(q)) { d.learning_tasks = []; d.reference = ""; d.estimated_score = null; d.practice = ""; d.practice_answer = ""; d.suggestion = ""; d.success_check = ""; d.first_issue = { location: "", observed: "", explanation: "", correction: "", certainty: "none" }; d.loss_reason = fullCredit(q) ? "教师明确给满分，重点保留本题已展示的能力" : 'AI核对答案正确，保留已经答对的结果；不是教师满分记录'; d.review_status = "reviewed"; }
     if (!fullCredit(q) && needsConfirmation(q)) { d.reference = ""; d.first_issue = { location: "", observed: "", explanation: "", correction: "", certainty: "uncertain" }; d.loss_reason = ""; d.suggestion = q.answer_candidates?.length ? `请确认本题填涂：${q.answer_candidates.join(" 还是 ")}` : "请在作答栏补充这道题的文字或选项，保存后更新分析。"; d.learning_tasks = []; d.review_status = "unresolved"; d.practice = ""; d.practice_answer = ""; d.estimated_score = null; }
     if (!hasWork(input)) { d.correct_steps = []; d.first_issue = { location: "", observed: "", explanation: "", correction: "", certainty: "none" }; d.loss_reason = ""; d.evidence = ""; }
     const claimedError = d.first_issue.certainty === "confirmed";
@@ -327,7 +332,7 @@ export function assembleReport(raw: any, evidence: any, input: any, diagnoses?: 
     }
     const full = q.teacher_score !== null && q.max_score !== null && q.teacher_score === q.max_score;
     const estimateQuote = d.estimate_evidence.quote, estimatePages = pages(d.estimate_evidence.pages, input).filter(p => input.pages[p - 1].role === "reference");
-    const estimate = hasWork(input) && q.status === "answered" && q.max_score !== null && d.estimated_score !== null && d.estimated_score <= q.max_score && estimatePages.length && estimateQuote && q.provided_reference.includes(estimateQuote) && /\d+(?:\.\d+)?\s*(?:分|marks?|points?)/i.test(estimateQuote) ? d.estimated_score : null;
+    const estimate = q.ai_grading?.status === 'confirmed' && q.teacher_score === null ? q.ai_grading.score : hasWork(input) && q.status === "answered" && q.max_score !== null && d.estimated_score !== null && d.estimated_score <= q.max_score && estimatePages.length && estimateQuote && q.provided_reference.includes(estimateQuote) && /\d+(?:\.\d+)?\s*(?:分|marks?|points?)/i.test(estimateQuote) ? d.estimated_score : null;
     const conflict = full && claimedError;
     if (conflict) { d.review_status = "teacher_conflict"; d.uncertainties.unshift("教师给分与AI判断不一致，请先核对题意和参考答案，不据此判定薄弱"); }
     return { ...q, ...d, ...learner, id: String(i + 1), teacher_score: q.teacher_score,
@@ -335,12 +340,12 @@ export function assembleReport(raw: any, evidence: any, input: any, diagnoses?: 
       reference_source: q.provided_reference && q.reference_pages.length && d.reference_source === "provided" ? "provided" : "ai" };
   });
   const refs = (v: any) => list(v, 12, 40).filter(label => questions.some((q: any) => q.label === label));
-  const targets = (v: any) => refs(v).filter(label => { const q = questions.find((q: any) => q.label === label)!, fact = corrected.questions.find((q: any) => q.label === label)!; return !(q.status === "unclear" && !q.subparts.length) && q.review_status !== "teacher_conflict" && !(fact.teacher_score !== null && fact.max_score !== null && fact.teacher_score === fact.max_score); });
+  const targets = (v: any) => refs(v).filter(label => { const q = questions.find((q: any) => q.label === label)!, fact = corrected.questions.find((q: any) => q.label === label)!; return !(q.status === "unclear" && !q.subparts.length) && q.review_status !== "teacher_conflict" && !answerCorrect(fact) && !(fact.teacher_score !== null && fact.max_score !== null && fact.teacher_score === fact.max_score); });
   const actions = groundActions(hasWork(input) && Array.isArray(raw.action_plan) ? raw.action_plan.slice(0, 5).map((a: any) => ({ title: text(a.title, 160), questions: targets(a.questions), task_ids: list(a.task_ids, 12, 100), reason: text(a.reason, 1000), timebox: text(a.timebox, 100) })).filter((a: any) => a.title && a.questions.length) : [], questions);
   const patterns = hasWork(input) && Array.isArray(raw.patterns) ? raw.patterns.slice(0, 5).map((p: any) => ({ title: text(p.title, 200), questions: refs(p.questions), evidence: text(p.evidence, 1800), interpretation: text(p.interpretation, 1200), confidence: refs(p.questions).length < 2 || refs(p.questions).some(label => questions.find((q: any) => q.label === label)?.review_status !== "reviewed") ? "low" : ["high", "medium"].includes(p.confidence) ? p.confidence : "low" })).filter((p: any) => p.title && p.questions.length && p.evidence) : [];
   const base = normalizeReport({ ...raw, questions, warnings, complete: corrected.complete, coverage: corrected.coverage, priorities: actions.map((a: any) => `${a.title}：${a.task}；验收：${a.success_check}`) }, input);
   return applyModules({ ...base, version: 2, presentation_version: 5, headline: text(raw.headline, 160), original_readings: input.original_readings, source_pages: input.pages.map((p: any) => ({ page: p.page, role: p.role })), work_on_paper: input.work_on_paper, update_count: input.update_count || 0, analysis_revision: input.analysis_revision || 0, prompt_version: REVIEW_VERSION, questions,
-    total: corrected.total, score_check: corrected.score_check, score_groups: corrected.score_groups || [], context: corrected.context, context_summary: text(raw.context_summary, 1200),
+    total: corrected.total, score_check: corrected.score_check, score_groups: corrected.score_groups || [], ai_grade_checks: gradingChecks(questions, corrected.score_groups), context: corrected.context, context_summary: text(raw.context_summary, 1200),
     account_context: input.options?.use_account_history === false ? { enabled: false, status: "disabled" } : input.account_context || null,
     score_refresh_count: input.score_refresh_count || 0,
     paper_profile: paperProfile(questions), exam_context: input.exam_context || null, paper_summary: text(raw.paper_summary, 1800), patterns, action_plan: actions, uncertainties: list(raw.uncertainties, 12), quality: scoreConflict || questions.some((q: any) => q.review_status !== "reviewed" || !q.difficulty) ? "needs_review" : "reviewed" }, input.options);

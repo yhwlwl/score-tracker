@@ -13,6 +13,7 @@ export function examContext(value: any, source = "user_entry") {
   return Object.keys(result).length > 1 ? result : undefined;
 }
 export function fullCredit(q: any) { return typeof q.teacher_score === "number" && typeof q.max_score === "number" && q.teacher_score === q.max_score; }
+export function answerCorrect(q: any) { return q.teacher_score === null && q.ai_grading?.status === 'confirmed' && q.ai_grading.verdict === 'correct' && q.ai_grading.score === q.max_score; }
 export function needsConfirmation(q: any) {
   // A missing grade is independent of whether the student's work can be analysed.
   const readablePart = q.subparts?.some((s: any) => s.status === "answered" && text(s.answer, 2200));
@@ -21,7 +22,8 @@ export function needsConfirmation(q: any) {
 }
 export function analysisQueue(evidence: any) {
   // Positive evidence can be read together; difficult losses retain an individual budget.
-  return [...evidence.questions.filter(fullCredit), ...evidence.questions.filter((q: any) => !fullCredit(q) && needsConfirmation(q)), ...evidence.questions.filter((q: any) => !fullCredit(q) && !needsConfirmation(q))];
+  const positive = (q: any) => fullCredit(q) || answerCorrect(q);
+  return [...evidence.questions.filter(positive), ...evidence.questions.filter((q: any) => !positive(q) && needsConfirmation(q)), ...evidence.questions.filter((q: any) => !positive(q) && !needsConfirmation(q))];
 }
 const learnerQuote = (v: string) => v.normalize("NFKC").replace(/[\s，。；：、,;:"'“”‘’_\^]/g, "").toLowerCase();
 export function learnerFields(raw: any, fact: any, hasStudent = true) {
@@ -41,10 +43,10 @@ export function learnerFields(raw: any, fact: any, hasStudent = true) {
   }
   const difficulty = rating(d.overall) && quote && learnerQuote(fact.stem || "").includes(learnerQuote(quote)) ? { scale, overall: rating(d.overall), evidence_quote: quote, reason: text(d.reason, 700), dimensions, source: "ai_judgment" } : null;
   const c = raw.cause_analysis || {};
-  const hypotheses = hasStudent && !fullCredit(fact) && !needsConfirmation(fact) && Array.isArray(c.hypotheses) ? c.hypotheses.slice(0, 3).map((h: any) => ({ kind: CAUSE_KINDS.includes(h.kind) ? h.kind : "uncertain", explanation: text(h.explanation, 800), evidence: text(h.evidence, 700), counter_evidence: text(h.counter_evidence, 700), check: text(h.check, 600), if_confirmed: text(h.if_confirmed, 800), status: "hypothesis" }))
+  const hypotheses = hasStudent && !fullCredit(fact) && !answerCorrect(fact) && !needsConfirmation(fact) && Array.isArray(c.hypotheses) ? c.hypotheses.slice(0, 3).map((h: any) => ({ kind: CAUSE_KINDS.includes(h.kind) ? h.kind : "uncertain", explanation: text(h.explanation, 800), evidence: text(h.evidence, 700), counter_evidence: text(h.counter_evidence, 700), check: text(h.check, 600), if_confirmed: text(h.if_confirmed, 800), status: "hypothesis" }))
     .filter((h: any) => h.explanation && h.evidence && h.check && h.if_confirmed) : [];
-  return { analysis_mode: fullCredit(fact) ? "strength" : needsConfirmation(fact) ? "needs_confirmation" : "diagnosis", wins, difficulty,
-    cause_analysis: { observation: hasStudent && !fullCredit(fact) ? text(c.observation, 800) : "", hypotheses, question: hypotheses.length ? text(c.question, 400) : "" } };
+  return { analysis_mode: fullCredit(fact) ? "strength" : answerCorrect(fact) ? 'ai_strength' : needsConfirmation(fact) ? "needs_confirmation" : "diagnosis", wins, difficulty,
+    cause_analysis: { observation: hasStudent && !fullCredit(fact) && !answerCorrect(fact) ? text(c.observation, 800) : "", hypotheses, question: hypotheses.length ? text(c.question, 400) : "" } };
 }
 export function paperProfile(questions: any[]) {
   const rated = questions.filter(q => q.difficulty), counts = [1,2,3,4,5,6,7,8,9,10].map(level => ({ level, count: rated.filter(q => q.difficulty.scale === 10 && q.difficulty.overall === level).length }));

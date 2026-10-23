@@ -12,4 +12,10 @@ The score reader is a generic transcription stage, not a grader. It has no subje
 - Use the same canonical score-worth kernel as the scores page. The bundle builder generates its Edge mirror, and the bundle guard checks byte equality.
 - Historical comparison separates retrospective relative difficulty, dated same-cohort trajectories, and the existing deep-analysis point forecast reconstructed strictly from earlier exams. Do not label a reconstruction as a historical saved prediction or an accuracy percentage.
 
-Regression coverage: `test-paper-scores-history.cjs`, `test-paper-design-ui.cjs`, existing paper handler/workspace/diagnostics/deadline/recovery/update suites, and `test-score-worth.cjs`. Live image probes are read-only and must be retired after verification; never check credentials or source images into the repository.
+## AI answer grading (separate from teacher-mark transcription)
+
+Missing teacher marks do not prevent automatic grading of clearly scorable closed-response tasks. Prefer provided answers; otherwise independently solve and verify. Re-read the student's actual answer without anchoring on old OCR, compare equivalent mathematical forms, and require two independent agreeing observations before repairing OCR or accepting an AI score. Preserve manually verified answers and the original transcription. Process/essay partial credit still requires explicit supplied scoring rules.
+
+Store AI verdicts separately in `ai_grading`; expose their score through the existing `estimated_score`, never `teacher_score` or saved exam scores. Show the source and comparison prominently, and reconcile each complete group against its actual group mark. A mismatch causes one bounded additional check, not a guessed allocation. Refresh only analyses affected by corrected answers. Correct objective answers receive positive feedback rather than invented loss diagnoses. Budget pauses and image-backed checkpoints continue to work.
+
+Regression coverage: `test-paper-ai-grading.cjs`, `test-paper-scores-history.cjs`, `test-paper-design-ui.cjs`, existing paper handler/workspace/diagnostics/deadline/recovery/update suites, and `test-score-worth.cjs`. Live image probes are read-only and must be retired after verification; never check credentials or source images into the repository.

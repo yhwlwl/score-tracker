@@ -71,10 +71,17 @@ async function until(fn) { for (let i=0; i<160; i++) { if(fn()) return; await ti
   d.querySelector('.ps-verify').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
   await until(()=>h.tables.score_tracker_paper_reviews[0].status!=='paused');await h.drain();
   const report=h.tables.score_tracker_paper_reviews[0].result;assert.equal(report.questions[0].detail_level,'overview');assert.equal(report.questions[1].detail_level,'detailed');
+  Object.assign(report.questions[0],{teacher_score:null,estimated_score:5,analysis_mode:'ai_strength',ai_grading:{status:'confirmed',score:5,source:'provided',answer_key:'2<script>unsafe</script>',comparison:'与参考答案一致',solution_check:'1+1=2',from_image:true}});
+  report.ai_grade_checks=[{label:'答案题',compared_score:5,teacher_group_score:5,status:'matched',note:'AI判分与卷面整组得分一致'}];
   if(d.querySelector('[data-pr^="report:"]'))d.querySelector('[data-pr^="report:"]').click();await until(()=>d.querySelector('.pr-result-top'));
   assert.deepEqual(Array.from(d.querySelectorAll('[data-report-section]')).map(x=>x.dataset.reportSection),['highlights','performance','insights','questions','plan','materials']);
   assert(d.querySelector('.pr-overview'));assert.equal(d.querySelectorAll('.pr-metric').length,4);
   assert(d.querySelector('.pr-account-context').textContent.includes('历史成绩对照已关闭'));
+  assert(d.querySelector('.pr-ai-grade h4').textContent.includes('AI 判分：5 / 5'));
+  assert(d.querySelector('.pr-badge').textContent.includes('AI 5 / 5'));
+  assert.equal(d.querySelector('.pr-question [data-field=teacher_score]').value,'','AI grades never fill the teacher-mark editor');
+  assert.equal(d.querySelectorAll('.pr-ai-grade script').length,0,'AI grading text is escaped');
+  assert(d.querySelector('[data-report-section=performance]').textContent.includes('逐题判分与整组得分核对'));
   const pref=h.tables.score_tracker_paper_preferences[0].settings;assert.equal(pref.exam_experience.note,'');assert.equal(pref.grade,'高二');
   assert.deepEqual(errors,[]);dom.window.close();
   console.log('PASS: real setup → draft scans → preferences → OCR selection → Edge stages → six-section report; no UI errors');
