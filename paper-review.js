@@ -231,15 +231,15 @@
     if (!ctx.draftId) ctx.draftId = draftFor(ctx.user, ctx.examId);
     var session = ctx.sessions[subject] || (ctx.sessions[subject] = { pages: [], workOnPaper: true, consent: false, pending: null });
     var dialog = document.createElement(ctx.host ? 'section' : 'dialog'); dialog.className = ctx.host ? 'pr-dialog pr-inline' : 'pr-dialog'; dialog.setAttribute('aria-labelledby', 'pr-title');
-    var busy = false, dirty = false, closed = false, timer, selected = null, reviews = [], quota = null, view = 'upload';
+    var busy = false, dirty = false, closed = false, timer, selected = null, reviews = [], quota = null, view = 'upload', initialSection = ctx.initialSection;
     var cacheScope = ctx.draftId + '|' + subject, cacheQueue = Promise.resolve(), restoredUploads = false;
     ctx.dialog = dialog;
-    dialog.innerHTML = '<header class="pr-head"><div><span class="pr-eyebrow">' + esc(subject) + ' · BETA</span><h2 id="pr-title">AI 试卷分析</h2></div>' + button(ctx.host ? '返回全部分析' : '返回考试', 'close') + '</header><div class="pr-content"><div class="pr-message" role="status" aria-live="polite"></div><div class="pr-tabs">' + button('上传资料', 'upload', 'is-active') + button('分析记录', 'history') + '</div><div class="pr-main"></div></div>';
+    dialog.innerHTML = '<header class="pr-head"><div><span class="pr-eyebrow">' + esc(subject) + ' · BETA</span><h2 id="pr-title">AI 试卷分析</h2></div>' + button(esc(ctx.closeLabel || (ctx.host ? '返回全部分析' : '返回考试')), 'close') + '</header><div class="pr-content"><div class="pr-message" role="status" aria-live="polite"></div><div class="pr-tabs">' + button('上传资料', 'upload', 'is-active') + button('分析记录', 'history') + '</div><div class="pr-main"></div></div>';
     (ctx.host || document.body).appendChild(dialog);
     if (dialog.showModal) dialog.showModal(); else dialog.setAttribute('open', '');
     var main = dialog.querySelector('.pr-main'), message = dialog.querySelector('.pr-message');
     function note(text, error) { message.textContent = text || ''; message.classList.toggle('is-error', !!error); }
-    function alive() { return !closed && current(ctx) && (ctx.host ? ctx.host.isConnected && state.page === 'stats' && state.analysisTab === 'ai' : ctx.modal.isConnected && state.modal === ctx.modal); }
+    function alive() { return !closed && current(ctx) && (ctx.host ? ctx.host.isConnected && (ctx.isActive ? ctx.isActive() : state.page === 'stats' && state.analysisTab === 'ai') : ctx.modal.isConnected && state.modal === ctx.modal); }
     function close(force) {
       if (!force && dirty && !confirm('核对修改尚未保存，确定返回考试吗？')) return;
       closed = true; clearTimeout(timer); cleanup.disconnect(); ctx.dialog = null;
@@ -416,8 +416,18 @@
     }
     async function load(id) {
       clearTimeout(timer);
-      try { var results = await Promise.all([api(ctx, 'get', { request_id: id }), support.uploads('get', ctx.user, id)]); if (alive()) { if (results[1]) fill(results[1]); note(''); renderReport(results[0].review); } }
-      catch (e) { if (alive()) { note(e.message + '；可点击“分析记录”重新查看。', true); if (view === 'report' && selected && selected.status === 'running') timer = setTimeout(function () { load(id); }, 8000); } }
+      try {
+        var results = await Promise.all([api(ctx, 'get', { request_id: id }), support.uploads('get', ctx.user, id)]);
+        if (alive()) {
+          if (ctx.expectedExamId && results[0].review.exam_id !== ctx.expectedExamId) throw new Error('这份试卷已移出当前考试，请返回后刷新');
+          if (results[1]) fill(results[1]); note(''); renderReport(results[0].review);
+          if (initialSection) {
+            var section = Array.from(main.querySelectorAll('[data-report-section]')).find(function (s) { return s.dataset.reportSection === initialSection; });
+            if (section) { initialSection = null; section.focus({ preventScroll: true }); if (section.scrollIntoView) section.scrollIntoView({ block: 'start' }); }
+          }
+        }
+      }
+      catch (e) { if (alive()) { note(e.message + (ctx.host ? '；可返回后重新打开。' : '；可点击“分析记录”重新查看。'), true); if (view === 'report' && selected && selected.status === 'running') timer = setTimeout(function () { load(id); }, 8000); } }
     }
     async function start() {
       if (session.pending && !session.retrySubmission) { view = 'report'; return load(session.pending); }

@@ -51,5 +51,6 @@
   "paper-review-support.js",
   "paper-review.js",
   "paper-review-scans.js",
-  "paper-review-hub.js"
+  "paper-review-hub.js",
+  "exam-detail.js"
 ]
