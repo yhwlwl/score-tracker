@@ -62,7 +62,7 @@ async function reportFor(user: string, id: string) {
   if (["failed", "paused"].includes(report.status)) {
     const privateRow = await query(() => db.from(TABLE).select("analysis_state,status").eq("request_id", id).eq("user_id", user).maybeSingle());
     report.recovery = recoveryInfo(privateRow || {});
-    if (report.status === "paused") report.input_review = privateRow?.analysis_state?.pause_reason === "review";
+    if (report.status === "paused") { report.input_review = privateRow?.analysis_state?.pause_reason === "review"; report.input_selection = { ...report.options, ...privateRow?.analysis_state?.analysis_selection }; }
     const materials = await materialFor(db, user, id);
     if (materials?.pages?.length) { report.recovery.mode = "saved"; }
   }

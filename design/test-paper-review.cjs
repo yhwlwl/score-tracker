@@ -185,12 +185,12 @@ for(const f of ['app-v36.js','app-v37.js','app-v38.js'])w.eval(read(f));await ti
   const starts=calls.filter(c=>c.action==='start');assert.equal(starts[0].exam_context.score,88,'current draft numeric context is included');assert.equal(starts.length,2);assert.equal(starts[0].request_id,starts[1].request_id,'ambiguous network failure preserves request id and payload');
   dialog.querySelector('[data-pr=history]').click();await tick();dialog.querySelector('[data-pr^="report:"]').click();await tick();
   assert.equal(dialog.querySelectorAll('.pr-question').length,2);assert(dialog.querySelector('.pr-wins'));assert(dialog.querySelector('.pr-wins').compareDocumentPosition(dialog.querySelector('.pr-questions')) & w.Node.DOCUMENT_POSITION_FOLLOWING);assert.equal(dialog.querySelectorAll('[data-question=\"1\"] .pr-solution').length,0,'full-credit question has no repeated solution');assert(dialog.querySelector('.pr-difficulty-table'));assert(dialog.querySelector('[data-field=cause]'));
-  assert(dialog.querySelector('.pr-action-plan').compareDocumentPosition(dialog.querySelector('.pr-questions')) & w.Node.DOCUMENT_POSITION_FOLLOWING,'actionable overview precedes question detail');
+  assert(dialog.querySelector('.pr-first-action').compareDocumentPosition(dialog.querySelector('.pr-questions')) & w.Node.DOCUMENT_POSITION_FOLLOWING,'one priority leads the report');assert(dialog.querySelector('.pr-questions').compareDocumentPosition(dialog.querySelector('.pr-action-plan')) & w.Node.DOCUMENT_POSITION_FOLLOWING,'full plan follows explanations');
   assert.equal(dialog.querySelector('.pr-solution').open,false,'solution is optional');
   assert.equal(dialog.querySelector('.pr-practice details').open,false,'practice answer stays hidden until requested');
   dialog.querySelector('[data-pr="focus:2"]').click();assert.equal(dialog.querySelector('[data-question="2"]').open,true,'action links open the source diagnosis');
   assert.equal(dialog.querySelector('[data-pr-score]').textContent,'5 / 10');
-  assert.equal(dialog.querySelectorAll('.pr-reading-section').length,3,'three clear reading levels');
+  assert.equal(dialog.querySelectorAll('.pr-reading-section').length,6,'six clear reading levels');
   const second=dialog.querySelectorAll('.pr-question')[1];
   assert.equal(second.querySelector('.pr-source').open,false,'source transcripts are optional');
   assert.equal(second.querySelector('.pr-edit').open,false,'editing does not lead the report');

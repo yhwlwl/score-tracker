@@ -30,12 +30,13 @@ export function progressFor(state: any) {
     completed_steps: split && state.has_work === false ? (state.phase === "extract" ? 0 : state.phase === "diagnose" ? 1 : 2) : state.phase === "extract" ? 0 : state.phase === "read_work" ? 1 : (state.phase === "verify" ? 1 : ["diagnose", "recheck"].includes(state.phase) ? 2 : 3) + (split ? 1 : 0),
     active_ms: state.active_ms || 0, resume_remaining: Math.max(0, 2 - (state.resume_count || 0)),
     message: state.phase === "extract" ? (split ? "录入题目与印刷分值" : "录入题目、作答与批改分") : state.phase === "read_work" ? (state.work_retry ? "复核批改位置与分数合计" : "匹配作答、批改与成绩信息") : state.phase === "diagnose" ? (positive ? "提炼已得分题目的优势" : confirming ? "整理待核对信息与题目挑战" : "分析失分步骤与可能原因") : state.phase === "verify" ? "独立核对批改位置与填涂" : state.phase === "recheck" ? "复查有歧义的作答" : "综合试卷要求、优势与复习路线",
-    detail: state.phase === "extract" ? "保留作答原文；模糊字符和未批改分数会单独标记。" : state.phase === "verify" ? "核对题号与分数的对应关系，避免把相邻题的批改读错。" : state.phase === "diagnose" ? (positive ? "关注已展示的能力与解题亮点。" : confirming ? "作答或批改对应还不明确，先标出需要核对的位置。" : "区分可见错误和当时原因，检查难度、正确前缀与下一步验证。") : "结合已有证据整理结论、待确认的问题与不同原因对应的建议。" };
+    detail: state.phase === "extract" ? "保留作答原文；模糊字符和未批改分数会单独标记。" : state.phase === "verify" ? "核对题号与分数的对应关系，避免把相邻题的批改读错。" : state.phase === "diagnose" ? (positive ? "关注已展示的能力与解题亮点。" : confirming ? "作答或批改对应还不明确，先标出需要核对的位置。" : "区分可见错误和当时原因，找出已写对的步骤、关键问题和下一步改法。") : "结合已有证据整理结论、待确认的问题与不同原因对应的建议。" };
 }
 
 export async function runReviewStage(db: any, input: any, user: string, config: any, row: any, expectedClaim: string, dispatch: (claim: string) => Promise<void>) {
   const original = row.analysis_state || {}, state = structuredClone(original);
   input.options = reviewSettings(input.options || row.options || state.options);
+  if (state.analysis_selection && (input.options as any).config_version === 2) input.options = reviewSettings({ ...input.options, ...state.analysis_selection });
   if (!expectedClaim || original.claim !== expectedClaim || row.status !== "running") return;
   // Each token can be claimed once. Duplicate deliveries cannot call the model twice.
   state.claim = crypto.randomUUID();
@@ -49,13 +50,13 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
     if (!claimed.data) return;
     ownsClaim = true;
     const settings = reviewSettings(input.options);
-    const pauseReason = row.pause_requested ? "manual" : state.phase === "diagnose" && settings.review_before_analysis && !state.input_confirmed ? "review" : (state.active_ms || 0) - (state.budget_start_ms || 0) >= settings.time_budget_minutes * 60000 ? "budget" : null;
+    const pauseReason = row.pause_requested ? "manual" : state.phase === "diagnose" && (settings.review_before_analysis || (settings as any).analysis_scope === "selected") && !state.input_confirmed ? "review" : (state.active_ms || 0) - (state.budget_start_ms || 0) >= settings.time_budget_minutes * 60000 ? "budget" : null;
     if (pauseReason) {
       state.pause_reason = pauseReason;
       await readDatabase(() => db.from(REVIEW_TABLE).update({ status: "paused", pause_requested: false, analysis_state: state, progress: { ...progressFor(state), message: pauseReason === "review" ? "资料已录入，等待核对" : "已保存进度，可随时继续" } }).eq("request_id", input.request_id).eq("user_id", user).eq("status", "running").eq("analysis_state->>claim", state.claim));
       return;
     }
-    if (state.phase === "diagnose" && (settings.purpose === "record" || !settings.modules.length)) {
+    if (state.phase === "diagnose" && (settings.purpose === "record" || !(settings as any).config_version && !settings.modules.length)) {
       const result = assembleReport({ overview: "题目、作答与批改已录入。可展开逐题核对文字和对应扫描件。", warnings: [] }, state.evidence, { ...input, options: { ...settings, purpose: "record" } }, state.evidence.questions.map((q: any) => ({ label: q.label })));
       await audit.finish("succeeded", { ok: true, result });
       await readDatabase(() => db.from(REVIEW_TABLE).update({ analysis_state: {}, progress: { phase: "completed", message: "录入完成" } }).eq("request_id", input.request_id).eq("user_id", user).eq("status", "succeeded"));
@@ -90,7 +91,7 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
       promptText = synthesisPrompt(input, state.evidence, state.diagnoses);
       validate = raw => assembleReport(raw, state.evidence, input, state.diagnoses);
     } else throw new Error("unknown_pipeline_stage");
-    const effort = settings.detail === "brief" ? "low" : batch.length && (batch.every((q: any) => fullCredit(q) || needsConfirmation(q)) || batch.length === 1 && state.focused_retries?.includes(batch[0].label)) ? "low" : undefined;
+    const effort = batch.length && (batch.every((q: any) => fullCredit(q) || needsConfirmation(q)) || batch.length === 1 && state.focused_retries?.includes(batch[0].label)) ? "low" : undefined;
     outcome = await reviewModel({ config, content: [{ type: "text", text: promptText }, ...(state.phase === "synthesize" || (state.flow === "revision" || state.text_recovery) ? [] : imageContent(input, selected))], requestId: input.request_id, stage, effort, repairOutput: state.pending_repair?.stage === stage ? state.pending_repair.text : undefined, validate, mark: audit.mark });
     const handoff = !outcome.ok && outcome.code === "worker_deadline" && (state.deadline_handoffs || 0) < 3;
     if (handoff) {

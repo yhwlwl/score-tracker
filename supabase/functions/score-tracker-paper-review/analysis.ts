@@ -1,8 +1,8 @@
-import { reviewSettings, settingsPrompt, applyModules, scanRegions } from "./options.ts";
+import { reviewSettings, settingsPrompt, applyModules, scanRegions, detailedQuestion, REVIEW_MODULES } from "./options.ts";
 import { text, number, normalizeReport } from "./model.ts";
 import { fullCredit, needsConfirmation, learnerFields, paperProfile } from "./learner.ts";
 
-export const REVIEW_VERSION = "2026-10-learner-v9";
+export const REVIEW_VERSION = "2026-10-learner-v10";
 export const BATCH_SIZE = 4;
 export const STAGE_BUDGET_MS = 125000;
 export const REVIEW_OUTPUT_TOKENS = 24576;
@@ -109,7 +109,7 @@ export function checkScores(questions: any[], total: any, complete: boolean) {
 }
 
 export function diagnosisPrompt(input: any, evidence: any, batch: any[]) {
-  return `${common(input)}\n${settingsPrompt(input.options)}\n阶段二：按题目实际状态复盘，重点解释能力与卡点。只分析本批题目，不生成总体评价，不改教师分数或补写学生作答。${input.text_recovery ? "本次从已保存的题目、作答和批改继续分析，没有重新读取图片；不要声称重新核验了原图。" : input.text_revision ? "本次根据用户核对后的转录更新，没有重新读取图片。以student_reflection作为学生对考试经历的回忆，结合可见步骤调整建议；不要声称重新核验了原图。" : "须用原图核对关键字符、跨栏续写和批改位置。"}\n本次上下文：${JSON.stringify({ total: evidence.total, context: evidence.context, exam_context: input.exam_context, score_check: evidence.score_check })}\n本批事实：${JSON.stringify(batch.map(q => ({ ...q, review_route: fullCredit(q) ? "strength_only" : needsConfirmation(q) ? "confirm_evidence_only" : "diagnose_breakpoint" })))}
+  return `${common(input)}\n${settingsPrompt(input.options)}\n阶段二：按题目实际状态复盘，重点解释能力与卡点。只分析本批题目，不生成总体评价，不改教师分数或补写学生作答。${input.text_recovery ? "本次从已保存的题目、作答和批改继续分析，没有重新读取图片；不要声称重新核验了原图。" : input.text_revision ? "本次根据用户核对后的转录更新，没有重新读取图片。以student_reflection作为学生对考试经历的回忆，结合可见步骤调整建议；不要声称重新核验了原图。" : "须用原图核对关键字符、跨栏续写和批改位置。"}\n本次上下文：${JSON.stringify({ total: evidence.total, context: evidence.context, exam_context: input.exam_context, score_check: evidence.score_check })}\n本批事实：${JSON.stringify(batch.map(q => ({ ...q, detail_level: detailedQuestion(q, input.options) ? "detailed" : "overview", review_route: fullCredit(q) ? "strength_only" : needsConfirmation(q) ? "confirm_evidence_only" : "diagnose_breakpoint" })))}
 每题要求：
 题干引文difficulty.evidence_quote须逐字摘自本批stem字段，作答引文须逐字摘自answer或subparts，不自行翻译后再引用。最终综合报告中的截图范围不明确时标“范围待确认”，不能擅自归到总分或本学科。
 先判断学生每句话在论证中的作用：实际过程等式、辅助假设、理想极限、反证还是上下界估计。构造理想情形来取得必要界限可能完全合法，不能一看到“忽略/不考虑”就断言学生把实际过程看错；应检查界限方向、所用状态以及能否用剩余条件收紧。只在该句被用于不成立的实际等式或推理时才判错。不能把正确但尚不够强的必要条件说成完全错误。
@@ -227,7 +227,7 @@ export function groundActions(actions: any[], questions: any[]) {
 
 export function synthesisPrompt(input: any, evidence: any, diagnoses: any[]) {
   const compact = { total: evidence.total, score_check: evidence.score_check, score_groups: evidence.score_groups, context: evidence.context, exam_context: input.exam_context, questions: evidence.questions.map((q: any) => ({ label: q.label, teacher_score: q.teacher_score, max_score: q.max_score, status: q.status })) };
-  const accepted = assembleReport({}, evidence, input, diagnoses);
+  const accepted = assembleReport({}, evidence, (input.options as any)?.config_version === 2 ? { ...input, options: { ...input.options, modules: REVIEW_MODULES } } : input, diagnoses);
   const decisions = accepted.questions.map(d => ({ label: d.label, learning_tasks: d.learning_tasks, student_reflection: d.student_reflection, wins: d.wins, difficulty: d.difficulty, correct_steps: d.analysis_mode === "strength" ? [] : d.correct_steps, first_issue: d.first_issue, cause_analysis: d.cause_analysis, loss_reason: d.loss_reason, suggestion: d.suggestion, success_check: d.success_check, review_status: d.review_status, uncertainties: d.uncertainties }));
   return `${common(input)}\n${settingsPrompt(input.options)}\n阶段三：形成以学习者为中心的综合复盘。不要重新解题，不推导或修改参考答案。只根据以下已核验的证据安排学习决策。\n事实底稿：${JSON.stringify(compact)}\n候选逐题诊断：${JSON.stringify(decisions)}
 优先写做得不错的地方：不同能力的具体证据、失分大题里已有的高价值步骤、难度较高且已完成的部分。再区分具体错误与当时原因假设，不能把假设升级为事实；不知道就给最小验证。不得更改逐题事实或已核验的解答；question_updates和evidence_corrections返回空数组。
@@ -236,7 +236,7 @@ export function synthesisPrompt(input: any, evidence: any, diagnoses: any[]) {
 同一能力只有至少两道不同题有证据才能称反复出现；不能用单题扩大成整个章节薄弱，须考虑同知识点做对的反证。满分题不列补弱优先项；不要把不确定归因包装为性格/能力标签，也不能从答案倒推“没检查、不认真、忘记、缺乏意识”等行为或心理过程。检查清单可以作为建议，不能写成已经确认的失分原因。无作答时只做试卷结构与学习路线，不能生成个人优劣和失分归因。
 若上传成绩截图，使用确实可读的本次分数线/排名解释考试情境；无统计依据不写“中下”“前X%”等相对评价，不线性插值百分位。
 每个行动含题号、具体操作和可观察验收标准。每项针对不同卡点，重复目标应合并，不为凑数另添泛化的“养成习惯”行动。预计耗时仅为练习安排，不代表预计提分。验收只写检查方法和达标标准，不直接给出练习答案；选择逐题learning_tasks中的task_ids安排顺序，原样保留任务与验收，不生成另一个解法或修改练习；同一题不同小问可分别安排，重复任务只出现一次。报告简洁有信息增量，overview控制在80～150字，最多4个不同目标的行动，最值得先做的放在前两项。至少对主要卡点提供能直接继续写下去的提示。面向学生的内容不提“事实底稿、本批、候选诊断、JSON字段”等内部实现，只说明确实影响判断的资料缺口。
-仅返回JSON：{"overview":"2～3句，说清已经做到什么、接下来先改哪里","strengths":["具体题号及已成立步骤"],"context_summary":"结合本次截图及考试表单数值；没有则留空","paper_summary":"试卷要求画像与本次发挥的关系","patterns":[{"title":"跨题共性或待验证假设","questions":["原卷题号"],"evidence":"各题的具体证据及反证","interpretation":"可复用结论","confidence":"high/medium/low"}],"action_plan":[{"title":"明确行动","questions":["需订正的题号"],"task_ids":["逐题learning_tasks中的id"],"reason":"为何优先及证据","task":"具体怎么做","success_check":"怎样证明已掌握","timebox":"建议练习时间"}],"uncertainties":["还不能确定什么，需要补充什么证据"],"warnings":[]}。`;
+仅返回JSON：{"headline":"20～45字的一句主要结论，说明本次表现，不重复数字，不做能力标签","overview":"2～3句，说清已经做到什么、接下来先改哪里","strengths":["具体题号及已成立步骤"],"context_summary":"结合本次截图及考试表单数值；没有则留空","paper_summary":"试卷要求画像与本次发挥的关系","patterns":[{"title":"跨题共性或待验证假设","questions":["原卷题号"],"evidence":"各题的具体证据及反证","interpretation":"可复用结论","confidence":"high/medium/low"}],"action_plan":[{"title":"明确行动","questions":["需订正的题号"],"task_ids":["逐题learning_tasks中的id"],"reason":"为何优先及证据","task":"具体怎么做","success_check":"怎样证明已掌握","timebox":"建议练习时间"}],"uncertainties":["还不能确定什么，需要补充什么证据"],"warnings":[]}。`;
 }
 
 export function assembleReport(raw: any, evidence: any, input: any, diagnoses?: any[]) {
@@ -278,7 +278,7 @@ export function assembleReport(raw: any, evidence: any, input: any, diagnoses?: 
   const actions = groundActions(hasWork(input) && Array.isArray(raw.action_plan) ? raw.action_plan.slice(0, 5).map((a: any) => ({ title: text(a.title, 160), questions: targets(a.questions), task_ids: list(a.task_ids, 12, 100), reason: text(a.reason, 1000), timebox: text(a.timebox, 100) })).filter((a: any) => a.title && a.questions.length) : [], questions);
   const patterns = hasWork(input) && Array.isArray(raw.patterns) ? raw.patterns.slice(0, 5).map((p: any) => ({ title: text(p.title, 200), questions: refs(p.questions), evidence: text(p.evidence, 1800), interpretation: text(p.interpretation, 1200), confidence: refs(p.questions).length < 2 || refs(p.questions).some(label => questions.find((q: any) => q.label === label)?.review_status !== "reviewed") ? "low" : ["high", "medium"].includes(p.confidence) ? p.confidence : "low" })).filter((p: any) => p.title && p.questions.length && p.evidence) : [];
   const base = normalizeReport({ ...raw, questions, warnings, complete: corrected.complete, coverage: corrected.coverage, priorities: actions.map((a: any) => `${a.title}：${a.task}；验收：${a.success_check}`) }, input);
-  return applyModules({ ...base, version: 2, presentation_version: 4, original_readings: input.original_readings, source_pages: input.pages.map((p: any) => ({ page: p.page, role: p.role })), work_on_paper: input.work_on_paper, update_count: input.update_count || 0, analysis_revision: input.analysis_revision || 0, prompt_version: REVIEW_VERSION, questions,
+  return applyModules({ ...base, version: 2, presentation_version: 5, headline: text(raw.headline, 160), original_readings: input.original_readings, source_pages: input.pages.map((p: any) => ({ page: p.page, role: p.role })), work_on_paper: input.work_on_paper, update_count: input.update_count || 0, analysis_revision: input.analysis_revision || 0, prompt_version: REVIEW_VERSION, questions,
     total: corrected.total, score_check: corrected.score_check, score_groups: scoreConflict ? [] : corrected.score_groups || [], context: corrected.context, context_summary: text(raw.context_summary, 1200),
     paper_profile: paperProfile(questions), exam_context: input.exam_context || null, paper_summary: text(raw.paper_summary, 1800), patterns, action_plan: actions, uncertainties: list(raw.uncertainties, 12), quality: scoreConflict || questions.some((q: any) => q.review_status !== "reviewed" || !q.difficulty) ? "needs_review" : "reviewed" }, input.options);
 }

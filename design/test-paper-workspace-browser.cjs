@@ -20,7 +20,7 @@ const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png
   }catch(e){console.error(e);res.writeHead(500);res.end('fixture error');}
  });
  const packaged=process.env.PAPER_TEST_PACKAGED_CHROMIUM?require(process.env.PAPER_TEST_PACKAGED_CHROMIUM):null;
- const browser=await chromium.launch(packaged?{headless:true,args:packaged.args.filter(a=>a!=='--single-process'),executablePath:await packaged.executablePath()}:{headless:true});
+ const browser=await chromium.launch(packaged?{headless:true,args:packaged.args.filter(a=>a!=='--single-process'||process.env.PAPER_TEST_SINGLE_PROCESS),executablePath:await packaged.executablePath()}:{headless:true});
  await new Promise(r=>server.listen(0,'127.0.0.1',r));
  try{
   for(const device of [{name:'mobile',width:390,height:844,theme:'sunny'},{name:'desktop',width:1280,height:900,theme:'sunny'},{name:'dark',width:390,height:844,theme:'night'}]){
@@ -41,10 +41,11 @@ const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png
    assert.equal(await page.locator('#dsbRoot').count(),0,'deferred deep-analysis mount must stay out of the AI tab');
    assert.equal(await page.locator('[data-analysis-tab=ai]').getAttribute('aria-selected'),'true');
    assert.equal(await page.locator('.ph-create [name=exam_id]').inputValue(),examId,'old entry carries exam association');
+   await page.getByText('识别核对与更多设置',{exact:true}).click();await page.getByText('学习范围与关注的问题',{exact:true}).click();
    await page.locator('[name=review_before_analysis]').check();await page.locator('[name=time_budget_minutes]').selectOption('3');await page.locator('[name=detail]').selectOption('brief');
    await page.locator('[name=goal]').fill('重点检查等式两边的运算');
    await page.screenshot({path:path.join(output,device.name+'-settings.png')});
-   await page.getByRole('button',{name:'下一步：添加资料',exact:true}).click();await page.locator('.pr-quota').filter({hasText:'今日还可'}).waitFor();
+   assert.equal(await page.locator('input[data-role=paper]').count(),1,'upload and settings share one page');await page.locator('.pr-quota').filter({hasText:'今日还可'}).waitFor();
    const image=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=800;c.height=1000;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,800,1000);x.fillStyle='#111';x.font='26px sans-serif';['Math test: synthetic fixture','1. 1+1=? Answer:2 Score:5/5','2. x+2=5 Answer:x=7 Score:0/5'].forEach((s,i)=>x.fillText(s,30,70+i*90));return c.toDataURL('image/png');});
    await page.locator('input[data-role=paper]').setInputFiles({name:'fixture.png',mimeType:'image/png',buffer:Buffer.from(image.split(',')[1],'base64')});await page.locator('.pr-page img').waitFor();await page.locator('#pr-consent').check();
    await page.getByRole('button',{name:'保存资料草稿',exact:true}).click();await page.locator('.pr-message').filter({hasText:'草稿已保存到账号'}).waitFor();
@@ -90,14 +91,14 @@ const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png
    for(let i=3;i<=15;i++)old.questions.push({...structuredClone(old.questions[0]),id:String(i),label:String(i)});
    await page.getByRole('button',{name:'返回全部分析',exact:true}).click();await page.locator('[data-hub="open:'+saved.request_id+'"]').click();await page.locator('.pr-result-top').waitFor();
    assert.equal(await page.locator('.pr-questions>.pr-question').count(),15);
-   assert.equal(await page.locator('details.pr-overview').getAttribute('open'),null);assert.equal(await page.locator('details.pr-overview .pr-prose').textContent(),longOverview);
-   assert.equal(await page.locator('.pr-action-plan>.pr-action').count(),2,'only the first two tasks lead the report');
+   assert(await page.locator('.pr-overview').isVisible());assert.equal(await page.locator('.pr-overview .pr-prose').textContent(),longOverview);assert.equal(await page.locator('.pr-reading-section').count(),6);
+   assert.equal(await page.locator('.pr-action-plan>.pr-action').count(),2,'the plan shows the first two tasks and preserves later tasks');
    assert.equal(await page.locator('.pr-action-plan .pr-action').count(),4,'further tasks are preserved');
    await page.locator('[data-question="2"]>summary').click();await page.locator('[data-question="2"] .pr-solution>summary').click();
    await page.locator('[data-question="2"] .pr-solution .katex-display').waitFor();
    assert.equal(await page.locator('.katex-error').count(),0);assert.equal(await page.locator('[data-question="2"] .pr-solution ol>li').count(),2);
    assert((await page.locator('[data-question="2"] .pr-difficulty>summary').textContent()).includes('/ 5'),'legacy scale is not silently relabeled');
-   await page.locator('.pr-report-meta>summary').click();await page.getByText('查看每题挑战评分',{exact:true}).click();
+   await page.getByText('查看每题难度与得分',{exact:true}).click();
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'expanded legacy difficulty table stays inside viewport');
    assert.deepEqual(errors,[]);await page.screenshot({path:path.join(output,device.name+'-legacy-difficulty.png')});
    await page.close();console.log('PASS',device.name,'entry, preferences, draft, OCR, scan crop, resume, 10-point report, tabs, archive, association, reload, legacy long report, prose/LaTeX, no errors/overflow');

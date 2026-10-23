@@ -1,5 +1,5 @@
 import { UUID, validateStart, text, number, MAX_PAGES, MAX_MATERIAL_BYTES } from './model.ts';
-import { reviewSettings, scanRegions } from './options.ts';
+import { reviewSettings, preferenceSettings, scanRegions } from './options.ts';
 const MATERIALS = 'score_tracker_paper_materials', SCAN_BUCKET = 'score-tracker-paper-scans';
 export class WorkspaceError extends Error { status: number; constructor(message: string, status = 400) { super(message); this.status = status; } }
 async function materialQuery(op: PromiseLike<any>) { const r = await op; if (r.error) throw new WorkspaceError('资料保存未完成，请重试', 503); return r.data; }
@@ -36,9 +36,9 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
     return { reviews: rows, drafts, has_more: rows.length === 50 };
   }
   if (action === 'preferences') {
-    if (body.settings) await materialQuery(db.from('score_tracker_paper_preferences').upsert({ user_id: user, settings: reviewSettings(body.settings) }));
+    if (body.settings) await materialQuery(db.from('score_tracker_paper_preferences').upsert({ user_id: user, settings: preferenceSettings(body.settings) }));
     const r = await materialQuery(db.from('score_tracker_paper_preferences').select('settings').eq('user_id', user).maybeSingle());
-    return { settings: reviewSettings(r?.settings) };
+    return { settings: preferenceSettings(r?.settings) };
   }
   if (!['save_materials','upload_page','sources','save_regions','link','pause','confirm_input','delete_draft'].includes(action)) return undefined;
   if (!UUID.test(body.request_id || '')) throw new WorkspaceError('分析编号无效');
@@ -136,6 +136,11 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
       if (q.answer !== text(v.answer, 4000)) { q.subparts = []; q.answer_verification = 'user_corrected'; }
       q.stem = text(v.stem, 4500); q.answer = text(v.answer, 4000); q.teacher_score = score; q.max_score = max; q.status = q.answer ? 'answered' : 'blank';
       q.score_verification = 'user_corrected'; q.evidence_verified = true;
+    }
+    if ((row.options as any)?.config_version === 2 && body.analysis_selection) {
+      const selection: any = reviewSettings({ ...row.options, ...body.analysis_selection, config_version: 2 });
+      if (selection.analysis_scope === 'selected' && (!selection.selected_questions.length || selection.selected_questions.some((label: string) => !qs.some((q: any) => q.label === label)))) throw new WorkspaceError('请选择至少一道已有题目进行详细分析');
+      state.analysis_selection = { analysis_scope: selection.analysis_scope, selected_questions: selection.selected_questions };
     }
     state.input_confirmed = true; state.diagnoses = []; state.phase = 'diagnose'; state.verification_done = true;
     await materialQuery(db.from(reviews).update({ analysis_state: state }).eq('request_id', row.request_id).eq('user_id', user).eq('status', 'paused').eq('analysis_state->>claim', row.analysis_state.claim));
