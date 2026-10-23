@@ -71,7 +71,9 @@ async function until(fn) { for (let i=0; i<160; i++) { if(fn()) return; await ti
   d.querySelector('.ps-verify').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
   await until(()=>h.tables.score_tracker_paper_reviews[0].status!=='paused');await h.drain();
   const report=h.tables.score_tracker_paper_reviews[0].result;assert.equal(report.questions[0].detail_level,'overview');assert.equal(report.questions[1].detail_level,'detailed');
-  Object.assign(report.questions[0],{teacher_score:null,estimated_score:5,analysis_mode:'ai_strength',ai_grading:{status:'confirmed',score:5,source:'provided',answer_key:'2<script>unsafe</script>',comparison:'与参考答案一致',solution_check:'1+1=2',from_image:true}});
+  Object.assign(report.questions[0],{teacher_score:null,estimated_score:5,analysis_mode:'ai_strength',detail_level:'detailed',reference:'满分答案也可主动查看方法',ai_grading:{status:'confirmed',score:5,verdict:'correct',source:'provided',answer_key:'2<script>unsafe</script>',comparison:'与参考答案一致',solution_check:'1+1=2',from_image:true}});
+  Object.assign(report.questions[1],{analysis_mode:'needs_confirmation',reference:'按可读条件独立讲解，不推测学生答案',first_issue:null,loss_reason:'',confirmation_prompt:'请核对局部模糊作答'});
+  report.questions.push({...structuredClone(report.questions[0]),id:'3',label:'Q-unknown',teacher_score:null,max_score:null,estimated_score:null,analysis_mode:'ai_strength',ai_grading:{status:'confirmed',rule:'correctness_only',score:null,verdict:'correct',source:'ai',answer_key:'等价结论',comparison:'答案核对一致',solution_check:'独立推导并代回',from_image:false}});
   report.ai_grade_checks=[{label:'答案题',compared_score:5,teacher_group_score:5,status:'matched',note:'AI判分与卷面整组得分一致'}];
   if(d.querySelector('[data-pr^="report:"]'))d.querySelector('[data-pr^="report:"]').click();await until(()=>d.querySelector('.pr-result-top'));
   assert.deepEqual(Array.from(d.querySelectorAll('[data-report-section]')).map(x=>x.dataset.reportSection),['highlights','performance','insights','questions','plan','materials']);
@@ -81,6 +83,13 @@ async function until(fn) { for (let i=0; i<160; i++) { if(fn()) return; await ti
   assert(d.querySelector('.pr-badge').textContent.includes('AI 5 / 5'));
   assert.equal(d.querySelector('.pr-question [data-field=teacher_score]').value,'','AI grades never fill the teacher-mark editor');
   assert.equal(d.querySelectorAll('.pr-ai-grade script').length,0,'AI grading text is escaped');
+  assert(d.querySelector('[data-question="1"] .pr-solution').textContent.includes('满分答案也可主动查看方法'));
+  assert(d.querySelector('[data-question="2"] .pr-solution').textContent.includes('按可读条件独立讲解'),'unread work no longer hides question guidance');
+  assert(d.querySelector('[data-question="2"]').textContent.includes('请核对局部模糊作答'));
+  assert(d.querySelector('[data-question="3"] .pr-ai-grade h4').textContent.includes('AI 核对：答案正确'));
+  assert(d.querySelector('[data-question="3"] .pr-badge').textContent.includes('AI 答案正确'));
+  assert(!d.querySelector('[data-question="3"] .pr-ai-grade').textContent.includes('null'));
+  assert.equal(d.querySelector('[data-question="3"]').dataset.needsReview,'false','unknown maximum is not treated as zero or a loss');
   assert(d.querySelector('[data-report-section=performance]').textContent.includes('逐题判分与整组得分核对'));
   const pref=h.tables.score_tracker_paper_preferences[0].settings;assert.equal(pref.exam_experience.note,'');assert.equal(pref.grade,'高二');
   assert.deepEqual(errors,[]);dom.window.close();

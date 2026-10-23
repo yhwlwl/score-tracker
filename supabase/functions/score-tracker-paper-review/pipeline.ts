@@ -38,7 +38,7 @@ export function progressFor(state: any) {
     completed_steps: split && state.has_work === false ? (state.phase === "extract" ? 0 : state.phase === "diagnose" ? 1 : 2) : state.phase === "extract" ? 0 : state.phase === "read_work" ? 1 : (["verify", "read_scores"].includes(state.phase) ? 1 : ["diagnose", "recheck"].includes(state.phase) ? 2 : 3) + (split ? 1 : 0),
     active_ms: state.active_ms || 0, resume_remaining: Math.max(0, 2 - (state.resume_count || 0)),
     message: state.phase === "extract" ? (split ? "录入题目与印刷分值" : "录入题目、作答与批改分") : state.phase === "read_work" ? (state.work_retry ? "复核批改位置与分数合计" : "匹配作答、批改与成绩信息") : state.phase === "read_scores" ? `补读缺失的得分与满分（第${(state.score_read_round || 0) + 1}轮）` : state.phase === "diagnose" ? (positive ? "提炼已得分题目的优势" : confirming ? "整理待核对信息与题目挑战" : "分析失分步骤与可能原因") : state.phase === "verify" ? "独立核对批改位置与填涂" : state.phase === "recheck" ? "复查有歧义的作答" : "综合试卷要求、优势与复习路线",
-    detail: state.phase === "extract" ? "保留作答原文；模糊字符和未批改分数会单独标记。" : state.phase === "verify" ? "核对题号与分数的对应关系，避免把相邻题的批改读错。" : state.phase === "diagnose" ? (positive ? "关注已展示的能力与解题亮点。" : confirming ? "作答或批改对应还不明确，先标出需要核对的位置。" : "区分可见错误和当时原因，找出已写对的步骤、关键问题和下一步改法。") : "结合已有证据整理结论、待确认的问题与不同原因对应的建议。" };
+    detail: state.phase === "extract" ? "保留作答原文；模糊字符和未批改分数会单独标记。" : state.phase === "verify" ? "核对题号与分数的对应关系，避免把相邻题的批改读错。" : state.phase === "diagnose" ? (positive ? "关注已展示的能力与解题亮点。" : confirming ? "题目条件清楚的部分继续讲解，只对未读清的作答暂停个人评价。" : "区分可见错误和当时原因，找出已写对的步骤、关键问题和下一步改法。") : "结合已有证据整理结论、待确认的问题与不同原因对应的建议。" };
 }
 
 export async function runReviewStage(db: any, input: any, user: string, config: any, row: any, expectedClaim: string, dispatch: (claim: string) => Promise<void>) {
@@ -124,7 +124,7 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
       promptText = synthesisPrompt(input, state.evidence, state.diagnoses);
       validate = raw => assembleReport(raw, state.evidence, input, state.diagnoses);
     } else throw new Error("unknown_pipeline_stage");
-    const effort = state.phase === 'grade' ? state.evidence.questions.filter((q: any) => gradeLabels.includes(q.label)).some((q: any) => !q.provided_reference) ? 'high' : 'low' : batch.length && (batch.every((q: any) => fullCredit(q) || answerCorrect(q) || needsConfirmation(q)) || batch.length === 1 && state.focused_retries?.includes(batch[0].label)) ? "low" : undefined;
+    const effort = state.phase === 'grade' ? state.evidence.questions.filter((q: any) => gradeLabels.includes(q.label)).some((q: any) => !q.provided_reference) ? 'high' : 'low' : batch.length && (batch.every((q: any) => fullCredit(q) || answerCorrect(q)) || batch.length === 1 && state.focused_retries?.includes(batch[0].label)) ? "low" : undefined;
     outcome = await reviewModel({ config, content: [{ type: "text", text: promptText }, ...(state.phase === 'grade' ? gradeImage ? scoreViewContent(input, state.grading_views[state.grading_view || 0]) : [] : state.phase === 'read_scores' ? scoreViewContent(input, state.score_views[state.score_read_view || 0]) : state.phase === "synthesize" || (state.phase === 'recheck' && state.grading_text_recheck) || (state.flow === "revision" || state.text_recovery) ? [] : imageContent(input, selected))], requestId: input.request_id, stage, effort, repairOutput: state.pending_repair?.stage === stage ? state.pending_repair.text : undefined, validate, mark: audit.mark });
     if (state.phase === 'grade' && !outcome.ok && /upstream_timeout|model_output_truncated|invalid_model_output/.test(outcome.code)) {
       // A failed answer check must not erase the original report or invent a mark.
@@ -162,7 +162,7 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
     }
     if (state.flow !== "revision" && !focusRetry && !outcome.ok && /upstream_timeout|model_output_truncated|invalid_model_output/.test(outcome.code) && batch.length === 1) {
       const q = batch[0];
-      state.evidence.complete = false;
+      state.evidence.analysis_complete = false;
       state.evidence.warnings.push(`第${q.label}题暂未得到可靠解答，保留识别和批改信息，不据此判断失分原因`);
       outcome.partial = true;
       outcome.result = normalizeDiagnoses({ questions: [{ label: q.label, reference: q.provided_reference || "", reference_source: q.provided_reference ? "provided" : "ai", correct_steps: [], first_issue: { certainty: "uncertain" }, loss_reason: "暂未得到可靠诊断，不判断具体失分原因", suggestion: "请补充本题参考答案，或先与老师核对关键条件和作答后再复盘", uncertainties: ["本题解答尚待核验"], review_status: "unresolved" }] }, batch);
@@ -306,7 +306,7 @@ export function revisionState(report: any, corrections: any[]) {
   const changed: string[] = [];
   const questions = report.questions.map((q: any) => {
     const c = corrections.find((c: any) => c.id === q.id);
-    const fields = ["label", "stem", "source_regions", "pages", "work_pages", "reference_pages", "answer", "status", "confidence", "subparts", "teacher_score", "max_score", "score_mark", "max_mark", "max_verification", "max_candidates", "provided_reference", "kind", "score_verification", "answer_verification", "evidence_verified", "score_candidates", "answer_candidates", "student_reflection", "uncertainties", "ai_grading"];
+    const fields = ["label", "stem", "source_regions", "pages", "work_pages", "reference_pages", "reference_mark", "answer", "status", "confidence", "subparts", "teacher_score", "max_score", "score_mark", "max_mark", "max_verification", "max_candidates", "provided_reference", "kind", "score_verification", "answer_verification", "evidence_verified", "score_candidates", "answer_candidates", "student_reflection", "uncertainties", "ai_grading"];
     const fact: any = Object.fromEntries(fields.filter(k => q[k] !== undefined).map(k => [k, structuredClone(q[k])]));
     fact.subparts ||= []; fact.pages ||= []; fact.work_pages ||= []; fact.reference_pages ||= []; fact.uncertainties ||= [];
     if (!c) return fact;
@@ -329,7 +329,7 @@ export function revisionState(report: any, corrections: any[]) {
     fact.max_score = c.max_score; fact.student_reflection = reflection;
     return fact;
   });
-  const evidence = { questions, total: report.total || { score: null, max: null }, complete: report.complete, coverage: report.coverage,
+  const evidence = { questions, total: report.total || { score: null, max: null }, complete: report.complete, analysis_complete: report.analysis_complete, work_complete: report.work_complete, coverage: report.coverage,
     score_groups: report.score_groups || [], context: report.context || [], warnings: [], score_check: checkScores(questions, report.total || { score: null, max: null }, report.complete) };
   return { ...initialState(), flow: "revision", phase: "diagnose", changed_labels: changed, evidence, verification_done: true,
     diagnoses: report.questions.filter((q: any) => !changed.includes(q.label)), exam_context: report.exam_context, account_context: report.account_context };

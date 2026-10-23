@@ -19,3 +19,13 @@ Missing teacher marks do not prevent automatic grading of clearly scorable close
 Store AI verdicts separately in `ai_grading`; expose their score through the existing `estimated_score`, never `teacher_score` or saved exam scores. Show the source and comparison prominently, and reconcile each complete group against its actual group mark. A mismatch causes one bounded additional check, not a guessed allocation. Refresh only analyses affected by corrected answers. Correct objective answers receive positive feedback rather than invented loss diagnoses. Budget pauses and image-backed checkpoints continue to work.
 
 Regression coverage: `test-paper-ai-grading.cjs`, `test-paper-scores-history.cjs`, `test-paper-design-ui.cjs`, existing paper handler/workspace/diagnostics/deadline/recovery/update suites, and `test-score-worth.cjs`. Live image probes are read-only and must be retired after verification; never check credentials or source images into the repository.
+
+## Local uncertainty, useful analysis
+
+- Treat question coverage, answer readability, answer correctness, and numeric scoring as independent states. Missing work does not suppress verified question solutions or question-level attempts; do not turn those into personal weakness diagnoses. A single failed diagnosis does not change known question coverage.
+- With no printed maximum, still solve/check a closed response and record `correctness_only` with a null score. Partial closed-response correctness without a supplied rubric is also qualitative, never made-up partial credit. Exclude nonnumeric verdicts from group arithmetic.
+- Correct/full-credit answers can retain optional method explanations and transfer rules when solutions are selected; do not fabricate loss diagnoses or force remedial tasks. Keep next-step advice when causes/solutions are selected, independently of optional practice and schedules. Respect concise scopes and record-only mode.
+- Accept clearly labelled answer-key regions on mixed-content pages, with page/title provenance. Do not mistake student writing for a supplied answer. Extract the relevant conclusion from longer references using a grounded source excerpt instead of requiring the whole reference as the key.
+- Normalize only typography in grounding checks. Do not equate changed numbers, different mathematical grouping or altered answers. Unread complex problems retain a dedicated reasoning budget; ambiguity is not a reason to use an eight-question lightweight pass.
+
+Regression coverage: `test-paper-adaptive-reasoning.cjs` and bundled `test-paper-design-ui.cjs` supplement the suites above. Quotas, ownership, consent, manual corrections, and teacher-vs-AI score provenance are unchanged.

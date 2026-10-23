@@ -35,7 +35,8 @@ export function detailedQuestion(q: any, value: any) {
   const s: any = reviewSettings(value);
   if (s.config_version !== 2 || s.analysis_scope === 'all') return true;
   if (s.analysis_scope === 'selected') return s.selected_questions.includes(q.label);
-  return !(typeof q.teacher_score === 'number' && typeof q.max_score === 'number' && q.teacher_score === q.max_score);
+  return !(typeof q.teacher_score === 'number' && typeof q.max_score === 'number' && q.teacher_score === q.max_score
+    || q.teacher_score === null && q.ai_grading?.status === 'confirmed' && q.ai_grading.verdict === 'correct');
 }
 export function settingsPrompt(value: any) {
   const s = reviewSettings(value);
@@ -71,7 +72,9 @@ export function applyModules(report: any, value: any) {
     if (!has('causes')) { q.cause_analysis = null; q.first_issue = null; q.loss_reason = ''; q.evidence = ''; }
     if (!has('solutions')) { q.reference = ''; q.transfer_rule = ''; }
     if (!has('practice')) { q.practice = ''; q.practice_answer = ''; }
-    if (!has('practice') && !has('plan')) { q.learning_tasks = []; q.suggestion = ''; q.success_check = ''; }
+    // A next step is part of diagnosis/solution, not an opt-in extra exercise or schedule.
+    if (!has('practice') && !has('plan')) q.learning_tasks = [];
+    if (!has('practice') && !has('plan') && !has('causes') && !has('solutions')) { q.suggestion = ''; q.success_check = ''; }
   }
   if (modern && report.action_plan) {
     report.action_plan = report.action_plan.filter((a: any) => a.questions.every((label: string) => report.questions.some((q: any) => q.label === label && q.detail_level === 'detailed')));

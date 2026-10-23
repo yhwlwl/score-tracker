@@ -13,7 +13,7 @@ export function examContext(value: any, source = "user_entry") {
   return Object.keys(result).length > 1 ? result : undefined;
 }
 export function fullCredit(q: any) { return typeof q.teacher_score === "number" && typeof q.max_score === "number" && q.teacher_score === q.max_score; }
-export function answerCorrect(q: any) { return q.teacher_score === null && q.ai_grading?.status === 'confirmed' && q.ai_grading.verdict === 'correct' && q.ai_grading.score === q.max_score; }
+export function answerCorrect(q: any) { return q.teacher_score === null && q.ai_grading?.status === 'confirmed' && q.ai_grading.verdict === 'correct' && (typeof q.ai_grading.score === 'number' && q.ai_grading.score === q.max_score || q.ai_grading.score === null && q.ai_grading.rule === 'correctness_only'); }
 export function needsConfirmation(q: any) {
   // A missing grade is independent of whether the student's work can be analysed.
   const readablePart = q.subparts?.some((s: any) => s.status === "answered" && text(s.answer, 2200));
@@ -25,10 +25,15 @@ export function analysisQueue(evidence: any) {
   const positive = (q: any) => fullCredit(q) || answerCorrect(q);
   return [...evidence.questions.filter(positive), ...evidence.questions.filter((q: any) => !positive(q) && needsConfirmation(q)), ...evidence.questions.filter((q: any) => !positive(q) && !needsConfirmation(q))];
 }
-const learnerQuote = (v: string) => v.normalize("NFKC").replace(/[\s，。；：、,;:"'“”‘’_\^]/g, "").toLowerCase();
+// Accept typography changes, not changed mathematical values or paraphrased evidence.
+export const evidenceQuote = (v: string) => (v || '').normalize('NFKC').replace(/[−–]/g, '-').replace(/\\(?:left|right)/g, '')
+  .replace(/\\(?:dfrac|tfrac|frac)\{([+-]?[A-Za-z0-9.]+)\}\{([+-]?[A-Za-z0-9.]+)\}/g, '$1/$2').replace(/\\sqrt\{([^{}]+)\}/g, '√($1)')
+  .replace(/√\((\d+(?:\.\d+)?|[A-Za-z])\)/g, '√$1').replace(/\\times/g, '×').replace(/\\cdot/g, '·')
+  .replace(/[\s$，。；：、,;:"'“”‘’_\^]/g, '');
+const learnerQuote = (v: string) => evidenceQuote(v).toLowerCase();
 export function learnerFields(raw: any, fact: any, hasStudent = true) {
   const written = learnerQuote([fact.answer, ...(fact.subparts || []).map((s: any) => s.answer)].join(" "));
-  const wins = hasStudent && Array.isArray(raw.wins) ? raw.wins.slice(0, 4).map((w: any) => ({ skill: text(w.skill, 160), observed: text(w.observed, 500), significance: text(w.significance, 700), basis: w.basis === "teacher_mark" ? "teacher_mark" : "work" }))
+  const wins = hasStudent && (fullCredit(fact) || answerCorrect(fact) || !needsConfirmation(fact)) && Array.isArray(raw.wins) ? raw.wins.slice(0, 4).map((w: any) => ({ skill: text(w.skill, 160), observed: text(w.observed, 500), significance: text(w.significance, 700), basis: w.basis === "teacher_mark" ? "teacher_mark" : "work" }))
     .filter((w: any) => w.skill && w.observed && w.significance && (w.basis === "teacher_mark" ? fullCredit(fact) : written.includes(learnerQuote(w.observed))))
     .map((w: any) => w.basis === "work" && /^(?:[A-H]{1,8}|[+-]?\d+(?:\.\d+)?(?:[A-Za-z/²³]+)?|大于|小于|等于|相等|不相等|正确|错误|是|否)$/.test(w.observed) ? { ...w, basis: "work_result", skill: "已给出本小问的判断", significance: "把关键理由补充出来，可以形成完整的得分步骤。" } : w) : [];
   const d = raw.difficulty || {}, quote = text(d.evidence_quote, 700);
@@ -45,8 +50,8 @@ export function learnerFields(raw: any, fact: any, hasStudent = true) {
   const c = raw.cause_analysis || {};
   const hypotheses = hasStudent && !fullCredit(fact) && !answerCorrect(fact) && !needsConfirmation(fact) && Array.isArray(c.hypotheses) ? c.hypotheses.slice(0, 3).map((h: any) => ({ kind: CAUSE_KINDS.includes(h.kind) ? h.kind : "uncertain", explanation: text(h.explanation, 800), evidence: text(h.evidence, 700), counter_evidence: text(h.counter_evidence, 700), check: text(h.check, 600), if_confirmed: text(h.if_confirmed, 800), status: "hypothesis" }))
     .filter((h: any) => h.explanation && h.evidence && h.check && h.if_confirmed) : [];
-  return { analysis_mode: fullCredit(fact) ? "strength" : answerCorrect(fact) ? 'ai_strength' : needsConfirmation(fact) ? "needs_confirmation" : "diagnosis", wins, difficulty,
-    cause_analysis: { observation: hasStudent && !fullCredit(fact) && !answerCorrect(fact) ? text(c.observation, 800) : "", hypotheses, question: hypotheses.length ? text(c.question, 400) : "" } };
+  return { analysis_mode: !hasStudent ? 'question_guidance' : fullCredit(fact) ? "strength" : answerCorrect(fact) ? 'ai_strength' : needsConfirmation(fact) ? "needs_confirmation" : "diagnosis", wins, difficulty,
+    cause_analysis: { observation: hasStudent && !fullCredit(fact) && !answerCorrect(fact) && !needsConfirmation(fact) ? text(c.observation, 800) : "", hypotheses, question: hypotheses.length ? text(c.question, 400) : "" } };
 }
 export function paperProfile(questions: any[]) {
   const rated = questions.filter(q => q.difficulty), counts = [1,2,3,4,5,6,7,8,9,10].map(level => ({ level, count: rated.filter(q => q.difficulty.scale === 10 && q.difficulty.overall === level).length }));
