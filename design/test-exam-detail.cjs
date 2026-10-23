@@ -71,6 +71,9 @@ async function until(fn) { for (let n = 0; n < 150; n++) { if (fn()) return; awa
     assert.equal(d.querySelectorAll('.ed-table tbody tr').length, 5);
     const math = d.querySelector('.ed-table tbody tr'); assert(math.textContent.includes('135')); assert(math.textContent.includes('120')); assert(math.textContent.includes('高于均分 35 分'));
     assert(d.querySelector('.ed-combinations').textContent.includes('255 分'));
+    assert.equal(d.querySelector('[data-ed-mode="movement"]').getAttribute('aria-pressed'), 'true');
+    assert(!d.querySelector('.ed-quadrant'), 'missing history is not shown as no change');
+    d.querySelector('[data-ed-mode="performance"]').click();
     const groups = () => Object.fromEntries(Array.from(d.querySelectorAll('.ed-quadrant-groups article')).map(el => [el.querySelector('h3').textContent, el.querySelector('b').textContent]));
     assert.deepEqual(groups(), { 优势巩固: '数学', 抢分突破: '物理', 竞争提升: '语文', 优先补强: '英语' });
     assert.equal(d.querySelectorAll('.ed-point-list button').length, 4, 'statistical items do not distort subject comparison');
@@ -113,7 +116,7 @@ async function until(fn) { for (let n = 0; n < 150; n++) { if (fn()) return; awa
     sparse.total_actual_score = 999; w.renderPage(); assert.equal(d.querySelector('.ed-metric strong').textContent, '999'); assert.equal(d.querySelectorAll('.ed-metric strong')[1].textContent, '—');
     delete sparse.total_actual_score;
     sparse.scores = { 数学: { actual: 0, max: 150, yearPositionPercent: 0 }, 物理: { actual: 0, max: 100, yearPositionPercent: 0 } };
-    w.renderPage(); assert.equal(d.querySelectorAll('.ed-point-list button').length, 2);
+    w.renderPage(); d.querySelector('[data-ed-mode="performance"]').click(); assert.equal(d.querySelectorAll('.ed-point-list button').length, 2);
     assert.equal(d.querySelectorAll('.ed-quadrant g').length, 1, 'equal coordinates are not misleadingly jittered');
     assert(d.querySelector('.ed-inspect').textContent.includes('接近均值')); assert(!/NaN|Infinity/.test(d.querySelector('.ed-quadrant').outerHTML));
     sparse.scores = {}; w.renderPage(); assert(d.querySelector('#ed-scores').textContent.includes('还没有科目数据'));
