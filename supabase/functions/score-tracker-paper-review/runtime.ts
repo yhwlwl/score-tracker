@@ -71,11 +71,13 @@ export async function reviewModel(options: { config: any; content: any[]; reques
       last = { code: controller.signal.aborted ? "upstream_timeout" : "upstream_network_error", stage: options.stage, detail: clean((e as Error).message), upstream_status: attempt.upstream_status || 0 };
       attempt.network_error = last.detail; attempt.network_code = clean((e as any)?.cause?.code || "", 100); retry = true;
     } finally { clearTimeout(timer); }
+    const deadlineLimited = retry && typeof config.stage_deadline === "number" && config.stage_deadline - Date.now() < 20000;
+    if (deadlineLimited) attempt.deadline_limited = true;
     attempt.outcome = last.code; attempt.duration_ms = Date.now() - at;
     await options.mark("upstream_attempt", attempt);
-    if (retry && typeof config.stage_deadline === "number" && config.stage_deadline - Date.now() < 20000) {
-      last = { ...last, code: "worker_deadline" }; break;
-    }
+    // Keep the model failure: the pipeline must split a timed-out batch, not replay it
+    // unchanged. worker_deadline is reserved for the preflight that sent no request.
+    if (deadlineLimited) { last = { ...last, deadline_limited: true }; break; }
     if (!retry || Date.now() - started > budget - 1500) break;
     await new Promise(resolve => setTimeout(resolve, 350));
   }

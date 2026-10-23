@@ -127,6 +127,7 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
     else if (focusRetry) { /* Continue the same question once with a shorter, still-thinking pass. */ }
     else if (!outcome.ok && /upstream_timeout|model_output_truncated|invalid_model_output/.test(outcome.code) && batch.length > 1) {
       state.batch_limit = 1;
+      delete state.pending_repair; // A whole-batch repair cannot be reused for the first individual question.
       await audit.mark("smaller_batch_recovery");
     } else if (!outcome.ok && !outcome.partial) { await audit.finish("failed", outcome); return; }
     else if (state.phase === "extract") {

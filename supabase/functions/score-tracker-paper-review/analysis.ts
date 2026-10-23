@@ -12,7 +12,9 @@ export function nextBatch(questions: any[], offset: number) {
     // A multi-step written problem gets its own reasoning budget.
     const positive = fullCredit(q) || needsConfirmation(q);
     if (batch.length && positive !== (fullCredit(batch[0]) || needsConfirmation(batch[0]))) break;
-    const complex = !positive && (q.max_score >= 8 || q.subparts?.length > 2 || q.stem.length > 1400);
+    // A missing printed maximum must not pack several written problems together.
+    // A known large teacher mark or two subquestions also establishes substantial work.
+    const complex = !positive && (q.max_score >= 8 || q.teacher_score >= 8 || q.subparts?.length >= 2 || q.stem.length > 1400);
     if (complex && batch.length) break;
     batch.push(q);
     if (batch.length >= (positive ? 8 : BATCH_SIZE) || complex) break;

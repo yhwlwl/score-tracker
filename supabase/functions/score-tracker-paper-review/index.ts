@@ -139,6 +139,14 @@ Deno.serve(async (req: Request) => {
       if (recoverSaved) { state.text_recovery = true; state.source_input ||= { work_on_paper: input.work_on_paper, pages: input.pages.map((p: any) => ({ page: p.page, role: p.role })) }; }
       const oldClaim = state.claim; state.claim = crypto.randomUUID(); state.resume_count = (state.resume_count || 0) + (row.status === "failed" ? 1 : 0); state.budget_start_ms = state.active_ms || 0; state.input_confirmed = state.input_confirmed || state.pause_reason !== "review"; delete state.pause_reason; state.phase_started_at = new Date().toISOString();
       state.run_started_at = state.phase_started_at;
+      // A manual resume starts a new delivery budget. Old v32 failures may have
+      // relabeled an actual model timeout as worker_deadline without splitting.
+      delete state.deadline_handoffs;
+      const lastAttempt = row.attempts?.[row.attempts.length - 1];
+      if (row.error_code === "worker_deadline" && lastAttempt?.stage === row.error_stage && /^(upstream_timeout|model_output_truncated|invalid_model_output)$/.test(lastAttempt?.outcome || "")) {
+        if (["diagnose", "recheck"].includes(state.phase)) { state.batch_limit = 1; delete state.pending_repair; }
+        if (state.phase === "verify") state.verification_batch_limit = 1;
+      }
       if (state.phase === "verify" && /upstream_timeout|model_output_truncated/.test(row.error_code || "")) state.verification_batch_limit ||= Math.max(1, Math.min(5, Math.floor(state.evidence.questions.length / 2)));
       if (state.phase === "extract" && !state.evidence) { state.flow = "split_reading"; state.has_work = input.work_on_paper || input.pages.some((p: any) => p.role === "work"); }
       if (!state.verification_done && state.evidence && (input.work_on_paper || input.pages.some((p: any) => p.role === "work"))) state.phase = "verify";

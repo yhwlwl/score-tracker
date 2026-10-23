@@ -4,7 +4,7 @@ import { STAGE_BUDGET_MS, REVIEW_OUTPUT_TOKENS, REVIEW_VERSION } from "./analysi
 const PAPER_AUDIT_TABLE = "score_tracker_paper_reviews";
 const ATTEMPT_FIELDS = ["stage", "attempt", "started_at", "timeout_ms", "max_tokens", "thinking", "reasoning_effort", "prompt_hash", "image_count", "image_bytes", "json_mode", "duration_ms", "outcome", "recovery",
   "upstream_status", "upstream_request_id", "upstream_error_code", "upstream_message", "content_type", "finish_reason", "model",
-  "prompt_tokens", "completion_tokens", "reasoning_tokens", "reasoning_chars", "output_chars", "parse_error", "network_error", "network_code"];
+  "prompt_tokens", "completion_tokens", "reasoning_tokens", "reasoning_chars", "output_chars", "parse_error", "network_error", "network_code", "deadline_limited"];
 
 export function paperFailure(code: string, status = 0) {
   const messages: Record<string, string> = {
