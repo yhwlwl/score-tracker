@@ -308,7 +308,7 @@ Deno.serve(async (req) => {
       if (succeeded) background(saveImages(db, requestId, user.id, images, stats), requestId);
     }
     return json({ ...body, request_id: requestId, ...(status >= 400 ? { stage: phase } : {}),
-      diagnostics: { model: config?.model || null, attempt_count: attempts.length, elapsed_ms: elapsed, max_output_tokens: OUTPUT_TOKENS },
+      diagnostics: { model: config?.model || null, attempt_count: attempts.length, elapsed_ms: elapsed, max_output_tokens: action === "connectivity_test" ? 32 : OUTPUT_TOKENS },
       ...(quota ? { quota } : {}) }, status);
   };
 
@@ -379,8 +379,30 @@ Deno.serve(async (req) => {
 
       quota = await withTimeout(visionQuota(user.id), DATABASE_TIMEOUT_MS, "rate_limit_timeout");
       if (!quota?.allowed) return reply({ error: "暂时无法识别，请查看剩余额度或稍后重试", code: "ai_rate_limited", retry_after_seconds: quota?.retry_after_seconds || 0 }, 429);
+      // A readiness check must reach the configured model, not only our database.
+      // This short text request does not reserve recognition quota or send images.
+      const openRouter = isOpenRouterBase(config.baseUrl);
+      const headers: Record<string, string> = { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" };
+      if (openRouter) {
+        headers["HTTP-Referer"] = "https://score.yhwlwl.xyz";
+        headers["X-Title"] = "Score Tracker Preview";
+      }
+      mark("connectivity_start");
+      const outcome = await recognizeWithRecovery({
+        url: config.baseUrl + "/chat/completions", headers, requestId,
+        body: { model: config.model, messages: [{ role: "user", content: '只返回 JSON：{"ok":true}' }],
+          temperature: 0, max_tokens: 32, ...requestOptions(config.model, openRouter),
+          ...(openRouter ? { provider: { data_collection: "deny" } } : {}) },
+        budgetMs: 12000, attemptTimeoutMs: 10000,
+        mark: (_phase, detail) => mark("connectivity_attempt", detail),
+        validate: () => true,
+      });
+      attempts = outcome.attempts;
+      if (!outcome.ok) return reply({ error: outcome.code === "upstream_timeout" ? "识别服务连接超时，请稍后重试；本次未扣识图次数。"
+        : "识别服务连接测试失败，请稍后重试；本次未扣识图次数。", code: outcome.code,
+        upstream_status: outcome.upstream_status, upstream_message: outcome.upstream_message || "" }, outcome.status);
       mark("connectivity_ready");
-      return reply({ ok: true, status: 200, check: "configuration_and_access", latency_ms: Date.now() - connectivityStartedAt, model: config.model });
+      return reply({ ok: true, status: 200, check: "upstream_model", latency_ms: Date.now() - connectivityStartedAt, model: config.model });
     }
 
     mark("image_validation");
