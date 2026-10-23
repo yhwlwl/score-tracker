@@ -2,7 +2,7 @@ import { reviewSettings, settingsPrompt, applyModules, scanRegions, detailedQues
 import { text, number, normalizeReport } from "./model.ts";
 import { fullCredit, needsConfirmation, learnerFields, paperProfile } from "./learner.ts";
 
-export const REVIEW_VERSION = "2026-10-learner-v10";
+export const REVIEW_VERSION = "2026-10-learner-v11";
 export const BATCH_SIZE = 4;
 export const STAGE_BUDGET_MS = 125000;
 export const REVIEW_OUTPUT_TOKENS = 24576;
@@ -38,14 +38,14 @@ ${previous ? `上次事实底稿有下列冲突，请重新查看原图纠正，
 仅返回JSON：{"complete":true,"coverage":"可读范围与缺失","warnings":[],"total":{"score":null,"max":null,"score_mark":{"page":1,"quote":"图中总分原文"},"max_mark":{"page":1,"quote":"试卷总分原文"}},"score_groups":[{"label":"原图分组名","questions":["覆盖的原卷题号"],"teacher_score":null,"score_mark":{"page":1,"quote":"该分组总分原文"}}],"context":[{"observation":"本次分数线或排名等事实，不含个人标识","page":1,"quote":"图中依据"}],"questions":[{"label":"原卷一级完整题号","stem":"完整题意及必要选项与图示关系","pages":[1],"work_pages":[2],"answer":"按原文抄录的作答，不解题补写","subparts":[{"label":"完整小问号","answer":"作答原文","status":"answered/blank/unclear"}],"status":"answered/blank/unclear","confidence":"high/medium/low","max_score":null,"max_mark":{"page":1,"quote":"印刷分值依据","unit_score":null,"unit_labels":[]},"teacher_score":null,"score_mark":{"page":2,"quote":"批改数字及对应题号","scope":"question","label":"一级题号"},"provided_reference":"提供的参考答案原文","reference_pages":[],"uncertainties":["需核对的具体字符或对应关系"]}]}。`;
 }
 
-function validMark(mark: any, value: number | null, input: any, work = false) {
+export function validMark(mark: any, value: number | null, input: any, work = false) {
   if (value === null || !mark || !pages([mark.page], input).length || !text(mark.quote, 500)) return false;
   if (work && input.pages[mark.page - 1].role !== "work" && !input.work_on_paper) return false;
   // A prose claim such as “未标，按0分计” is not a numeric mark.
   if (/未标|未见|推测|估[计分]|按.*计|未批改|不清|待确认|not\s+(?:marked|graded|visible)|un(?:marked|graded|clear)|assum|estimated|unknown|cannot\s+read/i.test(mark.quote)) return false;
   return (text(mark.quote, 500).match(/\d+(?:\.\d+)?/g) || []).some(n => Number(n) === value);
 }
-function validMaxMark(mark: any, value: number | null, input: any) {
+export function validMaxMark(mark: any, value: number | null, input: any) {
   if (validMark(mark, value, input)) return true;
   const unit = number(mark?.unit_score), units = list(mark?.unit_labels, 40, 100);
   return value !== null && unit !== null && unit > 0 && units.length > 0 && new Set(units).size === units.length && Math.abs(unit * units.length - value) < 0.001
@@ -84,30 +84,87 @@ export function normalizeEvidence(raw: any, input: any) {
   const groups = hasWork(input) && Array.isArray(raw.score_groups) ? raw.score_groups.slice(0, 10).map((g: any) => {
     const refs = [...new Set(list(g.questions, 60, 40))].filter(label => questions.some((q: any) => q.label === label));
     const members = questions.filter((q: any) => refs.includes(q.label)), score = number(g.teacher_score);
-    const max = members.length && members.every((q: any) => q.max_score !== null) ? members.reduce((n: number, q: any) => n + q.max_score, 0) : null;
+    const printedMax = number(g.max_score);
+    const max = validMaxMark(g.max_mark, printedMax, input) ? printedMax : members.length && members.every((q: any) => q.max_score !== null) ? members.reduce((n: number, q: any) => n + q.max_score, 0) : null;
     return { label: text(g.label, 100), questions: refs, teacher_score: validMark(g.score_mark, score, input, true) && (max === null || score! <= max) ? score : null, max_score: max,
+      max_mark: validMaxMark(g.max_mark, printedMax, input) ? g.max_mark : null,
       score_mark: validMark(g.score_mark, score, input, true) ? { page: g.score_mark.page, quote: text(g.score_mark.quote, 500) } : null };
-  }).filter((g: any) => g.label && g.questions.length && g.teacher_score !== null) : [];
+  }).filter((g: any) => g.label && g.questions.length && (g.teacher_score !== null || g.max_mark)) : [];
   for (const g of groups) {
     const members = questions.filter((q: any) => g.questions.includes(q.label));
-    if (members.every((q: any) => q.teacher_score !== null) && members.reduce((n: number, q: any) => n + q.teacher_score, 0) !== g.teacher_score) scoreCheck.issues.push(`${g.label}分组分数与所属题目的批改分合计不一致`);
+    if (g.teacher_score !== null && members.every((q: any) => q.teacher_score !== null) && members.reduce((n: number, q: any) => n + q.teacher_score, 0) !== g.teacher_score) scoreCheck.issues.push(`${g.label}分组分数与所属题目的批改分合计不一致`);
   }
   const groupedLabels = groups.flatMap((g: any) => g.questions);
-  if (groups.length && new Set(groupedLabels).size === questions.length && groupedLabels.length === questions.length && total.score !== null && groups.reduce((n: number, g: any) => n + g.teacher_score, 0) !== total.score) scoreCheck.issues.push("分组批改分合计与整卷总分不一致");
+  if (groups.length && groups.every((g: any) => g.teacher_score !== null) && new Set(groupedLabels).size === questions.length && groupedLabels.length === questions.length && total.score !== null && groups.reduce((n: number, g: any) => n + g.teacher_score, 0) !== total.score) scoreCheck.issues.push("分组批改分合计与整卷总分不一致");
   if (scoreCheck.issues.length) scoreCheck.status = "conflict";
-  return { questions, total, complete: raw.complete === true, coverage: text(raw.coverage, 1000), warnings,
-    context: Array.isArray(raw.context) ? raw.context.slice(0, 8).filter((c: any) => pages([c.page], input).length && text(c.quote)).map((c: any) => ({ observation: text(c.observation, 700), page: c.page, quote: text(c.quote, 300) })) : [], score_groups: groups, score_check: scoreCheck };
+  return completeMaximum({ questions, total, complete: raw.complete === true, coverage: text(raw.coverage, 1000), warnings,
+    context: Array.isArray(raw.context) ? raw.context.slice(0, 8).filter((c: any) => pages([c.page], input).length && text(c.quote)).map((c: any) => ({ observation: text(c.observation, 700), page: c.page, quote: text(c.quote, 300) })) : [], score_groups: groups, score_check: scoreCheck }, input);
 }
 
-export function checkScores(questions: any[], total: any, complete: boolean) {
+// Only evidence-based totals become denominators. Historical guesses remain suggestions.
+export function completeMaximum(evidence: any, input: any) {
+  const total = evidence.total, qs = evidence.questions;
+  if (total.max_source === 'saved_exam' && input.options?.use_account_history === false) { total.max = null; delete total.max_source; delete total.max_basis; }
+  if (["printed_question_sum", "printed_section_sum"].includes(total.max_source)) { total.max = null; delete total.max_basis; }
+  if ((total.max === null || total.max_source === "saved_exam") && evidence.complete && qs.every((q: any) => q.max_score !== null)) {
+    total.max = Math.round(qs.reduce((n: number, q: any) => n + q.max_score, 0) * 100) / 100;
+    total.max_source = "printed_question_sum";
+    total.max_basis = qs.map((q: any) => ({ label: q.label, value: q.max_score, ...q.max_mark }));
+  }
+  if ((total.max === null || total.max_source === 'saved_exam') && evidence.complete) {
+    const units = [...(evidence.score_groups || []).filter((g: any) => validMaxMark(g.max_mark, g.max_score, input)),
+      ...qs.filter((q: any) => q.max_score !== null).map((q: any) => ({ questions: [q.label], max_score: q.max_score, max_mark: q.max_mark }))];
+    let visits = 0;
+    const cover = (remaining: string[], chosen: any[]): any[] | null => {
+      if (!remaining.length) return chosen;
+      if (++visits > 2000) return null;
+      for (const g of units.filter((g: any) => g.questions.includes(remaining[0]) && g.questions.every((l: string) => remaining.includes(l))).sort((a: any, b: any) => b.questions.length - a.questions.length)) {
+        const found = cover(remaining.filter(l => !g.questions.includes(l)), [...chosen, g]); if (found) return found;
+      }
+      return null;
+    };
+    const partition = cover(qs.map((q: any) => q.label), []);
+    if (partition) { total.max = partition.reduce((n, g) => n + g.max_score, 0); total.max_source = "printed_section_sum"; total.max_basis = partition.map(g => ({ questions: g.questions, value: g.max_score, ...g.max_mark })); }
+  }
+  const saved = input.options?.use_account_history !== false && input.exam_context?.source === "saved_exam" ? input.exam_context : null;
+  const savedMax = number(saved?.raw_max ?? saved?.max);
+  if (total.max === null && savedMax !== null && savedMax > 0 && (total.score === null || total.score <= savedMax)
+      && qs.reduce((n: number, q: any) => n + (q.max_score || 0), 0) <= savedMax) {
+    total.max = savedMax; total.max_source = "saved_exam";
+    total.max_basis = [{ source: "saved_exam", field: saved.raw_max != null ? "raw_max" : "max", value: savedMax }];
+  }
+  const checked = checkScores(qs, total, evidence.complete, evidence.score_groups || []);
+  checked.issues = [...new Set([...(evidence.score_check?.issues || []), ...checked.issues])];
+  if (checked.issues.length) checked.status = "conflict";
+  evidence.score_check = checked;
+  return evidence;
+}
+
+export function checkScores(questions: any[], total: any, complete: boolean, groups: any[] = []) {
   const scored = questions.filter(q => q.teacher_score !== null), maxed = questions.filter(q => q.max_score !== null);
   const sum = (qs: any[], k: string) => Math.round(qs.reduce((n, q) => n + q[k], 0) * 100) / 100;
   const score = sum(scored, "teacher_score"), max = sum(maxed, "max_score"), issues: string[] = [];
   if (total.score !== null && (score > total.score || complete && scored.length === questions.length && score !== total.score)) issues.push(`逐题批改分合计${score}，与图中总分${total.score}不一致`);
   if (total.max !== null && (max > total.max || complete && maxed.length === questions.length && max !== total.max)) issues.push(`逐题满分合计${max}，与原卷满分${total.max}不一致`);
   if (total.score !== null && total.max !== null && total.score > total.max) issues.push("图中总分高于满分，需核对对应关系");
-  return { status: issues.length ? "conflict" : complete && scored.length === questions.length && maxed.length === questions.length && total.score !== null && total.max !== null ? "matched" : "partial",
-    issues, observed_score_sum: score, observed_max_sum: max, scored_questions: scored.length, total_questions: questions.length };
+  for (const g of groups) {
+    const members = questions.filter(q => g.questions.includes(q.label));
+    const marked = members.filter(q => q.teacher_score !== null), knownMax = members.filter(q => q.max_score !== null);
+    if (typeof g.teacher_score === 'number' && (sum(marked, 'teacher_score') > g.teacher_score || marked.length === members.length && sum(marked, 'teacher_score') !== g.teacher_score)) issues.push(`${g.label}分组分数与所属题目的批改分合计不一致`);
+    if (typeof g.max_score === 'number' && (sum(knownMax, 'max_score') > g.max_score || knownMax.length === members.length && sum(knownMax, 'max_score') !== g.max_score)) issues.push(`${g.label}分组满分与所属题目的印刷分值合计不一致`);
+  }
+  // Disjoint group marks may account for missing individual marks; never distribute them.
+  const missing = questions.filter(q => q.teacher_score === null), covered = new Set<string>();
+  let groupedScore = 0;
+  for (const g of [...groups].sort((a, b) => a.questions.length - b.questions.length)) {
+    if (typeof g.teacher_score !== "number" || !g.questions.length || g.questions.some((l: string) => covered.has(l) || !missing.some(q => q.label === l))) continue;
+    g.questions.forEach((l: string) => covered.add(l)); groupedScore += g.teacher_score;
+  }
+  const accounted = scored.length + covered.size, accountedScore = Math.round((score + groupedScore) * 100) / 100;
+  if (complete && accounted === questions.length && total.score !== null && accountedScore !== total.score && covered.size) issues.push("独立分组与逐题批改合计和整卷总分不一致");
+  return { status: issues.length ? "conflict" : complete && accounted === questions.length && maxed.length === questions.length && total.score !== null && total.max !== null ? "matched" : "partial",
+    issues, observed_score_sum: score, observed_max_sum: max, scored_questions: scored.length, grouped_questions: covered.size,
+    accounted_score_sum: accountedScore, total_questions: questions.length };
 }
 
 export function diagnosisPrompt(input: any, evidence: any, batch: any[]) {
@@ -228,12 +285,14 @@ export function groundActions(actions: any[], questions: any[]) {
 }
 
 export function synthesisPrompt(input: any, evidence: any, diagnoses: any[]) {
-  const compact = { total: evidence.total, score_check: evidence.score_check, score_groups: evidence.score_groups, context: evidence.context, exam_context: input.exam_context, questions: evidence.questions.map((q: any) => ({ label: q.label, teacher_score: q.teacher_score, max_score: q.max_score, status: q.status })) };
+  const compact = { total: evidence.total, score_check: evidence.score_check, score_groups: evidence.score_groups, context: evidence.context, exam_context: input.exam_context,
+    account_context: input.options?.use_account_history === false ? { enabled: false } : input.account_context,
+    questions: evidence.questions.map((q: any) => ({ label: q.label, teacher_score: q.teacher_score, max_score: q.max_score, status: q.status })) };
   const accepted = assembleReport({}, evidence, (input.options as any)?.config_version === 2 ? { ...input, options: { ...input.options, modules: REVIEW_MODULES } } : input, diagnoses);
   const decisions = accepted.questions.map(d => ({ label: d.label, learning_tasks: d.learning_tasks, student_reflection: d.student_reflection, wins: d.wins, difficulty: d.difficulty, correct_steps: d.analysis_mode === "strength" ? [] : d.correct_steps, first_issue: d.first_issue, cause_analysis: d.cause_analysis, loss_reason: d.loss_reason, suggestion: d.suggestion, success_check: d.success_check, review_status: d.review_status, uncertainties: d.uncertainties }));
   return `${common(input)}\n${settingsPrompt(input.options)}\n阶段三：形成以学习者为中心的综合复盘。不要重新解题，不推导或修改参考答案。只根据以下已核验的证据安排学习决策。\n事实底稿：${JSON.stringify(compact)}\n候选逐题诊断：${JSON.stringify(decisions)}
 优先写做得不错的地方：不同能力的具体证据、失分大题里已有的高价值步骤、难度较高且已完成的部分。再区分具体错误与当时原因假设，不能把假设升级为事实；不知道就给最小验证。不得更改逐题事实或已核验的解答；question_updates和evidence_corrections返回空数组。
-整体试卷画像paper_summary应解释主要要求、思考难度与计算负担的区别、覆盖范围与不确定性；没有全体学生统计不能称试卷客观难/简单。exam_context是用户在考试表单填写的匿名数值，source=saved_exam来自该用户已保存记录；要明确区分本学科年排/班排与总分排名，赋分后分数与原始卷面分不可混用。优先解释本次科目相对位置、目标差距和“已能做出的高价值部分”，不把排名当具体错因，不从排名预测名次提升。无人数不推精确百分位。若与图片成绩冲突分别列明并请求核对，不强行选一个。只依据本次材料，不虚构历史趋势。
+整体试卷画像paper_summary应解释主要要求、思考难度与计算负担的区别、覆盖范围与不确定性；没有全体学生统计不能称试卷客观难/简单。exam_context是用户填写的匿名数值，source=saved_exam来自该用户已保存记录；区分本学科/总分排名和原始分/最终分。account_context仅在用户允许时提供本账号同科历史数据：difficulty沿用成绩页的个人历史难度尺子，不能与逐题十分制挑战评分混用；prediction.source=reconstructed_before_exam表示只用考前记录按现行算法重算，不得声称是当时存下来的预测，不能用本次或后续成绩提高预测表现；trajectory仅比较同分类、参考人群相近的考试。历史数字均由程序计算，不自行重算或编造。可以据此解释本次与历史的相对位置、得分率变化和预测偏差，但排名变化不能证明某道题的错因。disabled/unavailable/unlinked或无相关记录时，不声称调用过历史，不虚构趋势。若账号数值与卷面冲突分别保留，请求核对，不用其中一项覆盖另一项。
 分数、满分、逐题得分、失分合计和比例由程序单独汇总；overview不重复这些数字或列举所谓全对题号，避免将多选部分得分写成全对。总体报告应回答：已掌握了什么？失分集中在何处？哪些跨题共性有证据、哪些只是待验证假设？先做哪2～4件事最合算，为什么，具体怎么做，如何确认已掌握？不能仅按丢分大小排序；兼顾基础前置、修复难度和迁移价值，不承诺提分。
 同一能力只有至少两道不同题有证据才能称反复出现；不能用单题扩大成整个章节薄弱，须考虑同知识点做对的反证。满分题不列补弱优先项；不要把不确定归因包装为性格/能力标签，也不能从答案倒推“没检查、不认真、忘记、缺乏意识”等行为或心理过程。检查清单可以作为建议，不能写成已经确认的失分原因。无作答时只做试卷结构与学习路线，不能生成个人优劣和失分归因。
 若上传成绩截图，使用确实可读的本次分数线/排名解释考试情境；无统计依据不写“中下”“前X%”等相对评价，不线性插值百分位。
@@ -243,10 +302,10 @@ export function synthesisPrompt(input: any, evidence: any, diagnoses: any[]) {
 
 export function assembleReport(raw: any, evidence: any, input: any, diagnoses?: any[]) {
   // Summary arranges decisions; it cannot rewrite the source ledger or per-question analysis.
-  const corrected = structuredClone(evidence);
+  const corrected = completeMaximum(structuredClone(evidence), input);
   for (const q of corrected.questions) if (q.subparts.length && (!q.answer || q.answer.length < 60 && /subparts|见小问|分小问记录/i.test(q.answer))) q.answer = q.subparts.map((s: any) => `${s.label}：${s.answer || (s.status === "blank" ? "未作答" : "待确认")}`).join("\n");
   const checked = normalizeDiagnoses(diagnoses ? { questions: diagnoses } : raw, corrected.questions);
-  corrected.score_check = checkScores(corrected.questions, corrected.total, corrected.complete);
+  corrected.score_check = checkScores(corrected.questions, corrected.total, corrected.complete, corrected.score_groups || []);
   const scoreConflict = corrected.score_check.status === "conflict";
   const warnings = [...publicWarnings(corrected.warnings), ...publicWarnings(raw.warnings), ...corrected.score_check.issues];
   if (scoreConflict) warnings.unshift("请核对下列分数合计；已读到的逐题分数保留在题目中");
@@ -281,6 +340,8 @@ export function assembleReport(raw: any, evidence: any, input: any, diagnoses?: 
   const patterns = hasWork(input) && Array.isArray(raw.patterns) ? raw.patterns.slice(0, 5).map((p: any) => ({ title: text(p.title, 200), questions: refs(p.questions), evidence: text(p.evidence, 1800), interpretation: text(p.interpretation, 1200), confidence: refs(p.questions).length < 2 || refs(p.questions).some(label => questions.find((q: any) => q.label === label)?.review_status !== "reviewed") ? "low" : ["high", "medium"].includes(p.confidence) ? p.confidence : "low" })).filter((p: any) => p.title && p.questions.length && p.evidence) : [];
   const base = normalizeReport({ ...raw, questions, warnings, complete: corrected.complete, coverage: corrected.coverage, priorities: actions.map((a: any) => `${a.title}：${a.task}；验收：${a.success_check}`) }, input);
   return applyModules({ ...base, version: 2, presentation_version: 5, headline: text(raw.headline, 160), original_readings: input.original_readings, source_pages: input.pages.map((p: any) => ({ page: p.page, role: p.role })), work_on_paper: input.work_on_paper, update_count: input.update_count || 0, analysis_revision: input.analysis_revision || 0, prompt_version: REVIEW_VERSION, questions,
-    total: corrected.total, score_check: corrected.score_check, score_groups: scoreConflict ? [] : corrected.score_groups || [], context: corrected.context, context_summary: text(raw.context_summary, 1200),
+    total: corrected.total, score_check: corrected.score_check, score_groups: corrected.score_groups || [], context: corrected.context, context_summary: text(raw.context_summary, 1200),
+    account_context: input.options?.use_account_history === false ? { enabled: false, status: "disabled" } : input.account_context || null,
+    score_refresh_count: input.score_refresh_count || 0,
     paper_profile: paperProfile(questions), exam_context: input.exam_context || null, paper_summary: text(raw.paper_summary, 1800), patterns, action_plan: actions, uncertainties: list(raw.uncertainties, 12), quality: scoreConflict || questions.some((q: any) => q.review_status !== "reviewed" || !q.difficulty) ? "needs_review" : "reviewed" }, input.options);
 }

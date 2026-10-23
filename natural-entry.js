@@ -737,7 +737,7 @@
       '<div class="nl-entry-quota"><div class="nl-entry-quota-head"><strong class="nl-entry-quota-count" role="status">正在读取今日额度…</strong><button class="secondary nl-entry-quota-refresh" type="button">刷新额度</button></div><p class="nl-entry-quota-note"></p><details class="nl-entry-quota-details" hidden><summary>额度规则与下一档</summary><div class="nl-entry-quota-rules"></div></details></div>' +
       '<div class="nl-entry-upload-card"><label class="nl-entry-file-button"><span>选择成绩单图片</span><small>支持多选，最多 6 张</small><input class="nl-entry-files" type="file" accept="image/*" multiple></label><p>可按成绩单顺序选择多张截图，系统会合并识别同一次考试。长图会自动分段，保留小字细节。</p><p class="nl-entry-help">识别成功后，图片和结果会保存下来，仅供管理员核对准确性。</p></div>' +
       '<div class="nl-entry-image-list" aria-live="polite"><span class="nl-entry-empty">还没有选择图片</span></div>' +
-      '<div class="nl-entry-progress" hidden aria-live="polite"><div class="nl-entry-progress-head"><span>识别进度 · 总计</span><strong class="nl-entry-elapsed">0.0s</strong></div><ol class="nl-entry-progress-steps"><li class="nl-entry-progress-step" data-progress-step="0"><span class="nl-entry-progress-dot">1</span><span class="nl-entry-progress-step-label">检查登录与额度</span><strong class="nl-entry-progress-step-time" data-progress-time="0">—</strong></li><li class="nl-entry-progress-step" data-progress-step="1"><span class="nl-entry-progress-dot">2</span><span class="nl-entry-progress-step-label">准备清晰图片</span><strong class="nl-entry-progress-step-time" data-progress-time="1">—</strong></li><li class="nl-entry-progress-step" data-progress-step="2"><span class="nl-entry-progress-dot">3</span><span class="nl-entry-progress-step-label">上传并识别图片</span><strong class="nl-entry-progress-step-time" data-progress-time="2">—</strong></li><li class="nl-entry-progress-step" data-progress-step="3"><span class="nl-entry-progress-dot">4</span><span class="nl-entry-progress-step-label">读取识别结果</span><strong class="nl-entry-progress-step-time" data-progress-time="3">—</strong></li><li class="nl-entry-progress-step" data-progress-step="4"><span class="nl-entry-progress-dot">5</span><span class="nl-entry-progress-step-label">整理可编辑结果</span><strong class="nl-entry-progress-step-time" data-progress-time="4">—</strong></li></ol></div>' +
+      '<div class="nl-entry-progress" hidden aria-live="polite"><div class="nl-entry-progress-head"><span>识别进度 · 总计</span><strong class="nl-entry-elapsed">0.0s</strong></div><ol class="nl-entry-progress-steps"><li class="nl-entry-progress-step" data-progress-step="0"><span class="nl-entry-progress-dot">1</span><span class="nl-entry-progress-step-label">检查登录与额度</span><strong class="nl-entry-progress-step-time" data-progress-time="0">—</strong></li><li class="nl-entry-progress-step" data-progress-step="1"><span class="nl-entry-progress-dot">2</span><span class="nl-entry-progress-step-label">测试识别服务连通性</span><strong class="nl-entry-progress-step-time" data-progress-time="1">—</strong></li><li class="nl-entry-progress-step" data-progress-step="2"><span class="nl-entry-progress-dot">3</span><span class="nl-entry-progress-step-label">准备清晰图片</span><strong class="nl-entry-progress-step-time" data-progress-time="2">—</strong></li><li class="nl-entry-progress-step" data-progress-step="3"><span class="nl-entry-progress-dot">4</span><span class="nl-entry-progress-step-label">上传并识别图片</span><strong class="nl-entry-progress-step-time" data-progress-time="3">—</strong></li><li class="nl-entry-progress-step" data-progress-step="4"><span class="nl-entry-progress-dot">5</span><span class="nl-entry-progress-step-label">读取识别结果</span><strong class="nl-entry-progress-step-time" data-progress-time="4">—</strong></li><li class="nl-entry-progress-step" data-progress-step="5"><span class="nl-entry-progress-dot">6</span><span class="nl-entry-progress-step-label">整理可编辑结果</span><strong class="nl-entry-progress-step-time" data-progress-time="5">—</strong></li></ol></div>' +
       '<p class="nl-entry-vision-edit-hint" hidden>识别结果可直接编辑，确认无误后再点击“确认并填入”。</p>' +
       '<textarea class="nl-entry-vision-output" aria-label="识别结果，可编辑" spellcheck="false" hidden></textarea>' +
       '<div class="modal-actions"><button class="primary nl-entry-vision-submit" type="button" disabled>识别图片</button></div>' +
@@ -928,7 +928,7 @@
       visionRecognitionDurationMs = null;
       visionProgressStep = 0;
       visionStepStartedAt = visionStartedAt;
-      visionStepDurationsMs = [null, null, null, null, null];
+      visionStepDurationsMs = visionSteps.map(function () { return null; });
       if (visionProgress) {
         visionProgress.hidden = false;
         visionProgress.classList.remove('is-complete', 'has-error');
@@ -1055,7 +1055,7 @@
         : [];
       return { classificationOptions: classificationOptions, subjectNames: modalSubjectNames(modal) };
     }
-    async function callVision(prepared, onResponse) {
+    async function callVision(prepared, onResponse, connectivityTest) {
       var token = localStorage.getItem('st_token') || '';
       if (!token) {
         var authError = new Error('请先登录后再使用拍照录入。');
@@ -1071,13 +1071,15 @@
         response = await requestWithTimeout(VISION_ENDPOINT, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: "recognize", client_protocol: 2, token: token, request_id: visionRequestId, images: prepared.images, image_parts: prepared.parts, image_stats: prepared.stats, app_version: document.querySelector('meta[name="application-version"]')?.content || "", context: visionContext(modal) })
-        }, 120000);
+          body: JSON.stringify(connectivityTest ? { action: 'connectivity_test', token: token, request_id: visionRequestId }
+            : { action: "recognize", client_protocol: 2, token: token, request_id: visionRequestId, images: prepared.images, image_parts: prepared.parts, image_stats: prepared.stats, app_version: document.querySelector('meta[name="application-version"]')?.content || "", context: visionContext(modal) })
+        }, connectivityTest ? 45000 : 120000);
       } catch (cause) {
         var timedOut = cause && (cause.name === 'AbortError' || cause.name === 'TimeoutError');
-        var networkError = new Error(timedOut ? '识别服务响应超时，请稍后重试。' : '无法连接识别服务，请检查网络后重试。');
+        var networkError = new Error(connectivityTest ? (timedOut ? '识别服务连接测试超时，请稍后重试；本次未扣识图次数。' : '无法连接识别服务，请检查网络后重试；本次未扣识图次数。')
+          : timedOut ? '识别服务响应超时，请稍后重试。' : '无法连接识别服务，请检查网络后重试。');
         networkError.code = timedOut ? "client_timeout" : "client_network_error";
-        networkError.stage = "request_transport";
+        networkError.stage = connectivityTest ? "connectivity_test" : "request_transport";
         networkError.requestId = visionRequestId;
         networkError.requestStatus = timedOut ? 504 : 0;
         networkError.upstreamStatus = 0;
@@ -1104,6 +1106,13 @@
         serviceError.upstreamStatus = upstreamStatus;
         serviceError.upstreamMessage = detail;
         throw serviceError;
+      }
+      if (connectivityTest && (payload.ok !== true || payload.check !== 'upstream_model')) {
+        var checkError = new Error('识别服务尚未完成连接测试，请刷新页面后重试；本次未扣识图次数。');
+        checkError.code = 'connectivity_not_verified';
+        checkError.stage = 'connectivity_test';
+        checkError.requestId = payload.request_id || visionRequestId;
+        throw checkError;
       }
       return payload;
     }
@@ -1231,13 +1240,17 @@
       trackUsage('quick_entry_image_recognition_started', { request_id: visionRequestId, image_count: selectedFiles.length });
       try {
         setVisionProgress(1);
+        var connection = await callVision(null, null, true);
+        if (!backdrop.isConnected) return;
+        trackUsage('quick_entry_image_connectivity_test_succeeded', { request_id: visionRequestId, latency_ms: connection.latency_ms, model: connection.model });
+        setVisionProgress(2);
         var prepared = await encodeImages(files);
         if (!backdrop.isConnected) return;
         trackUsage('quick_entry_images_prepared', {image_count:files.length, prepared_image_count:prepared.images.length, total_bytes:prepared.total_bytes, images:prepared.stats});
-        setVisionProgress(2);
-        visionPayload = await callVision(prepared, function () { setVisionProgress(3); });
+        setVisionProgress(3);
+        visionPayload = await callVision(prepared, function () { setVisionProgress(4); });
         if (!backdrop.isConnected) return;
-        setVisionProgress(4);
+        setVisionProgress(5);
         visionText = visionToText(visionPayload);
         visionOutput.value = visionText;
         visionOutput.hidden = false;

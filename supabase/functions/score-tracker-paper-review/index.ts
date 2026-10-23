@@ -5,8 +5,9 @@ import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { readDatabase } from "../score-tracker-vision-preview/reliability.ts";
 import { MAX_BODY, UUID, text, validateStart, normalizeCorrections } from "./model.ts";
 import { examContext } from "./learner.ts";
+import { loadAccountSnapshot } from "./account.ts";
 import { paperFailure } from "./audit.ts";
-import { runReviewStage, initialState, progressFor, revisionInput, revisionState, MAX_REPORT_UPDATES, canRecoverText, checkpointInput, recoveryInfo } from "./pipeline.ts";
+import { runReviewStage, initialState, progressFor, revisionInput, revisionState, scoreRefreshState, MAX_REPORT_UPDATES, canRecoverText, checkpointInput, recoveryInfo } from "./pipeline.ts";
 
 const WORKER_STARTED_AT = Date.now();
 const db = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "", { auth: { persistSession: false, autoRefreshToken: false } });
@@ -42,9 +43,9 @@ async function userFor(token: any) {
   if (!user || !(Date.parse(user.session_expires_at) > Date.now())) throw new Failure("登录已过期，请重新登录", 401);
   return user.id;
 }
-async function ownedExam(user: string, id: string) {
+async function ownedExam(user: string, id: string, minimal = false) {
   if (!UUID.test(id || "")) throw new Failure("考试编号无效");
-  const exam = await query(() => db.from("score_tracker_exams").select("id,exam_date,total_rank,total_participants,total_class_rank,total_class_participants").eq("id", id).eq("user_id", user).maybeSingle());
+  const exam = await query(() => db.from("score_tracker_exams").select(minimal ? "id" : "id,exam_date,total_rank,total_participants,total_class_rank,total_class_participants").eq("id", id).eq("user_id", user).maybeSingle());
   if (!exam) throw new Failure("考试不存在或无权访问", 404);
   return exam;
 }
@@ -82,7 +83,7 @@ async function dispatchStage(input: any, claim: string) {
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 12000);
   try {
     const response = await fetch(Deno.env.get("SUPABASE_URL") + "/functions/v1/score-tracker-paper-review", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") },
-      body: JSON.stringify({ action: "continue", request_id: input.request_id, claim, pages: input.pages, work_on_paper: input.work_on_paper, options: input.options }), signal: controller.signal });
+      body: JSON.stringify({ action: "continue", request_id: input.request_id, claim, ...(input.saved_materials ? { use_saved: true } : { pages: input.pages }), work_on_paper: input.work_on_paper, options: input.options }), signal: controller.signal });
     if (!response.ok) throw new Error("continuation_http_" + response.status);
     await response.body?.cancel();
   } finally { clearTimeout(timer); }
@@ -103,17 +104,19 @@ Deno.serve(async (req: Request) => {
       if (!UUID.test(body.request_id || "") || !UUID.test(body.claim || "")) throw new Failure("分析编号无效");
       const row = await query(() => db.from(TABLE).select("*").eq("request_id", body.request_id).maybeSingle());
       if (!row || row.status !== "running" || row.analysis_state?.claim !== body.claim) return out({ accepted: false }, 202);
+      if (body.use_saved === true) body.pages = await storedPages(db, row.user_id, row.request_id);
       const input: any = row.analysis_state.flow === "revision" ? revisionInput(row) : row.analysis_state.text_recovery && canRecoverText(row.analysis_state) ? checkpointInput(row) : validateStart({ ...body, draft_id: row.draft_id, exam_id: row.exam_id, subject: row.subject, consent: true });
+      input.saved_materials = body.use_saved === true;
       // Use the original attachment scope even if the user saved the exam mid-analysis.
-      input.exam_context = row.analysis_state.exam_context; input.options = row.options || row.analysis_state.options ? reviewSettings(row.options || row.analysis_state.options) : undefined;
+      input.exam_context = row.analysis_state.exam_context; input.account_context = row.analysis_state.account_context; input.options = row.options || row.analysis_state.options ? reviewSettings(row.options || row.analysis_state.options) : undefined;
       const scope = row.analysis_state.original_exam_id;
       if (scope !== undefined) input.exam_id = scope;
-      if (row.analysis_state.flow !== "revision" && !input.text_recovery && await fingerprintFor(input) !== row.fingerprint) throw new Failure("分析资料与原请求不一致", 409);
+      if (!["revision", "score_refresh"].includes(row.analysis_state.flow) && !input.text_recovery && await fingerprintFor(input) !== row.fingerprint) throw new Failure("分析资料与原请求不一致", 409);
       const config = await configForReview();
       background(runReviewStage(db, input, row.user_id, config, row, body.claim, claim => dispatchStage(input, claim)));
       return out({ accepted: true }, 202);
     }
-    action = ["start", "resume", "get", "list", "attach", "correct", "delete", "quota", "list_all", "preferences", "save_materials", "upload_page", "sources", "save_regions", "link", "pause", "confirm_input", "delete_draft"].includes(body.action) ? body.action : "unknown";
+    action = ["start", "resume", "retry_scores", "get", "list", "attach", "correct", "delete", "quota", "list_all", "preferences", "save_materials", "upload_page", "save_score_details", "sources", "save_regions", "link", "pause", "confirm_input", "delete_draft"].includes(body.action) ? body.action : "unknown";
     if (UUID.test(body.request_id || "")) requestId = body.request_id;
     stage = "authentication";
     const user = await userFor(body.token);
@@ -128,13 +131,14 @@ Deno.serve(async (req: Request) => {
       if (row.status === "running") return out({ request_id: row.request_id }, 202);
       const state = row.analysis_state;
       if (!["failed", "paused"].includes(row.status) || !state?.phase || (row.status === "failed" && (state.resume_count || 0) >= 2)) throw new Failure("这份报告无法继续，请重新开始分析", 409);
-      if (!canRecoverText(state) && state.flow !== "revision" && !body.pages?.length) { body.pages = await storedPages(db, user, row.request_id); body.consent = true; body.work_on_paper = state.source_input?.work_on_paper; }
+      if (!canRecoverText(state) && state.flow !== "revision" && !body.pages?.length) { body.pages = await storedPages(db, user, row.request_id); body.consent = true; body.work_on_paper = state.source_input?.work_on_paper; body.use_saved = true; }
       const recoverSaved = canRecoverText(state) && (state.text_recovery || body.mode === "saved" || !body.pages?.length);
       let input: any;
       try { input = state.flow === "revision" ? revisionInput(row) : recoverSaved ? checkpointInput(row) : validateStart({ ...body, draft_id: row.draft_id, exam_id: state.original_exam_id ?? null, subject: row.subject }); }
       catch (e) { throw new Failure((e as Error).message); }
-      input.exam_context = state.exam_context; input.options = row.options || state.options ? reviewSettings(row.options || state.options) : undefined;
-      if (state.flow !== "revision" && !recoverSaved && await fingerprintFor(input) !== row.fingerprint) throw new Failure("资料与原请求不一致，请使用相同图片和页序", 409);
+      input.saved_materials = body.use_saved === true;
+      input.exam_context = state.exam_context; input.account_context = state.account_context; input.options = row.options || state.options ? reviewSettings(row.options || state.options) : undefined;
+      if (!["revision", "score_refresh"].includes(state.flow) && !recoverSaved && await fingerprintFor(input) !== row.fingerprint) throw new Failure("资料与原请求不一致，请使用相同图片和页序", 409);
       const config = await configForReview();
       if (recoverSaved) { state.text_recovery = true; state.source_input ||= { work_on_paper: input.work_on_paper, pages: input.pages.map((p: any) => ({ page: p.page, role: p.role })) }; }
       const oldClaim = state.claim; state.claim = crypto.randomUUID(); state.resume_count = (state.resume_count || 0) + (row.status === "failed" ? 1 : 0); state.budget_start_ms = state.active_ms || 0; state.input_confirmed = state.input_confirmed || state.pause_reason !== "review"; delete state.pause_reason; state.phase_started_at = new Date().toISOString();
@@ -154,20 +158,41 @@ Deno.serve(async (req: Request) => {
       if (resumed) background(runReviewStage(db, input, user, config, resumed, state.claim, claim => dispatchStage(input, claim)));
       return out({ request_id: row.request_id }, 202);
     }
+    if (body.action === "retry_scores") {
+      const row = await query(() => db.from(TABLE).select("*").eq("request_id", body.request_id).eq("user_id", user).maybeSingle());
+      if (!row?.result) throw new Failure("请先完成资料录入", 409);
+      if (row.status === "running") return out({ request_id: row.request_id }, 202);
+      if (row.status !== "succeeded") throw new Failure("请先继续当前分析，再补读分数", 409);
+      if (body.revision !== row.revision) throw new Failure("报告已更新，请刷新后再试", 409);
+      if ((row.result.score_refresh_count || 0) >= 5) throw new Failure("这份报告已补读5次；可继续手动核对分数", 409);
+      const pages = await storedPages(db, user, row.request_id);
+      const input: any = { ...revisionInput(row), pages, saved_materials: true, text_revision: false, options: reviewSettings(row.options || row.result.options) };
+      if (input.options.use_account_history === false) input.exam_context = undefined;
+      input.account_context = await loadAccountSnapshot(db, user, input);
+      const state = scoreRefreshState(row, input), config = await configForReview();
+      const updated = await query(() => db.from(TABLE).update({ status: "running", analysis_state: state, progress: progressFor(state),
+        pause_requested: false, error_message: null, error_code: null, error_stage: null, completed_at: null, revision: row.revision + 1 })
+        .eq("request_id", row.request_id).eq("user_id", user).eq("status", "succeeded").eq("revision", row.revision).select("*").maybeSingle());
+      if (updated) background(runReviewStage(db, input, user, config, updated, state.claim, claim => dispatchStage(input, claim)));
+      return out({ request_id: row.request_id }, 202);
+    }
     if (body.action === "start") {
       stage = "input_validation";
       let input: any;
       if (body.use_saved === true) { const m = await materialFor(db, user, body.request_id); if (!m) throw new Failure("请先保存资料"); body.pages = await storedPages(db, user, body.request_id); body.subject = m.subject; body.draft_id = m.draft_id; body.exam_id = m.exam_id; body.options = m.options; body.title = m.title; }
       try { input = validateStart(body); } catch (e) { throw new Failure((e as Error).message); }
-      input.exam_context = examContext(body.exam_context);
+      input.saved_materials = body.use_saved === true;
+      const useHistory = input.options?.use_account_history !== false;
+      input.exam_context = useHistory ? examContext(body.exam_context) : undefined;
       if (input.exam_id) {
-        const owned = await ownedExam(user, input.exam_id);
-        const score = await query(() => db.from("score_tracker_scores").select("id,actual_score,max_score,raw_score,raw_max_score,target_score,rank_position,participant_count,class_rank_position,class_participant_count").eq("exam_id", input.exam_id).eq("user_id", user).eq("subject", input.subject).maybeSingle());
+        const owned = await ownedExam(user, input.exam_id, !useHistory);
+        const score = await query(() => db.from("score_tracker_scores").select(useHistory ? "id,actual_score,max_score,raw_score,raw_max_score,target_score,rank_position,participant_count,class_rank_position,class_participant_count" : "id").eq("exam_id", input.exam_id).eq("user_id", user).eq("subject", input.subject).maybeSingle());
         if (!score) throw new Failure("请先保存新增科目，再关联试卷");
-        input.exam_context = examContext({ score: score.actual_score, max: score.max_score, raw_score: score.raw_score, raw_max: score.raw_max_score, target: score.target_score,
+        if (useHistory) input.exam_context = examContext({ score: score.actual_score, max: score.max_score, raw_score: score.raw_score, raw_max: score.raw_max_score, target: score.target_score,
           year_rank: score.rank_position, year_count: score.participant_count || owned.total_participants, class_rank: score.class_rank_position, class_count: score.class_participant_count || owned.total_class_participants,
           total_year_rank: owned.total_rank, total_year_count: owned.total_participants, total_class_rank: owned.total_class_rank, total_class_count: owned.total_class_participants, exam_date: owned.exam_date }, "saved_exam");
       }
+      input.account_context = await loadAccountSnapshot(db, user, input);
       stage = "configuration";
       const config = await configForReview();
       const fingerprint = await fingerprintFor(input);
@@ -179,7 +204,7 @@ Deno.serve(async (req: Request) => {
       }
       console.log("paper_review_request", JSON.stringify({ request_id: requestId, action, stage: reserved.created ? "accepted" : "deduplicated", http_status: 202, duration_ms: Date.now() - startedAt }));
       if (reserved.created) {
-        const state = { ...initialState(input.work_on_paper || input.pages.some((p: any) => p.role === "work")), original_exam_id: input.exam_id, exam_context: input.exam_context, options: input.options, source_input: { work_on_paper: input.work_on_paper, pages: input.pages.map((p: any) => ({ page: p.page, role: p.role })) } };
+        const state = { ...initialState(input.work_on_paper || input.pages.some((p: any) => p.role === "work")), original_exam_id: input.exam_id, exam_context: input.exam_context, account_context: input.account_context, options: input.options, source_input: { work_on_paper: input.work_on_paper, pages: input.pages.map((p: any) => ({ page: p.page, role: p.role })) } };
         const row = await query(() => db.from(TABLE).update({ analysis_state: state, progress: progressFor(state), options: input.options, title: text(body.title, 100) }).eq("request_id", input.request_id).eq("user_id", user).eq("status", "running").select("*").single());
         if (body.use_saved) await query(() => db.from("score_tracker_paper_materials").update({ submitted: true }).eq("request_id", input.request_id).eq("user_id", user));
         const task = background(runReviewStage(db, input, user, config, row, state.claim, claim => dispatchStage(input, claim)));

@@ -16,6 +16,16 @@ export function number(value: unknown): number | null {
 function strings(value: any, max = 10) {
   return Array.isArray(value) ? value.slice(0, max).map(v => text(v, 600)).filter(Boolean) : [];
 }
+export function validateImageRegions(value: any) {
+  const regions = Array.isArray(value) ? value : [];
+  if (regions.length > 6) throw new Error('图片局部过多');
+  for (const region of regions) {
+    if (typeof region !== 'string' || region.length > 2800000 || !/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(region)) throw new Error('局部图片格式不正确');
+    const encoded = region.slice(region.indexOf(',') + 1);
+    if (encoded.length % 4 || !atob(encoded.slice(0, 32)).startsWith('\xff\xd8\xff')) throw new Error('局部图片数据不完整');
+  }
+  return regions;
+}
 export function validateStart(body: any) {
   if (!UUID.test(body.request_id || "") || !UUID.test(body.draft_id || "") || (body.exam_id && !UUID.test(body.exam_id))) throw new Error("分析编号无效，请重新打开试卷分析");
   const subject = text(body.subject, 40);
@@ -32,14 +42,8 @@ export function validateStart(body: any) {
     const valid = p.url.startsWith("data:image/jpeg;") ? head.startsWith("\xff\xd8\xff")
       : p.url.startsWith("data:image/png;") ? head.startsWith("\x89PNG\r\n\x1a\n") : head.startsWith("RIFF") && head.slice(8, 12) === "WEBP";
     if (!valid) throw new Error("无法读取这张图片，请重新选择");
-    const regions = Array.isArray(p.regions) ? p.regions : [];
-    if (regions.length > 6) throw new Error("图片局部过多");
-    for (const region of regions) {
-      if (typeof region !== "string" || region.length > 2800000 || !/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(region)) throw new Error("局部图片格式不正确");
-      const encoded = region.slice(region.indexOf(",") + 1);
-      if (encoded.length % 4 || !atob(encoded.slice(0, 32)).startsWith("\xff\xd8\xff")) throw new Error("局部图片数据不完整");
-      length += region.length;
-    }
+    const regions = validateImageRegions(p.regions);
+    length += regions.reduce((n: number, r: string) => n + r.length, 0);
     length += p.url.length;
     return { role: p.role, page: i + 1, url: p.url, ...(regions.length ? { regions } : {}) };
   });

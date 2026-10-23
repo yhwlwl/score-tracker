@@ -35,6 +35,7 @@ async function until(fn) { for (let i=0; i<160; i++) { if(fn()) return; await ti
   d.querySelector('[data-hub=new]').click();await until(()=>d.querySelector('.ph-preferences'));
   assert.equal(d.querySelector('[name=subject]').value,'','no arbitrary default subject');
   assert.equal(d.querySelectorAll('input[data-role=paper]').length,1,'uploads share the setup page');
+  assert.equal(d.querySelector('[name=use_account_history]').checked,true,'own-account context is enabled by default');
   assert.equal(d.querySelectorAll('.ph-choice small').length,13,'choices have plain-language descriptions');
   d.querySelector('[name=preset][value=record]').click();
   assert(d.querySelector('[data-analysis-options]').hidden);
@@ -43,6 +44,7 @@ async function until(fn) { for (let i=0; i<160; i++) { if(fn()) return; await ti
   d.querySelector('[data-hub="draft:'+rid+'"]').click();await until(()=>d.querySelector('.pr-page img'));
   assert.equal(d.querySelector('[name=subject]').value,'数学');
   const prefs=d.querySelector('.ph-preferences');
+  prefs.querySelector('[name=use_account_history]').checked=false;
   prefs.querySelector('[name=analysis_scope]').value='selected';prefs.querySelector('[name=analysis_scope]').dispatchEvent(new w.Event('change',{bubbles:true}));
   prefs.querySelector('[name=experience_note]').value='最后两分钟没有做完';
   prefs.querySelector('[name=grade]').value='高二';
@@ -63,7 +65,7 @@ async function until(fn) { for (let i=0; i<160; i++) { if(fn()) return; await ti
   try { await until(()=>h.tables.score_tracker_paper_reviews.length); }
   catch(e) { throw new Error(e.message+'; '+d.querySelector('.pr-message').textContent+'; calls='+calls.map(c=>c.action).join(',')+'; errors='+errors.join(',')); }
   await h.drain();
-  const start=calls.find(x=>x.action==='start');assert.equal(start.request_id,rid,'retry keeps the same saved material request');assert.equal(calls.filter(x=>x.action==='start').length,1);assert.equal(start.subject,'数学');assert.equal(start.options.analysis_scope,'selected');assert.equal(start.options.exam_experience.note,'最后两分钟没有做完');
+  const start=calls.find(x=>x.action==='start');assert.equal(start.request_id,rid,'retry keeps the same saved material request');assert.equal(calls.filter(x=>x.action==='start').length,1);assert.equal(start.subject,'数学');assert.equal(start.options.analysis_scope,'selected');assert.equal(start.options.use_account_history,false,'disabled context survives the setup and cloud upload');assert.equal(start.options.exam_experience.note,'最后两分钟没有做完');
   d.querySelector('[data-pr^="report:"]').click();await until(()=>d.querySelector('.ps-verify'));
   const pick=d.querySelector('[name=detail_questions][value="2"]');pick.checked=true;
   d.querySelector('.ps-verify').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
@@ -72,6 +74,7 @@ async function until(fn) { for (let i=0; i<160; i++) { if(fn()) return; await ti
   if(d.querySelector('[data-pr^="report:"]'))d.querySelector('[data-pr^="report:"]').click();await until(()=>d.querySelector('.pr-result-top'));
   assert.deepEqual(Array.from(d.querySelectorAll('[data-report-section]')).map(x=>x.dataset.reportSection),['highlights','performance','insights','questions','plan','materials']);
   assert(d.querySelector('.pr-overview'));assert.equal(d.querySelectorAll('.pr-metric').length,4);
+  assert(d.querySelector('.pr-account-context').textContent.includes('历史成绩对照已关闭'));
   const pref=h.tables.score_tracker_paper_preferences[0].settings;assert.equal(pref.exam_experience.note,'');assert.equal(pref.grade,'高二');
   assert.deepEqual(errors,[]);dom.window.close();
   console.log('PASS: real setup → draft scans → preferences → OCR selection → Edge stages → six-section report; no UI errors');

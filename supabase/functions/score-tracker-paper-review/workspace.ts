@@ -1,6 +1,7 @@
-import { UUID, validateStart, text, number, MAX_PAGES, MAX_MATERIAL_BYTES } from './model.ts';
+import { UUID, validateStart, validateImageRegions, text, number, MAX_PAGES, MAX_MATERIAL_BYTES } from './model.ts';
 import { reviewSettings, preferenceSettings, scanRegions } from './options.ts';
 const MATERIALS = 'score_tracker_paper_materials', SCAN_BUCKET = 'score-tracker-paper-scans';
+const materialPaths = (pages: any[]) => pages.flatMap(p => [p.path, ...(p.detail_images || []).map((r: any) => r.path)]);
 export class WorkspaceError extends Error { status: number; constructor(message: string, status = 400) { super(message); this.status = status; } }
 async function materialQuery(op: PromiseLike<any>) {
   const r = await op;
@@ -18,17 +19,19 @@ export async function materialFor(db: any, user: string, id: string) {
 export async function storedPages(db: any, user: string, id: string) {
   const m = await materialFor(db, user, id);
   if (!m?.pages?.length) throw new WorkspaceError('请先添加试卷图片');
-  return Promise.all(m.pages.map(async (p: any) => {
+  const download = async (p: any) => {
     const { data, error } = await db.storage.from(SCAN_BUCKET).download(p.path);
     if (error || !data) throw new WorkspaceError('扫描件读取未完成，请重试', 503);
     const bytes = new Uint8Array(await data.arrayBuffer()); let binary = '';
     for (let i = 0; i < bytes.length; i += 16384) binary += String.fromCharCode(...bytes.subarray(i, i + 16384));
-    return { role: p.role, page: p.page, url: `data:${p.mime};base64,${btoa(binary)}` };
-  }));
+    return `data:${p.mime};base64,${btoa(binary)}`;
+  };
+  return Promise.all(m.pages.map(async (p: any) => ({ role: p.role, page: p.page, url: await download(p),
+    ...((p.detail_images || []).length ? { regions: await Promise.all(p.detail_images.map(download)) } : {}) })));
 }
 export async function deleteMaterials(db: any, user: string, id: string) {
   const m = await materialFor(db, user, id); if (!m) return;
-  if (m.pages.length) { const r = await db.storage.from(SCAN_BUCKET).remove(m.pages.map((p: any) => p.path)); if (r.error) throw new WorkspaceError('扫描件删除未完成，请重试', 503); }
+  if (m.pages.length) { const r = await db.storage.from(SCAN_BUCKET).remove(materialPaths(m.pages)); if (r.error) throw new WorkspaceError('扫描件删除未完成，请重试', 503); }
   await materialQuery(db.from(MATERIALS).delete().eq('request_id', id).eq('user_id', user));
 }
 export async function workspaceAction(db: any, user: string, body: any, ownedExam: (user: string, id: string) => Promise<any>) {
@@ -48,7 +51,7 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
     const r = await materialQuery(db.from('score_tracker_paper_preferences').select('settings').eq('user_id', user).maybeSingle());
     return { settings: preferenceSettings(r?.settings) };
   }
-  if (!['save_materials','upload_page','sources','save_regions','link','pause','confirm_input','delete_draft'].includes(action)) return undefined;
+  if (!['save_materials','upload_page','save_score_details','sources','save_regions','link','pause','confirm_input','delete_draft'].includes(action)) return undefined;
   if (!UUID.test(body.request_id || '')) throw new WorkspaceError('分析编号无效');
   const row = await materialQuery(db.from(reviews).select('*').eq('request_id', body.request_id).eq('user_id', user).maybeSingle());
   const m = await materialFor(db, user, body.request_id);
@@ -71,7 +74,7 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
       const changed = await materialQuery(db.from(MATERIALS).update({ title: text(body.title, 100), subject, exam_id: body.exam_id || null, options: reviewSettings(body.options), pages, revision: m.revision + 1 }).eq('request_id', body.request_id).eq('user_id', user).eq('revision', m.revision).select('request_id').maybeSingle());
       if (!changed) throw new WorkspaceError('资料已在另一处更新，请刷新后重试', 409);
       const removed = m.pages.slice(pages.length);
-      if (removed.length) await db.storage.from(SCAN_BUCKET).remove(removed.map((p: any) => p.path));
+      if (removed.length) await db.storage.from(SCAN_BUCKET).remove(materialPaths(removed));
     }
     return { ok: true };
   }
@@ -80,29 +83,63 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
     if (!m || row?.status === 'running') throw new WorkspaceError('请先保存资料信息，或等待分析完成', 409);
     const n = body.page; if (!Number.isInteger(n) || n < 1 || n > MAX_PAGES || n > m.pages.length + 1) throw new WorkspaceError(`请按页序上传，最多${MAX_PAGES}张`);
     // Apply the same byte/signature checks used by analysis without allowing URLs.
-    let p: any; try { p = validateStart({ request_id: body.request_id, draft_id: m.draft_id, subject: m.subject, consent: true, pages: [{ role: 'paper', url: body.url }] }).pages[0]; } catch (e) { throw new WorkspaceError((e as Error).message); }
+    let p: any; try { p = validateStart({ request_id: body.request_id, draft_id: m.draft_id, subject: m.subject, consent: true, pages: [{ role: 'paper', url: body.url, regions: body.regions }] }).pages[0]; } catch (e) { throw new WorkspaceError((e as Error).message); }
     if (!['paper','work','reference'].includes(body.role)) throw new WorkspaceError('图片类别无效');
     if (row && m.pages[n - 1]) throw new WorkspaceError('已分析的原图保留原样，请追加扫描页', 409);
     const mime = p.url.slice(5, p.url.indexOf(';')), binary = atob(p.url.split(',')[1]), bytes = Uint8Array.from(binary, (c: string) => c.charCodeAt(0));
     const path = `${user}/${body.request_id}/${n}-${crypto.randomUUID()}`;
     const pages = [...m.pages]; const previous = pages[n - 1];
     pages[n - 1] = { page: n, role: body.role, path, mime, bytes: bytes.length };
-    if (pages.reduce((sum: number, p: any) => sum + p.bytes, 0) > MAX_MATERIAL_BYTES) throw new WorkspaceError('本份资料较大，请压缩图片或减少页数');
+    const detailImages = (p.regions || []).map((url: string, i: number) => {
+      const raw = atob(url.split(',')[1]); return { path: `${path}-detail-${i}`, mime: 'image/jpeg', bytes: raw.length, data: Uint8Array.from(raw, (c: string) => c.charCodeAt(0)) };
+    });
+    pages[n - 1].detail_images = detailImages.map(({ data, ...meta }: any) => meta);
+    if (pages.reduce((sum: number, p: any) => sum + p.bytes + (p.detail_images || []).reduce((n: number, r: any) => n + r.bytes, 0), 0) > MAX_MATERIAL_BYTES) throw new WorkspaceError('本份资料较大，请压缩图片或减少页数');
     const r = await db.storage.from(SCAN_BUCKET).upload(path, bytes, { contentType: mime, upsert: false });
     if (r.error) throw new WorkspaceError('图片上传未完成，请重试', 503);
     try {
+      for (const detail of detailImages) {
+        const uploaded = await db.storage.from(SCAN_BUCKET).upload(detail.path, detail.data, { contentType: detail.mime, upsert: false });
+        if (uploaded.error) throw new WorkspaceError('局部清晰图保存未完成，请重试', 503);
+      }
       const saved = await materialQuery(db.from(MATERIALS).update({ pages, revision: m.revision + 1 }).eq('request_id', body.request_id).eq('user_id', user).eq('revision', m.revision).select('request_id').maybeSingle());
       if (!saved) throw new WorkspaceError('资料已在另一处更新，请刷新后重试', 409);
-    } catch (e) { await db.storage.from(SCAN_BUCKET).remove([path]); throw e; }
-    if (previous) await db.storage.from(SCAN_BUCKET).remove([previous.path]);
+    } catch (e) { await db.storage.from(SCAN_BUCKET).remove(materialPaths([pages[n - 1]])); throw e; }
+    if (previous) await db.storage.from(SCAN_BUCKET).remove(materialPaths([previous]));
     return { ok: true, page: n };
+  }
+  if (action === 'save_score_details') {
+    if (!row?.result || !m || row.status !== 'succeeded') throw new WorkspaceError('请先完成当前分析', 409);
+    const previous = m.pages.find((p: any) => p.page === body.page);
+    if (!previous || !/^[a-f0-9]{64}$/.test(body.source_sha256 || '')) throw new WorkspaceError('扫描页校验信息无效');
+    const { data, error } = await db.storage.from(SCAN_BUCKET).download(previous.path);
+    if (error || !data) throw new WorkspaceError('原图读取未完成，请重试', 503);
+    const bytes = new Uint8Array(await data.arrayBuffer());
+    const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))).map(n => n.toString(16).padStart(2, '0')).join('');
+    if (digest !== body.source_sha256) throw new WorkspaceError('扫描页已变化，请刷新后重试', 409);
+    if (!Array.isArray(body.regions) || !body.regions.length) throw new WorkspaceError('请提供清晰的局部图');
+    // Reuse normal detail-image validation; the original is never replaced.
+    try { validateImageRegions(body.regions); }
+    catch (e) { throw new WorkspaceError((e as Error).message); }
+    const added = body.regions.map((url: string, i: number) => {
+      const raw = atob(url.split(',')[1]); return { path: `${user}/${row.request_id}/${body.page}-detail-${crypto.randomUUID()}-${i}`, mime: 'image/jpeg', bytes: raw.length, data: Uint8Array.from(raw, (c: string) => c.charCodeAt(0)) };
+    });
+    const pages = m.pages.map((p: any) => p.page === body.page ? { ...p, detail_images: added.map(({ data, ...meta }: any) => meta) } : p);
+    if (pages.reduce((sum: number, p: any) => sum + p.bytes + (p.detail_images || []).reduce((n: number, r: any) => n + r.bytes, 0), 0) > MAX_MATERIAL_BYTES) throw new WorkspaceError('本份资料较大，请减少局部图');
+    try {
+      for (const image of added) { const uploaded = await db.storage.from(SCAN_BUCKET).upload(image.path, image.data, { contentType: image.mime, upsert: false }); if (uploaded.error) throw new WorkspaceError('局部清晰图保存未完成，请重试', 503); }
+      const saved = await materialQuery(db.from(MATERIALS).update({ pages, revision: m.revision + 1 }).eq('request_id', row.request_id).eq('user_id', user).eq('revision', m.revision).select('request_id').maybeSingle());
+      if (!saved) throw new WorkspaceError('资料已更新，请刷新后重试', 409);
+    } catch (e) { await db.storage.from(SCAN_BUCKET).remove(added.map((p: any) => p.path)); throw e; }
+    if (previous.detail_images?.length) await db.storage.from(SCAN_BUCKET).remove(previous.detail_images.map((p: any) => p.path));
+    return { ok: true };
   }
   if (action === 'sources') {
     let pages: any[] = [];
     if (m?.pages.length) {
       const { data, error } = await db.storage.from(SCAN_BUCKET).createSignedUrls(m.pages.map((p: any) => p.path), 900);
       if (error) throw new WorkspaceError('扫描件读取未完成，请重试', 503);
-      pages = m.pages.map((p: any, i: number) => ({ page: p.page, role: p.role, url: data[i]?.signedUrl }));
+      pages = m.pages.map((p: any, i: number) => ({ page: p.page, role: p.role, has_details: !!p.detail_images?.length, url: data[i]?.signedUrl }));
     }
     return { pages, regions: m?.regions || {}, material: m ? { request_id: m.request_id, draft_id: m.draft_id, subject: m.subject, exam_id: m.exam_id, title: m.title, options: m.options } : null };
   }

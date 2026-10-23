@@ -13,6 +13,8 @@ export function reviewSettings(value: any = {}) {
   if (v.config_version !== 2) return base;
   const clean = (x: any, n: number) => typeof x === 'string' ? x.trim().slice(0, n) : '';
   return { ...base, config_version: 2,
+    // Omitted legacy settings stay fingerprint-compatible; omission means enabled.
+    ...(typeof v.use_account_history === 'boolean' ? { use_account_history: v.use_account_history } : {}),
     work_location: ['paper','separate','none'].includes(v.work_location) ? v.work_location : 'paper',
     analysis_scope: ['all','losses','selected'].includes(v.analysis_scope) ? v.analysis_scope : 'all',
     selected_questions: Array.isArray(v.selected_questions) ? [...new Set(v.selected_questions.filter((q: any) => typeof q === 'string').map((q: string) => clean(q,40)))].filter(Boolean).slice(0,60) : [],

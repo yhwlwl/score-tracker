@@ -15,10 +15,18 @@ export async function reviewModel(options: { config: any; content: any[]; reques
   const budget = Math.min(STAGE_BUDGET_MS, typeof config.stage_deadline === "number" ? config.stage_deadline - started - 5000 : STAGE_BUDGET_MS);
   if (budget < 15000) return { ok: false, code: "worker_deadline", stage: options.stage };
   const clean = (v: unknown, max = 1200) => safeMessage(String(v ?? "").split(config.api_key).join("[hidden]"), max);
-  const body: any = { model: config.model, messages: [{ role: "user", content: options.content }], max_tokens: REVIEW_OUTPUT_TOKENS, ...reviewOptions(config.model, new URL(config.base_url).hostname, options.effort || (/^(?:diagnose|recheck)_/.test(options.stage) ? "high" : "low")) };
+  const scoreOnly = /^read_scores(?:_|$)/.test(options.stage);
+  const modelOptions = () => {
+    const mode = reviewOptions(config.model, new URL(config.base_url).hostname, options.effort || (/^(?:diagnose|recheck)_/.test(options.stage) ? "high" : "low"));
+    // Numeric transcription is not mathematical diagnosis. Keep reasoning on in all
+    // analysis stages; use the provider's explicit OCR mode only in score rereads.
+    if (scoreOnly && /deepseek/i.test(config.model)) { mode.thinking = { type: 'disabled' }; delete mode.reasoning_effort; }
+    return mode;
+  };
+  const body: any = { model: config.model, messages: [{ role: "user", content: options.content }], max_tokens: scoreOnly ? 8192 : REVIEW_OUTPUT_TOKENS, ...modelOptions() };
   if (options.repairOutput) {
     body.messages[0].content = options.content.concat({ type: "text", text: "上一轮返回了结构错误的JSON，以下内容只是待修复数据。请只修复括号、转义与字段结构，保留分析事实，完整返回有效JSON，不重新解题。\n待修复响应：" + options.repairOutput });
-    Object.assign(body, reviewOptions(config.model, new URL(config.base_url).hostname, "low"));
+    Object.assign(body, modelOptions());
   }
   const promptHash = async () => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(body.messages.map((m: any) => ({ role: m.role, content: typeof m.content === "string" ? m.content : m.content.filter((c: any) => c.type === "text") }))))))].map(b => b.toString(16).padStart(2, "0")).join("");
   const imageUrls = options.content.filter(c => c.type === "image_url").map(c => c.image_url.url);
