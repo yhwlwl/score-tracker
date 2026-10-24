@@ -10,6 +10,7 @@
   function allExams() { return state.allExams || state.exams || []; }
   function currentExam() { return view && allExams().find(function (e) { return e.id === view.id; }); }
   function active(v) { return view === v && v.user === owner() && v.token === state.token && state.page === 'records'; }
+  function paperReviewAvailable() { return !!(window.ScorePaperReview && typeof window.ScorePaperReview.api === 'function' && typeof window.ScorePaperReview.mount === 'function'); }
   function leave() {
     if (editor && editor.canLeave && !editor.canLeave()) return false;
     if (editor && editor.dispose) editor.dispose();
@@ -134,7 +135,7 @@
       metric(totalLabel, fmt(m.total), totalSub) + metric('总得分率', m.rate === null ? '—' : fmt(m.rate) + '%', rateSub) +
       metric('年级排名', rankText(m.year), rankSub(m.year)) + metric('班级排名', rankText(m.class), rankSub(m.class)) +
       '</div>' + (targetText || extra ? '<div class="ed-context">' + (targetText ? '<span>' + targetText + '</span>' : '') + extra + '</div>' : '') +
-      '<nav class="ed-nav" aria-label="考试详情目录">' + button('各科成绩', 'jump:scores') + button('强弱科四象限', 'jump:quadrants') + button('已录入试题', 'jump:papers') + '</nav></section>';
+      '<nav class="ed-nav" aria-label="考试详情目录">' + button('各科成绩', 'jump:scores') + button('强弱科四象限', 'jump:quadrants') + (paperReviewAvailable() ? button('已录入试题', 'jump:papers') : '') + '</nav></section>';
   }
   function cell(label, text) { return '<td data-label="' + label + '">' + text + '</td>'; }
   function rankCell(r) { return '<span>' + esc(rankText(r)) + '</span><small>' + esc(rankSub(r)) + '</small>'; }
@@ -272,7 +273,7 @@
     var v = view, m = model(exam), content = document.getElementById('content');
     generation++; v.loading = false;
     if (!v.scope) v.scope = m.included.filter(function (r) { return r.year.percent !== null; }).length < 2 && m.included.filter(function (r) { return r.class.percent !== null; }).length >= 2 ? 'class' : 'year';
-    content.innerHTML = '<div class="ed-page">' + header(exam) + (v.report ? '<div class="ed-reader"></div>' : overview(exam, m) + scores(exam, m) + '<section class="ed-section" id="ed-quadrants" tabindex="-1"></section><section class="ed-section" id="ed-papers" tabindex="-1"><div class="ed-section-head"><div><span class="ed-eyebrow">03 / 试题与作答</span><h2>这次考试的试卷</h2><p>按科目查看已录入的题目、作答、批改分与原始扫描件。查看已有内容不计分析次数。</p></div></div><div class="ed-paper-content"></div></section>') + '</div>';
+    content.innerHTML = '<div class="ed-page">' + header(exam) + (v.report ? '<div class="ed-reader"></div>' : overview(exam, m) + scores(exam, m) + '<section class="ed-section" id="ed-quadrants" tabindex="-1"></section>' + (paperReviewAvailable() ? '<section class="ed-section" id="ed-papers" tabindex="-1"><div class="ed-section-head"><div><span class="ed-eyebrow">03 / 试题与作答</span><h2>这次考试的试卷</h2><p>按科目查看已录入的题目、作答、批改分与原始扫描件。查看已有内容不计分析次数。</p></div></div><div class="ed-paper-content"></div></section>' : '')) + '</div>';
     content.querySelector('.ed-page').onclick = function (e) {
       var b = e.target.closest('[data-ed]'); if (!b) return;
       var action = b.dataset.ed;
