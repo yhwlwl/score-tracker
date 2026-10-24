@@ -81,6 +81,38 @@
       return w;
     });
   }
+  // A reading-time projection of existing advice, never a new diagnosis or model call.
+  function nextExamTips(report) {
+    if (!report || report.record_only || report.analysis_stale || report.work_on_paper === false && !(report.source_pages || []).some(function (p) { return p.role === 'work'; })) return [];
+    var questions = (report.questions || []).filter(function (q) {
+      if (q.record_only || q.review_status && q.review_status !== 'reviewed' || q.score_verification === 'conflict' || ['strength', 'ai_strength', 'needs_confirmation', 'question_guidance'].includes(q.analysis_mode)) return false;
+      if (q.teacher_score != null && q.max_score != null && q.teacher_score >= q.max_score || q.ai_grading && q.ai_grading.status === 'confirmed' && q.ai_grading.verdict === 'correct') return false;
+      var readable = typeof q.answer === 'string' && q.answer.trim() && q.status !== 'unclear' && q.status !== 'blank'
+        || (q.subparts || []).some(function (p) { return p.status === 'answered' && p.answer; });
+      var issue = q.first_issue && q.first_issue.certainty === 'confirmed';
+      var loss = typeof q.teacher_score === 'number' && typeof q.max_score === 'number' && q.teacher_score < q.max_score;
+      var graded = q.ai_grading && q.ai_grading.status === 'confirmed' && ['incorrect', 'partial'].includes(q.ai_grading.verdict);
+      return readable && (issue || loss || graded) && typeof q.transfer_rule === 'string' && q.transfer_rule.trim();
+    });
+    var result = [], used = new Set();
+    function ruleKey(value) { return value.normalize('NFKC').replace(/\s+/g, '').replace(/\*\*/g, '').replace(/[。.!！;；]+$/, ''); }
+    function add(q) {
+      var key = ruleKey(q.transfer_rule);
+      var existing = result.find(function (tip) { return ruleKey(tip.text) === key; });
+      if (existing) { if (!existing.questions.includes(q.label)) existing.questions.push(q.label); used.add(q.label); return; }
+      if (result.length >= 3 || used.has(q.label)) return;
+      result.push({ text: q.transfer_rule.trim(), questions: [q.label] }); used.add(q.label);
+    }
+    // Keep the report's learning priorities, but do not turn its practice questions,
+    // solutions or speculative explanations into a generic exam checklist.
+    (report.action_plan || []).forEach(function (action) {
+      var q = (action.questions || []).map(function (label) { return questions.find(function (q) { return q.label === label; }); })
+        .find(function (q) { return q && !used.has(q.label); });
+      if (q) add(q);
+    });
+    questions.forEach(add);
+    return result;
+  }
   // Small, deliberately non-HTML renderer. Keep math opaque while formatting prose;
   // quotes and editable source transcripts never pass through this formatter.
   function prose(value) {
@@ -103,5 +135,5 @@
     });
     flush(); return '<div class="pr-text pr-prose">' + html + '</div>';
   }
-  window.ScorePaperSupport = { uploads: uploads, renderMath: renderMath, legacyFormula: legacyFormula, wins: wins, prose: prose };
+  window.ScorePaperSupport = { uploads: uploads, renderMath: renderMath, legacyFormula: legacyFormula, wins: wins, prose: prose, nextExamTips: nextExamTips };
 })();

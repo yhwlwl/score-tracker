@@ -14148,6 +14148,38 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       return w;
     });
   }
+  // A reading-time projection of existing advice, never a new diagnosis or model call.
+  function nextExamTips(report) {
+    if (!report || report.record_only || report.analysis_stale || report.work_on_paper === false && !(report.source_pages || []).some(function (p) { return p.role === 'work'; })) return [];
+    var questions = (report.questions || []).filter(function (q) {
+      if (q.record_only || q.review_status && q.review_status !== 'reviewed' || q.score_verification === 'conflict' || ['strength', 'ai_strength', 'needs_confirmation', 'question_guidance'].includes(q.analysis_mode)) return false;
+      if (q.teacher_score != null && q.max_score != null && q.teacher_score >= q.max_score || q.ai_grading && q.ai_grading.status === 'confirmed' && q.ai_grading.verdict === 'correct') return false;
+      var readable = typeof q.answer === 'string' && q.answer.trim() && q.status !== 'unclear' && q.status !== 'blank'
+        || (q.subparts || []).some(function (p) { return p.status === 'answered' && p.answer; });
+      var issue = q.first_issue && q.first_issue.certainty === 'confirmed';
+      var loss = typeof q.teacher_score === 'number' && typeof q.max_score === 'number' && q.teacher_score < q.max_score;
+      var graded = q.ai_grading && q.ai_grading.status === 'confirmed' && ['incorrect', 'partial'].includes(q.ai_grading.verdict);
+      return readable && (issue || loss || graded) && typeof q.transfer_rule === 'string' && q.transfer_rule.trim();
+    });
+    var result = [], used = new Set();
+    function ruleKey(value) { return value.normalize('NFKC').replace(/\s+/g, '').replace(/\*\*/g, '').replace(/[。.!！;；]+$/, ''); }
+    function add(q) {
+      var key = ruleKey(q.transfer_rule);
+      var existing = result.find(function (tip) { return ruleKey(tip.text) === key; });
+      if (existing) { if (!existing.questions.includes(q.label)) existing.questions.push(q.label); used.add(q.label); return; }
+      if (result.length >= 3 || used.has(q.label)) return;
+      result.push({ text: q.transfer_rule.trim(), questions: [q.label] }); used.add(q.label);
+    }
+    // Keep the report's learning priorities, but do not turn its practice questions,
+    // solutions or speculative explanations into a generic exam checklist.
+    (report.action_plan || []).forEach(function (action) {
+      var q = (action.questions || []).map(function (label) { return questions.find(function (q) { return q.label === label; }); })
+        .find(function (q) { return q && !used.has(q.label); });
+      if (q) add(q);
+    });
+    questions.forEach(add);
+    return result;
+  }
   // Small, deliberately non-HTML renderer. Keep math opaque while formatting prose;
   // quotes and editable source transcripts never pass through this formatter.
   function prose(value) {
@@ -14170,7 +14202,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     });
     flush(); return '<div class="pr-text pr-prose">' + html + '</div>';
   }
-  window.ScorePaperSupport = { uploads: uploads, renderMath: renderMath, legacyFormula: legacyFormula, wins: wins, prose: prose };
+  window.ScorePaperSupport = { uploads: uploads, renderMath: renderMath, legacyFormula: legacyFormula, wins: wins, prose: prose, nextExamTips: nextExamTips };
 })();
 
 /* ===== paper-review.js ===== */
@@ -14373,13 +14405,14 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     html+=metric('分析覆盖',report.questions.length+' 题',report.complete?'已识别上传资料中的题目':'资料或分析尚有待补充内容');
     return '<div class="pr-overall-metrics">'+html+'</div>';
   }
-  function reportSections(report) {
+  function reportSections(report, updating) {
     if(report.record_only)return '';
     var core=overallData(report), actions=report.action_plan||[], headline=report.headline || core.headline, hasWork=report.work_on_paper!==false || (report.source_pages||[]).some(function(p){return p.role==='work';});
     function findings(items,empty){return items.length?items.slice(0,2).map(function(x){return '<article><strong>'+esc(x.title)+'</strong>'+questionLinks(x.questions,report)+'</article>';}).join(''):'<p class="pr-muted">'+empty+'</p>';}
     var html=chapter('highlights','01','本次整体分析','先了解整体表现，再按需要查看具体题目。')+reportMetrics(report);
     if(headline)html+='<p class="pr-headline">'+esc(headline)+'</p>';
     if(report.overview)html+='<div class="pr-overview">'+prose(report.overview)+'</div>';
+    html += nextExamSection(report, updating);
     html+='<div class="pr-overall-findings"><section class="pr-overall-win"><h4>做得好的地方</h4>'+findings(core.strengths||[],hasWork?'现有资料暂不足以归纳具体优势，可先查看逐题记录。':'补充作答后，可分析已经做对的部分。')+'</section><section class="pr-overall-gap"><h4>最需要留意的地方</h4>'+findings(core.gaps||[],hasWork?'暂未确认具体问题；待核对的题目不会直接判为薄弱。':'当前仅分析题目要求，不判断个人不足。')+'</section></div>';
     if(actions.length)html+='<div class="pr-first-action"><b>本次优先建议</b><p>'+esc(actions[0].title)+'</p>'+button('查看具体安排','jump:plan')+'</div>';
     var exp=report.options && report.options.exam_experience;
@@ -14400,6 +14433,17 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     if((report.patterns||[]).length)html+='<div class="pr-patterns"><h4>几道题之间的联系</h4>'+report.patterns.map(function(p){return '<article class="pr-pattern"><h4>'+esc(p.title)+(p.confidence==='low'?' <small>还需验证</small>':'')+'</h4>'+prose(p.interpretation)+questionLinks(p.questions,report)+fold('查看依据与反例',prose(p.evidence))+'</article>';}).join('')+'</div>';
     else html+='<p class="pr-muted">'+(report.options && !report.options.modules.includes('patterns')?'本次未展开多题共性分析。':'暂未发现有足够依据的重复特点，不从单道题扩大判断。')+'</p>';
     return html+'</section>';
+  }
+  function nextExamSection(report, updating) {
+    var tips = updating ? [] : support.nextExamTips(report);
+    var empty = updating ? '正在更新分析，完成后会同步整理考前提醒。'
+      : report.analysis_stale ? '作答或分数已修改，请先更新分析，再整理考前提醒。'
+      : report.work_on_paper === false && !(report.source_pages || []).some(function (p) { return p.role === 'work'; }) ? '补充考试时的作答后，才能整理适合你的考前提醒。'
+      : '本次暂没有足够依据整理具体提醒；可先查看逐题复盘，不必额外增加检查任务。';
+    return '<aside class="pr-next-exam" aria-label="下次考试注意点"><h4>下次考试注意点</h4>' +
+      (tips.length ? '<p class="pr-muted">考前快速回看，遇到相应题型时用上。仅根据本次复盘整理，不代表长期薄弱点。</p><ol>' + tips.map(function (tip) {
+        return '<li>' + prose(tip.text) + '<div class="pr-tip-sources"><span class="pr-muted">来自本次：</span>' + questionLinks(tip.questions, report) + '</div></li>';
+      }).join('') + '</ol>' : '<p class="pr-muted">' + empty + '</p>') + '</aside>';
   }
   function reportPlan(report) {
     if(report.record_only)return '';
@@ -14620,7 +14664,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       var updateNotice = updating ? '<aside class="pr-message" role="status"><b>' + esc(r.progress && r.progress.message || '正在更新分析') + '</b><p>下方保留上一版报告。更新完成后，将替换相关题目和整体建议。</p></aside>' : stale ? '<aside class="pr-message"><b>核对内容已保存，下面的分析仍为上一版。</b>' + (r.status === 'failed' ? '<p>' + esc(r.error_message) + '</p>' + ((r.progress && r.progress.resume_remaining || 0) > 0 ? button('继续更新分析', 'resume') : '') : '') + '</aside>' : '';
       main.innerHTML = updateNotice + '<section class="pr-result-top"><span class="pr-eyebrow">' + esc(subject) + ' · ' + report.questions.length + ' 题</span><h3>' + (report.record_only ? '题目与作答录入' : '试卷复盘') + '</h3>' +
         '<nav class="pr-report-nav" aria-label="报告目录">' + (report.record_only ? '' : button('整体分析', 'jump:highlights') + button('难度与得分', 'jump:performance') + button('优势与问题', 'jump:insights')) + button(report.record_only ? '题目与作答' : '逐题复盘', 'jump:questions') + (report.record_only ? '' : button('复习安排','jump:plan')) + button('资料与说明', 'jump:materials') + '</nav></section>' +
-        (report.record_only && ctx.onAnalyzeRecord ? '<div class="pr-first-action"><p>资料已录入。可以使用已保存的扫描件新建学习分析，开始后按一次新分析计次。</p>'+button('继续生成学习分析','analyze-record','pr-primary')+'</div>' : '') + reportSections(report) + '<section class="pr-reading-section" data-report-section="questions" tabindex="-1"><div class="pr-chapter"><span>' + (report.record_only ? '01' : '04') + '</span><div><h3>' + (report.record_only ? '题目与作答' : '逐题复盘') + '</h3><p>' + (report.record_only ? '对照扫描件，核对识别的内容。' : '先看哪里需要改，再按需展开讲解和练习。') + '</p></div></div>' + (report.record_only ? '' : '<div class="pr-question-filters" aria-label="筛选题目">' + ['all','review','confirm'].map(function (f, i) { return '<button type="button" class="pr-button" data-pr="filter:' + f + '" aria-pressed="' + (i === 0) + '">' + ['全部题目','需要订正','需要核对'][i] + '</button>'; }).join('') + '</div>') + '<p class="pr-filter-empty pr-muted" role="status" hidden>没有符合这项筛选的题目，可以切回全部题目。</p><div class="pr-questions">' + report.questions.map(function (q) {
+        (report.record_only && ctx.onAnalyzeRecord ? '<div class="pr-first-action"><p>资料已录入。可以使用已保存的扫描件新建学习分析，开始后按一次新分析计次。</p>'+button('继续生成学习分析','analyze-record','pr-primary')+'</div>' : '') + reportSections(report, updating) + '<section class="pr-reading-section" data-report-section="questions" tabindex="-1"><div class="pr-chapter"><span>' + (report.record_only ? '01' : '04') + '</span><div><h3>' + (report.record_only ? '题目与作答' : '逐题复盘') + '</h3><p>' + (report.record_only ? '对照扫描件，核对识别的内容。' : '先看哪里需要改，再按需展开讲解和练习。') + '</p></div></div>' + (report.record_only ? '' : '<div class="pr-question-filters" aria-label="筛选题目">' + ['all','review','confirm'].map(function (f, i) { return '<button type="button" class="pr-button" data-pr="filter:' + f + '" aria-pressed="' + (i === 0) + '">' + ['全部题目','需要订正','需要核对'][i] + '</button>'; }).join('') + '</div>') + '<p class="pr-filter-empty pr-muted" role="status" hidden>没有符合这项筛选的题目，可以切回全部题目。</p><div class="pr-questions">' + report.questions.map(function (q) {
           var c = (r.corrections || []).find(function (c) { return c.id === q.id; }) || { answer: q.answer, teacher_score: q.teacher_score, max_score: q.max_score };
           if (q.ai_grading?.status === 'confirmed' && !c.verified && c.answer === q.ai_grading.original_answer) c = Object.assign({}, c, { answer: q.answer });
           var confirmQuestion = q.score_verification === 'conflict' || q.review_status === 'teacher_conflict' || q.analysis_mode === 'needs_confirmation';
@@ -14811,6 +14855,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     @media(max-width:520px){.pr-dialog{width:100%;max-width:100%;max-height:100dvh;height:100dvh;margin:0;border-radius:0;border:0}.pr-head{padding:15px 16px}.pr-content{padding:0 16px 24px}.pr-pages{grid-template-columns:repeat(2,minmax(0,1fr))}.pr-intro,.pr-main .pr-result-top{padding:18px}.pr-head h2{font-size:18px}.pr-stats b{font-size:20px}.pr-main .pr-question>summary{padding:14px;gap:8px}.pr-main .pr-report-nav .pr-button{font-size:12px;padding:8px}.pr-main .pr-difficulty-table thead{display:none}.pr-main .pr-difficulty-table tbody{display:block}.pr-main .pr-difficulty-table tr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);border-radius:10px;margin:10px 0;padding:8px}.pr-main .pr-difficulty-table td{padding:4px;border:0}.pr-main .pr-difficulty-table td:nth-child(1)::before{content:'题号 ';color:var(--muted)}.pr-main .pr-difficulty-table td:nth-child(2)::before{content:'综合 ';color:var(--muted)}.pr-main .pr-difficulty-table td:nth-child(3)::before{content:'思考 ';color:var(--muted)}.pr-main .pr-difficulty-table td:nth-child(4)::before{content:'计算 ';color:var(--muted)}.pr-main .pr-difficulty-table td:last-child{grid-column:1/-1;border-top:1px solid var(--line);margin-top:6px;padding-top:8px;font-size:13px;line-height:1.8}}@media(prefers-reduced-motion:reduce){.pr-spinner{animation:none}}
   `;
   style.textContent += '.pr-action-message{flex:1 0 100%;min-width:0;margin:0 0 10px;box-sizing:border-box;line-height:1.7;overflow-wrap:anywhere}.pr-action-message:empty{display:none}.pr-footer:has(>.pr-action-message){flex-wrap:wrap}';
+  style.textContent += '.pr-main .pr-next-exam{margin:18px 0;padding:16px 18px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:12px;background:var(--panel-solid)}.pr-main .pr-next-exam>h4{margin:0 0 6px;font-size:16px}.pr-next-exam>ol{margin:14px 0 0;padding-left:22px}.pr-next-exam>ol>li{padding-left:3px;overflow-wrap:anywhere}.pr-next-exam>ol>li+li{margin-top:16px}.pr-next-exam>ol>li::marker{color:var(--accent);font-weight:650}.pr-main .pr-next-exam .pr-prose{font-size:13px}.pr-tip-sources{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-width:0}.pr-main .pr-tip-sources .pr-link{margin:0;white-space:normal;overflow-wrap:anywhere}';
   document.head.appendChild(style);
 })();
 
