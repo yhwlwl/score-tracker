@@ -4,7 +4,7 @@ const { JSDOM, VirtualConsole } = require('jsdom');
 const root = path.resolve(__dirname, '..'), read = name => fs.readFileSync(path.join(root, name), 'utf8');
 const tick = () => new Promise(resolve => setTimeout(resolve, 35));
 (async () => {
-  const errors = [], calls = [], vc = new VirtualConsole();
+  const errors = [], calls = [], events = [], vc = new VirtualConsole();
   vc.on('jsdomError', e => { if (!e.message.includes('CSS')) errors.push(e.message); });
   const dom = new JSDOM(read('index.html').replace(/<script[\s\S]*?<\/script>/g, ''), { url: 'https://fixture.test/', runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole: vc });
   const w = dom.window, d = w.document;
@@ -16,6 +16,7 @@ const tick = () => new Promise(resolve => setTimeout(resolve, 35));
   try {
     w.eval(read('app-bundle.js') + '\nwindow.state=state;');
     for (const file of ['app-v36.js','app-v37.js','app-v38.js']) w.eval(read(file));
+    w.__scoreTrackerTrack = (type, data) => events.push({ type, data }); w.__stTrack = w.__scoreTrackerTrack;
     await tick(); delete w.ScorePaperReview;
     const exam = { id: 'exam-one', name: '期中 <script>bad()</script>', exam_date: '2026-10-20', is_hidden: true,
       total_rank: 25, total_participants: 500, total_class_rank: 3, total_class_participants: 50,
@@ -36,6 +37,7 @@ const tick = () => new Promise(resolve => setTimeout(resolve, 35));
     assert.equal(d.querySelectorAll('[data-exam-detail]').length, 2); assert.equal(d.querySelectorAll('[data-edit]').length, 2);
     assert.equal(d.querySelectorAll('[data-hidden-toggle]').length, 2);
     d.querySelector('[data-exam-detail="exam-one"]').click(); await tick();
+    assert(events.some(e => e.type === 'exam_detail_opened'));
     assert.equal(d.querySelector('.ed-heading h1').textContent, exam.name); assert(!d.querySelector('.ed-heading script'));
     assert(d.querySelector('.ed-heading').textContent.includes('已从趋势图隐藏'));
     assert(d.querySelector('.desktop-nav [data-page="records"]').classList.contains('active'));
@@ -48,9 +50,11 @@ const tick = () => new Promise(resolve => setTimeout(resolve, 35));
     assert(!d.querySelector('#ed-papers')); assert(!d.querySelector('[data-ed="jump:papers"]'));
     assert(!calls.some(c => c.url.includes('paper-review')), 'exam-only viewing never calls the optional AI service');
     d.querySelector('[data-ed-mode="performance"]').click();
+    assert(events.some(e => e.type === 'exam_detail_quadrant_mode_changed' && e.data.mode === 'performance'));
     assert.equal(d.querySelectorAll('.ed-point-list button').length, 4);
     assert.equal(w.state.scoreBasis, 'raw'); assert.equal(w.state.rankScopeV16, 'class'); assert.equal(w.state.subject, '英语');
     d.querySelector('[data-ed="back"]').click();
+    assert(events.some(e => e.type === 'exam_detail_closed' && e.data.reason === 'back'));
     assert(!d.querySelector('.ed-page')); assert.equal(d.activeElement.dataset.examDetail, 'exam-one');
     w.ScoreExamDetail.open('exam-two');
     assert.equal(d.querySelector('.ed-metric strong').textContent, '160'); assert(d.querySelector('.ed-metric').textContent.includes('小计'));

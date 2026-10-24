@@ -4,7 +4,7 @@ const { JSDOM, VirtualConsole } = require('jsdom');
 const root = path.resolve(__dirname, '..'), read = file => fs.readFileSync(path.join(root, file), 'utf8');
 const tick = () => new Promise(resolve => setTimeout(resolve, 40));
 (async () => {
-  const errors = [], calls = [], vc = new VirtualConsole();
+  const errors = [], calls = [], events = [], vc = new VirtualConsole();
   vc.on('jsdomError', error => { if (!error.message.includes('CSS')) errors.push(error.message); });
   const dom = new JSDOM(read('index.html').replace(/<script[\s\S]*?<\/script>/g, ''), { url: 'https://fixture.test/', runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole: vc });
   const w = dom.window, d = w.document;
@@ -46,6 +46,7 @@ const tick = () => new Promise(resolve => setTimeout(resolve, 40));
   try {
     w.eval(read('app-bundle.js') + '\nwindow.state=state;');
     for (const file of ['app-v36.js','app-v37.js','app-v38.js']) w.eval(read(file)); await tick();
+    w.__scoreTrackerTrack = (type, data) => events.push({ type, data }); w.__stTrack = w.__scoreTrackerTrack;
     Object.assign(w.state, { user: { id: 'fixture', username: 'fixture' }, token: 'fixture', allExams: [previous, ...traps, current, older], exams: [current], page: 'records', modulesV18: [], scoreBasis: 'raw', rankScopeV16: 'class' });
     w.ScoreExamDetail.open('current'); await tick();
     assert.equal(d.querySelector('[data-ed-mode="movement"]').getAttribute('aria-pressed'), 'true');
@@ -63,18 +64,20 @@ const tick = () => new Promise(resolve => setTimeout(resolve, 40));
     assert(Number(mathCircle.getAttribute('cx')) > 330); assert(Number(mathCircle.getAttribute('cy')) < Number(physicsCircle.getAttribute('cy')));
     w.state.allExams.reverse(); w.renderPage(); pick('数学'); assert.equal(d.querySelector('.ed-change').textContent, '进步 20 个百分点', 'manual record order never changes comparison');
     windowMode('recent'); pick('语文'); assert.equal(d.querySelector('.ed-change').textContent, '退步 5 个百分点 / 场');
+    assert(events.some(e => e.type === 'exam_detail_quadrant_window_changed' && e.data.window === 'recent'));
     assert.equal(d.querySelectorAll('.ed-history li').length, 3); assert(d.querySelector('.ed-history').textContent.includes('更早考试'));
     assert(!d.querySelector('.ed-quadrant').outerHTML.match(/NaN|Infinity/));
     delete older.scores.数学; w.renderPage(); assert.equal(d.querySelectorAll('.ed-point-list button').length, 3);
     assert(d.querySelector('.ed-missing').textContent.includes('目前共 2 次')); windowMode('previous'); pick('数学');
     d.querySelector('[data-ed-scope="class"]').click(); pick('数学');
+    assert(events.some(e => e.type === 'exam_detail_quadrant_scope_changed' && e.data.scope === 'class'));
     assert.equal(d.querySelector('.ed-change').textContent, '进步 10 个百分点', 'nearest class-only exam is used for class comparisons');
     assert(d.querySelector('.ed-history').textContent.includes('班级不能混入年级'));
     assert.equal(w.state.rankScopeV16, 'class'); assert.equal(w.state.scoreBasis, 'raw');
     d.querySelector('[data-ed-scope="year"]').click(); pick('数学'); assert.equal(d.querySelector('.ed-change').textContent, '进步 20 个百分点');
     current.scores.生物 = { yearPositionPercent: 50 }; w.renderPage(); assert.equal(d.querySelectorAll('.ed-point-list button').length, 4);
     assert(d.querySelector('.ed-missing').textContent.includes('生物：没有更早'));
-    d.querySelector('[data-ed-mode="performance"]').click(); assert(d.querySelector('.ed-quadrant').getAttribute('aria-label').includes('得分率'));
+    d.querySelector('[data-ed-mode="performance"]').click(); assert(d.querySelector('.ed-quadrant').getAttribute('aria-label').includes('得分率')); assert(events.some(e => e.type === 'exam_detail_quadrant_mode_changed' && e.data.mode === 'performance')); assert(events.some(e => e.type === 'exam_detail_quadrant_subject_selected'));
     assert(!d.querySelector('[data-ed-window]')); assert.equal(d.querySelectorAll('.ed-point-list button').length, 3);
     d.querySelector('[data-ed-mode="movement"]').click(); assert.equal(d.querySelector('[data-ed-window]').value, 'previous');
     // A subject without any history is omitted, never placed at zero. Current rank-only data remains valid.

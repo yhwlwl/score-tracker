@@ -39,23 +39,28 @@ async function backend(){
 async function frontend(){
   const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));
   const dom=new JSDOM('<!doctype html><meta name="application-version" content="v7.0"><div id="app"><main id="content"><div class="account-grid"><section class="account-card">账号信息</section><section class="account-card">设置</section></div></main></div>',{url:'https://test.local/',runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:vc}),w=dom.window,d=w.document;
-  let c={...enabled},fail=false;const calls=[];
-  w.state={user:{id:'viewer'},token:'viewer',page:'account'};w.render=()=>{};w.bindPage=()=>{};w.renderLogin=()=>{};w.toast=()=>{};w.setInterval=()=>1;
+  let c={...enabled},fail=false;const calls=[],events=[];
+  w.state={user:{id:'viewer'},token:'viewer',page:'account'};w.render=()=>{};w.bindPage=()=>{};w.renderLogin=()=>{};w.toast=()=>{};w.setInterval=()=>1;w.HTMLAnchorElement.prototype.click=()=>{};
+  w.__stTrack=(type,data)=>events.push({type,data});w.__scoreTrackerTrack=w.__stTrack;
   w.escapeHtml=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const notice={version:'v7.0',enabled:true,title:'更新内容',content:'新增微信群，欢迎交流。\n[查看交流群](#community)',tip_enabled:false,announcement_enabled:false};
   w.fetch=async(url,init)=>{const body=JSON.parse(init.body||'{}');calls.push(body.action);if(body.action==='community_public'){if(fail)throw Error('offline');return {ok:true,json:async()=>({config:c})};}if(String(url).includes('__cb'))return {ok:true,text:async()=>'<meta name="application-version" content="v7.0">'};return {ok:true,json:async()=>({config:notice,releases:[notice],claimed:true,seen:[]})};};
   try{
     w.eval(read('release-notices.js'));w.eval(read('community.js'));await until(()=>d.querySelector('#communityAccountCard'));
+    assert(events.some(e=>e.type==='community_entry_shown'&&e.data.source==='account'));
     assert.equal(d.querySelectorAll('.account-grid>.account-card')[1].id,'communityAccountCard');assert.equal(d.querySelectorAll('#communityAccountCard img').length,0,'QR is not spread across the profile');
     await w.__releaseNotices.check('manual',true);await until(()=>d.querySelector('[data-notice-community]'));const link=d.querySelector('[data-notice-community]');assert.equal(link.hidden,false);
     link.click();await until(()=>d.querySelector('.community-back'));assert.equal(d.querySelector('.rn-back'),null);assert(d.querySelector('#app').hasAttribute('inert'));assert.equal(d.body.style.overflow,'hidden');
+    assert(events.some(e=>e.type==='community_opened'&&e.data.source==='notice'));
     const zoom=d.querySelector('.community-qr');zoom.click();assert.equal(zoom.getAttribute('aria-pressed'),'true');
+    assert(events.some(e=>e.type==='community_qr_zoomed'&&e.data.expanded===1));
     d.querySelector('[data-community-close]').click();assert(!d.querySelector('#app').hasAttribute('inert'));assert.equal(d.body.style.overflow,'');
-    c={...enabled,title:'<img src=x onerror=alert(1)>',intro:'<script>unsafe</script>'};await w.__scoreTrackerCommunity.open();assert.equal(d.querySelectorAll('.community-panel img').length,1);assert.equal(d.querySelector('.community-panel script'),null);assert(d.querySelector('#communityTitle').textContent.includes('<img'));
-    d.querySelector('img[alt="微信群入群二维码"]').dispatchEvent(new w.Event('error'));assert.equal(d.querySelector('[data-community-save]').disabled,true);d.querySelector('[data-community-close]').click();
+    assert(events.some(e=>e.type==='community_closed'&&e.data.reason==='close_button'));
+    c={...enabled,join_url:'https://weixin.qq.com/g/example',title:'<img src=x onerror=alert(1)>',intro:'<script>unsafe</script>'};await w.__scoreTrackerCommunity.open('account');assert.equal(d.querySelectorAll('.community-panel img').length,1);assert.equal(d.querySelector('.community-panel script'),null);assert(d.querySelector('#communityTitle').textContent.includes('<img'));assert(events.some(e=>e.type==='community_opened'&&e.data.source==='account'));d.querySelector('[data-community-save]').click();assert(events.some(e=>e.type==='community_qr_save_requested'));d.querySelector('[data-community-join]').onclick();assert(events.some(e=>e.type==='community_join_link_clicked'));
+    d.querySelector('img[alt="微信群入群二维码"]').dispatchEvent(new w.Event('error'));assert.equal(d.querySelector('[data-community-save]').disabled,true);assert(events.some(e=>e.type==='community_qr_load_failed'));d.querySelector('[data-community-close]').click();
     c={...enabled,expires_at:new Date(Date.now()+120).toISOString()};await w.__scoreTrackerCommunity.open();await new Promise(r=>setTimeout(r,180));assert.equal(d.querySelector('.community-back'),null);assert.equal(d.querySelector('#communityAccountCard'),null);
     c={...enabled};await w.__scoreTrackerCommunity.load(true);assert(d.querySelector('#communityAccountCard'));
-    fail=true;await w.__scoreTrackerCommunity.load(true);assert.equal(d.querySelector('#communityAccountCard'),null,'fail closed instead of showing a stale QR');fail=false;
+    fail=true;await w.__scoreTrackerCommunity.load(true);assert.equal(d.querySelector('#communityAccountCard'),null,'fail closed instead of showing a stale QR');assert(events.some(e=>e.type==='community_config_load_failed'));await w.__scoreTrackerCommunity.open('account');assert(events.some(e=>e.type==='community_open_unavailable'));fail=false;
     w.state.user=null;w.state.token='';w.render();assert.equal(w.__scoreTrackerCommunity.available(),false);assert.equal(d.querySelector('#communityAccountCard'),null);
     assert.deepEqual(errors,[]);console.log('PASS: profile region, release→current group modal handoff, focus/inert/scroll, zoom, escaping, image error, expiry/offline and logout');
   }finally{w.close();}

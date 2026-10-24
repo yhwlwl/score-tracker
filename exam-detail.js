@@ -10,6 +10,7 @@
   function allExams() { return state.allExams || state.exams || []; }
   function currentExam() { return view && allExams().find(function (e) { return e.id === view.id; }); }
   function active(v) { return view === v && v.user === owner() && v.token === state.token && state.page === 'records'; }
+  function track(event, metadata) { try { var fn = window.__scoreTrackerTrack || window.__stTrack; if (typeof fn === 'function') fn(event, metadata || {}); } catch (_) {} }
   function paperReviewAvailable() { return !!(window.ScorePaperReview && typeof window.ScorePaperReview.api === 'function' && typeof window.ScorePaperReview.mount === 'function'); }
   function leave() {
     if (editor && editor.canLeave && !editor.canLeave()) return false;
@@ -222,20 +223,21 @@
     var host = document.querySelector('#ed-quadrants'); if (!host) return;
     var d = view.chartMode === 'performance' ? quadrantData(m, view.scope) : movementData(exam, m, view.scope, view.trendWindow || 'previous');
     host.innerHTML = quadrantsHtml(m, view.scope, d);
-    function select(index) {
+    function select(index, userInitiated) {
       var p = d.points.find(function (p) { return p.index === Number(index); }), inspect = host.querySelector('.ed-inspect'); if (!p || !inspect) return;
       var r = p.row, scopeName = view.scope === 'year' ? '年级' : '班级', movement = d.mode === 'movement'; view.pointName = r.name;
+      if (userInitiated) track('exam_detail_quadrant_subject_selected', { mode: d.mode, scope: view.scope });
       var history = movement ? '<ol class="ed-history">' + p.observations.map(function (o, i) { return '<li><span>' + esc((i === p.observations.length - 1 ? '本次 · ' : '') + o.exam.name) + '</span><small>' + esc(fmtYearDate(o.exam.exam_date)) + '</small><b>' + esc(rankText(o.info)) + '</b>' + (o.info.n !== null ? '<small>' + esc(rankSub(o.info)) + '</small>' : '') + '</li>'; }).join('') + '</ol>' : '';
       inspect.innerHTML = '<span class="ed-eyebrow">科目观察</span><h3>' + esc(r.name) + '</h3><span class="ed-tag" style="color:' + d.palette[p.group].color + '">' + d.palette[p.group].title + '</span><dl>' +
         (movement ? '<div><dt>' + scopeName + '排名</dt><dd>' + esc(rankText(r[view.scope])) + '</dd></div>' : '<div><dt>最终分 / 满分</dt><dd>' + fmt(r.actual) + ' / ' + fmt(r.max) + '</dd></div><div><dt>得分率</dt><dd>' + fmt(r.rate) + '%</dd></div>') +
         '<div><dt>本次' + scopeName + '位比</dt><dd>前 ' + fmt(r[view.scope].percent) + '%</dd></div>' + (movement ? '<div><dt>' + (d.windowSize === 'recent' ? '近3次趋势' : '较上次') + '</dt><dd class="ed-change">' + changeText(p, d.windowSize === 'recent') + '</dd></div>' : '') + '</dl><p>' + d.palette[p.group].text + '</p>' + history + '<small>' + (movement ? '强弱科按本次各科位比中位数划分。' : '相对本次参与比较的各科均值。') + '</small>';
       host.querySelectorAll('button[data-ed-point]').forEach(function (el) { el.setAttribute('aria-pressed', String(el.dataset.edPoint === String(index))); });
     }
-    host.querySelectorAll('[data-ed-point]').forEach(function (el) { el.onclick = function () { select(el.dataset.edPoint); }; if (el.tagName.toLowerCase() === 'g') el.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(el.dataset.edPoint); } }; });
-    host.querySelectorAll('[data-ed-scope]').forEach(function (b) { b.onclick = function () { view.scope = b.dataset.edScope; bindQuadrants(exam, m); document.querySelector('[data-ed-scope="' + view.scope + '"]').focus(); }; });
-    host.querySelectorAll('[data-ed-mode]').forEach(function (b) { b.onclick = function () { view.chartMode = b.dataset.edMode; bindQuadrants(exam, m); host.querySelector('[data-ed-mode="' + view.chartMode + '"]').focus(); }; });
-    var windowSelect = host.querySelector('[data-ed-window]'); if (windowSelect) windowSelect.onchange = function () { view.trendWindow = windowSelect.value; bindQuadrants(exam, m); host.querySelector('[data-ed-window]').focus(); };
-    var first = d.points.find(function (p) { return p.row.name === view.pointName; }) || d.points[0]; if (first) select(first.index);
+    host.querySelectorAll('[data-ed-point]').forEach(function (el) { el.onclick = function () { select(el.dataset.edPoint, true); }; if (el.tagName.toLowerCase() === 'g') el.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(el.dataset.edPoint, true); } }; });
+    host.querySelectorAll('[data-ed-scope]').forEach(function (b) { b.onclick = function () { view.scope = b.dataset.edScope; track('exam_detail_quadrant_scope_changed', { scope: view.scope }); bindQuadrants(exam, m); document.querySelector('[data-ed-scope="' + view.scope + '"]').focus(); }; });
+    host.querySelectorAll('[data-ed-mode]').forEach(function (b) { b.onclick = function () { view.chartMode = b.dataset.edMode; track('exam_detail_quadrant_mode_changed', { mode: view.chartMode }); bindQuadrants(exam, m); host.querySelector('[data-ed-mode="' + view.chartMode + '"]').focus(); }; });
+    var windowSelect = host.querySelector('[data-ed-window]'); if (windowSelect) windowSelect.onchange = function () { view.trendWindow = windowSelect.value; track('exam_detail_quadrant_window_changed', { window: view.trendWindow }); bindQuadrants(exam, m); host.querySelector('[data-ed-window]').focus(); };
+    var first = d.points.find(function (p) { return p.row.name === view.pointName; }) || d.points[0]; if (first) select(first.index, false);
   }
   function papersHtml(v) {
     var subjects = Array.from(new Set(v.papers.map(function (p) { return p.subject; })));
@@ -250,11 +252,12 @@
   function drawPapers(v) {
     var host = document.querySelector('.ed-paper-content'); if (!active(v) || !host) return;
     host.innerHTML = papersHtml(v);
-    host.querySelector('[data-ed-subject]').onchange = function (e) { v.subject = e.target.value; drawPapers(v); };
+    host.querySelector('[data-ed-subject]').onchange = function (e) { v.subject = e.target.value; track('exam_detail_papers_filtered', { filtered: v.subject ? 1 : 0 }); drawPapers(v); };
     host.querySelectorAll('[data-ed="refresh-papers"],[data-ed="more-papers"]').forEach(function (b) { b.disabled = !!v.loading; });
   }
   async function loadPapers(v, append) {
     var gen = generation, host = document.querySelector('.ed-paper-content'); if (!host || v.loading) return;
+    track('exam_detail_papers_load_started', { append: append ? 1 : 0 });
     v.loading = true; v.paperError = ''; if (v.papers) drawPapers(v); else host.innerHTML = '<p class="ed-empty" role="status">正在读取这次考试的试题…</p>';
     try {
       var data = await window.ScorePaperReview.api(v, 'list_all', { exam_id: v.id, offset: append ? v.offset : 0 });
@@ -263,9 +266,11 @@
       v.offset = (append ? v.offset : 0) + rows.length;
       v.papers = (append ? v.papers : []).concat(rows.filter(function (r) { return r.exam_id === v.id; }));
       v.more = !!data.has_more; v.loading = false; drawPapers(v);
+      track('exam_detail_papers_loaded', { append: append ? 1 : 0, count: rows.length, total: v.papers.length, has_more: v.more ? 1 : 0 });
     } catch (e) {
       if (!active(v) || generation !== gen || !host.isConnected) return;
       v.loading = false; v.paperError = '试题读取未完成：' + e.message;
+      track('exam_detail_papers_load_failed', { append: append ? 1 : 0, status: Number(e && e.status) || 0 });
       if (v.papers) drawPapers(v); else host.innerHTML = '<p class="ed-empty" role="alert">' + esc(v.paperError) + '</p>' + button('重新读取', 'refresh-papers');
     }
   }
@@ -279,17 +284,19 @@
       var action = b.dataset.ed;
       if (action === 'back') {
         if (!leave()) return;
+        track('exam_detail_closed', { reason: 'back' });
         var scroll = v.scroll; view = null; render(); window.scrollTo(0, scroll);
         var original = Array.from(document.querySelectorAll('[data-exam-detail]')).find(function (b) { return b.dataset.examDetail === exam.id; }); if (original) original.focus({ preventScroll: true });
       } else if (action === 'edit') {
+        track('exam_detail_edit_opened');
         if (editor) { if (!leave()) return; v.report = null; renderPage(); }
         openExam(currentExam());
       }
-      else if (action.startsWith('jump:')) { var section = document.getElementById('ed-' + action.slice(5)); if (section) { section.focus({ preventScroll: true }); if (section.scrollIntoView) section.scrollIntoView({ block: 'start' }); } }
-      else if (action === 'refresh-papers' || action === 'more-papers') loadPapers(v, action === 'more-papers');
+      else if (action.startsWith('jump:')) { var sectionName = action.slice(5), section = document.getElementById('ed-' + sectionName); if (section) { track('exam_detail_section_jumped', { section: sectionName }); section.focus({ preventScroll: true }); if (section.scrollIntoView) section.scrollIntoView({ block: 'start' }); } }
+      else if (action === 'refresh-papers' || action === 'more-papers') { track('exam_detail_papers_action', { action: action === 'more-papers' ? 'load_more' : 'refresh' }); loadPapers(v, action === 'more-papers'); }
       else if (action.startsWith('paper:') || action.startsWith('report:')) {
         var r = v.papers.find(function (p) { return p.request_id === action.slice(action.indexOf(':') + 1); });
-        if (r && leave()) { v.report = r; v.questionsFirst = action.startsWith('paper:'); renderPage(); }
+        if (r && leave()) { track('exam_detail_paper_opened', { view: action.startsWith('paper:') ? 'questions' : 'report', status: r.status || 'unknown' }); v.report = r; v.questionsFirst = action.startsWith('paper:'); renderPage(); }
       }
     };
     if (v.report) {
@@ -304,6 +311,7 @@
   function open(id) {
     var exam = allExams().find(function (e) { return e.id === id; }); if (!exam || !leave()) return;
     view = { id: id, user: owner(), token: state.token, scroll: window.scrollY || 0, papers: null, offset: 0, more: false, loading: false, subject: '', chartMode: 'movement', trendWindow: 'previous' };
+    track('exam_detail_opened', { source: 'records' });
     state.page = 'records'; render(); window.scrollTo(0, 0);
     var heading = document.querySelector('.ed-heading h1'); if (heading) heading.focus({ preventScroll: true });
   }
@@ -325,7 +333,7 @@
   bindNav = function () {
     navBefore.apply(this, arguments);
     document.querySelectorAll('.desktop-nav [data-page],.bottom-nav [data-page]').forEach(function (b) {
-      var previous = b.onclick; b.onclick = function (event) { if (!leave()) return; view = null; if (previous) previous.call(this, event); };
+      var previous = b.onclick; b.onclick = function (event) { if (!leave()) return; if (view && active(view)) track('exam_detail_closed', { reason: 'navigation' }); view = null; if (previous) previous.call(this, event); };
     });
   };
   window.ScoreExamDetail = { open: open };

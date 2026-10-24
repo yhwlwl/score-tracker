@@ -55,7 +55,7 @@
   function mountSupport(back,item) {
     back.querySelectorAll('[data-notice-community]').forEach(function(link){
       link.hidden=!user()||!window.__scoreTrackerCommunity?.available()||!!state.onboarding;
-      link.onclick=function(){if(!window.__scoreTrackerCommunity?.available())return;close('open_community');window.__scoreTrackerCommunity.open();};
+      link.onclick=function(){if(!window.__scoreTrackerCommunity?.available())return;close('open_community');window.__scoreTrackerCommunity.open('notice');};
     });
     back.querySelectorAll('[data-notice-support]').forEach(function(link){
       link.hidden=!user()||!window.__scoreTrackerSupport?.available()||!!state.onboarding;
