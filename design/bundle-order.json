@@ -46,6 +46,7 @@
   "school-settings.js",
   "announcement-settings.js",
   "author-support.js",
+  "community.js",
   "participant-defaults.js",
   "exam-averages.js",
   "exam-detail.js"

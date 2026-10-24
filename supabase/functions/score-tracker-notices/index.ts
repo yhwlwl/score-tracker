@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { readSupport, saveSupport } from './support.ts';
+import { readCommunity, saveCommunity } from './community.ts';
 
 const db = createClient(Deno.env.get('SUPABASE_URL') || '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '', {auth:{persistSession:false,autoRefreshToken:false}});
 const cors = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type, x-score-token','Access-Control-Allow-Methods':'GET, POST, OPTIONS'};
@@ -57,6 +58,15 @@ Deno.serve(async req => {
     if(action==='notice_history'&&req.method==='POST'){const c=await config(true),releases=releaseHistory(c,c),announcements=announcementHistory(c);delete c.release_history;delete c.announcement_history;return json({config:c,releases,announcements});}
     user=await auth(req.headers.get('x-score-token')||String(body.token||''));if(!user)return json({error:'登录已失效，请重新登录'},401);
     if((action.startsWith('notification_')||['feature_completion_admin','feature_option_complete','feature_option_active'].includes(action))&&!user.is_admin)return json({error:'只有管理员可以修改这些内容'},403);
+    if(action==='community_public'&&req.method==='POST')return json({config:await readCommunity(db,true)});
+    if(action==='notification_community_config'&&req.method==='GET') {
+      try{return json({config:await readCommunity(db)});}catch(e){return json({error:e.message},e.status||503);}
+    }
+    if(action==='notification_community_save'&&req.method==='POST') {
+      let saved;try{saved=await saveCommunity(db,body,user.id);}catch(e){return json({error:e.message},e.status||400);}
+      try{await audit('community_config_saved',user,body,req,{revision:saved.revision,enabled:saved.enabled});}catch(e){console.error('community_config_audit_error',e);}
+      return json({ok:true,config:saved});
+    }
     if(action==='notification_support_config'&&req.method==='GET'){
       try{return json({config:await readSupport(db)});}catch(e){return json({error:e.status?e.message:'暂时无法读取赞赏设置'},e.status||500);}
     }
