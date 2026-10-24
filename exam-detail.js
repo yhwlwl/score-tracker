@@ -82,12 +82,12 @@
     return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
   }
   function validDate(value) { return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value; }
-  function movementData(exam, m, scope, windowSize) {
+  function movementData(exam, m, scope, windowSize, sameCategory) {
     var current = m.included.filter(function (r) { return r[scope].percent !== null; });
     var divider = median(current.map(function (r) { return r[scope].percent; }));
     var category = String(exam.grade_level || '').trim();
     var candidates = validDate(exam.exam_date) ? allExams().filter(function (e) {
-      return e.id !== exam.id && !e.is_hidden && validDate(e.exam_date) && e.exam_date < exam.exam_date && String(e.grade_level || '').trim() === category;
+      return e.id !== exam.id && !e.is_hidden && validDate(e.exam_date) && e.exam_date < exam.exam_date && (!sameCategory || String(e.grade_level || '').trim() === category);
     }).slice().sort(function (a, b) { return b.exam_date.localeCompare(a.exam_date) || String(b.created_at || '').localeCompare(String(a.created_at || '')) || String(b.id).localeCompare(String(a.id)); }) : [];
     var points = [], missing = [], required = windowSize === 'recent' ? 2 : 1;
     m.included.forEach(function (r) {
@@ -101,7 +101,7 @@
         var info = rank(e, r.name, scope); if (info.percent === null) return;
         dates.add(e.exam_date); history.push({ exam: e, info: info });
       });
-      if (history.length < required) { missing.push({ row: r, reason: required === 2 ? '近3次趋势需要本次及之前2次可比排名，目前共 ' + (history.length + 1) + ' 次' : '没有更早的同分类、同科目、同排名范围的有效排名' }); return; }
+      if (history.length < required) { missing.push({ row: r, reason: required === 2 ? '近3次趋势需要本次及之前2次可比排名，目前共 ' + (history.length + 1) + ' 次' : '没有更早的' + (sameCategory ? '同分类、' : '') + '同科目、同排名范围的有效排名' }); return; }
       var observations = history.slice(0, required).reverse().concat([{ exam: exam, info: r[scope] }]);
       var x;
       if (required === 1) x = observations[0].info.percent - r[scope].percent;
@@ -116,7 +116,7 @@
       var group = Math.abs(x) < 0.005 || Math.abs(y) < 0.000001 ? 'neutral' : y > 0 ? x > 0 ? 'strength' : 'potential' : x > 0 ? 'compete' : 'support';
       points.push({ row: r, index: points.length + 1, x: x, y: y, group: group, observations: observations });
     });
-    return { mode: 'movement', palette: movementGroups, position: divider, positions: current.map(function (r) { return r[scope].percent; }), currentCount: current.length, points: points, missing: missing, windowSize: windowSize };
+    return { mode: 'movement', palette: movementGroups, position: divider, positions: current.map(function (r) { return r[scope].percent; }), currentCount: current.length, points: points, missing: missing, windowSize: windowSize, sameCategory: !!sameCategory };
   }
   function fmtChange(value) { return String(Math.round((value + Number.EPSILON) * 100) / 100); }
   function changeText(point, recent) { return Math.abs(point.x) < 0.005 ? '基本持平' : (point.x > 0 ? '进步 ' : '退步 ') + fmtChange(Math.abs(point.x)) + (recent ? ' 个百分点 / 场' : ' 个百分点'); }
@@ -210,9 +210,9 @@
     var ready = movement ? d.currentCount >= 2 && d.points.length > 0 : d.points.length >= 2;
     var modes = '<div class="ed-scope" role="group" aria-label="四象限视图">' + [['movement','排名与变化'],['performance','本次表现']].map(function (pair) { return '<button type="button" data-ed-mode="' + pair[0] + '" aria-pressed="' + (d.mode === pair[0]) + '">' + pair[1] + '</button>'; }).join('') + '</div>';
     var range = '<div class="ed-scope" role="group" aria-label="四象限排名范围">' + ['year','class'].map(function (s) { return '<button type="button" data-ed-scope="' + s + '" aria-pressed="' + (s === scope) + '">' + (s === 'year' ? '按年级' : '按班级') + '</button>'; }).join('') + '</div>';
-    var method = movement ? '纵轴显示本次' + scopeName + '位比，以本次 ' + d.currentCount + ' 科位比中位数 <b>前 ' + fmt(d.position) + '%</b> 划分个人相对强弱。横轴以 0 为界，右进步、左退步。' + (d.windowSize === 'recent' ? '近3次趋势包含本次，按考试场次计算平均变化，不按间隔天数计算。' : '变化 = 上一次可比考试位比 − 本次位比。') + '只比较更早、同分类、同科目、同排名范围的有效排名；已隐藏考试不参与历史比较，同一天不推断先后。变化四舍五入到 0.01 个百分点后为 0，标为基本持平。' : '以这 ' + d.points.length + ' 科的平均得分率 <b>' + fmt(d.rate) + '%</b>、平均' + scopeName + '位比 <b>前 ' + fmt(d.position) + '%</b> 为分界。各科等权，仅反映本次考试内的相对强弱，不代表试卷难度或长期水平。均值线上的科目标为“接近均值”。';
+    var method = movement ? '纵轴显示本次' + scopeName + '位比，以本次 ' + d.currentCount + ' 科位比中位数 <b>前 ' + fmt(d.position) + '%</b> 划分个人相对强弱。横轴以 0 为界，右进步、左退步。' + (d.windowSize === 'recent' ? '近3次趋势包含本次，按考试场次计算平均变化，不按间隔天数计算。' : '变化 = 上一次可比考试位比 − 本次位比。') + '只比较更早、' + (d.sameCategory ? '同分类、' : '') + '同科目、同排名范围的有效排名；已隐藏考试不参与历史比较，同一天不推断先后。变化四舍五入到 0.01 个百分点后为 0，标为基本持平。' : '以这 ' + d.points.length + ' 科的平均得分率 <b>' + fmt(d.rate) + '%</b>、平均' + scopeName + '位比 <b>前 ' + fmt(d.position) + '%</b> 为分界。各科等权，仅反映本次考试内的相对强弱，不代表试卷难度或长期水平。均值线上的科目标为“接近均值”。';
     var empty = movement ? d.currentCount < 2 ? '本次至少需要 2 门科目的有效' + scopeName + '位比，才能划分个人相对强弱。补充名次与参考人数，或直接填写位比即可。' : d.windowSize === 'recent' ? '还没有科目具备本次及之前2次的可比排名，可以先切换“较上次”，或查看“本次表现”。' : '还没有科目具备更早的可比排名，可以先查看“本次表现”。缺少历史不会记作持平。' : '至少需要 2 门科目的有效得分率和' + scopeName + '位比。补充名次与参考人数，或直接填写位比即可。';
-    return '<div class="ed-section-head"><div><span class="ed-eyebrow">02 / 强弱科</span><h2>' + (movement ? '各科排名与变化' : '这一场，哪些科目值得重点关注') + '</h2><p>' + (movement ? '越靠上，当前排名越靠前；越靠右，最近进步越明显。' : '越靠右，得分率越高；越靠上，在同范围考生中排名越靠前。') + '</p></div></div><div class="ed-chart-controls">' + modes + range + (movement ? '<label class="ed-window">比较口径<select data-ed-window aria-label="排名变化比较口径"><option value="previous" ' + (view.trendWindow !== 'recent' ? 'selected' : '') + '>较上次可比考试</option><option value="recent" ' + (view.trendWindow === 'recent' ? 'selected' : '') + '>近3次趋势</option></select></label>' : '') + '</div>' +
+    return '<div class="ed-section-head"><div><span class="ed-eyebrow">02 / 强弱科</span><h2>' + (movement ? '各科排名与变化' : '这一场，哪些科目值得重点关注') + '</h2><p>' + (movement ? '越靠上，当前排名越靠前；越靠右，最近进步越明显。' : '越靠右，得分率越高；越靠上，在同范围考生中排名越靠前。') + '</p></div></div><div class="ed-chart-controls">' + modes + range + (movement ? '<label class="ed-window">比较分类<select data-ed-category aria-label="排名变化比较分类"><option value="all" ' + (d.sameCategory ? '' : 'selected') + '>全部分类</option><option value="same" ' + (d.sameCategory ? 'selected' : '') + '>仅同分类</option></select></label><label class="ed-window">比较口径<select data-ed-window aria-label="排名变化比较口径"><option value="previous" ' + (view.trendWindow !== 'recent' ? 'selected' : '') + '>较上次可比考试</option><option value="recent" ' + (view.trendWindow === 'recent' ? 'selected' : '') + '>近3次趋势</option></select></label>' : '') + '</div>' +
       (!ready ? '<div class="ed-empty"><h3>' + (movement ? '暂时无法比较排名变化' : '还差一点数据，就能比较各科表现') + '</h3><p>' + empty + '</p>' + (movement ? '<button type="button" class="ed-button" data-ed-mode="performance">查看本次表现</button>' : button('补录成绩与排名', 'edit')) + '</div>' :
         '<div class="ed-chart-layout"><div>' + plot(d) + '<div class="ed-point-list">' + d.points.map(function (p) { return '<button type="button" data-ed-point="' + p.index + '" aria-pressed="false"><i style="background:' + palette[p.group].color + '">' + p.index + '</i>' + esc(p.row.name) + '</button>'; }).join('') + '</div></div><aside class="ed-inspect" aria-live="polite"></aside></div>' +
         '<div class="ed-quadrant-groups">' + ['strength','potential','compete','support'].map(function (key) { var names = d.points.filter(function (p) { return p.group === key; }).map(function (p) { return p.row.name; }); return '<article><h3><i style="background:' + palette[key].color + '"></i>' + palette[key].title + '</h3><b>' + (names.length ? esc(names.join('、')) : '暂无科目') + '</b><p>' + palette[key].text + '</p></article>'; }).join('') + '</div><details class="ed-method"><summary>分界与比较说明</summary><p>' + method + '</p></details>') +
@@ -221,7 +221,7 @@
   }
   function bindQuadrants(exam, m) {
     var host = document.querySelector('#ed-quadrants'); if (!host) return;
-    var d = view.chartMode === 'performance' ? quadrantData(m, view.scope) : movementData(exam, m, view.scope, view.trendWindow || 'previous');
+    var d = view.chartMode === 'performance' ? quadrantData(m, view.scope) : movementData(exam, m, view.scope, view.trendWindow || 'previous', view.sameCategory === true);
     host.innerHTML = quadrantsHtml(m, view.scope, d);
     function select(index, userInitiated) {
       var p = d.points.find(function (p) { return p.index === Number(index); }), inspect = host.querySelector('.ed-inspect'); if (!p || !inspect) return;
@@ -236,6 +236,7 @@
     host.querySelectorAll('[data-ed-point]').forEach(function (el) { el.onclick = function () { select(el.dataset.edPoint, true); }; if (el.tagName.toLowerCase() === 'g') el.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(el.dataset.edPoint, true); } }; });
     host.querySelectorAll('[data-ed-scope]').forEach(function (b) { b.onclick = function () { view.scope = b.dataset.edScope; track('exam_detail_quadrant_scope_changed', { scope: view.scope }); bindQuadrants(exam, m); document.querySelector('[data-ed-scope="' + view.scope + '"]').focus(); }; });
     host.querySelectorAll('[data-ed-mode]').forEach(function (b) { b.onclick = function () { view.chartMode = b.dataset.edMode; track('exam_detail_quadrant_mode_changed', { mode: view.chartMode }); bindQuadrants(exam, m); host.querySelector('[data-ed-mode="' + view.chartMode + '"]').focus(); }; });
+    var categorySelect = host.querySelector('[data-ed-category]'); if (categorySelect) categorySelect.onchange = function () { view.sameCategory = categorySelect.value === 'same'; track('exam_detail_quadrant_category_scope_changed', { same_category: view.sameCategory }); bindQuadrants(exam, m); host.querySelector('[data-ed-category]').focus(); };
     var windowSelect = host.querySelector('[data-ed-window]'); if (windowSelect) windowSelect.onchange = function () { view.trendWindow = windowSelect.value; track('exam_detail_quadrant_window_changed', { window: view.trendWindow }); bindQuadrants(exam, m); host.querySelector('[data-ed-window]').focus(); };
     var first = d.points.find(function (p) { return p.row.name === view.pointName; }) || d.points[0]; if (first) select(first.index, false);
   }
@@ -310,7 +311,7 @@
   }
   function open(id) {
     var exam = allExams().find(function (e) { return e.id === id; }); if (!exam || !leave()) return;
-    view = { id: id, user: owner(), token: state.token, scroll: window.scrollY || 0, papers: null, offset: 0, more: false, loading: false, subject: '', chartMode: 'movement', trendWindow: 'previous' };
+    view = { id: id, user: owner(), token: state.token, scroll: window.scrollY || 0, papers: null, offset: 0, more: false, loading: false, subject: '', chartMode: 'movement', trendWindow: 'previous', sameCategory: false };
     track('exam_detail_opened', { source: 'records' });
     state.page = 'records'; render(); window.scrollTo(0, 0);
     var heading = document.querySelector('.ed-heading h1'); if (heading) heading.focus({ preventScroll: true });
