@@ -3,6 +3,10 @@
   "trailingSlash": false,
   "rewrites": [
     {
+      "source": "/api/score-tracker-paper-review",
+      "destination": "https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-paper-review"
+    },
+    {
       "source": "/mg",
       "destination": "/api/mg"
     },

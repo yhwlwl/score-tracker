@@ -1,5 +1,5 @@
 /* A retrospective, personal score/rank scale. Not population test equating. */
-(function () {
+(function (window) {
   'use strict';
   var cache = new WeakMap();
   function present(v) { return v != null && !(typeof v === 'string' && v.trim() === ''); }
@@ -155,4 +155,4 @@
     }); return result;
   }
   window.__stScoreWorthModel = { observation: observation, compare: compare, cells: cells, fit: fit, context: context, day: day, key: key, difficultyIndex: difficultyIndex };
-})();
+})(typeof window === 'undefined' ? globalThis : window);

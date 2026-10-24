@@ -1536,6 +1536,7 @@ function moduleRanksForExamV32(e,modId){
   return null;
 }
 function routeStatsV32(){
+  if(window.ScorePaperHub && state.analysisTab === "ai"){window.ScorePaperHub.render(document.getElementById("content"));return;}
   try{window.__stTrack&&window.__stTrack("stats_open",{});}catch(e){}
   var cfg=(typeof state!=="undefined"&&state.sv31)||(state.sv31={scope:"__all__",mode:"rank"});
   var exams=scopeFilterV32(visibleExamsV32(cfg.includeHidden),cfg.scope);
@@ -1548,6 +1549,7 @@ function routeStatsV32(){
   var c=document.getElementById("content");if(!c)return;
   var sy=window.pageYOffset||0;
   c.innerHTML=statsPageV32(f);
+  if(window.ScorePaperHub)window.ScorePaperHub.tabs(c.firstElementChild);
   try{bindStatsV32(f,c.firstElementChild);}catch(e){}
   if(window.__stScoreWorth)window.__stScoreWorth.bind(c.firstElementChild,f);
   if(window.__stTrajectories)window.__stTrajectories.bind(c.firstElementChild,f);
