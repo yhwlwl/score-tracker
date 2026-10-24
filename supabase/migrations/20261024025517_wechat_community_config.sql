@@ -1,4 +1,4 @@
--- One disabled, service-only configuration row; no user/group-membership data.
+-- One disabled, service-only configuration row; version matches the applied migration.
 begin;
 create table public.score_tracker_community_config (
   id smallint primary key default 1 check (id = 1),

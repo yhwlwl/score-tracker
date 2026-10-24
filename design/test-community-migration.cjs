@@ -4,7 +4,7 @@ const {PGlite}=require('@electric-sql/pglite');
   const db=new PGlite();
   try{
     await db.exec('create role anon;create role authenticated;create role service_role bypassrls;create table public.score_tracker_users(id uuid primary key);');
-    await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/20261024025140_wechat_community_config.sql'),'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/20261024025517_wechat_community_config.sql'),'utf8'));
     const rows=(await db.query('select config,revision from score_tracker_community_config')).rows;assert.equal(rows.length,1);assert.equal(rows[0].revision,1);assert.deepEqual(rows[0].config,{});
     assert.equal((await db.query("select relrowsecurity from pg_class where relname='score_tracker_community_config'")).rows[0].relrowsecurity,true);
     for(const role of ['anon','authenticated']){
