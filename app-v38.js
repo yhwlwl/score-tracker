@@ -1,4 +1,5 @@
 /* Compact analysis and selective report export. */
+/* 2026-10-24: keep the repaired bundle on a fresh cache key after main-branch recovery. */
 (function () {
   'use strict';
   var serial = 0, pending = false, opener = null;

@@ -1,5 +1,6 @@
 // Compatibility helpers for older iOS Safari/WebViews.
 // Keep this file tiny and load it before the application scripts.
+// Keep the repaired main bundle on a fresh cache key after recovery.
 (function () {
   if (!Array.prototype.at) {
     Object.defineProperty(Array.prototype, 'at', {
