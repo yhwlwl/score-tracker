@@ -10,7 +10,7 @@
   var active = '', lastCheck = 0, busy = null, pending = [], memory = {}, latestConfig = DEFAULT;
   var modal = null, lastFocus = null, pumpTimer = null, loginTimer = null;
   function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-  function noticeMarkup(v) { return esc(v).replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g,'<strong>$2</strong>').replace(/\[([^\]\n]{1,80})\]\(#author-support\)/g,'<button type="button" class="rn-support-link" data-notice-support hidden>$1</button>'); }
+  function noticeMarkup(v) { return esc(v).replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g,'<strong>$2</strong>').replace(/\[([^\]\n]{1,80})\]\(#author-support\)/g,'<button type="button" class="rn-support-link" data-notice-support hidden>$1</button>').replace(/\[([^\]\n]{1,80})\]\(#community\)/g,'<button type="button" class="rn-support-link" data-notice-community hidden>$1</button>'); }
   function anonymousName(v) { var s=String(v||'用户').trim()||'用户'; return s.length<=1?s:s[0]+'*'+s[s.length-1]; }
   function version(v) { var parts=String(v || '').trim().replace(/^v/i,'').split('.').map(Number);while(parts.length>2&&parts[parts.length-1]===0)parts.pop();if(parts.length===1)parts.push(0);return 'v'+parts.join('.'); }
   function compare(a,b) { var x=version(a).slice(1).split('.').map(Number), y=version(b).slice(1).split('.').map(Number); for(var i=0;i<Math.max(x.length,y.length);i++){var d=(x[i]||0)-(y[i]||0);if(d)return d;}return 0; }
@@ -53,6 +53,10 @@
     if(lastFocus&&lastFocus.isConnected)lastFocus.focus();lastFocus=null;queuePump();
   }
   function mountSupport(back,item) {
+    back.querySelectorAll('[data-notice-community]').forEach(function(link){
+      link.hidden=!user()||!window.__scoreTrackerCommunity?.available()||!!state.onboarding;
+      link.onclick=function(){if(!window.__scoreTrackerCommunity?.available())return;close('open_community');window.__scoreTrackerCommunity.open('notice');};
+    });
     back.querySelectorAll('[data-notice-support]').forEach(function(link){
       link.hidden=!user()||!window.__scoreTrackerSupport?.available()||!!state.onboarding;
       link.onclick=function(){if(!window.__scoreTrackerSupport?.available())return;close('open_support');window.__scoreTrackerSupport.open(item.kind==='release'?'release':'announcement');};
