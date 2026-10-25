@@ -49,6 +49,8 @@
   "community.js",
   "participant-defaults.js",
   "exam-averages.js",
+  "supabase/functions/_shared/question-types.js",
+  "question-type-scores.js",
   "exam-changes.js",
   "exam-reflection.js",
   "exam-detail.js"
