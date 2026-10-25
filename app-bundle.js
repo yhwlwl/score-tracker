@@ -1,5 +1,5 @@
 /*! app-bundle.js · 自动生成,勿手改 —— 改源码后运行: node design/build-bundles.js
-   来源顺序: compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js, score-worth-model.js, score-worth.js, release-notices.js, account-recovery.js, trajectory-forecast.js, similar-trajectories.js, school-settings.js, announcement-settings.js, author-support.js, community.js, participant-defaults.js, exam-averages.js, exam-changes.js, exam-reflection.js, exam-detail.js */
+   来源顺序: compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js, score-worth-model.js, score-worth.js, release-notices.js, account-recovery.js, trajectory-forecast.js, similar-trajectories.js, school-settings.js, announcement-settings.js, author-support.js, community.js, participant-defaults.js, exam-averages.js, supabase/functions/_shared/question-types.js, question-type-scores.js, exam-changes.js, exam-reflection.js, exam-detail.js */
 /* ===== compat.js ===== */
 // Compatibility helpers for older iOS Safari/WebViews.
 // Keep this file tiny and load it before the application scripts.
@@ -6566,7 +6566,7 @@ function csvCellV30(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.repl
 function buildCsvV30(exams,scopeLabel){
   var subjects=subjectsUnionV30(exams),mods=modulesV30();
   var head=['日期','考试名称','分类','结束日期'];
-  subjects.forEach(function(s){head.push(s+' 目标',s+' 最终分',s+' 最终满分',s+' 原始分',s+' 原始满分',s+' 年排',s+' 年级人数',s+' 班排',s+' 班级人数',s+' 年位比%',s+' 班位比%',s+' 不计总分',s+' 班级均分',s+' 年级均分');});
+  subjects.forEach(function(s){head.push(s+' 目标',s+' 最终分',s+' 最终满分',s+' 原始分',s+' 原始满分',s+' 年排',s+' 年级人数',s+' 班排',s+' 班级人数',s+' 年位比%',s+' 班位比%',s+' 不计总分',s+' 班级均分',s+' 年级均分',s+' 题型得分（原始分）');});
   head.push('总分','原始总分','总排名(年)','年级人数(总)','总班排','班级人数(总)','总年位比%','总班位比%','总分班级均分','总分年级均分');
   mods.forEach(function(m){head.push(m.name+' 年排',m.name+' 年人数',m.name+' 班排',m.name+' 班人数',m.name+' 班级均分',m.name+' 年级均分');});
   var lines=[head.map(csvCellV30).join(',')];
@@ -6576,6 +6576,7 @@ function buildCsvV30(exams,scopeLabel){
       var r=(ex.scores||{})[s]||{};
       row.push(fmtV30(numV30(r.target)),fmtV30(numV30(r.actual)),r.max===''||r.max==null?'':fmtV30(numV30(r.max)),fmtV30(numV30(r.raw)),r.rawMax===''||r.rawMax==null?'':fmtV30(numV30(r.rawMax)),fmtV30(numV30(r.rank)),fmtV30(numV30(r.participants)),fmtV30(numV30(r.classRank)),fmtV30(numV30(r.classParticipants)),fmtV30(numV30(r.yearPositionPercent)),fmtV30(numV30(r.classPositionPercent)),r.excludeFromTotal?'是':'');
       row.push(averageV30(ex,'s:'+s,'class'),averageV30(ex,'s:'+s,'year'));
+      row.push(window.ScoreQuestionTypes ? window.ScoreQuestionTypes.text(ex,s) : '');
     });
     row.push(fmtV30(sumTotalV30(ex,'actual')),fmtV30(sumTotalV30(ex,'raw')),
       fmtV30(numV30(ex.total_rank)),fmtV30(numV30(ex.total_participants)),fmtV30(numV30(ex.total_class_rank)),fmtV30(numV30(ex.total_class_participants)),fmtV30(numV30(ex.total_year_position_percent)),fmtV30(numV30(ex.total_class_position_percent)));
@@ -6624,6 +6625,7 @@ function buildTxtV30(exams,scopeLabel){
       if(r.excludeFromTotal)seg.push('不计入总分');
       var avg=averageTextV30(ex,'s:'+s);if(avg)seg.push(avg);
       out.push('  '+seg.join(' ｜ '));
+      var types=window.ScoreQuestionTypes&&window.ScoreQuestionTypes.text(ex,s);if(types)out.push('    题型（原始分）：'+types);
     });
     var ranks=ex.moduleRanks||{};
     modulesV30().forEach(function(mo){
@@ -6866,12 +6868,13 @@ function buildPrintHtmlV30(exams,scopeLabel){
   /* —— 逐考试明细块 —— */
   function subjectRow(s,r,ex){
     var a=numV30(r.actual),m=numV30(r.max);
-    if(a===null&&numV30(r.target)===null&&numV30(r.rank)===null&&numV30(r.classRank)===null)return '';
+    var types=window.ScoreQuestionTypes&&window.ScoreQuestionTypes.text(ex,s);
+    if(a===null&&numV30(r.target)===null&&numV30(r.rank)===null&&numV30(r.classRank)===null&&!types)return '';
     var p=pctTextV30(a,m);
     var reached=(a!==null&&numV30(r.target)!==null)?a>=numV30(r.target):null;
     var fill=reached===null?'#5d72e8':(reached?'#2f9d76':'#e59b45');
     return '<tr>'
-      +'<td class="s-name"><b>'+escV30(s)+'</b>'+(r.excludeFromTotal?'<span class="dim">（不计总分）</span>':'')+(averageTextV30(ex,'s:'+s)?'<br><small class="dim">'+escV30(averageTextV30(ex,'s:'+s))+'</small>':'')+'</td>'
+      +'<td class="s-name"><b>'+escV30(s)+'</b>'+(r.excludeFromTotal?'<span class="dim">（不计总分）</span>':'')+(averageTextV30(ex,'s:'+s)?'<br><small class="dim">'+escV30(averageTextV30(ex,'s:'+s))+'</small>':'')+(types?'<br><small class="dim">题型（原始分）：'+escV30(types)+'</small>':'')+'</td>'
       +'<td class="num">'+(fmtV30(numV30(r.target))||'—')+(reached!==null?(reached?' <i class="ok">达标</i>':' <i class="miss">差'+fmtV30(numV30(r.target)-a)+'</i>'):'')+'</td>'
       +'<td class="num strong">'+(a!==null?a:'—')+'<span class="dim">'+(m!==null?'/'+m:'')+'</span></td>'
       +'<td class="rate">'+(p?'<span class="track"><span class="fill" style="width:'+p+'%;background:'+fill+'"></span></span><span class="lab">'+p+'%</span>':'—')+'</td>'
@@ -14164,6 +14167,168 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   document.head.appendChild(style);
 })();
 
+/* ===== supabase/functions/_shared/question-types.js ===== */
+/* Shared by the browser bundle and Edge handlers. All breakdowns use raw marks. */
+(function (root) {
+  'use strict';
+  function number(value) {
+    if (value === null || value === undefined || value === '') return null;
+    if (!['number', 'string'].includes(typeof value) || (typeof value === 'string' && !value.trim())) return NaN;
+    var n = Number(value);
+    return Number.isFinite(n) && n >= 0 && n <= 99999 && Math.abs(n * 100 - Math.round(n * 100)) < 0.000001 ? n : NaN;
+  }
+  function clean(rows, label) {
+    if (!Array.isArray(rows) || rows.length > 30) throw new Error((label || '') + '题型须为列表，每科最多 30 项');
+    var seen = new Set();
+    return rows.filter(function (r) { return !(r && r.name === '' && (r.score == null || r.score === '') && (r.max == null || r.max === '')); }).map(function (r) {
+      if (!r || typeof r !== 'object' || Array.isArray(r)) throw new Error('题型条目格式不正确');
+      var name = typeof r.name === 'string' ? r.name.trim() : '';
+      if (!name || name.length > 40) throw new Error('题型名称请填写 1～40 个字符');
+      if (seen.has(name)) throw new Error('题型「' + name + '」重复了，请合并或区分名称');
+      seen.add(name);
+      var score = number(r.score), max = number(r.max);
+      if (Number.isNaN(score) || Number.isNaN(max) || max === 0) throw new Error(name + '的得分须为非负数、满分须大于 0，最多两位小数');
+      if (max !== null && score !== null && score > max) throw new Error(name + '的得分不能超过满分');
+      return { name: name, score: score, max: max };
+    });
+  }
+  function sum(rows) {
+    var score = 0, max = 0, scored = 0, complete = rows.length > 0;
+    rows.forEach(function (r) { if (r.score !== null) { score += r.score; scored++; } if (r.max !== null) max += r.max; if (r.score === null || r.max === null) complete = false; });
+    return { score: Math.round(score * 100) / 100, max: Math.round(max * 100) / 100, scored: scored, complete: complete };
+  }
+  function validate(rows, rawMax, rawScore) {
+    var s = sum(rows);
+    if (rawMax != null && s.max > rawMax + 0.000001) throw new Error('题型满分合计超过卷面原始满分，请检查是否重复录入');
+    if (rawMax != null && s.score > rawMax + 0.000001) throw new Error('题型得分合计超过卷面原始满分');
+    if (rawScore != null && s.score > rawScore + 0.000001) throw new Error('题型得分合计超过原始分，请核对后保存');
+    return s;
+  }
+  var api = { number: number, clean: clean, sum: sum, validate: validate };
+  root.ScoreQuestionTypeModel = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(globalThis);
+
+/* ===== question-type-scores.js ===== */
+/* Optional per-subject raw-score breakdowns, never counted again in exam totals. */
+(function () {
+  'use strict';
+  var model = window.ScoreQuestionTypeModel;
+  var presets = {
+    '英语': ['听力', '阅读理解', '七选五', '完形填空', '语法填空', '短文改错', '应用文', '读后续写', '作文'],
+    '语文': ['现代文阅读', '文言文阅读', '古诗词鉴赏', '名篇名句默写', '语言文字运用', '作文'],
+    '数学': ['单项选择题', '多项选择题', '填空题', '解答题'],
+    '物理': ['单项选择题', '多项选择题', '实验题', '计算题'],
+    '化学': ['选择题', '实验题', '原理综合题', '有机推断题'],
+    '生物': ['选择题', '非选择题'], '政治': ['选择题', '材料分析题'], '历史': ['选择题', '材料分析题', '论述题'], '地理': ['选择题', '综合题']
+  };
+  function esc(v) { return escapeHtml(String(v == null ? '' : v)); }
+  function fmt(v) { return v == null ? '—' : String(v); }
+  function cardName(card) { return card.querySelector('.exam-subject-name-v10').value.trim(); }
+  function value(card, selector) { var input = card.querySelector(selector); return model.number(input ? input.value : null); }
+  function rawScore(card) { var raw = value(card, '.raw-v16'); return raw === null && value(card, '.rawmax-v16') === value(card, '.max-v16') ? value(card, '.actual-v16') : raw; }
+  function track(event, metadata) { if (window.__scoreTrackerTrack) window.__scoreTrackerTrack(event, metadata, 'record'); }
+  function mount(modal, card) {
+    if (card.querySelector('.qt-editor')) return;
+    var name = cardName(card); if (!name) return;
+    var draft = modal._questionTypeDraft;
+    if (!Object.prototype.hasOwnProperty.call(draft, name)) draft[name] = [];
+    var box = document.createElement('details'); box.className = 'qt-editor'; box.open = draft[name].length > 0;
+    box.innerHTML = '<summary><span>题型得分 <small>选填</small></span><span class="qt-summary"></span></summary><div class="qt-body"><p class="qt-help">按卷面原始分记录，可只填部分题型。题型与满分可自定义。</p><div class="qt-rows"></div><div class="qt-toolbar"><label><span class="qt-sr">添加常用题型</span><select class="qt-preset" aria-label="' + esc(name) + '添加常用题型"><option value="">＋ 常用题型</option>' + (presets[name] || ['选择题','填空题','解答题']).map(function (n) { return '<option>' + esc(n) + '</option>'; }).join('') + '</select></label><button type="button" class="qt-add">＋ 自定义题型</button></div><div class="qt-status" aria-live="polite"></div><button type="button" class="qt-use" hidden>用合计填入原始分</button></div>';
+    card.appendChild(box);
+    var rows = box.querySelector('.qt-rows'), status = box.querySelector('.qt-status');
+    function update() {
+      box.querySelector('.qt-summary').textContent = draft[name].length ? draft[name].length + ' 项' : '展开录入';
+      var use = box.querySelector('.qt-use'); use.hidden = true; status.classList.remove('qt-error');
+      try {
+        var clean = model.clean(draft[name]), sum = model.sum(clean), max = value(card,'.rawmax-v16');
+        model.validate(clean, max, null);
+        use.hidden = !(sum.complete && max !== null && Math.abs(sum.max - max) < 0.000001);
+        status.textContent = clean.length ? '已录得分 ' + sum.score + ' 分 · ' + sum.scored + '/' + clean.length + ' 项已填得分' + (sum.complete && sum.max === max ? ' · 已覆盖卷面满分' : ' · 仅统计已录题型') : '可从常用题型开始，也可以直接添加自己的题型。';
+        var raw = rawScore(card);
+        if (raw !== null && sum.score > raw) { status.textContent += '。合计超过当前原始分，请核对。'; status.classList.add('qt-error'); }
+        else if (sum.complete && sum.max === max && raw !== null && sum.score !== raw) status.textContent += '。与当前原始分相差 ' + Math.round((sum.score - raw)*100)/100 + ' 分，请核对。';
+      } catch (e) { status.textContent = e.message; status.classList.add('qt-error'); }
+    }
+    function draw() {
+      rows.innerHTML = draft[name].map(function (r,i) { return '<div class="qt-row"><label class="qt-name"><span>题型</span><input data-qt-field="name" maxlength="40" value="' + esc(r.name) + '" aria-label="' + esc(name) + '题型' + (i+1) + '名称" placeholder="如：完形填空"></label><label><span>得分</span><input data-qt-field="score" type="number" min="0" max="99999" step="0.01" inputmode="decimal" value="' + esc(r.score) + '" aria-label="' + esc(name) + '题型' + (i+1) + '得分" placeholder="待补"></label><label><span>满分</span><input data-qt-field="max" type="number" min="0.01" max="99999" step="0.01" inputmode="decimal" value="' + esc(r.max) + '" aria-label="' + esc(name) + '题型' + (i+1) + '满分" placeholder="待补"></label><button type="button" class="qt-remove" aria-label="删除题型' + (i+1) + '">×</button></div>'; }).join('');
+      rows.querySelectorAll('.qt-row').forEach(function (row,i) {
+        row.querySelectorAll('input').forEach(function (input) { input.oninput = function () { draft[name][i][input.dataset.qtField] = input.validity.badInput ? 'invalid' : input.value; update(); }; });
+        row.querySelector('button').onclick = function () { draft[name].splice(i,1); draw(); };
+      }); update();
+    }
+    function add(label) {
+      if (draft[name].length >= 30) return toast('每科最多记录 30 个题型');
+      if (label && draft[name].some(function (r) { return r.name.trim() === label; })) return toast('这个题型已添加');
+      draft[name].push({name:label,score:null,max:null}); draw();
+      var added = rows.lastElementChild; added.querySelector(label ? '[data-qt-field="score"]' : 'input').focus();
+    }
+    box.querySelector('.qt-add').onclick = function () { add(''); };
+    box.querySelector('.qt-preset').onchange = function () { var label = this.value; this.value = ''; if (label) add(label); };
+    box.querySelector('.qt-use').onclick = function () {
+      try {
+        var sum = model.validate(model.clean(draft[name]),value(card,'.rawmax-v16'),null);
+        if (!sum.complete || Math.abs(sum.max - value(card,'.rawmax-v16')) > 0.000001) return;
+        var input = card.querySelector('.raw-v16'); input.value = sum.score; input.dispatchEvent(new Event('input',{bubbles:true}));
+        if (value(card,'.max-v16') === sum.max && value(card,'.actual-v16') === null) { var final = card.querySelector('.actual-v16'); final.value = sum.score; final.dispatchEvent(new Event('input',{bubbles:true})); }
+        update();
+      } catch (e) { toast(e.message); }
+    };
+    card.addEventListener('input',function (e) { if (!box.contains(e.target)) update(); });
+    box._refresh = draw; draw();
+  }
+  function decorate(modal) { modal.querySelectorAll('.exam-subject-card-v10').forEach(function (card) { mount(modal,card); }); }
+  var beforeOpen = openExam;
+  openExam = function (exam) {
+    var result = beforeOpen.apply(this,arguments), modal = state.modal;
+    if (!modal || !modal.querySelector('#examSubjectsV16') || modal._questionTypeDraft) return result;
+    modal._questionTypeDraft = Object.assign(Object.create(null), JSON.parse(JSON.stringify(exam && exam.question_type_scores || {})));
+    modal._questionTypeExam = String(exam && exam.id || ''); modal._questionTypeOwner = state.token;
+    decorate(modal);
+    var observer = new MutationObserver(function () { if (!modal.isConnected) { observer.disconnect(); return; } decorate(modal); });
+    observer.observe(modal.querySelector('#examSubjectsV16'),{childList:true,subtree:true});
+    return result;
+  };
+  var beforeApi = dataApiV7;
+  dataApiV7 = function (action,payload) {
+    var modal = state.modal;
+    if (action === 'save_exam' && payload && payload.exam && modal && modal._questionTypeDraft && modal._questionTypeExam === String(payload.exam.id || '')) {
+      if (modal._questionTypeOwner !== state.token) throw new Error('账号已切换，请重新打开考试');
+      var map = Object.create(null), count = 0;
+      modal.querySelectorAll('.exam-subject-card-v10').forEach(function (card) {
+        var name = cardName(card);
+        try {
+          var rows = model.clean(modal._questionTypeDraft[name] || [],name);
+          model.validate(rows,value(card,'.rawmax-v16'),rawScore(card));
+          if (rows.length) { map[name] = rows; count += rows.length; }
+        } catch (e) { var box = card.querySelector('.qt-editor'); box.open = true; box.querySelector('.qt-status').textContent = e.message; box.querySelector('.qt-status').classList.add('qt-error'); box.scrollIntoView({block:'center'}); throw e; }
+      });
+      payload = Object.assign({},payload,{exam:Object.assign({},payload.exam,{question_type_scores:map})});
+      return Promise.resolve(beforeApi.call(this,action,payload)).then(function (r) { if (count) track('question_type_scores_saved',{subject_count:Object.keys(map).length,type_count:count}); return r; });
+    }
+    return beforeApi.call(this,action,payload);
+  };
+  function apply(modal, card, rows) {
+    if (!modal._questionTypeDraft || modal._questionTypeOwner !== state.token) throw new Error('请重新打开考试录入表');
+    var name = cardName(card), incoming = model.clean(rows,name), current = JSON.parse(JSON.stringify(modal._questionTypeDraft[name] || []));
+    // Recognition fills missing cells only; existing manual marks always win.
+    incoming.forEach(function (r) { var found = current.find(function (x) { return x.name.trim() === r.name; }); if (!found) current.push(r); else ['score','max'].forEach(function (key) { if (found[key] === null || found[key] === '') found[key] = r[key]; }); });
+    if (current.length > 30) throw new Error('合并后题型超过 30 项，请分批核对');
+    modal._questionTypeDraft[name] = current; mount(modal,card); var box = card.querySelector('.qt-editor'); box.open = true; box._refresh();
+    return incoming.length;
+  }
+  function text(exam, subject) { return ((exam.question_type_scores || {})[subject] || []).map(function (r) { return r.name + ' ' + fmt(r.score) + '/' + fmt(r.max); }).join('；'); }
+  function detail(exam) {
+    var map = exam.question_type_scores || {}, names = Object.keys(exam.scores || {}).filter(function (name) { return Array.isArray(map[name]) && map[name].length; });
+    if (!names.length) return '';
+    return '<div class="qt-detail"><h3>题型得分</h3><p class="qt-help">卷面原始分 · 只统计已录入的题型</p><div class="qt-detail-grid">' + names.map(function (name) { return '<article><h4>' + esc(name) + '</h4>' + map[name].map(function (r) { var rate = r.score != null && r.max > 0 ? Math.round(r.score/r.max*1000)/10 : null; return '<div class="qt-detail-row"><span>' + esc(r.name) + '</span><b>' + esc(fmt(r.score)) + ' <small>/ ' + esc(fmt(r.max)) + '</small></b><small>' + (rate == null ? '待补全' : rate + '%') + '</small></div>'; }).join('') + '</article>'; }).join('') + '</div></div>';
+  }
+  window.ScoreQuestionTypes = { apply:apply, detail:detail, text:text };
+  var style = document.createElement('style');
+  style.textContent = '.qt-editor{border-top:1px solid var(--line);margin-top:16px;padding-top:4px}.qt-editor summary{display:flex;justify-content:space-between;gap:12px;cursor:pointer;padding:13px 0;font-size:14px;list-style:none}.qt-editor summary::-webkit-details-marker{display:none}.qt-editor summary small,.qt-summary{color:var(--muted);font-size:12px;font-weight:400}.qt-editor summary small{margin-left:6px}.qt-editor summary:after{content:"＋";color:var(--muted)}.qt-editor[open] summary:after{content:"−"}.qt-summary{margin-left:auto}.qt-help{font-size:13px!important;color:var(--muted);line-height:1.7;margin:0 0 14px}.qt-rows{display:grid;gap:12px}.qt-row{display:grid;grid-template-columns:minmax(100px,1.5fr) minmax(65px,1fr) minmax(65px,1fr) 32px;gap:9px;align-items:end}.qt-row label{min-width:0;display:grid;gap:5px;font-size:12px;color:var(--muted)}.qt-row input,.qt-toolbar select{box-sizing:border-box;width:100%;min-width:0;border:1px solid var(--line);border-radius:9px;background:var(--input-bg,var(--panel-solid,#fff));color:var(--text);font:inherit;font-size:14px;min-height:42px;padding:9px}.qt-row button,.qt-toolbar button,.qt-use{font:inherit;font-size:13px;min-height:40px;border:1px solid var(--line);border-radius:9px;background:var(--panel-solid,#fff);color:var(--text);padding:8px 10px;cursor:pointer}.qt-row .qt-remove{padding:0;color:var(--muted);font-size:20px}.qt-toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.qt-toolbar label{flex:1;min-width:130px}.qt-toolbar button{flex:1;white-space:nowrap}.qt-status{font-size:12px;line-height:1.7;color:var(--muted);margin-top:13px}.qt-error{color:var(--danger)!important}.qt-use{margin-top:10px;color:var(--accent)}.qt-use[hidden]{display:none!important}.qt-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}.qt-editor :focus-visible{outline:2px solid var(--accent);outline-offset:2px}.qt-detail{margin-top:26px;padding-top:22px;border-top:1px solid var(--line)}.qt-detail h3{font-size:18px;margin:0 0 8px}.qt-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}.qt-detail h4{font-size:15px;margin:0 0 6px}.qt-detail-row{display:grid;grid-template-columns:minmax(0,1fr) auto 64px;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px;font-variant-numeric:tabular-nums}.qt-detail-row>span{overflow-wrap:anywhere}.qt-detail-row b{font-weight:600}.qt-detail-row small{font-size:12px;color:var(--muted)}.qt-detail-row>small{text-align:right}@media(max-width:620px){.qt-detail-grid{grid-template-columns:1fr}.qt-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 36px;gap:9px}.qt-row .qt-name{grid-column:1/3}.qt-row .qt-remove{grid-column:3;grid-row:1/3;align-self:center}.qt-row{padding-bottom:14px;border-bottom:1px solid var(--line)}.qt-row label:nth-child(2){grid-column:1;grid-row:2}.qt-row label:nth-child(3){grid-column:2;grid-row:2}.qt-row input{font-size:16px}}';
+  document.head.appendChild(style);
+})();
+
 /* ===== exam-changes.js ===== */
 /* One explicit historical exam per comparison; ranks do not depend on scores or maxima. */
 (function () {
@@ -14517,7 +14682,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
           cell('原始分', r.raw === null ? '—' : fmt(r.raw) + ' / ' + fmt(r.rawMax)) + cell('得分率', r.rate === null ? '—' : fmt(r.rate) + '%') +
           cell('目标', r.target === null ? '未设置' : fmt(r.target) + (r.actual !== null ? '<small>' + (r.actual === r.target ? '已达标' : signed(r.actual - r.target) + ' 分') + '</small>' : '')) +
           cell('年级排名', rankCell(r.year)) + cell('班级排名', rankCell(r.class)) + (hasAverages ? cell('平均分', averageCell(exam, r)) : '') + '</tr>';
-      }).join('') + '</tbody></table></div>' : '<p class="ed-empty">还没有科目数据，点击“编辑 / 补录”添加成绩。</p>') + combinations(exam, m) + '</section>';
+      }).join('') + '</tbody></table></div>' : '<p class="ed-empty">还没有科目数据，点击“编辑 / 补录”添加成绩。</p>') + (window.ScoreQuestionTypes ? window.ScoreQuestionTypes.detail(exam) : '') + combinations(exam, m) + '</section>';
   }
   function combinations(exam, m) {
     var selected = (state.modulesV18 || []).filter(function (mod) { return (exam.moduleIds || []).includes(mod.id); });

@@ -347,14 +347,19 @@
       hidden: null,
       total: {},
       city: {},
-      subjects: {},
+      subjects: Object.create(null),
       modules: {},
       rankMode: '',
       warnings: [],
       errors: [],
       fieldCount: 0
     };
-    if (!source) {
+    var typeLines = [];
+    source = source.split('\n').filter(function (line) {
+      if (/^题型\s*[:|]/.test(line)) { typeLines.push(line); return false; }
+      return true;
+    }).join('\n');
+    if (!source && !typeLines.length) {
       result.errors.push('请先输入要识别的内容。');
       return result;
     }
@@ -417,6 +422,19 @@
     Object.keys(result.total).forEach(function (key) { addFieldCount(result, result.total[key]); });
     Object.keys(result.city).forEach(function (key) { addFieldCount(result, result.city[key]); });
 
+    typeLines.forEach(function (line) {
+      var parts = line.match(/^题型\s*[:|]\s*([^|]+)\|([^|]+)\|([^|]*)\|([^|]*)$/);
+      if (!parts) { result.errors.push('题型请按「题型：科目 | 题型名 | 得分 | 满分」填写，未知填 -。'); return; }
+      var name = parts[1].trim();
+      if (!name || name.length > 40) { result.errors.push('题型所属科目名称不正确'); return; }
+      if (!Object.prototype.hasOwnProperty.call(result.subjects,name)) result.subjects[name] = {};
+      var rows = result.subjects[name].questionTypes || (result.subjects[name].questionTypes = []);
+      rows.push({name:parts[2].trim(),score:valueOrEmpty(parts[3]) || null,max:valueOrEmpty(parts[4]) || null});
+    });
+    Object.keys(result.subjects).forEach(function (name) {
+      try { if (result.subjects[name].questionTypes) result.subjects[name].questionTypes = window.ScoreQuestionTypeModel.clean(result.subjects[name].questionTypes,name); }
+      catch (e) { result.errors.push(e.message); }
+    });
     var subjects = occurrencesFor(source, subjectNames);
     subjects.forEach(function (item) {
       var parsed = parseSubjectBody(item.body);
@@ -619,6 +637,7 @@
         continue;
       }
       var data = result.subjects[name];
+      if (data.questionTypes && data.questionTypes.length && window.ScoreQuestionTypes) count += window.ScoreQuestionTypes.apply(modal, card, data.questionTypes);
       count += applyField(card, '.target-v16', data.target, result);
       count += applyField(card, '.raw-v16', data.raw, result);
       count += applyField(card, '.actual-v16', data.actual, result);
@@ -738,7 +757,7 @@
       '<div class="nl-entry-upload-card"><label class="nl-entry-file-button"><span>选择成绩单图片</span><small>支持多选，最多 6 张</small><input class="nl-entry-files" type="file" accept="image/*" multiple></label><p>可按成绩单顺序选择多张截图，系统会合并识别同一次考试。长图会自动分段，保留小字细节。</p><p class="nl-entry-help">识别成功后，图片和结果会保存下来，仅供管理员核对准确性。</p></div>' +
       '<div class="nl-entry-image-list" aria-live="polite"><span class="nl-entry-empty">还没有选择图片</span></div>' +
       '<div class="nl-entry-progress" hidden aria-live="polite"><div class="nl-entry-progress-head"><span>识别进度 · 总计</span><strong class="nl-entry-elapsed">0.0s</strong></div><ol class="nl-entry-progress-steps"><li class="nl-entry-progress-step" data-progress-step="0"><span class="nl-entry-progress-dot">1</span><span class="nl-entry-progress-step-label">检查登录与额度</span><strong class="nl-entry-progress-step-time" data-progress-time="0">—</strong></li><li class="nl-entry-progress-step" data-progress-step="1"><span class="nl-entry-progress-dot">2</span><span class="nl-entry-progress-step-label">测试识别服务连通性</span><strong class="nl-entry-progress-step-time" data-progress-time="1">—</strong></li><li class="nl-entry-progress-step" data-progress-step="2"><span class="nl-entry-progress-dot">3</span><span class="nl-entry-progress-step-label">准备清晰图片</span><strong class="nl-entry-progress-step-time" data-progress-time="2">—</strong></li><li class="nl-entry-progress-step" data-progress-step="3"><span class="nl-entry-progress-dot">4</span><span class="nl-entry-progress-step-label">上传并识别图片</span><strong class="nl-entry-progress-step-time" data-progress-time="3">—</strong></li><li class="nl-entry-progress-step" data-progress-step="4"><span class="nl-entry-progress-dot">5</span><span class="nl-entry-progress-step-label">读取识别结果</span><strong class="nl-entry-progress-step-time" data-progress-time="4">—</strong></li><li class="nl-entry-progress-step" data-progress-step="5"><span class="nl-entry-progress-dot">6</span><span class="nl-entry-progress-step-label">整理可编辑结果</span><strong class="nl-entry-progress-step-time" data-progress-time="5">—</strong></li></ol></div>' +
-      '<p class="nl-entry-vision-edit-hint" hidden>识别结果可直接编辑，确认无误后再点击“确认并填入”。</p>' +
+      '<p class="nl-entry-vision-edit-hint" hidden>识别结果可直接编辑，确认无误后再点击“确认并填入”。题型行格式：科目 | 题型 | 得分 | 满分，未知填 -。</p>' +
       '<textarea class="nl-entry-vision-output" aria-label="识别结果，可编辑" spellcheck="false" hidden></textarea>' +
       '<div class="modal-actions"><button class="primary nl-entry-vision-submit" type="button" disabled>识别图片</button></div>' +
       '</section>' +
@@ -1169,6 +1188,9 @@
           '，年排：' + displayPair(subject.yearRank, subject.yearParticipants) +
           '，班排：' + displayPair(subject.classRank, subject.classParticipants)
         );
+        (Array.isArray(subject.questionTypes) ? subject.questionTypes : []).forEach(function (row) {
+          lines.push('题型：' + subject.name + ' | ' + row.name + ' | ' + displayValue(row.score) + ' | ' + displayValue(row.max));
+        });
       });
       return lines.join('\n');
     }
@@ -1256,7 +1278,7 @@
         visionOutput.hidden = false;
         if (visionEditHint) {
           visionEditHint.hidden = false;
-          visionEditHint.textContent = '识别结果可直接编辑，确认无误后再点击“确认并填入”。' + (Array.isArray(visionPayload.warnings) ? visionPayload.warnings.slice(0, 3).join(' ') : '');
+          visionEditHint.textContent = '识别结果可直接编辑，确认无误后再点击“确认并填入”。题型行格式：科目 | 题型 | 得分 | 满分，未知填 -。' + (Array.isArray(visionPayload.warnings) ? visionPayload.warnings.slice(0, 3).join(' ') : '');
         }
         finishVisionProgress(true);
         trackUsage('quick_entry_image_recognition_completed', {

@@ -221,17 +221,39 @@ function normalize(raw: any, context: any) {
       classRank: cleanInt(item.classRank),
       classParticipants: cleanInt(item.classParticipants),
       ambiguousScore: cleanNum(item.ambiguousScore),
+      questionTypes: [] as any[],
     };
     if (subjectSchoolRank !== null || subjectSchoolParticipants !== null) warnings.push(`${name} 识别到校次/校排名，已按年排使用。`);
     if (subjectJointRank !== null || subjectJointParticipants !== null) warnings.push(`${name} 识别到联考名次/联考排名，当前不作为年排或班排。`);
     if (subject.ambiguousScore !== null) warnings.push(`${name} 有一个分数 ${subject.ambiguousScore}，无法确定是原始分还是赋分/最终分，请手动确认。`);
     if (subject.rawScore !== null && subject.rawMax !== null && subject.rawScore > subject.rawMax) warnings.push(`${name} 的原始分高于识别到的原始满分，请核对。`);
     if (subject.finalScore !== null && subject.finalMax !== null && subject.finalScore > subject.finalMax) warnings.push(`${name} 的最终分高于识别到的最终满分，请核对。`);
+    for (const type of (Array.isArray(item.questionTypes) ? item.questionTypes : []).slice(0,30)) {
+      const typeName = cleanText(type?.name,40);
+      if (!typeName) continue;
+      const row = {name:typeName,score:cleanNum(type.score),max:cleanNum(type.max)};
+      if (row.max === 0) row.max = null;
+      const existing = subject.questionTypes.find((x:any) => x.name === row.name);
+      if (!existing) subject.questionTypes.push(row);
+      else for (const key of ["score","max"] as const) {
+        if (existing[key] === null) existing[key] = row[key];
+        else if (row[key] !== null && row[key] !== existing[key]) warnings.push(`${name}的${row.name}出现不同分数，请核对。`);
+      }
+      if (row.max !== null && row.score !== null && row.score > row.max) warnings.push(`${name}的${row.name}得分超过满分，请核对。`);
+    }
     const previous = seen.get(name);
     if (previous) {
-      for (const key of Object.keys(subject).filter((k) => k !== "name")) {
+      for (const key of Object.keys(subject).filter((k) => k !== "name" && k !== "questionTypes")) {
         if (previous[key] === null && subject[key] !== null) previous[key] = subject[key];
         else if (previous[key] !== null && subject[key] !== null && previous[key] !== subject[key]) warnings.push(`${name} 的部分数据在图片中不一致，已保留先读到的值，请核对。`);
+      }
+      for (const row of subject.questionTypes) {
+        const existing = previous.questionTypes.find((x:any) => x.name === row.name);
+        if (!existing) { if (previous.questionTypes.length < 30) previous.questionTypes.push(row); }
+        else for (const key of ["score","max"] as const) {
+          if (existing[key] === null) existing[key] = row[key];
+          else if (row[key] !== null && row[key] !== existing[key]) warnings.push(`${name}的${row.name}在图片中不一致，请核对。`);
+        }
       }
       return null;
     }
@@ -243,7 +265,7 @@ function normalize(raw: any, context: any) {
 }
 
 function usableFieldCount(result: any) {
-  const values = [...Object.values(result.exam), ...result.subjects.flatMap((subject: any) => Object.entries(subject).filter(([key]) => key !== "name").map(([, value]) => value))];
+  const values = [...Object.values(result.exam), ...result.subjects.flatMap((subject: any) => Object.entries(subject).filter(([key]) => key !== "name" && key !== "questionTypes").map(([, value]) => value).concat((subject.questionTypes || []).flatMap((r:any) => [r.score,r.max])))];
   return values.filter((v) => v !== null && v !== undefined && v !== "").length;
 }
 
@@ -521,7 +543,7 @@ Deno.serve(async (req) => {
     }
 
     const context = body.context ?? {};
-    const prompt = `你是一个中文学生成绩单识别器。请从用户提供的同一次考试的成绩单截图或照片中提取明确可见的数据。图片可能包含同一张长成绩单的全图和清晰分段，图片前的说明标明它们的顺序。\n\n重要规则：\n1. 先阅读整张表的表头、行列关系和成绩区域，支持科目横排、科目竖排、成绩卡片、带聊天或网页边框的截图。只提取看得清且能对应到科目的数据；局部模糊或缺少日期、满分、人数时，只把对应字段填 null，并在 warnings 说明，不要因为信息不全就放弃其他清晰的成绩。绝不猜测分数或排名。\n2. “原始分/卷面分”和“赋分/等级分/最终分”必须根据图片文字语义区分。若某科只有一个分数或一组“分数/满分”，且没有明确写原始分，默认放到 finalScore/finalMax；只有明确出现原始分时才填写 rawScore/rawMax。\n3. 排名不要机械依赖固定字段名，也不要要求标签必须和“年排/班排”完全一致；请结合整张表的表头、分组、相邻行以及同一科目的语义判断范围，再映射到系统字段：学校范围的“校次/校排/校排名/学校名次”等按 yearRank 处理（本系统将校内名次作为年排使用）；年级范围的年排/年级排名等也按 yearRank 处理；班级范围的班次/班排/班级排名等按 classRank 处理；联考/联考名次/联考排名等单独放 jointRank，当前不作为 yearRank 或 classRank。若同一组数据同时出现校次、班次、联考名次，优先把校次放 yearRank、班次放 classRank，联考名次放 jointRank。只有确实无法判断范围时才返回 null，并在 warnings 说明。\n4. 参考人数只在图片明确出现时提取，不要用其他字段的数字补全。\n5. 科目/模块名称按图片原文，可包含自定义题型；${JSON.stringify(context.subjectNames || [])} 是当前录入表已有科目，仅用于辅助匹配，不要凭空新增图片中不存在的科目。\n6. 不要根据常识补满分；图片没有满分就返回 null。\n7. 日期必须转换成 YYYY-MM-DD；年份不明确则返回 null。\n8. 分类只允许从这些选项里选择：${JSON.stringify(context.classificationOptions || [])}；不明确就 null。\n9. 全图用于核对表头和上下文，清晰分段用于读小字；分段有少量重叠，可能把同一行拆在相邻图片中。先合并同一科目的不同字段，再去除重复，不要重复科目，也不要把同一张图的分段当成不同考试。\n10. 总分只从图片明确标注“总分/总成绩”的位置提取；不要把某一科成绩或排名填入总分。\n\n只返回 JSON，不要 Markdown，不要解释。格式：\n{\n  "exam": {"name": string|null, "date": string|null, "category": string|null, "finalTotal": number|null, "rawTotal": number|null, "yearRank": number|null, "yearParticipants": number|null, "classRank": number|null, "classParticipants": number|null, "jointRank": number|null, "jointParticipants": number|null},\n  "subjects": [{"name": string, "target": number|null, "rawScore": number|null, "rawMax": number|null, "finalScore": number|null, "finalMax": number|null, "yearRank": number|null, "yearParticipants": number|null, "classRank": number|null, "classParticipants": number|null, "jointRank": number|null, "jointParticipants": number|null, "ambiguousScore": number|null}],\n  "warnings": [string]\n}`;    const content: any[] = [{ type: "text", text: prompt }];
+    const prompt = `你是一个中文学生成绩单识别器。请从用户提供的同一次考试的成绩单截图或照片中提取明确可见的数据。图片可能包含同一张长成绩单的全图和清晰分段，图片前的说明标明它们的顺序。\n\n重要规则：\n1. 先阅读整张表的表头、行列关系和成绩区域，支持科目横排、科目竖排、成绩卡片、带聊天或网页边框的截图。只提取看得清且能对应到科目的数据；局部模糊或缺少日期、满分、人数时，只把对应字段填 null，并在 warnings 说明，不要因为信息不全就放弃其他清晰的成绩。绝不猜测分数或排名。\n2. “原始分/卷面分”和“赋分/等级分/最终分”必须根据图片文字语义区分。若某科只有一个分数或一组“分数/满分”，且没有明确写原始分，默认放到 finalScore/finalMax；只有明确出现原始分时才填写 rawScore/rawMax。\n3. 排名不要机械依赖固定字段名，也不要要求标签必须和“年排/班排”完全一致；请结合整张表的表头、分组、相邻行以及同一科目的语义判断范围，再映射到系统字段：学校范围的“校次/校排/校排名/学校名次”等按 yearRank 处理（本系统将校内名次作为年排使用）；年级范围的年排/年级排名等也按 yearRank 处理；班级范围的班次/班排/班级排名等按 classRank 处理；联考/联考名次/联考排名等单独放 jointRank，当前不作为 yearRank 或 classRank。若同一组数据同时出现校次、班次、联考名次，优先把校次放 yearRank、班次放 classRank，联考名次放 jointRank。只有确实无法判断范围时才返回 null，并在 warnings 说明。\n4. 参考人数只在图片明确出现时提取，不要用其他字段的数字补全。\n5. 科目名称按图片原文。题型（如英语的完形填空、阅读理解、作文）必须放在所属科目的 questionTypes 中，不得当成独立科目，也不重复计入总分。只提取有明确科目归属、名称及分数依据的题型；同一题型跨图合并，保留明确零分；不要由小题猜题型、不要凭答案自行判分，不要把作文总计与作文子项同时作为并列题型。未知得分/满分留 null，满分不能用惯例补全；${JSON.stringify(context.subjectNames || [])} 是当前录入表已有科目，仅用于辅助匹配，不要凭空新增图片中不存在的科目。\n6. 不要根据常识补满分；图片没有满分就返回 null。\n7. 日期必须转换成 YYYY-MM-DD；年份不明确则返回 null。\n8. 分类只允许从这些选项里选择：${JSON.stringify(context.classificationOptions || [])}；不明确就 null。\n9. 全图用于核对表头和上下文，清晰分段用于读小字；分段有少量重叠，可能把同一行拆在相邻图片中。先合并同一科目的不同字段，再去除重复，不要重复科目，也不要把同一张图的分段当成不同考试。\n10. 总分只从图片明确标注“总分/总成绩”的位置提取；不要把某一科成绩或排名填入总分。\n\n只返回 JSON，不要 Markdown，不要解释。格式：\n{\n  "exam": {"name": string|null, "date": string|null, "category": string|null, "finalTotal": number|null, "rawTotal": number|null, "yearRank": number|null, "yearParticipants": number|null, "classRank": number|null, "classParticipants": number|null, "jointRank": number|null, "jointParticipants": number|null},\n  "subjects": [{"name": string, "target": number|null, "rawScore": number|null, "rawMax": number|null, "finalScore": number|null, "finalMax": number|null, "yearRank": number|null, "yearParticipants": number|null, "classRank": number|null, "classParticipants": number|null, "jointRank": number|null, "jointParticipants": number|null, "ambiguousScore": number|null, "questionTypes": [{"name": string, "score": number|null, "max": number|null}]}],\n  "warnings": [string]\n}`;    const content: any[] = [{ type: "text", text: prompt }];
     images.forEach((image, index) => {
       const part = parts[index];
       const description = part.kind === "overview" ? "全图，供核对表头和上下文" : part.kind === "segment" ? `清晰片段 ${part.part_index}/${part.part_count}` : "完整图片";
