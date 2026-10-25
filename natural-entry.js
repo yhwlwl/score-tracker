@@ -1071,7 +1071,7 @@
         response = await requestWithTimeout(VISION_ENDPOINT, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(connectivityTest ? { action: 'connectivity_test', token: token, request_id: visionRequestId }
+          body: JSON.stringify(connectivityTest ? { action: 'readiness', token: token, request_id: visionRequestId }
             : { action: "recognize", client_protocol: 2, token: token, request_id: visionRequestId, images: prepared.images, image_parts: prepared.parts, image_stats: prepared.stats, app_version: document.querySelector('meta[name="application-version"]')?.content || "", context: visionContext(modal) })
         }, connectivityTest ? 45000 : 120000);
       } catch (cause) {
@@ -1107,7 +1107,7 @@
         serviceError.upstreamMessage = detail;
         throw serviceError;
       }
-      if (connectivityTest && (payload.ok !== true || payload.check !== 'upstream_model')) {
+      if (connectivityTest && (payload.ok !== true || payload.check !== 'service_readiness')) {
         var checkError = new Error('识别服务尚未完成连接测试，请刷新页面后重试；本次未扣识图次数。');
         checkError.code = 'connectivity_not_verified';
         checkError.stage = 'connectivity_test';
@@ -1571,3 +1571,4 @@
     };
   }
 })();
+

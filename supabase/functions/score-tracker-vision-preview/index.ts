@@ -267,7 +267,7 @@ Deno.serve(async (req) => {
   let requestId = crypto.randomUUID();
   const startedAt = Date.now();
   let quota: any = null, user: any = null, config: any = null;
-  let auditStarted = false, phase = "request_received", action = "recognize";
+  let auditStarted = false, connectivityReserved = false, phase = "request_received", action = "recognize";
   let images: string[] = [], parts: any[] = [], stats: any[] = [], attempts: any[] = [], rawOutput = "";
   const timings: any[] = [];
   let auditDiagnostics: Record<string, unknown> = {};
@@ -287,6 +287,21 @@ Deno.serve(async (req) => {
     if (status >= 400) console.error("vision_failure", JSON.stringify({ request_id: requestId, action, stage: phase,
       code: body.code || "vision_service_error", http_status: status, upstream_status: body.upstream_status ?? null,
       message: safeMessage(body.upstream_message || body.error), attempts: attempts.length, elapsed_ms: elapsed }));
+    if (connectivityReserved) {
+      const record = { status: status < 400 ? "succeeded" : "failed", http_status: status,
+        upstream_status: body.upstream_status ?? (status < 400 ? 200 : null),
+        error_code: status >= 400 ? body.code || "vision_service_error" : null,
+        duration_ms: elapsed, attempts, completed_at: new Date().toISOString() };
+      const finish = () => readDatabase(() => db.from("score_tracker_vision_connectivity_requests")
+        .update(record).eq("request_id", requestId).eq("user_id", user.id));
+      try {
+        const saved = await withTimeout(finish(), 5000, "connectivity_audit_timeout");
+        if (saved.error) throw saved.error;
+      } catch (error) {
+        console.error("vision_connectivity_audit_failed", JSON.stringify({ request_id: requestId, message: safeMessage((error as any)?.message || error) }));
+        background(finish().then(result => { if (result.error) throw result.error; }), requestId);
+      }
+    }
     if (auditStarted) {
       const succeeded = status < 400 && Array.isArray(body.subjects);
       const record = { status: succeeded ? "succeeded" : quota?.consumed || status >= 500 ? "failed" : "rejected", http_status: status,
@@ -308,7 +323,7 @@ Deno.serve(async (req) => {
       if (succeeded) background(saveImages(db, requestId, user.id, images, stats), requestId);
     }
     return json({ ...body, request_id: requestId, ...(status >= 400 ? { stage: phase } : {}),
-      diagnostics: { model: config?.model || null, attempt_count: attempts.length, elapsed_ms: elapsed, max_output_tokens: action === "connectivity_test" ? 32 : OUTPUT_TOKENS },
+      diagnostics: { model: config?.model || null, attempt_count: attempts.length, elapsed_ms: elapsed, max_output_tokens: action === "readiness" ? 0 : action === "connectivity_test" ? 32 : OUTPUT_TOKENS },
       ...(quota ? { quota } : {}) }, status);
   };
 
@@ -360,8 +375,8 @@ Deno.serve(async (req) => {
       const eligible = !config.betaOnly || await isVisionBetaUser(user.username);
       return reply({ enabled: !config.disabled && config.configured && !!config.baseUrl, eligible, beta_only: config.betaOnly });
     }
-    if (body.action && body.action !== "connectivity_test" && body.action !== "recognize") return reply({ error: "Unknown action" }, 400);
-    if (body.action === "connectivity_test") {
+    if (body.action && !["readiness", "connectivity_test", "recognize"].includes(body.action)) return reply({ error: "Unknown action" }, 400);
+    if (body.action === "connectivity_test" || body.action === "readiness") {
       const connectivityStartedAt = Date.now();
       if (config.disabled) return reply({ error: "识图功能当前未启用，请联系管理员", code: "vision_disabled", request_status: 503 }, 503);
       if (!config.apiKey) return reply({ error: "识图服务尚未配置识别服务 Key，请联系管理员", code: "missing_api_key", request_status: 503 }, 503);
@@ -379,8 +394,33 @@ Deno.serve(async (req) => {
 
       quota = await withTimeout(visionQuota(user.id), DATABASE_TIMEOUT_MS, "rate_limit_timeout");
       if (!quota?.allowed) return reply({ error: "暂时无法识别，请查看剩余额度或稍后重试", code: "ai_rate_limited", retry_after_seconds: quota?.retry_after_seconds || 0 }, 429);
-      // A readiness check must reach the configured model, not only our database.
-      // This short text request does not reserve recognition quota or send images.
+      // Automatic preflight is free of upstream requests; recognition tests the model itself.
+      if (body.action === "readiness") {
+        mark("readiness_ready");
+        return reply({ ok: true, status: 200, check: "service_readiness", latency_ms: Date.now() - connectivityStartedAt });
+      }
+      // A real diagnostic call has its own durable budget. Reserve before contacting the provider.
+      mark("connectivity_reserve");
+      let probe: any;
+      try {
+        const reserved = await withTimeout(readDatabase(() => db.rpc("score_tracker_vision_connectivity_reserve", {
+          p_user_id: user.id, p_request_id: requestId, p_model: config.model, p_provider_host: new URL(config.baseUrl).hostname,
+        })), DATABASE_TIMEOUT_MS, "connectivity_reserve_timeout");
+        if (reserved.error) throw reserved.error;
+        probe = reserved.data;
+      } catch (error) {
+        console.error("vision_connectivity_reserve_failed", JSON.stringify({ request_id: requestId, ...diagnose(error) }));
+        return reply({ error: "连接测试限流检查暂不可用，请稍后再试", code: "connectivity_limit_unavailable" }, 503);
+      }
+      if (probe?.allowed !== true) {
+        const duplicate = probe?.reason === "duplicate_request" || probe?.reason === "request_id_conflict";
+        return reply({ error: duplicate ? "这次连接测试已提交，请勿重复请求"
+          : probe?.reason === "user_daily_limit" ? "今日连接测试次数已用完，仍可正常使用图片识别"
+          : probe?.reason === "global_daily_limit" ? "今日连接测试总次数已用完，仍可正常使用图片识别"
+          : "连接测试过于频繁，请稍后再试", code: duplicate ? "connectivity_request_already_processed" : "connectivity_rate_limited",
+          retry_after_seconds: Number(probe?.retry_after_seconds || 0), connectivity_quota: probe }, duplicate ? 409 : 429);
+      }
+      connectivityReserved = true;
       const openRouter = isOpenRouterBase(config.baseUrl);
       const headers: Record<string, string> = { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" };
       if (openRouter) {
@@ -393,7 +433,7 @@ Deno.serve(async (req) => {
         body: { model: config.model, messages: [{ role: "user", content: '只返回 JSON：{"ok":true}' }],
           temperature: 0, max_tokens: 32, ...requestOptions(config.model, openRouter),
           ...(openRouter ? { provider: { data_collection: "deny" } } : {}) },
-        budgetMs: 12000, attemptTimeoutMs: 10000,
+        budgetMs: 10000, attemptTimeoutMs: 10000, maxAttempts: 1,
         mark: (_phase, detail) => mark("connectivity_attempt", detail),
         validate: () => true,
       });
@@ -402,7 +442,7 @@ Deno.serve(async (req) => {
         : "识别服务连接测试失败，请稍后重试；本次未扣识图次数。", code: outcome.code,
         upstream_status: outcome.upstream_status, upstream_message: outcome.upstream_message || "" }, outcome.status);
       mark("connectivity_ready");
-      return reply({ ok: true, status: 200, check: "upstream_model", latency_ms: Date.now() - connectivityStartedAt, model: config.model });
+      return reply({ ok: true, status: 200, check: "upstream_model", latency_ms: Date.now() - connectivityStartedAt, model: config.model, connectivity_quota: probe });
     }
 
     mark("image_validation");
@@ -542,3 +582,4 @@ Deno.serve(async (req) => {
     }, status);
   }
 });
+

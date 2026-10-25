@@ -43,16 +43,17 @@ export async function recognizeWithRecovery(options: {
   url: string; headers: Record<string, string>; body: Record<string, any>;
   requestId: string; validate: (text: string) => any;
   mark: (phase: string, extra?: Record<string, unknown>) => void;
-  budgetMs?: number; attemptTimeoutMs?: number;
+  budgetMs?: number; attemptTimeoutMs?: number; maxAttempts?: number;
 }) {
   const started = Date.now(), attempts: any[] = [];
   const budget = Math.min(options.budgetMs ?? UPSTREAM_BUDGET_MS, UPSTREAM_BUDGET_MS);
+  const maxAttempts = options.maxAttempts === 1 ? 1 : 2;
   const body = { ...options.body };
   const apiKey = (options.headers.Authorization || "").replace(/^Bearer\s+/i, "");
   const sanitize = (value: unknown, max = 600) => safeMessage(apiKey ? String(value ?? "").split(apiKey).join("[hidden]") : value, max);
 
   let last: any = { code: "upstream_timeout", error: "识别服务响应较慢，请稍后再试", status: 504, upstream_status: 0 };
-  for (let index = 0; index < 2; index++) {
+  for (let index = 0; index < maxAttempts; index++) {
     const remaining = budget - (Date.now() - started);
     if (remaining <= 0) break;
     const timeoutMs = Math.min(options.attemptTimeoutMs ?? ATTEMPT_TIMEOUT_MS, remaining);
@@ -135,8 +136,9 @@ export async function recognizeWithRecovery(options: {
     } finally { clearTimeout(timer); }
     attempt.duration_ms = Date.now() - attemptStarted; attempt.outcome = last.code;
     attempts.push(attempt); options.mark("upstream_attempt", attempt);
-    if (!retry || index === 1 || budget - (Date.now() - started) < retryDelay + 500) break;
+    if (!retry || index + 1 === maxAttempts || budget - (Date.now() - started) < retryDelay + 500) break;
     await new Promise(resolve => setTimeout(resolve, retryDelay));
   }
   return { ok: false, ...last, attempts };
 }
+
