@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { examReflection } from "./reflection.ts";
 
 const db = createClient(
   Deno.env.get("SUPABASE_URL") ?? "",
@@ -221,7 +222,7 @@ async function list(user: any) {
     db
       .from("score_tracker_exams")
       .select(
-        "id,name,exam_date,end_date,total_rank,total_participants,total_class_rank,total_class_participants,total_year_position_percent,total_class_position_percent,total_actual_score,total_raw_score,is_hidden,grade_level,created_at,updated_at,city_rank,city_participants,district_rank,district_participants,averages"
+        "id,name,exam_date,end_date,total_rank,total_participants,total_class_rank,total_class_participants,total_year_position_percent,total_class_position_percent,total_actual_score,total_raw_score,is_hidden,grade_level,created_at,updated_at,city_rank,city_participants,district_rank,district_participants,averages,reflection,reflection_revision,reflection_updated_at"
       )
       .eq("user_id", user.id)
       .order("exam_date")
@@ -762,6 +763,10 @@ Deno.serve(async (req: Request) => {
     const user = await auth(String(body.token ?? ""));
     if (!user) return out({ error: "登录已失效，请重新登录", code: "UNAUTHORIZED" }, 401);
     const action = String(body.action ?? "");
+    if (action === "get_exam_reflection" || action === "save_exam_reflection") {
+      const result = await examReflection(db, user.id, body);
+      return out(result.data, result.status);
+    }
     if (action === "save_participant_defaults") {
       try {
         return out({ participantDefaults: await saveParticipantDefaults(user.id, participantPatch(body.defaults)) });

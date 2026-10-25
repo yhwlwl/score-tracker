@@ -34,5 +34,9 @@ try {
   }
 } catch (e) { console.error("❌ 读不到 app-bundle.js"); ok = false; }
 
+const typeHash = crypto.createHash('md5').update(fs.readFileSync(path.join(ROOT, 'typography.css'))).digest('hex').slice(0, 10);
+for (const [file, prefix] of [['index.html','./'],['api/mg-ui.js','/']]) {
+  if (!fs.readFileSync(path.join(ROOT, file), 'utf8').includes(prefix + 'typography.css?v=' + typeHash)) { console.error('Typography stylesheet fingerprint is stale in ' + file); ok = false; }
+}
 if (ok) { console.log("✅ bundle 与源码一致（v=" + expectHash + "），可以提交"); process.exit(0); }
 process.exit(1);

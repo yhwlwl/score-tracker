@@ -584,8 +584,18 @@ function sparkSvg32(vals,color){
   return '<svg width="'+W+'" height="'+Hh+'" viewBox="0 0 '+W+" "+Hh+'"><polyline points="'+pts+'" fill="none" stroke="'+(color||"var(--accent,#5d72e8)")+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 }
 /* 四象限散点:pts=[{n,sp(名次变化/场,正=前进),pos,c}] */
+var quadResizeV32;
+window.addEventListener('resize',function(){
+  clearTimeout(quadResizeV32);quadResizeV32=setTimeout(function(){
+    var host=document.getElementById('sv31Quad'),svg=host&&host.querySelector('svg[data-quad-points]');
+    if(host&&host.clientWidth&&svg&&state.page==='stats')host.innerHTML=quadSvgV32(JSON.parse(svg.dataset.quadPoints),JSON.parse(svg.dataset.quadOverall));
+  },120);
+});
 function quadSvgV32(pts,overallPos){
-  var W=520,H=310,L=46,R=12,T=16,B=36,cw=W-L-R,chh=H-T-B;
+  var compact=window.matchMedia&&window.matchMedia('(max-width:620px)').matches,host=document.getElementById('sv31Quad');
+  var W=compact?Math.max(240,host&&host.clientWidth||document.documentElement.clientWidth-54):520;
+  var H=310,L=compact?54:46,R=compact?16:12,T=compact?32:16,B=36,cw=W-L-R,chh=H-T-B;
+  var tickSize=compact?12:9.5,labelSize=compact?12:11;
   /* 横轴动态域:默认±24名/场,数据更猛时自动放宽 */
   var maxSp=24;pts.forEach(function(p){var a=Math.abs(Number(p.sp)||0);if(a>maxSp)maxSp=Math.ceil(a*1.2);});
   var X0=-maxSp,X1=maxSp;
@@ -598,7 +608,7 @@ function quadSvgV32(pts,overallPos){
   function X(v){return L+cw*(v-X0)/(X1-X0);}
   function Y(pos){return T+chh*(clamp32(pos,P0,P1)-P0)/(P1-P0);} /* 位比小=靠上 */
   var x0=X(0),yh=Y(overallPos===null||!Number.isFinite(overallPos)?P1:overallPos),s="";
-  var overallText='你的总分水平 '+fmtPos32(overallPos),overallY=Math.max(T+10,yh-5);
+  var overallText=(compact?'总分基准：':'你的总分水平 ')+fmtPos32(overallPos),overallY=compact?17:Math.max(T+10,yh-5);
   function rect(x1,y1,x2,y2,f){return '<rect x="'+Math.min(x1,x2)+'" y="'+Math.min(y1,y2)+'" width="'+Math.abs(x2-x1)+'" height="'+Math.abs(y2-y1)+'" fill="'+f+'"/>';}
   s+=rect(L,T,x0,yh,"rgba(93,114,232,.06)")+rect(x0,T,W-R,yh,"rgba(50,167,122,.07)")
     +rect(L,yh,x0,H-B,"rgba(217,92,92,.06)")+rect(x0,yh,W-R,H-B,"rgba(229,155,69,.07)");
@@ -607,25 +617,25 @@ function quadSvgV32(pts,overallPos){
   for(var tv=Math.ceil(P0/step)*step;tv<=P1;tv+=step){
     var yy=Y(tv);
     s+='<line x1="'+L+'" y1="'+yy+'" x2="'+(W-R)+'" y2="'+yy+'" stroke="var(--line,#e8ebf0)"/>'+
-       '<text x="'+(L-6)+'" y="'+(yy+3.5)+'" text-anchor="end" font-size="9.5" fill="var(--muted,#788392)">前'+tv+"%</text>";
+       '<text x="'+(L-6)+'" y="'+(yy+3.5)+'" text-anchor="end" font-size="'+tickSize+'" fill="var(--muted,#788392)">前'+tv+"%</text>";
   }
   s+='<line x1="'+x0+'" y1="'+T+'" x2="'+x0+'" y2="'+(H-B)+'" stroke="var(--line,#e8ebf0)" stroke-dasharray="4 3"/>'
     +'<line x1="'+L+'" y1="'+yh+'" x2="'+(W-R)+'" y2="'+yh+'" stroke="var(--muted,#98a1ae)"/>'
-    +'<text x="'+(W-R)+'" y="'+overallY+'" text-anchor="end" font-size="9" fill="var(--muted,#98a1ae)">'+overallText+"</text>"
-    +'<text x="'+L+'" y="'+(H-B+17)+'" font-size="9.5" fill="var(--muted,#788392)">\u2190 每场在后退</text>'
-    +'<text x="'+(W-R)+'" y="'+(H-B+17)+'" text-anchor="end" font-size="9.5" fill="var(--muted,#788392)">每场在前进 \u2192</text>'
-    +'<text x="'+x0+'" y="'+(H-B+17)+'" text-anchor="middle" font-size="9.5" fill="var(--muted,#788392)">0</text>'
-    +'<text x="'+(L+8)+'" y="'+(T+14)+'" font-size="10" font-weight="700" fill="rgba(93,114,232,.55)">优势守望</text>'
+    +'<text x="'+(W-R)+'" y="'+overallY+'" text-anchor="end" font-size="'+(compact?12:9)+'" fill="var(--muted,#98a1ae)">'+overallText+"</text>"
+    +'<text x="'+L+'" y="'+(H-B+17)+'" font-size="'+tickSize+'" fill="var(--muted,#788392)">\u2190 每场在后退</text>'
+    +'<text x="'+(W-R)+'" y="'+(H-B+17)+'" text-anchor="end" font-size="'+tickSize+'" fill="var(--muted,#788392)">每场在前进 \u2192</text>'
+    +'<text x="'+x0+'" y="'+(H-B+17)+'" text-anchor="middle" font-size="'+tickSize+'" fill="var(--muted,#788392)">0</text>';
+  if(!compact)s+='<text x="'+(L+8)+'" y="'+(T+14)+'" font-size="10" font-weight="700" fill="rgba(93,114,232,.55)">优势守望</text>'
     +'<text x="'+(W-R-8)+'" y="'+(T+14)+'" text-anchor="end" font-size="10" font-weight="700" fill="rgba(50,167,122,.6)">强势上升</text>'
     +'<text x="'+(L+8)+'" y="'+(H-B-8)+'" font-size="10" font-weight="700" fill="rgba(217,92,92,.6)">重点警报</text>'
     +'<text x="'+(W-R-8)+'" y="'+(H-B-8)+'" text-anchor="end" font-size="10" font-weight="700" fill="rgba(229,155,69,.65)">快速爬升</text>';
   var boxes=[];
   /* 先给固定说明文字留出安全区，避免右上方的科目标签压住总分基准线。 */
-  boxes.push({x:L+4,y:T-2,w:92,h:18});
+  if(!compact){boxes.push({x:L+4,y:T-2,w:92,h:18});
   boxes.push({x:W-R-104,y:T-2,w:104,h:18});
   boxes.push({x:L+4,y:H-B-22,w:92,h:18});
-  boxes.push({x:W-R-104,y:H-B-22,w:104,h:18});
-  if(overallPos!==null&&Number.isFinite(overallPos)){
+  boxes.push({x:W-R-104,y:H-B-22,w:104,h:18});}
+  if(!compact&&overallPos!==null&&Number.isFinite(overallPos)){
     boxes.push({x:W-R-170,y:overallY-11,w:170,h:16});
   }
   function fits(x,y,w,hh){
@@ -648,15 +658,16 @@ function quadSvgV32(pts,overallPos){
       +'<circle cx="'+x+'" cy="'+y+'" r="5.5" fill="var(--panel-solid,#fff)" stroke="'+c+'" stroke-width="2.6"/>';
     var cands=[[9,4,"start"],[9,-7,"start"],[9,13,"start"],[-9,4,"end"],[-9,-7,"end"],[-9,13,"end"],[0,-12,"middle"],[0,18,"middle"]];
     for(var ci=0;ci<cands.length;ci++){
-      var d=cands[ci],lw=(p.n.length*11+6);
+      var d=cands[ci],lw=(p.n.length*labelSize+6);
       var lx=d[0]<0?x+d[0]-lw:(d[0]===0?x-lw/2:x+d[0]);
       var ly=y+d[1]-(d[1]>0?0:10);
       if(fits(lx-1,ly,lw+2,13)){boxes.push({x:lx-1,y:ly,w:lw+2,h:13});
-        s+='<text x="'+(x+d[0])+'" y="'+(y+d[1])+'" text-anchor="'+d[2]+'" font-size="11" font-weight="700" fill="var(--text,#18212f)">'+esc32(p.n)+"</text>";break;}
+        s+='<text x="'+(x+d[0])+'" y="'+(y+d[1])+'" text-anchor="'+d[2]+'" font-size="'+labelSize+'" font-weight="600" fill="var(--text,#18212f)">'+esc32(p.n)+"</text>";break;}
     }
     s+="</g>";
   });
-  return '<svg viewBox="0 0 '+W+" "+H+'" style="width:100%;height:auto;display:block">'+s+"</svg>";
+  var key=compact?'<div class="sv32-quad-key"><span>左上 · 优势守望</span><span>右上 · 强势上升</span><span>左下 · 重点警报</span><span>右下 · 快速爬升</span></div><p class="sv32-quad-caption">横轴：每场名次变化；纵轴：当前位比。</p>':'';
+  return '<svg data-layout="'+(compact?'compact':'wide')+'" data-quad-points="'+esc32(JSON.stringify(pts))+'" data-quad-overall="'+(Number.isFinite(overallPos)?overallPos:'null')+'" viewBox="0 0 '+W+" "+H+'" style="width:100%;height:auto;display:block">'+s+"</svg>"+key;
 }
 function donutSvgV32(data,total,label){
   var cx=70,cy=70,r=52,ir=30,a0=-Math.PI/2,seg="",sum=total||data.reduce(function(a,b){return a+b.v;},0)||1;
