@@ -1,5 +1,5 @@
 /*! app-bundle.js · 自动生成,勿手改 —— 改源码后运行: node design/build-bundles.js
-   来源顺序: compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js, score-worth-model.js, score-worth.js, release-notices.js, account-recovery.js, trajectory-forecast.js, similar-trajectories.js, school-settings.js, announcement-settings.js, author-support.js, community.js, participant-defaults.js, exam-averages.js, exam-detail.js */
+   来源顺序: compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js, score-worth-model.js, score-worth.js, release-notices.js, account-recovery.js, trajectory-forecast.js, similar-trajectories.js, school-settings.js, announcement-settings.js, author-support.js, community.js, participant-defaults.js, exam-averages.js, exam-changes.js, exam-reflection.js, exam-detail.js */
 /* ===== compat.js ===== */
 // Compatibility helpers for older iOS Safari/WebViews.
 // Keep this file tiny and load it before the application scripts.
@@ -7995,8 +7995,18 @@ function sparkSvg32(vals,color){
   return '<svg width="'+W+'" height="'+Hh+'" viewBox="0 0 '+W+" "+Hh+'"><polyline points="'+pts+'" fill="none" stroke="'+(color||"var(--accent,#5d72e8)")+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 }
 /* 四象限散点:pts=[{n,sp(名次变化/场,正=前进),pos,c}] */
+var quadResizeV32;
+window.addEventListener('resize',function(){
+  clearTimeout(quadResizeV32);quadResizeV32=setTimeout(function(){
+    var host=document.getElementById('sv31Quad'),svg=host&&host.querySelector('svg[data-quad-points]');
+    if(host&&host.clientWidth&&svg&&state.page==='stats')host.innerHTML=quadSvgV32(JSON.parse(svg.dataset.quadPoints),JSON.parse(svg.dataset.quadOverall));
+  },120);
+});
 function quadSvgV32(pts,overallPos){
-  var W=520,H=310,L=46,R=12,T=16,B=36,cw=W-L-R,chh=H-T-B;
+  var compact=window.matchMedia&&window.matchMedia('(max-width:620px)').matches,host=document.getElementById('sv31Quad');
+  var W=compact?Math.max(240,host&&host.clientWidth||document.documentElement.clientWidth-54):520;
+  var H=310,L=compact?54:46,R=compact?16:12,T=compact?32:16,B=36,cw=W-L-R,chh=H-T-B;
+  var tickSize=compact?12:9.5,labelSize=compact?12:11;
   /* 横轴动态域:默认±24名/场,数据更猛时自动放宽 */
   var maxSp=24;pts.forEach(function(p){var a=Math.abs(Number(p.sp)||0);if(a>maxSp)maxSp=Math.ceil(a*1.2);});
   var X0=-maxSp,X1=maxSp;
@@ -8009,7 +8019,7 @@ function quadSvgV32(pts,overallPos){
   function X(v){return L+cw*(v-X0)/(X1-X0);}
   function Y(pos){return T+chh*(clamp32(pos,P0,P1)-P0)/(P1-P0);} /* 位比小=靠上 */
   var x0=X(0),yh=Y(overallPos===null||!Number.isFinite(overallPos)?P1:overallPos),s="";
-  var overallText='你的总分水平 '+fmtPos32(overallPos),overallY=Math.max(T+10,yh-5);
+  var overallText=(compact?'总分基准：':'你的总分水平 ')+fmtPos32(overallPos),overallY=compact?17:Math.max(T+10,yh-5);
   function rect(x1,y1,x2,y2,f){return '<rect x="'+Math.min(x1,x2)+'" y="'+Math.min(y1,y2)+'" width="'+Math.abs(x2-x1)+'" height="'+Math.abs(y2-y1)+'" fill="'+f+'"/>';}
   s+=rect(L,T,x0,yh,"rgba(93,114,232,.06)")+rect(x0,T,W-R,yh,"rgba(50,167,122,.07)")
     +rect(L,yh,x0,H-B,"rgba(217,92,92,.06)")+rect(x0,yh,W-R,H-B,"rgba(229,155,69,.07)");
@@ -8018,25 +8028,25 @@ function quadSvgV32(pts,overallPos){
   for(var tv=Math.ceil(P0/step)*step;tv<=P1;tv+=step){
     var yy=Y(tv);
     s+='<line x1="'+L+'" y1="'+yy+'" x2="'+(W-R)+'" y2="'+yy+'" stroke="var(--line,#e8ebf0)"/>'+
-       '<text x="'+(L-6)+'" y="'+(yy+3.5)+'" text-anchor="end" font-size="9.5" fill="var(--muted,#788392)">前'+tv+"%</text>";
+       '<text x="'+(L-6)+'" y="'+(yy+3.5)+'" text-anchor="end" font-size="'+tickSize+'" fill="var(--muted,#788392)">前'+tv+"%</text>";
   }
   s+='<line x1="'+x0+'" y1="'+T+'" x2="'+x0+'" y2="'+(H-B)+'" stroke="var(--line,#e8ebf0)" stroke-dasharray="4 3"/>'
     +'<line x1="'+L+'" y1="'+yh+'" x2="'+(W-R)+'" y2="'+yh+'" stroke="var(--muted,#98a1ae)"/>'
-    +'<text x="'+(W-R)+'" y="'+overallY+'" text-anchor="end" font-size="9" fill="var(--muted,#98a1ae)">'+overallText+"</text>"
-    +'<text x="'+L+'" y="'+(H-B+17)+'" font-size="9.5" fill="var(--muted,#788392)">\u2190 每场在后退</text>'
-    +'<text x="'+(W-R)+'" y="'+(H-B+17)+'" text-anchor="end" font-size="9.5" fill="var(--muted,#788392)">每场在前进 \u2192</text>'
-    +'<text x="'+x0+'" y="'+(H-B+17)+'" text-anchor="middle" font-size="9.5" fill="var(--muted,#788392)">0</text>'
-    +'<text x="'+(L+8)+'" y="'+(T+14)+'" font-size="10" font-weight="700" fill="rgba(93,114,232,.55)">优势守望</text>'
+    +'<text x="'+(W-R)+'" y="'+overallY+'" text-anchor="end" font-size="'+(compact?12:9)+'" fill="var(--muted,#98a1ae)">'+overallText+"</text>"
+    +'<text x="'+L+'" y="'+(H-B+17)+'" font-size="'+tickSize+'" fill="var(--muted,#788392)">\u2190 每场在后退</text>'
+    +'<text x="'+(W-R)+'" y="'+(H-B+17)+'" text-anchor="end" font-size="'+tickSize+'" fill="var(--muted,#788392)">每场在前进 \u2192</text>'
+    +'<text x="'+x0+'" y="'+(H-B+17)+'" text-anchor="middle" font-size="'+tickSize+'" fill="var(--muted,#788392)">0</text>';
+  if(!compact)s+='<text x="'+(L+8)+'" y="'+(T+14)+'" font-size="10" font-weight="700" fill="rgba(93,114,232,.55)">优势守望</text>'
     +'<text x="'+(W-R-8)+'" y="'+(T+14)+'" text-anchor="end" font-size="10" font-weight="700" fill="rgba(50,167,122,.6)">强势上升</text>'
     +'<text x="'+(L+8)+'" y="'+(H-B-8)+'" font-size="10" font-weight="700" fill="rgba(217,92,92,.6)">重点警报</text>'
     +'<text x="'+(W-R-8)+'" y="'+(H-B-8)+'" text-anchor="end" font-size="10" font-weight="700" fill="rgba(229,155,69,.65)">快速爬升</text>';
   var boxes=[];
   /* 先给固定说明文字留出安全区，避免右上方的科目标签压住总分基准线。 */
-  boxes.push({x:L+4,y:T-2,w:92,h:18});
+  if(!compact){boxes.push({x:L+4,y:T-2,w:92,h:18});
   boxes.push({x:W-R-104,y:T-2,w:104,h:18});
   boxes.push({x:L+4,y:H-B-22,w:92,h:18});
-  boxes.push({x:W-R-104,y:H-B-22,w:104,h:18});
-  if(overallPos!==null&&Number.isFinite(overallPos)){
+  boxes.push({x:W-R-104,y:H-B-22,w:104,h:18});}
+  if(!compact&&overallPos!==null&&Number.isFinite(overallPos)){
     boxes.push({x:W-R-170,y:overallY-11,w:170,h:16});
   }
   function fits(x,y,w,hh){
@@ -8059,15 +8069,16 @@ function quadSvgV32(pts,overallPos){
       +'<circle cx="'+x+'" cy="'+y+'" r="5.5" fill="var(--panel-solid,#fff)" stroke="'+c+'" stroke-width="2.6"/>';
     var cands=[[9,4,"start"],[9,-7,"start"],[9,13,"start"],[-9,4,"end"],[-9,-7,"end"],[-9,13,"end"],[0,-12,"middle"],[0,18,"middle"]];
     for(var ci=0;ci<cands.length;ci++){
-      var d=cands[ci],lw=(p.n.length*11+6);
+      var d=cands[ci],lw=(p.n.length*labelSize+6);
       var lx=d[0]<0?x+d[0]-lw:(d[0]===0?x-lw/2:x+d[0]);
       var ly=y+d[1]-(d[1]>0?0:10);
       if(fits(lx-1,ly,lw+2,13)){boxes.push({x:lx-1,y:ly,w:lw+2,h:13});
-        s+='<text x="'+(x+d[0])+'" y="'+(y+d[1])+'" text-anchor="'+d[2]+'" font-size="11" font-weight="700" fill="var(--text,#18212f)">'+esc32(p.n)+"</text>";break;}
+        s+='<text x="'+(x+d[0])+'" y="'+(y+d[1])+'" text-anchor="'+d[2]+'" font-size="'+labelSize+'" font-weight="600" fill="var(--text,#18212f)">'+esc32(p.n)+"</text>";break;}
     }
     s+="</g>";
   });
-  return '<svg viewBox="0 0 '+W+" "+H+'" style="width:100%;height:auto;display:block">'+s+"</svg>";
+  var key=compact?'<div class="sv32-quad-key"><span>左上 · 优势守望</span><span>右上 · 强势上升</span><span>左下 · 重点警报</span><span>右下 · 快速爬升</span></div><p class="sv32-quad-caption">横轴：每场名次变化；纵轴：当前位比。</p>':'';
+  return '<svg data-layout="'+(compact?'compact':'wide')+'" data-quad-points="'+esc32(JSON.stringify(pts))+'" data-quad-overall="'+(Number.isFinite(overallPos)?overallPos:'null')+'" viewBox="0 0 '+W+" "+H+'" style="width:100%;height:auto;display:block">'+s+"</svg>"+key;
 }
 function donutSvgV32(data,total,label){
   var cx=70,cy=70,r=52,ir=30,a0=-Math.PI/2,seg="",sum=total||data.reduce(function(a,b){return a+b.v;},0)||1;
@@ -14153,6 +14164,199 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   document.head.appendChild(style);
 })();
 
+/* ===== exam-changes.js ===== */
+/* One explicit historical exam per comparison; ranks do not depend on scores or maxima. */
+(function () {
+  'use strict';
+  function date(v) { return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && Number.isFinite(Date.parse(v)) && new Date(v).toISOString().slice(0, 10) === v; }
+  function round(v) { return Math.round(v * 100) / 100 || 0; }
+  function pair(now, before, metric, scope) {
+    if (!before) return { reason: '对比考试未录入本科目' };
+    if (before.excluded) return { reason: '对比考试中本科目不计总分' };
+    if (metric === 'rank' || metric === 'position') {
+      var a = now[scope], b = before[scope], key = metric === 'rank' ? 'n' : 'percent';
+      if (a.invalid || b.invalid) return { reason: '名次与参考人数不一致，请先核对' };
+      if (a[key] === null || b[key] === null) return { reason: metric === 'rank' ? '两场都需录入该范围的名次' : '两场都需有效位比，或名次与参考人数' };
+      return { before: b[key], after: a[key], value: round(b[key] - a[key]), oldRank: b, newRank: a };
+    }
+    if (metric === 'rate') {
+      if (now.rate === null || before.rate === null) return { reason: '两场都需有效最终分和满分' };
+      return { before: before.rate, after: now.rate, value: round(now.rate - before.rate) };
+    }
+    if (now.actual === null || before.actual === null) return { reason: '有一场尚未录入最终分' };
+    if (!(now.max > 0) || now.max !== before.max) return { reason: '最终满分不同，可切换得分率或排名查看' };
+    if (now.rate === null || before.rate === null) return { reason: '分数超出有效范围，请先核对' };
+    return { before: before.actual, after: now.actual, value: round(now.actual - before.actual) };
+  }
+  function build(exam, exams, options, model) {
+    var metric = options.metric || 'score', scope = options.scope || 'year', current = model(exam);
+    var history = date(exam.exam_date) ? exams.filter(function (e) {
+      return e.id !== exam.id && !e.is_hidden && date(e.exam_date) && e.exam_date < exam.exam_date && (!options.sameCategory || String(e.grade_level || '').trim() === String(exam.grade_level || '').trim());
+    }).slice().sort(function (a, b) { return b.exam_date.localeCompare(a.exam_date) || String(b.created_at || '').localeCompare(String(a.created_at || '')) || String(b.id).localeCompare(String(a.id)); }) : [];
+    function compare(previous) {
+      var old = model(previous), points = [], missing = [];
+      current.included.forEach(function (row) {
+        var oldRow = old.rows.find(function (r) { return r.name === row.name; }), result = pair(row, oldRow, metric, scope);
+        if (result.reason) missing.push({ name: row.name, reason: result.reason });
+        else points.push(Object.assign({ name: row.name }, result));
+      });
+      var total = null, totalReason = '';
+      if (metric === 'rank' || metric === 'position') {
+        var p = pair(current, old, metric, scope);
+        if (!p.reason) total = Object.assign({ name: '总排名' }, p); else totalReason = p.reason;
+      } else {
+        var sameSubjects = current.included.length > 0 && current.included.length === old.included.length && current.included.every(function (r) { return old.included.some(function (o) { return r.name === o.name && r.max === o.max; }); });
+        if (sameSubjects && current.complete && old.complete && !current.manual && !old.manual && current.rate !== null && old.rate !== null) {
+          total = metric === 'rate' ? { name: '总得分率', before: old.rate, after: current.rate, value: round(current.rate - old.rate) } : { name: '总分', before: old.total, after: current.total, value: round(current.total - old.total) };
+        } else totalReason = current.manual || old.manual ? '使用手动总分，仅对比各科，不推算总分变化。' : '两场计分科目、满分或出分完整度不同，仅展示可比科目。';
+      }
+      return { points: points, missing: missing, total: total, totalReason: totalReason };
+    }
+    var selected = options.compareId ? history.find(function (e) { return e.id === options.compareId; }) : null;
+    if (!selected) selected = history.find(function (e) { var c = compare(e); return c.points.length || c.total; }) || history[0];
+    return Object.assign({ metric: metric, scope: scope, history: history, previous: selected || null }, selected ? compare(selected) : { points: [], missing: [], total: null, totalReason: '' });
+  }
+  window.ScoreExamChanges = { build: build };
+})();
+
+/* ===== exam-reflection.js ===== */
+/* Private exam notes: local draft, cloud CAS, explicit conflict resolution. */
+(function () {
+  'use strict';
+  var current = null;
+  function sameOwner(c) { return !c.disposed && c.options.owns(); }
+  function valid(data) { return data && typeof data.reflection === 'string' && Number.isSafeInteger(data.reflection_revision) && data.reflection_revision >= 0; }
+  function dirty(c) { return c.text !== c.base || !!(c.saving && c.text !== c.sent); }
+  function draft(c) {
+    try {
+      if (dirty(c)) localStorage.setItem(c.key, JSON.stringify({ text: c.text, base: c.base, revision: c.revision, at: Date.now() }));
+      else {
+        // Do not remove a newer draft another tab has written meanwhile.
+        var saved = JSON.parse(localStorage.getItem(c.key) || 'null');
+        if (!saved || saved.text === c.text) localStorage.removeItem(c.key);
+      }
+      c.local = true;
+    } catch (_) { c.local = false; }
+  }
+  function status(c) {
+    if (c.loading) return '正在读取已保存的反思…';
+    if (c.conflict) return '另一处有新内容，请先选择要保留的版本。';
+    if (c.error) return c.error + (dirty(c) ? c.local ? ' · 草稿已留在本机' : ' · 请暂勿关闭页面' : '');
+    if (c.saving) return '正在保存…';
+    if (dirty(c)) return c.local ? '草稿已保留，稍后自动同步' : '等待同步，请暂勿关闭页面';
+    return c.updated ? '已保存 · ' + new Date(c.updated).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '自动保存 · 可随时继续补充';
+  }
+  function paint(c) {
+    if (!c.host || !c.host.isConnected || !sameOwner(c)) return;
+    var field = c.host.querySelector('textarea');
+    if (!field) return;
+    field.disabled = c.loading || (!c.ready && !c.restored);
+    if (field.value !== c.text) field.value = c.text;
+    var live = c.host.querySelector('[data-reflection-status]');
+    live.textContent = status(c); live.classList.toggle('ed-reflection-error', !!c.error || !!c.conflict || (!c.local && dirty(c)));
+    c.host.querySelector('[data-reflection-count]').textContent = c.text.length + ' / 10000';
+    var retry = c.host.querySelector('[data-reflection-save]');
+    retry.hidden = c.loading || c.saving || !!c.conflict || (!dirty(c) && !c.error); retry.textContent = c.ready ? '立即保存' : '重新读取';
+    var conflict = c.host.querySelector('[data-reflection-conflict]');
+    conflict.hidden = !c.conflict;
+    if (c.conflict) conflict.querySelector('p').textContent = c.conflict.reflection || '（云端内容为空）';
+  }
+  function updateExam(c, data) {
+    (state.allExams || state.exams || []).forEach(function (exam) { if (exam.id === c.options.examId) Object.assign(exam, data); });
+    (state.exams || []).forEach(function (exam) { if (exam.id === c.options.examId) Object.assign(exam, data); });
+  }
+  async function request(c, action, payload) {
+    if (!sameOwner(c)) throw new Error('账号已切换');
+    var controller = new AbortController(), timer = setTimeout(function () { controller.abort(); }, 15000);
+    c.abort = controller;
+    try {
+      var response = await fetch('/api/score-tracker-data-api', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal, keepalive: true,
+        body: JSON.stringify(Object.assign({ action: action, token: c.options.token, examId: c.options.examId }, payload || {})) });
+      var data = await response.json();
+      if (!response.ok) { var error = new Error(response.status === 401 ? '登录已失效，请重新登录后继续同步' : data.error || '暂时无法同步，请重试'); error.status = response.status; error.current = data.current; throw error; }
+      if (!valid(data)) throw new Error('返回内容不完整，请重试');
+      return data;
+    } finally { clearTimeout(timer); if (c.abort === controller) c.abort = null; }
+  }
+  function schedule(c) {
+    clearTimeout(c.timer);
+    if (dirty(c) && !c.composing && !c.conflict) c.timer = setTimeout(function () { save(c); }, 1000);
+  }
+  async function save(c) {
+    clearTimeout(c.timer);
+    if (!sameOwner(c) || !c.ready || c.saving || c.loading || c.composing || c.conflict || !dirty(c)) return;
+    var sent = c.text; c.sent = sent; c.saving = true; c.error = ''; draft(c); paint(c);
+    try {
+      var data = await request(c, 'save_exam_reflection', { text: sent, revision: c.revision });
+      if (!sameOwner(c)) return;
+      c.base = data.reflection; c.revision = data.reflection_revision; c.updated = data.reflection_updated_at;
+      updateExam(c, data); draft(c);
+      try { if (window.__scoreTrackerTrack) window.__scoreTrackerTrack('exam_reflection_saved', { source: 'exam_detail' }); } catch (_) {}
+    } catch (e) {
+      if (!sameOwner(c)) return;
+      if (e.status === 409 && valid(e.current)) c.conflict = e.current;
+      else c.error = e.name === 'AbortError' ? '同步超时，请重试' : e.message || '暂时无法同步，请重试';
+      draft(c);
+    } finally {
+      c.saving = false; paint(c);
+      if (sameOwner(c) && !c.error && !c.conflict) schedule(c);
+    }
+  }
+  async function load(c) {
+    if (c.loading || !sameOwner(c)) return;
+    c.loading = true; c.error = ''; paint(c);
+    try {
+      var data = await request(c, 'get_exam_reflection');
+      if (!sameOwner(c)) return;
+      c.ready = true; c.updated = data.reflection_updated_at;
+      updateExam(c, data);
+      if (c.restored && c.text !== data.reflection && c.base !== data.reflection && c.revision !== data.reflection_revision) c.conflict = data;
+      else { if (!c.restored || c.text === data.reflection) c.text = data.reflection; c.base = data.reflection; c.revision = data.reflection_revision; }
+      c.restored = false; draft(c);
+    } catch (e) { if (sameOwner(c)) c.error = e.name === 'AbortError' ? '读取超时，请重试' : e.message || '读取失败，请重试'; }
+    finally { c.loading = false; paint(c); if (sameOwner(c) && !c.error) schedule(c); }
+  }
+  function mount(host, options) {
+    var key = 'st_exam_reflection_v1_' + options.userId + '_' + options.examId, c = current;
+    if (!c || c.key !== key || c.options.token !== options.token || !sameOwner(c)) {
+      if (c) { clearTimeout(c.timer); c.disposed = true; if (c.abort) c.abort.abort(); }
+      c = { key: key, options: options, text: '', base: '', revision: 0, updated: null, local: true, ready: false };
+      try { var saved = JSON.parse(localStorage.getItem(key) || 'null'); if (saved && typeof saved.text === 'string' && typeof saved.base === 'string' && Number.isSafeInteger(saved.revision)) { c.text = saved.text; c.base = saved.base; c.revision = saved.revision; c.restored = true; } } catch (_) { c.local = false; }
+      current = c;
+    }
+    c.host = host;
+    host.innerHTML = '<div class="ed-section-head"><div><span class="ed-eyebrow">04 / 复盘</span><h2 id="ed-reflection-title">考后反思</h2><p id="ed-reflection-hint">记下这次做得好的地方、卡住的原因，或下次想尝试的方法。</p></div><span class="ed-reflection-private">个人记录</span></div>' +
+      '<textarea aria-labelledby="ed-reflection-title" aria-describedby="ed-reflection-hint" maxlength="10000" rows="5" placeholder="比如：数学最后两题没来得及做，下次想先把有把握的题做完。\n英语这次先看问题再读文章，感觉更顺了。" disabled></textarea>' +
+      '<div class="ed-reflection-footer"><span data-reflection-status role="status" aria-live="polite"></span><span data-reflection-count></span><button type="button" class="ed-button" data-reflection-save hidden>立即保存</button></div>' +
+      '<div class="ed-reflection-conflict" data-reflection-conflict hidden><strong>另一处保存的内容</strong><p></p><div><button type="button" class="ed-button" data-reflection-cloud>使用云端内容</button><button type="button" class="ed-button" data-reflection-mine>保留我的修改</button></div><small>上方输入框保留着你的修改，也可以先合并两段内容。</small></div>';
+    var field = host.querySelector('textarea');
+    field.addEventListener('input', function () { c.text = field.value; c.error = ''; draft(c); paint(c); schedule(c); });
+    field.addEventListener('compositionstart', function () { c.composing = true; clearTimeout(c.timer); });
+    field.addEventListener('compositionend', function () { c.composing = false; c.text = field.value; draft(c); schedule(c); });
+    field.addEventListener('blur', function () { save(c); });
+    host.querySelector('[data-reflection-save]').onclick = function () { if (c.ready) save(c); else load(c); };
+    host.querySelector('[data-reflection-cloud]').onclick = function () {
+      if (!c.conflict || !window.confirm('使用云端内容会替换上方尚未同步的修改，确定吗？')) return;
+      c.text = c.conflict.reflection; c.base = c.text; c.revision = c.conflict.reflection_revision; c.updated = c.conflict.reflection_updated_at; updateExam(c, c.conflict); c.conflict = null; c.error = ''; draft(c); paint(c);
+    };
+    host.querySelector('[data-reflection-mine]').onclick = function () {
+      if (!c.conflict) return;
+      c.base = c.conflict.reflection; c.revision = c.conflict.reflection_revision; c.updated = c.conflict.reflection_updated_at; c.conflict = null; c.error = ''; draft(c); paint(c); save(c);
+    };
+    paint(c); if (!c.ready) load(c);
+  }
+  function leave() {
+    var c = current; if (!c || !sameOwner(c)) return true;
+    draft(c); save(c);
+    if (dirty(c) && !c.local && !window.confirm('反思还未同步，且本机无法保留草稿。离开可能丢失修改，仍要离开吗？')) return false;
+    c.host = null; return true;
+  }
+  window.addEventListener('beforeunload', function (e) { if (current && sameOwner(current) && dirty(current)) { draft(current); if (!current.local) { e.preventDefault(); e.returnValue = ''; } } });
+  window.addEventListener('online', function () { if (current && sameOwner(current)) { if (current.ready) save(current); else load(current); } });
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden' && current) save(current); });
+  window.ScoreExamReflection = { mount: mount, leave: leave };
+})();
+
 /* ===== exam-detail.js ===== */
 /* One exam, one place to read its scores, ranks and saved papers. */
 (function () {
@@ -14169,6 +14373,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   function track(event, metadata) { try { var fn = window.__scoreTrackerTrack || window.__stTrack; if (typeof fn === 'function') fn(event, metadata || {}); } catch (_) {} }
   function paperReviewAvailable() { return !!(window.ScorePaperReview && typeof window.ScorePaperReview.api === 'function' && typeof window.ScorePaperReview.mount === 'function'); }
   function leave() {
+    if (window.ScoreExamReflection && !window.ScoreExamReflection.leave()) return false;
     if (editor && editor.canLeave && !editor.canLeave()) return false;
     if (editor && editor.dispose) editor.dispose();
     editor = null; generation++; return true;
@@ -14292,7 +14497,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       metric(totalLabel, fmt(m.total), totalSub) + metric('总得分率', m.rate === null ? '—' : fmt(m.rate) + '%', rateSub) +
       metric('年级排名', rankText(m.year), rankSub(m.year)) + metric('班级排名', rankText(m.class), rankSub(m.class)) +
       '</div>' + (targetText || extra ? '<div class="ed-context">' + (targetText ? '<span>' + targetText + '</span>' : '') + extra + '</div>' : '') +
-      '<nav class="ed-nav" aria-label="考试详情目录">' + button('各科成绩', 'jump:scores') + button('强弱科四象限', 'jump:quadrants') + (paperReviewAvailable() ? button('已录入试题', 'jump:papers') : '') + '</nav></section>';
+      '<nav class="ed-nav" aria-label="考试详情目录">' + button('各科成绩', 'jump:scores') + button('本场变化', 'jump:changes') + button('强弱科四象限', 'jump:quadrants') + button('考后反思', 'jump:reflection') + (paperReviewAvailable() ? button('已录入试题', 'jump:papers') : '') + '</nav></section>';
   }
   function cell(label, text) { return '<td data-label="' + label + '">' + text + '</td>'; }
   function rankCell(r) { return '<span>' + esc(rankText(r)) + '</span><small>' + esc(rankSub(r)) + '</small>'; }
@@ -14330,6 +14535,11 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   }
   function plot(data) {
     var movement = data.mode === 'movement', palette = data.palette;
+    var compact = window.matchMedia && window.matchMedia('(max-width:620px)').matches;
+    var host = document.getElementById('ed-quadrants'), box = host && window.getComputedStyle(host);
+    var W = compact ? Math.max(240, Math.round(host.clientWidth - parseFloat(box.paddingLeft || 0) - parseFloat(box.paddingRight || 0))) : 660;
+    var H = compact ? 300 : 430, left = compact ? 45 : 85, right = compact ? W - 18 : 575;
+    var top = compact ? 22 : 62, bottom = compact ? 252 : 340, tickY = compact ? 278 : 365;
     var points = data.points, maxX = Math.max(10, Math.ceil(Math.max.apply(null, points.map(function (p) { return Math.abs(p.x); })) / 10) * 10), maxY = Math.max(10, Math.ceil(Math.max.apply(null, points.map(function (p) { return Math.abs(p.y); })) / 10) * 10);
     var low = 0, high = 100;
     if (movement) {
@@ -14337,28 +14547,28 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       low = Math.max(0, Math.floor((min - pad) / 5) * 5); high = Math.min(100, Math.ceil((max + pad) / 5) * 5);
       if (high - low < 10) { high = Math.min(100, low + 10); low = Math.max(0, high - 10); }
     }
-    function positionY(value) { return 62 + (value - low) / (high - low) * 278; }
-    var cx = 330, cy = movement ? positionY(data.position) : 201, sx = 245 / maxX, sy = 139 / maxY, marks = '';
+    function positionY(value) { return top + (value - low) / (high - low) * (bottom - top); }
+    var cx = (left + right) / 2, cy = movement ? positionY(data.position) : (top + bottom) / 2;
+    var sx = (right - left) / 2 / maxX, sy = (bottom - top) / 2 / maxY, marks = '';
     function yFor(p) { return movement ? positionY(p.row[view.scope].percent) : cy - p.y * sy; }
     [-1, -.5, .5, 1].forEach(function (t) {
-      var x = cx + t * 245;
-      marks += '<line x1="' + x + '" y1="62" x2="' + x + '" y2="340" class="ed-grid-line"/><text x="' + x + '" y="365" text-anchor="middle">' + signed(t * maxX) + '</text>';
+      var x = cx + t * (right - left) / 2;
+      marks += '<line x1="' + x + '" y1="' + top + '" x2="' + x + '" y2="' + bottom + '" class="ed-grid-line"/><text x="' + x + '" y="' + tickY + '" text-anchor="middle">' + signed(t * maxX) + '</text>';
     });
     (movement ? [0, .25, .5, .75, 1] : [-1, -.5, 0, .5, 1]).forEach(function (t) {
-      var position = low + t * (high - low), y = movement ? positionY(position) : cy - t * 139;
-      marks += '<line x1="85" y1="' + y + '" x2="575" y2="' + y + '" class="ed-grid-line"/><text x="73" y="' + (y + 4) + '" text-anchor="end">' + (movement ? '前' + fmtChange(position) + '%' : signed(t * maxY)) + '</text>';
+      var position = low + t * (high - low), y = movement ? positionY(position) : cy - t * (bottom - top) / 2;
+      marks += '<line x1="' + left + '" y1="' + y + '" x2="' + right + '" y2="' + y + '" class="ed-grid-line"/><text x="' + (left - 9) + '" y="' + (y + 4) + '" text-anchor="end">' + (movement ? fmtChange(position) + '%' : signed(t * maxY)) + '</text>';
     });
-    // Coincident points retain their true coordinate; the subject buttons remain individually selectable.
     var groups = new Map(); points.forEach(function (p) { var key = p.x.toFixed(6) + '|' + p.y.toFixed(6); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(p); });
     var dots = Array.from(groups.values()).map(function (ps) {
       var p = ps[0], label = ps.map(function (p) { return p.row.name; }).join('、'), x = cx + p.x * sx, y = yFor(p);
-      return '<g role="button" tabindex="0" aria-label="' + esc(label + '，查看科目表现') + '" data-ed-point="' + p.index + '"><title>' + esc(label) + '</title><circle cx="' + x + '" cy="' + y + '" r="13" fill="' + palette[p.group].color + '"/><text x="' + x + '" y="' + (y + 4) + '" text-anchor="middle" class="ed-dot-number">' + (ps.length > 1 ? ps.length + '科' : p.index) + '</text></g>';
+      return '<g role="button" tabindex="0" aria-label="' + esc(label + '，查看科目表现') + '" data-ed-point="' + p.index + '"><title>' + esc(label) + '</title><circle cx="' + x + '" cy="' + y + '" r="' + (compact ? 10 : 13) + '" fill="' + palette[p.group].color + '"/><text x="' + x + '" y="' + y + '" text-anchor="middle" dominant-baseline="central" class="ed-dot-number">' + (ps.length > 1 ? ps.length + (compact ? '' : '科') : p.index) + '</text></g>';
     }).join('');
-    var top = 47, bottom = 354;
     var xLabel = movement ? data.windowSize === 'recent' ? '← 退步 / 进步 →（百分点 / 场）' : '← 退步 / 进步 →（百分点）' : '得分率较均值（百分点）→';
     var accessible = movement ? '当前排名与变化四象限。上方排名较靠前，右侧正在进步，左侧正在退步。' : '本次考试强弱科四象限。右侧得分率较高，上方排名较靠前。';
-    return '<svg class="ed-quadrant" viewBox="0 0 660 430" role="group" aria-label="' + accessible + '详细数值见下方科目按钮。"><rect x="70" y="' + top + '" width="260" height="' + (cy - top) + '" fill="' + palette.potential.color + '10"/><rect x="330" y="' + top + '" width="260" height="' + (cy - top) + '" fill="' + palette.strength.color + '10"/><rect x="70" y="' + cy + '" width="260" height="' + (bottom - cy) + '" fill="' + palette.support.color + '10"/><rect x="330" y="' + cy + '" width="260" height="' + (bottom - cy) + '" fill="' + palette.compete.color + '10"/>' + marks +
-      '<path d="M70 ' + cy + 'H590M330 47V354" class="ed-axis"/><text x="330" y="365" text-anchor="middle">0</text><text x="85" y="32" class="ed-quadrant-title">' + palette.potential.title + '</text><text x="575" y="32" text-anchor="end" class="ed-quadrant-title">' + palette.strength.title + '</text><text x="85" y="393" class="ed-quadrant-title">' + palette.support.title + '</text><text x="575" y="393" text-anchor="end" class="ed-quadrant-title">' + palette.compete.title + '</text><text x="330" y="420" text-anchor="middle">' + xLabel + '</text><text transform="translate(16 201) rotate(-90)" text-anchor="middle">' + (movement ? '当前排名位比（越上越好）' : '排名较均值领先（百分点）→') + '</text>' + dots + '</svg>';
+    var regions = '<rect x="' + left + '" y="' + top + '" width="' + (cx - left) + '" height="' + (cy - top) + '" fill="' + palette.potential.color + '0a"/><rect x="' + cx + '" y="' + top + '" width="' + (right - cx) + '" height="' + (cy - top) + '" fill="' + palette.strength.color + '0a"/><rect x="' + left + '" y="' + cy + '" width="' + (cx - left) + '" height="' + (bottom - cy) + '" fill="' + palette.support.color + '0a"/><rect x="' + cx + '" y="' + cy + '" width="' + (right - cx) + '" height="' + (bottom - cy) + '" fill="' + palette.compete.color + '0a"/>';
+    return '<svg class="ed-quadrant" data-layout="' + (compact ? 'compact' : 'wide') + '" viewBox="0 0 ' + W + ' ' + H + '" role="group" aria-label="' + accessible + '详细数值见下方科目按钮。">' + regions + marks + '<path d="M' + left + ' ' + cy + 'H' + right + 'M' + cx + ' ' + top + 'V' + bottom + '" class="ed-axis"/><text x="' + cx + '" y="' + tickY + '" text-anchor="middle">0</text>' +
+      (compact ? '' : '<text class="ed-axis-label" x="330" y="410" text-anchor="middle">' + xLabel + '</text><text class="ed-axis-label" transform="translate(16 201) rotate(-90)" text-anchor="middle">' + (movement ? '当前排名位比（越上越好）' : '排名较均值领先（百分点）→') + '</text>') + dots + '</svg>';
   }
   function quadrantsHtml(m, scope, d) {
     var movement = d.mode === 'movement', scopeName = scope === 'year' ? '年级' : '班级', palette = d.palette;
@@ -14368,9 +14578,9 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     var range = '<div class="ed-scope" role="group" aria-label="四象限排名范围">' + ['year','class'].map(function (s) { return '<button type="button" data-ed-scope="' + s + '" aria-pressed="' + (s === scope) + '">' + (s === 'year' ? '按年级' : '按班级') + '</button>'; }).join('') + '</div>';
     var method = movement ? '纵轴显示本次' + scopeName + '位比，以本次 ' + d.currentCount + ' 科位比中位数 <b>前 ' + fmt(d.position) + '%</b> 划分个人相对强弱。横轴以 0 为界，右进步、左退步。' + (d.windowSize === 'recent' ? '近3次趋势包含本次，按考试场次计算平均变化，不按间隔天数计算。' : '变化 = 上一次可比考试位比 − 本次位比。') + '只比较更早、' + (d.sameCategory ? '同分类、' : '') + '同科目、同排名范围的有效排名；已隐藏考试不参与历史比较，同一天不推断先后。变化四舍五入到 0.01 个百分点后为 0，标为基本持平。' : '以这 ' + d.points.length + ' 科的平均得分率 <b>' + fmt(d.rate) + '%</b>、平均' + scopeName + '位比 <b>前 ' + fmt(d.position) + '%</b> 为分界。各科等权，仅反映本次考试内的相对强弱，不代表试卷难度或长期水平。均值线上的科目标为“接近均值”。';
     var empty = movement ? d.currentCount < 2 ? '本次至少需要 2 门科目的有效' + scopeName + '位比，才能划分个人相对强弱。补充名次与参考人数，或直接填写位比即可。' : d.windowSize === 'recent' ? '还没有科目具备本次及之前2次的可比排名，可以先切换“较上次”，或查看“本次表现”。' : '还没有科目具备更早的可比排名，可以先查看“本次表现”。缺少历史不会记作持平。' : '至少需要 2 门科目的有效得分率和' + scopeName + '位比。补充名次与参考人数，或直接填写位比即可。';
-    return '<div class="ed-section-head"><div><span class="ed-eyebrow">02 / 强弱科</span><h2>' + (movement ? '各科排名与变化' : '这一场，哪些科目值得重点关注') + '</h2><p>' + (movement ? '越靠上，当前排名越靠前；越靠右，最近进步越明显。' : '越靠右，得分率越高；越靠上，在同范围考生中排名越靠前。') + '</p></div></div><div class="ed-chart-controls">' + modes + range + (movement ? '<label class="ed-window">比较分类<select data-ed-category aria-label="排名变化比较分类"><option value="all" ' + (d.sameCategory ? '' : 'selected') + '>全部分类</option><option value="same" ' + (d.sameCategory ? 'selected' : '') + '>仅同分类</option></select></label><label class="ed-window">比较口径<select data-ed-window aria-label="排名变化比较口径"><option value="previous" ' + (view.trendWindow !== 'recent' ? 'selected' : '') + '>较上次可比考试</option><option value="recent" ' + (view.trendWindow === 'recent' ? 'selected' : '') + '>近3次趋势</option></select></label>' : '') + '</div>' +
+    return '<div class="ed-section-head"><div><span class="ed-eyebrow">03 / 强弱科</span><h2>' + (movement ? '各科排名与变化' : '这一场，哪些科目值得重点关注') + '</h2><p>' + (movement ? '越靠上，当前排名越靠前；越靠右，最近进步越明显。' : '越靠右，得分率越高；越靠上，在同范围考生中排名越靠前。') + '</p></div></div><div class="ed-chart-controls">' + modes + range + (movement ? '<label class="ed-window">比较分类<select data-ed-category aria-label="排名变化比较分类"><option value="all" ' + (d.sameCategory ? '' : 'selected') + '>全部分类</option><option value="same" ' + (d.sameCategory ? 'selected' : '') + '>仅同分类</option></select></label><label class="ed-window">比较口径<select data-ed-window aria-label="排名变化比较口径"><option value="previous" ' + (view.trendWindow !== 'recent' ? 'selected' : '') + '>较上次可比考试</option><option value="recent" ' + (view.trendWindow === 'recent' ? 'selected' : '') + '>近3次趋势</option></select></label>' : '') + '</div>' +
       (!ready ? '<div class="ed-empty"><h3>' + (movement ? '暂时无法比较排名变化' : '还差一点数据，就能比较各科表现') + '</h3><p>' + empty + '</p>' + (movement ? '<button type="button" class="ed-button" data-ed-mode="performance">查看本次表现</button>' : button('补录成绩与排名', 'edit')) + '</div>' :
-        '<div class="ed-chart-layout"><div>' + plot(d) + '<div class="ed-point-list">' + d.points.map(function (p) { return '<button type="button" data-ed-point="' + p.index + '" aria-pressed="false"><i style="background:' + palette[p.group].color + '">' + p.index + '</i>' + esc(p.row.name) + '</button>'; }).join('') + '</div></div><aside class="ed-inspect" aria-live="polite"></aside></div>' +
+        '<div class="ed-chart-layout"><div>' + plot(d) + '<div class="ed-quadrant-key" aria-label="四象限区域说明">' + [['potential','左上'],['strength','右上'],['support','左下'],['compete','右下']].map(function (item) { return '<span><i style="background:' + palette[item[0]].color + '"></i><small>' + item[1] + '</small>' + palette[item[0]].title + '</span>'; }).join('') + '</div><p class="ed-chart-caption">' + (movement ? '横轴：位比变化（' + (d.windowSize === 'recent' ? '百分点 / 场' : '百分点') + '）；纵轴：本次排名位比。' : '横轴：得分率较均值；纵轴：排名位比相对均值的领先程度。') + '</p><div class="ed-point-list">' + d.points.map(function (p) { return '<button type="button" data-ed-point="' + p.index + '" aria-pressed="false"><i style="background:' + palette[p.group].color + '">' + p.index + '</i>' + esc(p.row.name) + '</button>'; }).join('') + '</div></div><aside class="ed-inspect" aria-live="polite"></aside></div>' +
         '<div class="ed-quadrant-groups">' + ['strength','potential','compete','support'].map(function (key) { var names = d.points.filter(function (p) { return p.group === key; }).map(function (p) { return p.row.name; }); return '<article><h3><i style="background:' + palette[key].color + '"></i>' + palette[key].title + '</h3><b>' + (names.length ? esc(names.join('、')) : '暂无科目') + '</b><p>' + palette[key].text + '</p></article>'; }).join('') + '</div><details class="ed-method"><summary>分界与比较说明</summary><p>' + method + '</p></details>') +
       (missing.length ? '<details class="ed-missing"><summary>' + missing.length + ' 科暂未参与' + (movement ? '变化比较' : '四象限') + '</summary><ul>' + missing.map(function (item) { return '<li>' + esc(item.row.name) + '：' + esc(item.reason) + '</li>'; }).join('') + '</ul></details>' : '') +
       (m.rows.some(function (r) { return r.excluded; }) ? '<p class="ed-method">“不计总分”的统计项保留在成绩表中，不参与强弱科比较。</p>' : '');
@@ -14431,11 +14641,62 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       if (v.papers) drawPapers(v); else host.innerHTML = '<p class="ed-empty" role="alert">' + esc(v.paperError) + '</p>' + button('重新读取', 'refresh-papers');
     }
   }
+  function changeValue(value, metric) {
+    var amount = String(Math.round(Math.abs(value) * 100) / 100);
+    if (!value) return '持平';
+    if (metric === 'rank') return (value > 0 ? '前进 ' : '退后 ') + amount + ' 名';
+    if (metric === 'position') return (value > 0 ? '前进 ' : '退后 ') + amount + ' 个百分点';
+    return (value > 0 ? '+' : '−') + amount + (metric === 'rate' ? ' 个百分点' : ' 分');
+  }
+  function changeOriginal(point, metric) {
+    function value(n) { return String(Math.round(n * 100) / 100); }
+    if (metric === 'rank') return '第 ' + value(point.before) + ' → ' + value(point.after) + ' 名';
+    if (metric === 'position') return '前 ' + value(point.before) + '% → 前 ' + value(point.after) + '%';
+    return value(point.before) + (metric === 'rate' ? '%' : '') + ' → ' + value(point.after) + (metric === 'rate' ? '%' : ' 分');
+  }
+  function changePeople(point) {
+    if (!point.oldRank) return '';
+    var a = point.oldRank.count, b = point.newRank.count;
+    return a !== null && b !== null ? '参考人数 ' + fmt(a) + ' → ' + fmt(b) + ' 人' : '有参考人数未填写，位比请以有效记录为准';
+  }
+  function drawChanges(exam) {
+    var host = document.getElementById('ed-changes'); if (!host) return;
+    var options = view.changes || (view.changes = { metric: 'score', scope: 'year', sameCategory: false, compareId: '' });
+    var data = window.ScoreExamChanges.build(exam, allExams(), options, model), metricName = { score: '分数', rate: '得分率', rank: '名次', position: '位比' };
+    var rankMode = options.metric === 'rank' || options.metric === 'position';
+    var title = '<div class="ed-section-head"><div><span class="ed-eyebrow">02 / 对比</span><h2>本场变化</h2><p>选一场此前的考试，看看各科的分数与排名发生了什么变化。</p></div></div>';
+    var tabs = '<div class="ed-change-tabs" role="group" aria-label="变化指标">' + Object.keys(metricName).map(function (key) { return '<button type="button" data-change-metric="' + key + '" aria-pressed="' + (options.metric === key) + '">' + metricName[key] + '</button>'; }).join('') + '</div>';
+    var filters = '<div class="ed-change-filters"><label>对比考试<select data-change-exam aria-label="本场变化对比考试"><option value="">自动选择最近可比考试</option>' + data.history.map(function (e) { return '<option value="' + esc(e.id) + '" ' + (options.compareId === e.id ? 'selected' : '') + '>' + esc(e.exam_date + ' · ' + e.name) + '</option>'; }).join('') + '</select></label><label>分类范围<select data-change-category aria-label="本场变化分类范围"><option value="all" ' + (!options.sameCategory ? 'selected' : '') + '>全部分类</option><option value="same" ' + (options.sameCategory ? 'selected' : '') + '>仅同分类</option></select></label>' +
+      (rankMode ? '<label>排名范围<select data-change-scope aria-label="本场变化排名范围"><option value="year" ' + (options.scope === 'year' ? 'selected' : '') + '>年级</option><option value="class" ' + (options.scope === 'class' ? 'selected' : '') + '>班级</option></select></label>' : '') + '</div>';
+    var chart;
+    if (!data.previous) chart = '<div class="ed-empty"><h3>还没有更早的' + (options.sameCategory ? '同分类' : '') + '考试</h3><p>先记录这次成绩与反思，之后就能在这里对照变化。</p></div>';
+    else {
+      var limit = Math.max.apply(Math, [1].concat(data.points.map(function (p) { return Math.abs(p.value); })));
+      var positive = data.points.filter(function (p) { return p.value > 0; }).length, negative = data.points.filter(function (p) { return p.value < 0; }).length;
+      chart = '<div class="ed-change-context"><span>对比 <b>' + esc(data.previous.name) + '</b></span><time>' + esc(data.previous.exam_date) + '</time></div>';
+      if (data.total) chart += '<div class="ed-change-total"><div><span>' + (rankMode ? (options.scope === 'year' ? '年级' : '班级') : '') + esc(data.total.name) + '</span><strong class="' + (data.total.value > 0 ? 'ed-gain' : data.total.value < 0 ? 'ed-loss' : '') + '">' + esc(changeValue(data.total.value, options.metric)) + '</strong></div><p>' + esc(changeOriginal(data.total, options.metric)) + (rankMode ? '<small>' + esc(changePeople(data.total)) + '</small>' : '') + '</p></div>';
+      chart += '<div class="ed-change-key"><span>' + data.points.length + ' 科可比' + (data.points.length ? ' · ' + positive + ' 科' + (rankMode ? '前进' : '上升') + ' · ' + negative + ' 科' + (rankMode ? '退后' : '下降') : '') + '</span><span>← ' + (rankMode ? '退后' : '下降') + '　｜　' + (rankMode ? '前进' : '上升') + ' →</span></div>';
+      chart += '<div class="ed-change-bars" role="list" aria-label="各科' + metricName[options.metric] + '变化">' + data.points.map(function (p) {
+        var width = Math.abs(p.value) / limit * 48, direction = p.value > 0 ? 'ed-gain' : p.value < 0 ? 'ed-loss' : 'ed-flat';
+        return '<div class="ed-change-row" role="listitem"><div class="ed-change-label"><b>' + esc(p.name) + '</b><span>' + esc(changeOriginal(p, options.metric)) + '</span>' + (rankMode ? '<small>' + esc(changePeople(p)) + '</small>' : '') + '</div><div class="ed-change-plot" aria-hidden="true"><i class="ed-change-zero"></i><i class="ed-change-bar ' + direction + '" style="' + (p.value < 0 ? 'right' : 'left') + ':50%;width:' + width + '%"></i>' + (!p.value ? '<i class="ed-change-tie"></i>' : '') + '</div><strong class="ed-change-delta ' + direction + '">' + esc(changeValue(p.value, options.metric)) + '</strong></div>';
+      }).join('') + '</div>';
+      if (!data.points.length) chart += '<p class="ed-empty">这两场暂无可比的科目' + (rankMode ? '排名' : '成绩') + '，可切换指标或对比考试。</p>';
+      chart += '<p class="ed-change-note">' + (rankMode ? '排名不要求两场满分相同。名次越小越靠前；位比按各场参考人数计算。年级和班级分别比较，参考群体变化时请结合实际情况判断。' : '按最终分比较；满分不同可切换得分率。试卷难度也会影响成绩，变化不直接代表能力变化。') + (!data.total && data.totalReason ? ' ' + esc(data.totalReason) : '') + '</p>';
+      if (data.missing.length) chart += '<details class="ed-missing"><summary>' + data.missing.length + ' 科暂未参与对比</summary><ul>' + data.missing.map(function (p) { return '<li><b>' + esc(p.name) + '</b>：' + esc(p.reason) + '</li>'; }).join('') + '</ul></details>';
+    }
+    host.innerHTML = title + tabs + filters + chart;
+    function changed(kind) { track('exam_detail_comparison_changed', { control: kind, metric: options.metric, scope: options.scope, category: options.sameCategory ? 'same' : 'all' }); drawChanges(exam); }
+    host.querySelectorAll('[data-change-metric]').forEach(function (b) { b.onclick = function () { options.metric = b.dataset.changeMetric; changed('metric'); var activeButton = host.querySelector('[data-change-metric="' + options.metric + '"]'); if (activeButton) activeButton.focus({ preventScroll: true }); }; });
+    host.querySelector('[data-change-exam]').onchange = function (e) { options.compareId = e.target.value; changed('exam'); host.querySelector('[data-change-exam]').focus({ preventScroll: true }); };
+    host.querySelector('[data-change-category]').onchange = function (e) { options.sameCategory = e.target.value === 'same'; options.compareId = ''; changed('category'); host.querySelector('[data-change-category]').focus({ preventScroll: true }); };
+    if (rankMode) host.querySelector('[data-change-scope]').onchange = function (e) { options.scope = e.target.value; changed('scope'); host.querySelector('[data-change-scope]').focus({ preventScroll: true }); };
+  }
+
   function renderDetail(exam) {
     var v = view, m = model(exam), content = document.getElementById('content');
     generation++; v.loading = false;
     if (!v.scope) v.scope = m.included.filter(function (r) { return r.year.percent !== null; }).length < 2 && m.included.filter(function (r) { return r.class.percent !== null; }).length >= 2 ? 'class' : 'year';
-    content.innerHTML = '<div class="ed-page">' + header(exam) + (v.report ? '<div class="ed-reader"></div>' : overview(exam, m) + scores(exam, m) + '<section class="ed-section" id="ed-quadrants" tabindex="-1"></section>' + (paperReviewAvailable() ? '<section class="ed-section" id="ed-papers" tabindex="-1"><div class="ed-section-head"><div><span class="ed-eyebrow">03 / 试题与作答</span><h2>这次考试的试卷</h2><p>按科目查看已录入的题目、作答、批改分与原始扫描件。查看已有内容不计分析次数。</p></div></div><div class="ed-paper-content"></div></section>' : '')) + '</div>';
+    content.innerHTML = '<div class="ed-page">' + header(exam) + (v.report ? '<div class="ed-reader"></div>' : overview(exam, m) + scores(exam, m) + '<section class="ed-section" id="ed-changes" tabindex="-1"></section><section class="ed-section" id="ed-quadrants" tabindex="-1"></section><section class="ed-section ed-reflection" id="ed-reflection" tabindex="-1"></section>' + (paperReviewAvailable() ? '<section class="ed-section" id="ed-papers" tabindex="-1"><div class="ed-section-head"><div><span class="ed-eyebrow">05 / 试题与作答</span><h2>这次考试的试卷</h2><p>按科目查看已录入的题目、作答、批改分与原始扫描件。查看已有内容不计分析次数。</p></div></div><div class="ed-paper-content"></div></section>' : '')) + '</div>';
     content.querySelector('.ed-page').onclick = function (e) {
       var b = e.target.closest('[data-ed]'); if (!b) return;
       var action = b.dataset.ed;
@@ -14463,7 +14724,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
         closeLabel: '← 返回本次考试详情', isActive: function () { return active(v) && view.report === r; },
         onClose: function () { editor = null; v.report = null; v.papers = null; renderPage(); } };
       window.ScorePaperReview.mount(editor, r.subject, null);
-    } else { bindQuadrants(exam, m); if (v.papers) drawPapers(v); else loadPapers(v, false); }
+    } else { drawChanges(exam); bindQuadrants(exam, m); window.ScoreExamReflection.mount(document.getElementById('ed-reflection'), { userId: v.user, token: v.token, examId: v.id, owns: function () { return v.user === owner() && v.token === state.token; } }); if (v.papers) drawPapers(v); else loadPapers(v, false); }
   }
   function open(id) {
     var exam = allExams().find(function (e) { return e.id === id; }); if (!exam || !leave()) return;
@@ -14500,5 +14761,23 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
 @media(max-width:620px){.ed-heading h1{font-size:25px}.ed-heading p{font-size:12px}.ed-overview,.ed-section{padding:18px 15px}.ed-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 14px}.ed-metric:first-child strong{font-size:34px}.ed-section-head{flex-direction:column;align-items:flex-start}.ed-section h2{font-size:19px}.ed-scope{align-self:flex-start}.ed-nav{gap:5px}.ed-nav .ed-button{padding:8px;font-size:12px}.ed-table,.ed-table tbody{display:block}.ed-table thead{display:none}.ed-table tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 16px;border:1px solid var(--line);border-radius:12px;padding:16px;margin:12px 0}.ed-table tbody th{grid-column:1/-1;font-size:17px;border-bottom:1px solid var(--line);padding:0 0 12px}.ed-table td{display:block;border:0;min-width:0;padding:0;font-size:13px}.ed-table td:before{content:attr(data-label);display:block;font-size:11px;color:var(--muted);margin-bottom:6px}.ed-table small{font-size:11px}.ed-table-wrap{overflow:visible}.ed-paper-grid,.ed-combo-grid{grid-template-columns:1fr}.ed-quadrant-groups{gap:18px 12px}.ed-chart-layout{gap:12px}.ed-quadrant{width:calc(100% + 16px);margin-left:-8px}.ed-reader .pr-head{flex-wrap:wrap}.ed-reader .pr-main{min-width:0}.ed-inspect{padding:17px}.ed-inspect dl{gap:8px 20px}.ed-inspect dl>div{flex-direction:column}.ed-inspect dd{text-align:left}.ed-top{margin-bottom:20px}.ed-page{margin-bottom:80px}}
 `;
   style.textContent += '.ed-chart-controls{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:-4px 0 24px}.ed-window{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted)}.ed-window select{font:inherit;padding:10px;border:1px solid var(--line);border-radius:9px;color:var(--text);background:var(--panel-solid,#fff);min-height:38px;max-width:100%}.ed-method summary{cursor:pointer}.ed-method p{margin:8px 0}.ed-history{padding:0;list-style:none;margin:18px 0;border-top:1px solid var(--line)}.ed-history li{padding:12px 0;border-bottom:1px solid var(--line);font-size:12px;overflow-wrap:anywhere}.ed-history span,.ed-history small,.ed-history b{display:block}.ed-history small{margin-top:4px}.ed-history b{font-size:13px;margin-top:6px}.ed-inspect .ed-change{font-weight:650;overflow-wrap:anywhere}@media(max-width:620px){.ed-chart-controls{gap:10px;margin-bottom:20px}.ed-chart-controls .ed-scope{padding:2px}.ed-chart-controls .ed-scope button{font-size:12px;padding:7px 10px}.ed-window{width:100%}.ed-window select{flex:1;min-width:0}.ed-inspect .ed-history{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.ed-inspect .ed-history li{min-width:0}}';
+  // Shared reading scale for this detail page; retain the application's system font stack.
+  style.textContent += `
+.ed-page{--muted:color-mix(in srgb,var(--text) 72%,var(--panel-solid));--ed-positive:color-mix(in srgb,var(--green) 65%,var(--text));--ed-negative:color-mix(in srgb,var(--danger) 70%,var(--text));font-size:15px;line-height:1.65}
+.ed-heading h1{font-size:30px;font-weight:650;letter-spacing:-.02em}.ed-heading p,.ed-section-head p{font-size:14px;line-height:1.75}.ed-eyebrow{font-size:12px;font-weight:600;letter-spacing:.06em}.ed-section h2{font-size:20px;font-weight:650}.ed-section{padding:26px;margin:24px 0}.ed-section-head{margin-bottom:20px}.ed-button,.ed-scope button{font-size:14px;min-height:42px}.ed-metric strong{font-weight:650}.ed-metric small,.ed-table small,.ed-combo-grid small{font-size:12px}.ed-metric>span{font-size:14px}.ed-context{font-size:14px}.ed-table{font-size:14px}.ed-table th,.ed-table td{padding:17px 9px}.ed-table thead th{font-size:12px;font-weight:500}.ed-table tbody th{font-size:15px;font-weight:600}.ed-table td b{font-size:18px;font-weight:600}.ed-combo-grid h3{font-size:15px}.ed-combo-grid p{font-size:14px}.ed-inspect p{font-size:15px}.ed-inspect dl>div,.ed-history li{font-size:13px}.ed-inspect small{font-size:12px}.ed-quadrant-groups p,.ed-method,.ed-missing{font-size:13px}.ed-point-list button{font-size:13px}.ed-chart-controls .ed-window{font-size:13px}.ed-chart-controls select{font-size:14px}.ed-paper p{font-size:14px}.ed-status{font-size:12px}.ed-empty{font-size:14px}.ed-gain{color:var(--ed-positive)}.ed-loss{color:var(--ed-negative)}
+.ed-change-tabs{display:flex;gap:4px;padding:4px;border-radius:12px;background:var(--cell,#f6f7fa);width:fit-content;margin-bottom:22px}.ed-change-tabs button{font:inherit;font-size:14px;border:0;border-radius:9px;background:transparent;color:var(--muted);padding:9px 18px;min-height:42px}.ed-change-tabs [aria-pressed=true]{background:var(--panel-solid);color:var(--text);font-weight:600;box-shadow:0 2px 5px #18212f0c}.ed-change-filters{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:24px}.ed-change-filters label{display:grid;gap:7px;min-width:0;font-size:13px;color:var(--muted)}.ed-change-filters label:first-child{flex:1 1 250px}.ed-change-filters select{width:100%;min-width:0;max-width:100%;font:inherit;font-size:14px;min-height:44px;border:1px solid var(--line);border-radius:10px;color:var(--text);background:var(--panel-solid);padding:9px 34px 9px 12px;text-overflow:ellipsis}.ed-change-filters select:focus-visible,.ed-reflection textarea:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.ed-change-context{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:14px;color:var(--muted);padding-top:20px;border-top:1px solid var(--line)}.ed-change-context b{font-weight:500;color:var(--text)}.ed-change-context time{font-size:13px}.ed-change-total{display:flex;justify-content:space-between;align-items:center;gap:20px;margin:22px 0 26px}.ed-change-total>div{display:grid;gap:4px}.ed-change-total span{font-size:13px;color:var(--muted)}.ed-change-total strong{font-size:28px;line-height:1.4;font-weight:600;font-variant-numeric:tabular-nums}.ed-change-total p{font-size:15px;text-align:right;margin:0;font-variant-numeric:tabular-nums}.ed-change-total small{display:block;font-size:12px;color:var(--muted);margin-top:6px}.ed-change-key{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:22px 0 8px}.ed-change-bars{border-top:1px solid var(--line)}.ed-change-row{display:grid;grid-template-columns:170px minmax(100px,1fr) 150px;gap:22px;align-items:center;padding:18px 0;border-bottom:1px solid var(--line)}.ed-change-label{min-width:0}.ed-change-label b{display:block;font-size:15px;font-weight:600;overflow-wrap:anywhere}.ed-change-label span{display:block;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}.ed-change-label small{display:block;font-size:12px;color:var(--muted);margin-top:3px}.ed-change-plot{position:relative;height:28px;background:linear-gradient(to right,transparent 24.9%,var(--line) 25%,transparent 25.1%,transparent 74.9%,var(--line) 75%,transparent 75.1%)}.ed-change-zero{position:absolute;left:50%;width:1px;background:var(--muted);top:-3px;bottom:-3px;opacity:.5}.ed-change-bar{position:absolute;top:7px;height:14px;min-width:0;border-radius:3px;background:currentColor;opacity:.85}.ed-change-tie{position:absolute;width:6px;height:6px;border-radius:50%;background:var(--muted);left:calc(50% - 2.5px);top:11px}.ed-change-delta{font-size:15px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.ed-change-note{font-size:13px;line-height:1.8;color:var(--muted);margin:20px 0 0}
+.ed-reflection-private{font-size:12px;color:var(--muted);flex-shrink:0}.ed-reflection textarea{display:block;width:100%;min-height:180px;max-height:600px;resize:vertical;font:inherit;font-size:16px;line-height:1.8;border:1px solid var(--line);border-radius:12px;background:var(--panel-solid);color:var(--text);padding:17px 18px;box-sizing:border-box}.ed-reflection textarea::placeholder{color:var(--muted);opacity:1}.ed-reflection textarea:disabled{background:var(--cell,#f6f7fa);opacity:1}.ed-reflection-footer{display:flex;align-items:center;gap:10px 18px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:13px}.ed-reflection-footer [data-reflection-status]{flex:1 1 220px;font-size:13px}.ed-reflection-error{color:var(--ed-negative)}.ed-reflection-conflict{margin-top:20px;padding:18px;border:1px solid var(--line);border-radius:12px;background:var(--cell,#f6f7fa);font-size:14px}.ed-reflection-conflict p{white-space:pre-wrap;overflow-wrap:anywhere;max-height:280px;overflow:auto;line-height:1.8}.ed-reflection-conflict>div{display:flex;gap:10px;flex-wrap:wrap}.ed-reflection-conflict small{display:block;color:var(--muted);margin-top:12px;font-size:12px}.ed-page [hidden]{display:none!important}
+@media(min-width:621px) and (max-width:1050px){.ed-table,.ed-table tbody{display:block}.ed-table thead{display:none}.ed-table tbody{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.ed-table tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;border:1px solid var(--line);border-radius:12px;padding:18px}.ed-table tbody th{grid-column:1/-1;padding:0 0 12px;font-size:17px}.ed-table td{border:0;padding:0;min-width:0;display:block;font-size:14px}.ed-table td:before{content:attr(data-label);display:block;color:var(--muted);font-size:12px;margin-bottom:5px}.ed-table-wrap{overflow:visible}}
+@media(max-width:900px){.ed-change-row{grid-template-columns:140px minmax(80px,1fr) 130px;gap:16px}}
+@media(max-width:620px){.ed-page{margin-bottom:85px}.ed-heading h1{font-size:26px}.ed-heading p{font-size:13px}.ed-section{padding:22px 17px}.ed-overview{padding:22px 17px}.ed-section h2{font-size:19px}.ed-metric small{font-size:12px}.ed-nav .ed-button{font-size:13px;padding:8px 9px}.ed-table tr{padding:17px;gap:18px 14px}.ed-table td{font-size:14px}.ed-table td:before,.ed-table small{font-size:12px}.ed-table tbody th{font-size:17px}.ed-change-tabs{width:100%}.ed-change-tabs button{flex:1;padding:9px 6px}.ed-change-filters{gap:12px}.ed-change-filters label{flex:1 1 120px}.ed-change-filters label:first-child{flex-basis:100%}.ed-change-filters select{font-size:14px}.ed-change-total{align-items:flex-start;gap:10px}.ed-change-total strong{font-size:24px}.ed-change-total p{font-size:14px}.ed-change-key{font-size:12px;gap:8px;margin-top:22px}.ed-change-row{grid-template-columns:minmax(0,1fr) auto;gap:10px 16px;padding:18px 0}.ed-change-label{grid-column:1;grid-row:1}.ed-change-delta{grid-column:2;grid-row:1;max-width:130px;font-size:14px}.ed-change-plot{grid-column:1/-1;grid-row:2;width:100%;height:24px}.ed-change-bar{top:5px}.ed-change-tie{top:9px}.ed-change-label b{font-size:15px}.ed-reflection .ed-section-head{gap:8px}.ed-reflection textarea{padding:14px;min-height:200px}.ed-reflection-footer [data-reflection-status]{flex-basis:190px}.ed-reflection-conflict{padding:14px}.ed-top .ed-button{font-size:13px;padding:8px 10px}.ed-inspect dl>div{font-size:13px}.ed-chart-controls .ed-scope button{font-size:13px}.ed-chart-controls .ed-window select{font-size:14px}}
+`;
+  style.textContent += `
+.ed-heading h1:focus,.ed-section:focus{outline:none}.ed-chart-caption{display:none}.ed-quadrant .ed-dot-number{font-weight:600}.ed-quadrant-key{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 18px;margin:8px 0 20px;font-size:12px;line-height:1.7;color:var(--muted)}.ed-quadrant-key span{display:flex;align-items:center;gap:7px;min-width:0}.ed-quadrant-key i{width:6px;height:6px;border-radius:50%;flex:none;opacity:.8}.ed-quadrant-key small{font-size:11px;opacity:.8}.ed-point-list{margin:18px 0 24px}.ed-chart-controls{gap:16px;margin-top:8px;margin-bottom:28px}.ed-quadrant{overflow:visible}
+@media(min-width:621px) and (max-width:1050px){.ed-table tr{align-content:start}}
+@media(max-width:620px){.ed-quadrant{width:100%;margin:0}.ed-quadrant[data-layout=compact] text{font-size:12px;font-weight:400}.ed-quadrant[data-layout=compact] .ed-dot-number{font-size:11px;fill:#fff;font-weight:600}.ed-chart-caption{display:block;font-size:12px;line-height:1.8;color:var(--muted);margin:16px 0 22px}.ed-quadrant-key{font-size:12px;margin-top:4px;margin-bottom:0;gap:10px 14px}.ed-chart-controls{gap:16px 12px;margin:22px 0 28px}.ed-chart-controls .ed-scope{padding:3px}.ed-chart-controls .ed-scope button{padding:8px 10px;font-weight:500;font-size:13px;min-height:40px}.ed-chart-controls .ed-window{display:grid;gap:7px;flex:1 1 130px;min-width:0;width:auto;font-size:12px}.ed-chart-controls .ed-window select{width:100%;min-width:0;max-width:100%;font-size:13px;padding:10px 8px;min-height:42px}.ed-point-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:20px 0 26px}.ed-point-list button{justify-content:flex-start;min-width:0;font-size:13px;line-height:1.6;padding:7px 9px;min-height:38px;text-align:left;overflow-wrap:anywhere}.ed-point-list i{flex:none}.ed-inspect{padding:20px 17px}.ed-chart-layout{gap:18px}}
+@media(max-width:360px){.ed-point-list{grid-template-columns:repeat(2,minmax(0,1fr))}.ed-chart-controls .ed-scope{width:100%;display:flex}.ed-chart-controls .ed-scope button{flex:1}}
+`;
+  var chartResizeTimer;
+  window.addEventListener('resize', function () { clearTimeout(chartResizeTimer); chartResizeTimer = setTimeout(function () { if (view && active(view) && !view.report) { var exam = currentExam(); if (exam) bindQuadrants(exam, model(exam)); } }, 120); });
   document.head.appendChild(style);
 })();

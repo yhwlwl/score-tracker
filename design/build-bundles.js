@@ -35,6 +35,10 @@ html = html.replace(/(<script src="\.\/)([^"?\s]+\.js)\?v=[^"\s]+/g, (match, pre
   return prefix + file + "?v=" + version;
 });
 html = html.replace(/(href="\.\/pwa-install\.css)\?v=[^"\s]+/g, (match, prefix) => prefix + '?v=' + crypto.createHash('md5').update(fs.readFileSync(path.join(ROOT, 'pwa-install.css'))).digest('hex').slice(0, 10));
+const typeHash = crypto.createHash('md5').update(fs.readFileSync(path.join(ROOT, 'typography.css'))).digest('hex').slice(0, 10);
+html = html.replace(/(href="\.\/typography\.css)\?v=[^"\s]+/g, '$1?v=' + typeHash);
+const adminPath = path.join(ROOT, 'api/mg-ui.js');
+fs.writeFileSync(adminPath, fs.readFileSync(adminPath, 'utf8').replace(/(href="\/typography\.css)\?v=[^"\s]+/g, '$1?v=' + typeHash));
 fs.writeFileSync(htmlPath, html);
 
 console.log("app-bundle.js 已生成 (" + Math.round(bundle.length / 1024) + " KB)，hash=" + hash);

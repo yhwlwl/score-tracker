@@ -9,6 +9,7 @@ const OUT = path.join(ROOT, "deploy");
 const FILES = [
   "index.html",
   "styles.css",
+  "typography.css",
   "mobile-fix.css",
   "pwa-install.js",
   "pwa-install.css",

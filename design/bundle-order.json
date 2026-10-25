@@ -49,5 +49,7 @@
   "community.js",
   "participant-defaults.js",
   "exam-averages.js",
+  "exam-changes.js",
+  "exam-reflection.js",
   "exam-detail.js"
 ]

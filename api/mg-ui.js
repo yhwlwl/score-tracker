@@ -33,8 +33,9 @@ export const MG_HTML = String.raw`<!doctype html>
       .feedback-panel .messages{height:auto;overflow:visible;min-height:120px;padding:14px}.feedback-panel .message{max-width:94%;font-size:14px;line-height:1.7}.feedback-panel .message-head{font-size:10px;gap:12px;flex-wrap:wrap}.feedback-panel .reply{padding:14px 14px max(16px,env(safe-area-inset-bottom))}.feedback-panel .reply .textarea{font-size:16px;min-height:96px}.feedback-panel .reply-actions .btn{min-height:44px;font-size:13px}.feedback-panel .ticket{padding:14px}.feedback-panel .ticket-title{font-size:14px}.feedback-panel .ticket-copy{font-size:12px}.feedback-panel .ticket-top time{font-size:10px}.feedback-panel .pagination{flex-wrap:wrap;gap:10px}.feedback-panel .pager{flex-wrap:wrap}.feedback-panel .pager .btn,.feedback-panel .pager .select{min-height:44px}
     }
   </style>
+  <link rel="stylesheet" href="/typography.css?v=a63f319b2c">
 </head>
-<body><div id="root"></div><div id="drawer"></div><div class="toast-wrap" id="toasts"></div>
+<body class="st-admin-ui"><div id="root"></div><div id="drawer"></div><div class="toast-wrap" id="toasts"></div>
 <script>
 (function(){
   'use strict';
