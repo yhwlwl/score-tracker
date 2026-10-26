@@ -51,12 +51,8 @@ Deno.serve(async req => {
       if (error) throw error; if (!token || !admin) fail('unauthorized', 401);
       if (action === 'recovery_admin_list') {
         const page = Math.max(1, Math.min(100000, Number(q.get('page')) || 1)), size = [30,50,100].includes(Number(q.get('page_size'))) ? Number(q.get('page_size')) : 30, status = text(q.get('status'), 20), search = text(q.get('search'), 100);
-        let query = db.from('score_tracker_recovery_tickets').select('id,ticket_no,mode,username_hint,status,created_at,updated_at,review_note', { count: 'exact' });
-        if (['pending', 'reviewing', 'needs_info', 'approved', 'rejected', 'claimed'].includes(status)) query = query.eq('status', status);
-        // PostgREST filter syntax never receives unescaped user input.
-        if (search) query = query.ilike(search.toUpperCase().startsWith('ST-') ? 'ticket_no' : 'username_hint', '%' + search.replace(/[%_\\]/g, '\\$&') + '%');
-        const { data, count, error } = await query.order('updated_at', { ascending: false }).range((page - 1) * size, page * size - 1); if (error) throw error;
-        return out({ rows: data, total_count: count, page, page_size: size });
+        const result = await rpc('score_tracker_recovery_search_tickets', {p_search:search,p_status:['pending','reviewing','needs_info','approved','rejected','claimed'].includes(status)?status:'',p_limit:size,p_offset:(page-1)*size});
+        return out({...result,page,page_size:size});
       }
       const id = q.get('id') || body.id; if (!uuid(id)) fail('工单不存在。', 404);
       if (action === 'recovery_admin_detail') {

@@ -6,12 +6,13 @@ const { PGlite } = require('@electric-sql/pglite');
 (async () => {
   const db = new PGlite();
   await db.exec(`
+    create role anon;create role authenticated;create role service_role;
     create table public.score_tracker_users (
       id uuid primary key, username text, original_username text,
       created_at timestamptz default now(), is_admin boolean default false
     );
     create table public.score_tracker_recovery_tickets (
-      id uuid primary key, username_hint text, evidence jsonb
+      id uuid primary key, username_hint text, evidence jsonb, ticket_no text,mode text,status text default 'pending',created_at timestamptz default now(),updated_at timestamptz default now(),review_note text
     );
     create table public.score_tracker_exams (
       id uuid primary key, user_id uuid, name text, exam_date date,
@@ -29,7 +30,7 @@ const { PGlite } = require('@electric-sql/pglite');
       ('00000000-0000-0000-0000-000000000004', 'score-owner', null, false),
       ('00000000-0000-0000-0000-000000000005', 'literal_%_name', null, false),
       ('00000000-0000-0000-0000-000000000006', '111', null, false);
-    insert into public.score_tracker_recovery_tickets values
+    insert into public.score_tracker_recovery_tickets(id,username_hint,evidence) values
       ('10000000-0000-0000-0000-000000000001', 'misremembered',
        '{"exam_name":"incorrect exam","school":"incorrect school","subject":"数学","score":"999"}');
     insert into public.score_tracker_exams values
@@ -69,6 +70,20 @@ const { PGlite } = require('@electric-sql/pglite');
   await db.query('update public.score_tracker_recovery_tickets set username_hint=$1, evidence=$2::jsonb where id=$3::uuid',
     ['', '{"exam_name":"真实考试"}', ticket]);
   assert.equal((await find(''))[0].exam_match, true, 'automatic exam matching preserved');
+  await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/20261027001000_recovery_flexible_search.sql'),'utf8'));
+  for(const q of ['考试:真实 英语:111.5 总分:340-350','日期:2026-09 英语:110-115','真实 111.5','科目:英语 分数:111.5'])assert.equal((await find(q))[0].username,'score-owner',q);
+  assert.deepEqual(await find('考试:真实 英语:120-130'),[]);
+  assert.equal((await find('用户名:旧用'))[0].username,'TargetUser');
+  assert.deepEqual(await find('用户名:target-admin'),[]);
+  assert.equal((await find('%_'))[0].username,'literal_%_name');
+  await db.exec(`insert into score_tracker_exams(id,user_id,name,exam_date) values('20000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000004','另一考试','2026-10-01');`);
+  assert.deepEqual(await find('考试:另一 英语:111.5'),[],'do not combine scores from different exams');
+  const tickets=async q=>(await db.query('select score_tracker_recovery_search_tickets($1) result',[q])).rows[0].result;
+  assert.equal((await tickets('真实考试')).total_count,1);
+  assert.equal((await tickets('真实考试 不存在')).total_count,0);
+  assert.equal((await tickets('%')).total_count,0,'no wildcard interpretation');
+  assert.equal((await tickets('')).rows.length,1);
+  await db.exec('set role anon');await assert.rejects(db.query('select score_tracker_recovery_search_tickets()'),/permission denied/);await db.exec('reset role');
   await db.close();
   console.log('Recovery username search regression checks passed');
 })().catch(error => { console.error(error); process.exit(1); });
