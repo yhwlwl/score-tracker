@@ -158,7 +158,7 @@ openExam = function openExamV16(exam=null){
   var last=previous.length?previous[previous.length-1]:null;
   var selected=exam?.grade_level||(!editing?(last?.grade_level||''):'');
   var modal=document.createElement('div');
-  modal.className='modal-backdrop exam-entry-backdrop';
+  modal.className='modal-backdrop';
   modal.innerHTML=`<div class="modal"><div class="modal-head"><h3>${editing?'编辑考试':'记录一次考试'}</h3><button class="close-btn">×</button></div><div class="modal-body"><div class="form-grid"><div class="field"><label>考试名称</label><input id="examName" maxlength="60" value="${escapeHtml(exam?.name||'')}" placeholder="例如：期中考试"></div><div class="field"><label>考试日期</label><input id="examDate" type="date" value="${exam?.exam_date||today}"></div><div class="field"><label>${escapeHtml(categoryLabelV14())}</label><select id="gradeLevelV14" class="grade-select-v13"><option value="">未分类</option>${options.map(function(v){return `<option value="${escapeHtml(v)}" ${selected===v?'selected':''}>${escapeHtml(v)}</option>`;}).join('')}</select></div></div>
   <div class="section-head-v7"><div><h4>本次考试科目</h4><p>科目可自由增减；原始分和最终分可以使用不同满分。</p></div></div><div class="exam-subjects-v10" id="examSubjectsV16"></div><div class="exam-subject-toolbar-v10"><button class="secondary" id="addExamSubjectV16">＋ 添加科目 / 模块</button></div>
   <div class="score-total-preview-v13"><div class="score-total-box-v13"><span>原始总分</span><b id="rawTotalV16">—</b></div><div class="score-total-box-v13"><span>赋分 / 最终总分</span><b id="finalTotalV16">—</b></div></div>
