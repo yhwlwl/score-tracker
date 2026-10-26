@@ -12815,7 +12815,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     function archiveComments(){item.commentsReadOnly=true;form.hidden=true;section.insertBefore(status,form);if(!section.querySelector('.rn-comment-archive')){var archived=document.createElement('p');archived.className='rn-comments-hint rn-comment-archive';archived.textContent='这条公告已归档，可查看当时的评论。';section.querySelector('h3').after(archived);}}
     if(item.commentsReadOnly)archiveComments();
     function current(){var u=user();return back.isConnected&&u&&u.id===item.user.id&&u.token===item.user.token;}
-    async function load(append){if(loading)return;loading=true;more.disabled=true;status.textContent='正在加载评论…';try{var data=await call('announcement_comments',{notice_id:item.id,before:append?next:null},item.user);if(!current())return;if(data.read_only===true)archiveComments();if(!append)list.innerHTML='';(data.rows||[]).forEach(function(row){var article=document.createElement('article');article.className='rn-comment';article.innerHTML='<div class="rn-comment-meta"><b>'+esc(anonymousName(row.author))+'</b><time>'+esc(new Date(row.created_at).toLocaleString())+'</time>'+(row.can_delete&&!item.commentsReadOnly?'<button type="button">删除</button>':'')+'</div><div class="rn-comment-text">'+esc(row.content)+'</div>';var del=article.querySelector('button');if(del)del.onclick=async function(){del.disabled=true;try{await call('announcement_comment_delete',{notice_id:item.id,id:row.id},item.user);if(current())await load(false);}catch(e){status.textContent=e.message;}finally{del.disabled=false;}};list.appendChild(article);});if(!list.children.length)list.textContent=item.commentsReadOnly?'这条公告还没有评论。':'还没有评论，欢迎说说你的想法。';next=data.next;more.hidden=!next;status.textContent='';}catch(e){if(current())status.textContent=e.message;}finally{loading=false;more.disabled=false;}}
+    async function load(append){if(loading)return;loading=true;more.disabled=true;status.textContent='正在加载评论…';try{var data=await call('announcement_comments',{notice_id:item.id,before:append?next:null},item.user);if(!current())return;if(data.read_only===true)archiveComments();if(!append)list.innerHTML='';(data.rows||[]).forEach(function(row){var article=document.createElement('article');article.className='rn-comment';article.innerHTML='<div class="rn-comment-meta"><b>'+esc(anonymousName(row.author))+'</b><time>'+esc(new Date(row.created_at).toLocaleString())+'</time>'+(row.can_delete&&!item.commentsReadOnly?'<button type="button">删除</button>':'')+'</div><div class="rn-comment-text">'+esc(row.content)+'</div>'+(row.reply?'<div class="rn-admin-reply"><b>作者回复</b><time>'+esc(new Date(row.reply.created_at).toLocaleString())+'</time><div>'+esc(row.reply.content)+'</div></div>':'');var del=article.querySelector('button');if(del)del.onclick=async function(){del.disabled=true;try{await call('announcement_comment_delete',{notice_id:item.id,id:row.id},item.user);if(current())await load(false);}catch(e){status.textContent=e.message;}finally{del.disabled=false;}};list.appendChild(article);});if(!list.children.length)list.textContent=item.commentsReadOnly?'这条公告还没有评论。':'还没有评论，欢迎说说你的想法。';next=data.next;more.hidden=!next;status.textContent='';}catch(e){if(current())status.textContent=e.message;}finally{loading=false;more.disabled=false;}}
     more.onclick=function(){load(true);};
     form.onsubmit=async function(e){e.preventDefault();if(!current()||item.commentsReadOnly)return;var content=input.value.trim();if(!content){status.textContent='写点内容再发送吧';return;}submit.disabled=true;status.textContent='正在发送…';try{await call('announcement_comment_add',{notice_id:item.id,content:content},item.user);if(!current())return;input.value='';await load(false);if(!status.textContent)status.textContent='评论已发送';}catch(e){if(current())status.textContent=e.message;}finally{submit.disabled=false;}};
     if(item.user.id==='guest'){form.hidden=true;list.textContent=item.commentsReadOnly?'登录后可以查看当时的评论':'登录后可以查看和发表评论';return;}load(false);
@@ -12895,6 +12895,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   window.addEventListener('storage',function(e){if(e.key==='st_token'&&user()&&e.newValue!==user().token){pending=[];if(modal)close('account_changed');}});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',sync,{once:true});else sync();
   window.__releaseNotices={check:check,compareVersions:compare,currentVersion:function(){return CURRENT;},refreshSupport:function(){if(modal)mountSupport(modal.back,modal);},openAnnouncement:function(){track('announcement_manual_opened',{source:'settings'});return check('manual_announcement',true,'announcement');}};
+  var replyStyle=document.createElement('style');replyStyle.textContent='.rn-admin-reply{margin-top:12px;padding:12px 14px;border-left:3px solid var(--accent,#315efb);background:var(--accent-soft,#f3f6ff);border-radius:8px;font-size:13px;line-height:1.8;overflow-wrap:anywhere}.rn-admin-reply time{display:block;font-size:11px;color:var(--muted,#68758b)}.rn-admin-reply>div{white-space:pre-wrap;margin-top:4px}';document.head.appendChild(replyStyle);
 })();
 
 /* ===== account-recovery.js ===== */
@@ -13813,11 +13814,11 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
 /* Optional, account-only WeChat community. No chat SDK or third-party image requests. */
 (function () {
   'use strict';
-  var config=null, identity='', loading=null, generation=0, lastLoad=0, modal=null, expiryTimer, entryTracked='';
+  var config=null, identity='', loading=null, generation=0, lastLoad=0, modal=null, expiryTimer, entryTracked='',lastSuccess=0,authFailed=false;
   var esc=function(v){return escapeHtml(String(v==null?'':v));};
   function track(event, metadata) { try { var fn=window.__scoreTrackerTrack||window.__stTrack; if(typeof fn==='function')fn(event,metadata||{}); } catch (_) {} }
   function owner(){return state.user&&state.token?String(state.user.id)+'|'+state.token:'';}
-  function available(){return !!(owner()&&owner()===identity&&config&&config.enabled&&config.qr_image&&(!config.expires_at||Date.parse(config.expires_at)>Date.now()));}
+  function available(){return !!(owner()&&owner()===identity&&config&&config.enabled&&config.qr_image&&Date.now()-lastSuccess<10*60000&&(!config.expires_at||Date.parse(config.expires_at)>Date.now()));}
   function safeImage(value){return typeof value==='string' && value.length<=500000 && (/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(value)||/^\.?\/?[a-zA-Z0-9_\-./]+\.(png|jpe?g|webp)$/i.test(value)&&!value.startsWith('//')&&!value.includes('..'));}
   function safeLink(value){try{var u=new URL(value);return u.protocol==='https:'&&['weixin.qq.com','work.weixin.qq.com'].includes(u.hostname)&&!u.username&&!u.password&&!u.port?u.href:'';}catch(_){return '';}}
   function close(reason){
@@ -13825,7 +13826,8 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     old.background.forEach(function(pair){if(pair[0].isConnected&&!pair[1])pair[0].removeAttribute('inert');});
     if(old.focus&&old.focus.isConnected)old.focus.focus();
   }
-  function reset(){generation++;loading=null;lastLoad=0;config=null;identity=owner();entryTracked='';clearTimeout(expiryTimer);close('account_changed');}
+  function reset(){generation++;loading=null;lastLoad=0;lastSuccess=0;authFailed=false;config=null;identity=owner();entryTracked='';clearTimeout(expiryTimer);close('account_changed');}
+  function homeDismissed(){try{return Number(localStorage.getItem('st_community_hide_'+state.user.id)||0)>Date.now()}catch(_){return false}}
   function refresh(){
     if(owner()!==identity)reset();
     if(!available())close('unavailable');
@@ -13833,36 +13835,58 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     if(!available()||!first){if(card)card.remove();}
     else if(!card){
       card=document.createElement('section');card.id='communityAccountCard';card.className='account-card community-card';
-      card.innerHTML='<div><h3>交流与反馈</h3><p>一起交流使用心得，也欢迎提出建议。加入自愿，原反馈入口照常保留。</p></div><button type="button" class="community-button" data-community-open>加入微信交流群 <span aria-hidden="true">›</span></button>';
+      card.innerHTML='<div><h3>交流与反馈</h3><p>遇到问题、想提建议，来群里直接聊。也欢迎分享自己的使用心得。</p></div><button type="button" class="community-button" data-community-open="account">加入微信交流群 <span aria-hidden="true">›</span></button>';
       first.after(card);
-      if(entryTracked!==identity){entryTracked=identity;track('community_entry_shown',{source:'account'});}
     }
+    var home=document.getElementById('communityHomeCard'),content=state.page==='home'&&document.getElementById('content');
+    if(!available()||!content||state.onboarding||homeDismissed()){if(home)home.remove();}
+    else if(!home){
+      home=document.createElement('section');home.id='communityHomeCard';home.className='community-home';
+      home.innerHTML='<div class="community-home-icon" aria-hidden="true">聊</div><div class="community-home-copy"><span class="community-kicker">和作者、同学一起交流</span><h3>有想法，来群里聊聊</h3><p>使用问题 · 功能建议 · 学习心得</p></div><button class="community-button" type="button" data-community-open="home">看看交流群 <span aria-hidden="true">↗</span></button><button class="community-dismiss" type="button" aria-label="暂时收起交流群入口，七天后再显示" title="收起 7 天">×</button>';
+      var anchor=content.querySelector('.hero');if(anchor)anchor.after(home);else content.prepend(home);
+      home.querySelector('.community-dismiss').onclick=function(){try{localStorage.setItem('st_community_hide_'+state.user.id,String(Date.now()+7*86400000))}catch(_){}home.remove();track('community_entry_dismissed',{source:'home',days:7})};
+    }
+    var source=home&&home.isConnected?'home':card&&card.isConnected?'account':'';
+    if(source&&entryTracked.indexOf('|'+source+'|')<0){entryTracked+='|'+source+'|';track('community_entry_shown',{source:source});}
     window.__releaseNotices?.refreshSupport?.();
-    if(identity&&!loading&&(!lastLoad||(state.page==='account'||modal||document.querySelector('[data-notice-community]'))&&Date.now()-lastLoad>5*60000))load(false,'refresh');
+    if(identity&&!authFailed&&!loading&&(!lastLoad||Date.now()-lastLoad>5*60000))load(false,'refresh');
   }
   async function load(force,source){
-    if(owner()!==identity)reset();if(!identity)return;
+    if(owner()!==identity)reset();if(!identity||authFailed)return;
     if(loading)return loading;if(!force&&Date.now()-lastLoad<5*60000)return;
-    source=source||'refresh';
-    var who=identity,seq=++generation,controller=new AbortController(),timer=setTimeout(function(){controller.abort();},8000);
-    lastLoad=Date.now();
+    source=source||'refresh';var who=identity,seq=++generation,started=Date.now();lastLoad=Date.now();
     loading=(async function(){
+      var attempts=0;
       try{
-        var res=await fetch('/api/score-tracker-notices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'community_public',token:state.token}),cache:'no-store',signal:controller.signal});
-        if(!res.ok){var status=res.status;var error=new Error('config unavailable');error.status=status;throw error;}var c=(await res.json()).config;
+        var c;
+        for(var attempt=0;attempt<2;attempt++){
+          attempts++;var controller=new AbortController(),timer=setTimeout(function(){controller.abort()},12000);
+          try{
+            var res=await fetch('/api/score-tracker-notices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'community_public',token:state.token}),cache:'no-store',signal:controller.signal});
+            if(!res.ok)throw Object.assign(new Error('config unavailable'),{status:res.status});
+            var payload=await res.json();c=payload.config;break;
+          }catch(error){if(attempt===0&&seq===generation&&owner()===who&&(!error.status||error.status>=500||error.status===408)&&error.name!=='SyntaxError')continue;throw error}
+          finally{clearTimeout(timer)}
+        }
         if(seq!==generation||owner()!==who)return;
-        if(!c||c.enabled!==true||!safeImage(c.qr_image)||typeof c.title!=='string'||typeof c.intro!=='string'||c.expires_at&&!Number.isFinite(Date.parse(c.expires_at)))c=null;
-        if(modal&&JSON.stringify(config)!==JSON.stringify(c))close('config_changed');config=c;clearTimeout(expiryTimer);
+        if(!c||typeof c.enabled!=='boolean')throw Object.assign(new Error('invalid config'),{kind:'invalid_config'});
+        if(c.enabled&&(!safeImage(c.qr_image)||typeof c.title!=='string'||typeof c.intro!=='string'||c.expires_at&&!Number.isFinite(Date.parse(c.expires_at))))throw Object.assign(new Error('invalid config'),{kind:'invalid_config'});
+        if(!c.enabled)c=null;
+        if(modal&&JSON.stringify(config)!==JSON.stringify(c))close('config_changed');config=c;lastSuccess=Date.now();clearTimeout(expiryTimer);
         if(c&&c.expires_at){var remaining=Date.parse(c.expires_at)-Date.now();if(remaining>0)expiryTimer=setTimeout(refresh,Math.min(remaining+20,2147483647));}
-      }catch(error){if(seq===generation&&owner()===who){track('community_config_load_failed',{source:source,status:Number(error&&error.status)||0});config=null;close('load_failed');}}
-      finally{clearTimeout(timer);if(seq===generation){loading=null;refresh();}}
+      }catch(error){if(seq===generation&&owner()===who){
+        var status=Number(error&&error.status)||0,kind=error.kind||(status===401?'auth_expired':error.name==='AbortError'?'timeout':error.name==='SyntaxError'?'invalid_response':status?'http_error':'network');
+        authFailed=status===401;
+        if(authFailed||kind==='invalid_config'||kind==='invalid_response'||status>=400&&status<500&&status!==408&&status!==429||!available()){config=null;close('load_failed');}
+        track('community_config_load_failed',{source:source,status:status,failure_type:kind,attempts:attempts,duration_ms:Date.now()-started,using_recent_config:available()?1:0});
+      }}finally{if(seq===generation){loading=null;refresh();}}
     })();return loading;
   }
   async function open(source){
     source=source||'api';
     if(!owner()||state.onboarding)return false;
-    await load(true,'open');
-    if(!available()){track('community_open_unavailable',{source:source});if(typeof toast==='function')toast('交流群暂未开放或二维码已到期，请稍后再试。');return false;}
+    if(!available()||Date.now()-lastSuccess>=5*60000)await load(true,'open');
+    if(!available()){track('community_open_unavailable',{source:source});if(typeof toast==='function')toast(authFailed?'登录已失效，请重新登录后查看交流群。':'交流群暂时无法打开，请稍后再试；仍可通过反馈联系我。');return false;}
     if(modal)return true;
     if(document.querySelector('.modal-backdrop,.rn-back,.support-back,.st-fb-back'))return false;
     track('community_opened',{source:source});
@@ -13885,8 +13909,8 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     var join=back.querySelector('[data-community-join]');if(join)join.onclick=function(){track('community_join_link_clicked');};
     back.querySelector('[data-community-close]').focus();return true;
   }
-  var style=document.createElement('style');style.textContent='.community-card{display:flex;align-items:center;justify-content:space-between;gap:18px}.community-card h3{margin:0 0 6px;font-size:16px}.community-card p{margin:0;color:var(--muted);font-size:12px;line-height:1.8}.community-button{display:inline-block;text-align:center;border:1px solid var(--line);border-radius:10px;background:var(--accent-soft);color:var(--accent);font:inherit;font-size:13px;padding:11px 15px;cursor:pointer;text-decoration:none;flex-shrink:0}.community-back{position:fixed;inset:0;z-index:180;display:grid;place-items:center;padding:16px;background:#101a3070;backdrop-filter:blur(6px)}.community-panel{box-sizing:border-box;width:min(460px,100%);max-height:90dvh;overflow:auto;border-radius:20px;background:var(--panel-solid,#fff);color:var(--text);padding:24px;line-height:1.8}.community-panel header{display:flex;justify-content:space-between;align-items:center;gap:12px}.community-panel h2{margin:0;font-size:19px;overflow-wrap:anywhere}.community-panel p{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}.community-panel header button{border:0;background:transparent;color:var(--muted);font-size:26px;cursor:pointer}.community-qr{display:block;max-width:100%;width:230px;margin:20px auto 12px;padding:10px;border:1px solid var(--line);border-radius:12px;background:#fff;cursor:zoom-in}.community-qr img{display:block;width:100%;height:auto}.community-qr.is-large{width:100%;cursor:zoom-out}.community-panel .community-help{font-size:12px;color:var(--muted)}.community-panel>.community-button{box-sizing:border-box;width:100%;margin-top:10px}.community-button:disabled{opacity:.5;cursor:default}.community-panel button:focus-visible,.community-button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}@media(max-width:520px){.community-card{flex-direction:column;align-items:stretch}.community-panel{padding:20px}.community-qr{width:210px}}';document.head.appendChild(style);
-  document.addEventListener('click',function(e){if(e.target.closest?.('[data-community-open]'))open('account');});
+  var style=document.createElement('style');style.textContent='.community-home{position:relative;display:flex;align-items:center;gap:16px;padding:20px 48px 20px 22px;margin:18px 0;border:1px solid var(--line);border-radius:18px;background:var(--panel-solid,#fff)}.community-home-icon{display:grid;place-items:center;flex:none;width:44px;height:44px;border-radius:14px;color:var(--accent);background:var(--accent-soft);font-size:19px;font-weight:700}.community-home-copy{flex:1;min-width:0}.community-kicker{font-size:11px;color:var(--muted)}.community-home h3{font-size:16px;line-height:1.5;margin:3px 0}.community-home p{font-size:12px;color:var(--muted);margin:0}.community-dismiss{position:absolute;right:10px;top:9px;width:28px;height:28px;background:transparent;border:0;font-size:21px;color:var(--muted);cursor:pointer}@media(max-width:560px){.community-home{padding:18px;gap:12px;flex-wrap:wrap}.community-home-copy{padding-right:16px}.community-home>.community-button{margin-left:56px;padding:8px 13px;font-size:12px}}.community-card{display:flex;align-items:center;justify-content:space-between;gap:18px}.community-card h3{margin:0 0 6px;font-size:16px}.community-card p{margin:0;color:var(--muted);font-size:12px;line-height:1.8}.community-button{display:inline-block;text-align:center;border:1px solid var(--line);border-radius:10px;background:var(--accent-soft);color:var(--accent);font:inherit;font-size:13px;padding:11px 15px;cursor:pointer;text-decoration:none;flex-shrink:0}.community-back{position:fixed;inset:0;z-index:180;display:grid;place-items:center;padding:16px;background:#101a3070;backdrop-filter:blur(6px)}.community-panel{box-sizing:border-box;width:min(460px,100%);max-height:90dvh;overflow:auto;border-radius:20px;background:var(--panel-solid,#fff);color:var(--text);padding:24px;line-height:1.8}.community-panel header{display:flex;justify-content:space-between;align-items:center;gap:12px}.community-panel h2{margin:0;font-size:19px;overflow-wrap:anywhere}.community-panel p{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}.community-panel header button{border:0;background:transparent;color:var(--muted);font-size:26px;cursor:pointer}.community-qr{display:block;max-width:100%;width:230px;margin:20px auto 12px;padding:10px;border:1px solid var(--line);border-radius:12px;background:#fff;cursor:zoom-in}.community-qr img{display:block;width:100%;height:auto}.community-qr.is-large{width:100%;cursor:zoom-out}.community-panel .community-help{font-size:12px;color:var(--muted)}.community-panel>.community-button{box-sizing:border-box;width:100%;margin-top:10px}.community-button:disabled{opacity:.5;cursor:default}.community-panel button:focus-visible,.community-button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}@media(max-width:520px){.community-card{flex-direction:column;align-items:stretch}.community-panel{padding:20px}.community-qr{width:210px}}';document.head.appendChild(style);
+  document.addEventListener('click',function(e){var entry=e.target.closest?.('[data-community-open]');if(entry)open(entry.dataset.communityOpen||'account');});
   document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')refresh();});
   window.addEventListener('online',function(){load(true);});
   setInterval(function(){if(document.visibilityState==='visible')refresh();},60000);

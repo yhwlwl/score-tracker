@@ -100,11 +100,20 @@ Deno.serve(async req => {
       if(r.data?.length){try{await audit('feature_completion_seen',user,body,req,{option_id:body.option_id,completed_at:option.data.completed_at});}catch(e){console.error('feature_completion_audit_error',e);}}
       return json({claimed:!!r.data?.length});
     }
+    if(action==='notification_comment_reply'&&req.method==='POST'){
+      if(!UUID.test(body.id)||typeof body.content!=='string'||body.content.trim().length>2000||!Number.isSafeInteger(body.revision)||body.revision<0)return json({error:'回复最多 2000 字，请重新读取评论后重试'},400);
+      const content=body.content.trim(),now=new Date().toISOString();
+      const saved=await db.from('score_tracker_announcement_comments').update({admin_reply:content||null,admin_replied_at:content?now:null,admin_replied_by:content?user.id:null,reply_revision:body.revision+1}).eq('id',body.id).eq('reply_revision',body.revision).select('id,admin_reply,admin_replied_at,reply_revision').maybeSingle();
+      if(saved.error)throw saved.error;
+      if(!saved.data)return json({error:'评论已删除或回复刚刚有更新，请刷新后重试；你的草稿已保留'},409);
+      try{await audit('announcement_admin_replied',user,body,req,{comment_id:body.id,removed:!content});}catch(e){console.error('announcement_reply_audit_failed',e);}
+      return json({ok:true,reply:saved.data});
+    }
     if(action==='notification_announcement_activity'&&req.method==='GET'){
       const params=new URL(req.url).searchParams,scope=params.get('scope')||'all',cursor=params.get('before')||'';
       if(!['all','current'].includes(scope)||(cursor&&!/^\d{1,18}$/.test(cursor)))return json({error:'无效的评论筛选或分页'},400);
       const c=await config();
-      let q=db.from('score_tracker_announcement_comments').select('id,sequence,notice_id,content,created_at,author:score_tracker_users(username)').order('sequence',{ascending:false}).limit(51);
+      let q=db.from('score_tracker_announcement_comments').select('id,sequence,notice_id,content,created_at,admin_reply,admin_replied_at,reply_revision,author:score_tracker_users(username)').order('sequence',{ascending:false}).limit(51);
       if(scope==='current')q=q.eq('notice_id',c.announcement_id);
       if(cursor)q=q.lt('sequence',cursor);
       const [seen,current,total,list]=await Promise.all([
@@ -113,7 +122,7 @@ Deno.serve(async req => {
         db.from('score_tracker_announcement_comments').select('id',{count:'exact',head:true}),q
       ]);
       for(const r of [seen,current,total,list])if(r.error)throw r.error;
-      const rows=(list.data||[]).slice(0,50).map(x=>({id:String(x.id),sequence:String(x.sequence),notice_id:x.notice_id,content:x.content,created_at:x.created_at,author:x.author?.username||'用户',is_current:x.notice_id===c.announcement_id}));
+      const rows=(list.data||[]).slice(0,50).map(x=>({id:String(x.id),sequence:String(x.sequence),notice_id:x.notice_id,admin_reply:x.admin_reply||'',admin_replied_at:x.admin_replied_at,reply_revision:x.reply_revision||0,content:x.content,created_at:x.created_at,author:x.author?.username||'用户',is_current:x.notice_id===c.announcement_id}));
       return json({announcement_id:c.announcement_id,viewers:seen.count||0,current_comments:current.count||0,total_comments:total.count||0,rows,next:list.data?.length>50?rows.at(-1).sequence:null});
     }
     if(action==='notification_config'&&req.method==='GET'){const c=await config();await audit('notification_admin_viewed',user,body,req,{revision:c.revision});return json({config:c});}
@@ -149,11 +158,11 @@ Deno.serve(async req => {
         return json({ok:true});
       }
       const cursor=String(body.before||'');if(cursor&&!/^\d{1,18}$/.test(cursor))return json({error:'无效的分页'},400);
-      let q=db.from('score_tracker_announcement_comments').select('id,sequence,user_id,content,created_at,author:score_tracker_users(username)').eq('notice_id',notice.id).order('sequence',{ascending:false}).limit(31);
+      let q=db.from('score_tracker_announcement_comments').select('id,sequence,user_id,content,created_at,admin_reply,admin_replied_at,reply_revision,author:score_tracker_users(username)').eq('notice_id',notice.id).order('sequence',{ascending:false}).limit(31);
       if(!user.is_admin&&notice.comments_public===false)q=q.eq('user_id',user.id);
       if(cursor)q=q.lt('sequence',cursor);
       const r=await q;if(r.error)throw r.error;
-      const rows=(r.data||[]).slice(0,30).map(x=>({id:String(x.id),content:x.content,sequence:String(x.sequence),created_at:x.created_at,author:x.author?.username||'用户',can_delete:isCurrent&&(user.is_admin||x.user_id===user.id)}));
+      const rows=(r.data||[]).slice(0,30).map(x=>({id:String(x.id),reply:x.admin_reply?{content:x.admin_reply,created_at:x.admin_replied_at}:null,content:x.content,sequence:String(x.sequence),created_at:x.created_at,author:x.author?.username||'用户',can_delete:isCurrent&&(user.is_admin||x.user_id===user.id)}));
       return json({rows,next:r.data?.length>30?rows.at(-1).sequence:null,read_only:!isCurrent});
     }
     if(action==='notice_check'&&req.method==='POST'){

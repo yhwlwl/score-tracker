@@ -44,8 +44,8 @@ const read=f=>fs.readFileSync(path.join(__dirname,'..',f),'utf8'),tick=ms=>new P
   assert.equal(rows().length,100);assert(rows()[0].textContent.includes('用户 100'));assert(panel().textContent.includes('第 2 / 4 页'));
   assert.equal(panel(),w.document.querySelector('#page').lastElementChild);assert(w.document.querySelector('#page').textContent.indexOf('待处理的需求')<w.document.querySelector('#page').textContent.indexOf('用户投票情况'));
   const reads=calls.filter(x=>x==='feature_votes').length;
-  const model=w.document.getElementById('aiVisionModel');model.value='draft-model';model.dispatchEvent(new w.Event('input'));
-  next().click();assert.equal(rows().length,100);assert(rows()[0].textContent.includes('用户 200'));assert.equal(w.document.getElementById('aiVisionModel').value,'draft-model');
+  assert.equal(w.document.getElementById('aiVisionModel'),null,'识图设置已移出投票');
+  next().click();assert.equal(rows().length,100);assert(rows()[0].textContent.includes('用户 200'));
   next().click();assert.equal(rows().length,83);assert(next().disabled);assert(w.location.search.includes('featurevotes_page=4'));
   prev().click();assert.equal(rows().length,100);assert.equal(calls.filter(x=>x==='feature_votes').length,reads);
   const search=w.document.getElementById('globalSearch');search.value='用户 382';search.dispatchEvent(new w.Event('input'));await tick(300);
