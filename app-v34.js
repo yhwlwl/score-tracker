@@ -2393,6 +2393,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
     disconnectVisibilityObservers();
   }
   function mountIfMissing() {
+    if(window.ScoreQuestionTypeAnalysis && window.ScoreQuestionTypeAnalysis.active()) { resetVisibilityTrackingIfOutsideStats(); return; }
     if (!pageIsStats()) { resetVisibilityTrackingIfOutsideStats(); return; }
     var c = document.getElementById("content");
     if (!c) return;

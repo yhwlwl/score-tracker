@@ -23,6 +23,7 @@ const FILES = [
   "feature-vote.js",
   "app-v36.js",
   "app-v37.js",
+  "app-v38.js",
   "study-planner-promo.webp",
   "robots.txt",
   "_headers",

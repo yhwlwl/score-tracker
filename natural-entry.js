@@ -423,13 +423,16 @@
     Object.keys(result.city).forEach(function (key) { addFieldCount(result, result.city[key]); });
 
     typeLines.forEach(function (line) {
-      var parts = line.match(/^题型\s*[:|]\s*([^|]+)\|([^|]+)\|([^|]*)\|([^|]*)$/);
-      if (!parts) { result.errors.push('题型请按「题型：科目 | 题型名 | 得分 | 满分」填写，未知填 -。'); return; }
+      var parts = line.match(/^题型\s*[:|]\s*([^|]+)\|([^|]+)\|([^|]*)\|([^|]*)(?:\|([^|]*)(?:\|([^|]*)(?:\|([^|]*))?)?)?$/);
+      if (!parts) { result.errors.push('题型请按「题型：科目 | 题型名 | 得分 | 满分」填写，可追加「| 位置 | 难度 | 原因」，未知填 -。'); return; }
       var name = parts[1].trim();
       if (!name || name.length > 40) { result.errors.push('题型所属科目名称不正确'); return; }
       if (!Object.prototype.hasOwnProperty.call(result.subjects,name)) result.subjects[name] = {};
       var rows = result.subjects[name].questionTypes || (result.subjects[name].questionTypes = []);
-      rows.push({name:parts[2].trim(),score:valueOrEmpty(parts[3]) || null,max:valueOrEmpty(parts[4]) || null});
+      var row={name:parts[2].trim(),score:valueOrEmpty(parts[3]) || null,max:valueOrEmpty(parts[4]) || null};
+      if(valueOrEmpty(parts[5]))row.position=valueOrEmpty(parts[5]);
+      [['difficulty',6,window.ScoreQuestionTypeModel.difficulties],['cause',7,window.ScoreQuestionTypeModel.causes]].forEach(function(pair){var v=valueOrEmpty(parts[pair[1]]);if(v)row[pair[0]]=Object.keys(pair[2]).find(function(k){return pair[2][k]===v;})||v;});
+      rows.push(row);
     });
     Object.keys(result.subjects).forEach(function (name) {
       try { if (result.subjects[name].questionTypes) result.subjects[name].questionTypes = window.ScoreQuestionTypeModel.clean(result.subjects[name].questionTypes,name); }
@@ -1189,7 +1192,7 @@
           '，班排：' + displayPair(subject.classRank, subject.classParticipants)
         );
         (Array.isArray(subject.questionTypes) ? subject.questionTypes : []).forEach(function (row) {
-          lines.push('题型：' + subject.name + ' | ' + row.name + ' | ' + displayValue(row.score) + ' | ' + displayValue(row.max));
+          lines.push('题型：' + subject.name + ' | ' + row.name + ' | ' + displayValue(row.score) + ' | ' + displayValue(row.max) + ' | ' + displayValue(row.position) + ' | ' + displayValue(window.ScoreQuestionTypeModel.difficulties[row.difficulty]));
         });
       });
       return lines.join('\n');

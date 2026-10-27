@@ -1547,6 +1547,7 @@ function moduleRanksForExamV32(e,modId){
   return null;
 }
 function routeStatsV32(){
+  if(window.ScoreQuestionTypeAnalysis && window.ScoreQuestionTypeAnalysis.active()){window.ScoreQuestionTypeAnalysis.render();return;}
   try{window.__stTrack&&window.__stTrack("stats_open",{});}catch(e){}
   var cfg=(typeof state!=="undefined"&&state.sv31)||(state.sv31={scope:"__all__",mode:"rank"});
   var exams=scopeFilterV32(visibleExamsV32(cfg.includeHidden),cfg.scope);
@@ -1558,10 +1559,10 @@ function routeStatsV32(){
   try{document.body.classList.toggle("mode-score",cfg.mode==="score");}catch(e){}
   var c=document.getElementById("content");if(!c)return;
   var sy=window.pageYOffset||0;
-  c.innerHTML=statsPageV32(f);
-  try{bindStatsV32(f,c.firstElementChild);}catch(e){}
-  if(window.__stScoreWorth)window.__stScoreWorth.bind(c.firstElementChild,f);
-  if(window.__stTrajectories)window.__stTrajectories.bind(c.firstElementChild,f);
+  c.innerHTML=(window.ScoreQuestionTypeAnalysis ? window.ScoreQuestionTypeAnalysis.tabs() : "")+statsPageV32(f);
+  try{bindStatsV32(f,c.querySelector(".sv31-page"));}catch(e){}
+  if(window.__stScoreWorth)window.__stScoreWorth.bind(c.querySelector(".sv31-page"),f);
+  if(window.__stTrajectories)window.__stTrajectories.bind(c.querySelector(".sv31-page"),f);
   /* 渲染后让 v29 图例取色/显隐对统计页图表生效(图二/图三换色与勾选显示) */
   try{if(window.__v29&&window.__v29.afterRender)window.__v29.afterRender();}catch(e){}
   window.scrollTo(0,sy);

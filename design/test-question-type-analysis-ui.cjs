@@ -1,0 +1,30 @@
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),{JSDOM,VirtualConsole}=require('jsdom'),{seed}=require('./build-question-type-analysis-visual.cjs');
+const root=path.resolve(__dirname,'..'),read=p=>fs.readFileSync(path.join(root,p),'utf8'),tick=()=>new Promise(r=>setTimeout(r,40));
+(async()=>{
+const errors=[],calls=[],vc=new VirtualConsole();vc.on('jsdomError',e=>{if(!e.message.includes('CSS'))errors.push(e.message)});
+const dom=new JSDOM(read('index.html').replace(/<script[\s\S]*?<\/script>/g,''),{url:'https://fixture.test/',runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:vc}),w=dom.window,d=w.document;
+w.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){},addListener(){}});w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};w.setInterval=()=>1;
+let exams=structuredClone(seed.allExams);
+w.fetch=async(url,opts)=>{const body=JSON.parse(opts&&opts.body||'{}');calls.push(body);if(body.action==='save_exam'){exams=exams.map(e=>e.id===body.exam.id?{...e,...body.exam}:e)};const data=['bootstrap','list_exams'].includes(body.action)?{user:seed.user,subjects:seed.subjectConfigs,modules:[],exams,participantDefaults:{},classification:{label:'年级',options:[]}}:body.action==='get_exam_reflection'?{reflection:'',reflection_revision:0}:{ok:true,id:body.exam?.id,created:false,modules:[],enabled:false};return new Response(JSON.stringify(data))};
+w.eval(read('app-bundle.js')+'\nwindow.state=state;');for(const f of ['natural-entry.js','app-v36.js','app-v37.js','app-v38.js'])w.eval(read(f));await tick();
+Object.assign(w.state,structuredClone(seed));w.applyExamSubjectsV10(w.state.exams,w.state.subjectConfigs);w.render();w.ScoreQuestionTypeAnalysis.open('英语');await tick();
+assert(d.querySelector('.qta-page'));assert.equal(d.querySelectorAll('#dsbRoot').length,0,'deep score analysis must not mount inside type tab');
+assert(d.querySelector('.qta-history').textContent.includes('待补全'));assert.equal(d.querySelectorAll('.qta-perspectives button').length,3);
+const set=(key,value)=>{const e=d.querySelector('[data-qta-filter='+key+']');e.value=value;e.dispatchEvent(new w.Event('change',{bubbles:true}))};
+set('group','position');await tick();assert(d.querySelector('.qta-history').textContent.includes('阅读 A'));assert(d.querySelector('.qta-history').textContent.includes('阅读 B–D'));
+d.querySelector('[data-qta-view=quick]').click();let first=d.querySelector('.qta-opportunities h3').textContent;
+d.querySelector('[data-qta-view=breakthrough]').click();assert.notEqual(d.querySelector('.qta-opportunities h3').textContent,first);
+set('category','高二');assert(d.querySelector('.qta-pagination').textContent.includes('/ 4 场'));set('category','*');set('limit','0');assert(d.querySelector('.qta-pagination').textContent.includes('/ 12 场'));
+d.querySelector('[data-qta-window]').click();assert(d.querySelector('.qta-pagination').textContent.includes('1–6'));assert(d.querySelector('.qta-history').textContent.includes('百分制随堂测验'));
+const selected=d.querySelector('[data-qta-filter=selected]').value;
+d.querySelector('[data-qta-exam]').click();await tick();assert(d.querySelector('.ed-page'));assert.equal(d.querySelector('[data-ed=back]').textContent,'← 返回题型分析');
+d.querySelector('[data-ed=edit]').click();await tick();let modal=w.state.modal;assert(modal.querySelector('.qt-editor'));const pos=modal.querySelector('[data-qt-field=position]');pos.value='整组';pos.dispatchEvent(new w.Event('input',{bubbles:true}));
+const id=w.state.allExams[0].id;await w.saveExam(id,modal);await tick();assert(calls.some(c=>c.action==='save_exam'&&c.exam.question_type_scores.英语[0].position==='整组'));
+d.querySelector('[data-ed=back]').click();await tick();assert(d.querySelector('.qta-page'));assert.equal(d.querySelector('[data-qta-filter=selected]').value,selected);assert.equal(d.querySelector('[data-qta-filter=group]').value,'position');
+d.querySelector('[data-qta-tab=overview]').click();await tick();assert(d.querySelector('.sv31-page'));assert(d.querySelector('#dsbRoot'));assert.equal(d.querySelectorAll('.qta-tabs').length,1);
+d.querySelector('[data-qta-tab=types]').click();await tick();assert.equal(d.querySelectorAll('#dsbRoot').length,0);
+set('subject','数学');assert(!d.querySelector('.qta-history').textContent.includes('听力'));assert(d.querySelector('.qta-history').textContent.includes('第 21 题'));
+// No score/goal/filter state leaks across accounts.
+Object.assign(w.state,{user:{id:'new-user',username:'new'},token:'new-token',allExams:[],exams:[],subjectConfigs:[{name:'语文',defaultMax:150}]});w.render();await tick();assert(d.querySelector('.sv31-page'));w.ScoreQuestionTypeAnalysis.open('语文');await tick();assert(d.querySelector('.qta-empty').textContent.includes('从一个题型开始'));assert(!d.querySelector('.qta-page').textContent.includes('阅读 B'));
+assert.deepEqual(errors,[]);dom.window.close();console.log('PASS: production routing, tab isolation, perspectives, filters, historical pagination, edit/save round trip, return focus and account isolation');
+})().catch(e=>{console.error(e);process.exitCode=1});
