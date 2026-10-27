@@ -119,6 +119,8 @@
   }
   function rowIsVisible(row, root) {
     if (!row.isConnected || document.hidden || !row.getClientRects().length) return false;
+    var disclosure = row.closest('details');
+    if (disclosure && !disclosure.open) return false;
     if (!root.classList.contains('fv36-back') && (hasBlockingModal() || document.querySelector('.fv36-back'))) return false;
     var rect = row.getBoundingClientRect();
     return rect.bottom > 0 && rect.top < window.innerHeight && rect.right > 0 && rect.left < window.innerWidth;
@@ -198,6 +200,7 @@
       '.fv36-actions{display:flex;justify-content:flex-end;margin-top:16px}.fv36-submit{border:0;border-radius:12px;background:var(--text,#18212f);color:#fff;padding:11px 18px;font-weight:720;cursor:pointer}.fv36-submit:disabled{opacity:.5;cursor:not-allowed}',
       '.fv36-error{min-height:17px;margin-top:9px;color:var(--danger,#d9534f);font-size:11.5px;line-height:1.45}',
       '.fv36-account{grid-column:1/-1;padding:20px;margin-top:18px}.fv36-account-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.fv36-account-head h3{margin:0}.fv36-account-head p{margin:5px 0 0}',
+      '.fv36-account-details{border-top:1px solid var(--line);margin-top:14px}.fv36-account-details>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;list-style:none;font-size:13px;color:var(--muted);cursor:pointer}.fv36-account-details>summary::-webkit-details-marker{display:none}.fv36-account-details>summary::after{content:"";width:7px;height:7px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);margin-right:3px;transition:transform .15s}.fv36-account-details[open]>summary::after{transform:rotate(225deg)}.fv36-account-details>summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:8px}',
       '.fv36-account-metrics{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.fv36-metric{border:1px solid var(--line,#e5e9ef);background:var(--cell,#f8f9fb);border-radius:12px;padding:9px 11px;min-width:94px}.fv36-metric b{display:block;font-size:18px}.fv36-metric span{font-size:10.5px;color:var(--muted,#7a8494)}',
       '.fv36-account-list{display:grid;gap:8px;margin-top:14px}.fv36-account-row{display:flex;align-items:center;gap:10px;border:1px solid var(--line,#e5e9ef);border-radius:13px;padding:10px 12px}.fv36-account-row-main{min-width:0;flex:1}.fv36-account-row b{display:block;font-size:12.5px;line-height:1.45}.fv36-account-row small{color:var(--muted,#7a8494);font-size:10.5px}',
       '.fv36-badge{border-radius:999px;padding:4px 8px;font-size:10px;font-weight:750;background:var(--cell,#f4f6f8);color:var(--muted,#6f7a89);white-space:nowrap}.fv36-badge.mine{background:var(--green-soft,#e9f8f2);color:var(--green,#32a77a)}',
@@ -341,7 +344,7 @@
   }
 
   function accountCardShell() {
-    return '<div class="card fv36-account" id="featureVoteCardV36"><div class="fv36-account-head"><div><h3 class="card-title">功能投票</h3><p class="card-sub">查看你的投票和当前票数。</p></div><button class="secondary" id="featureVoteOpenV36">投票</button></div><div id="featureVoteAccountBodyV36" class="subtle-note" style="margin-top:14px">读取中…</div></div>';
+    return '<div class="card fv36-account" id="featureVoteCardV36"><div class="fv36-account-head"><div><h3 class="card-title">功能投票</h3><p class="card-sub">支持你希望优先上线的功能。</p></div><button type="button" class="secondary" id="featureVoteOpenV36">投票</button></div><details class="fv36-account-details"><summary>查看选项、票数和我的需求</summary><div id="featureVoteAccountBodyV36" class="subtle-note">读取中…</div></details></div>';
   }
   function renderAccountData(root, data) {
     if (!root || !data) return;

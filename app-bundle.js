@@ -13839,8 +13839,8 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     var card=document.getElementById('communityAccountCard'),first=state.page==='account'&&document.querySelector('.account-grid > .account-card');
     if(!available()||!first){if(card)card.remove();}
     else if(!card){
-      card=document.createElement('section');card.id='communityAccountCard';card.className='account-card community-card';
-      card.innerHTML='<div><h3>交流与反馈</h3><p>遇到问题、想提建议，来群里直接聊。也欢迎分享自己的使用心得。</p></div><button type="button" class="community-button" data-community-open="account">加入微信交流群 <span aria-hidden="true">›</span></button>';
+      card=document.createElement('section');card.id='communityAccountCard';card.className='card account-card community-card';
+      card.innerHTML='<div><h3 class="card-title">交流与反馈</h3><p>遇到问题、想提建议，来群里直接聊。也欢迎分享自己的使用心得。</p></div><button type="button" class="community-button" data-community-open="account">加入微信交流群 <span aria-hidden="true">›</span></button>';
       first.after(card);
     }
     var home=document.getElementById('communityHomeCard'),content=state.page==='home'&&document.getElementById('content');
