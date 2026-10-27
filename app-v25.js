@@ -50,14 +50,19 @@
       .basis-btn-v13.active{background:var(--text);color:#fff;border-color:var(--text)}
       .score-basis-v13{margin:0 0 10px}
       .radar-pick-v25{margin-top:8px}
+      .radar-selection-v25{min-width:0;width:100%}
+      .radar-card .radar-wrap.radar-empty-v25{height:180px}
+      .radar-selection-note-v25{display:block;width:100%;margin-top:10px;font-size:13px;line-height:1.7;color:var(--muted);overflow-wrap:anywhere}
       .radar-pick-v25 .secondary{border:1px solid var(--line);background:#fff;color:#556070;border-radius:999px;padding:8px 13px;font-size:12px;cursor:pointer}
       .radar-picked-v25{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
       .radar-pick-chip-v25{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#f7f8fb;color:#556070;border-radius:999px;padding:7px 10px;font-size:11px;cursor:pointer}
       .radar-pick-chip-v25:hover{border-color:#a9b4c8}
+      .radar-pick-chip-v25{max-width:100%;text-align:left;white-space:normal;overflow-wrap:anywhere}
       .radar-pick-group-v25{margin:0 0 12px}
       .radar-pick-group-v25 h4{font-size:12px;color:var(--muted);margin:0 0 4px}
       .radar-pick-option-v25{display:flex;align-items:center;gap:8px;padding:9px 2px;font-size:13px;color:var(--text);border-bottom:1px solid var(--line);cursor:pointer}
-      .radar-pick-option-v25 input{width:16px;height:16px;accent-color:#5d72e8}
+      .radar-pick-option-v25 input{width:16px;height:16px;flex-shrink:0;accent-color:#5d72e8}
+      .radar-pick-option-v25 span{min-width:0;overflow-wrap:anywhere}
       .trend-legend-row-v25{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px}
       .trend-legend-row-v25 .legend{margin:0}
       .trend-legend-row-v25 .trend-scroll-hint-v19{margin:0;margin-left:auto;text-align:right}
@@ -701,13 +706,13 @@
     };
   }
 
-  // ---------- F2) 雷达图考试选择器：选择最近考试 → 分类勾选弹窗 → 只显示所选 ----------
-  // 不再自动预选最近考试：初始为「选择最近考试」按钮，用户勾选后才显示所选
+  // ---------- F2) 雷达图考试选择器：选择入口独立于当前指标，切换指标保留所选 ----------
+  function radarPickerExamsV25(){return(state.exams||[]).filter(function(exam){return !exam.is_hidden;});}
   var ensureRadarBeforeV25=(typeof ensureRadarSelection==='function')?ensureRadarSelection:null;
   if(ensureRadarBeforeV25){
     ensureRadarSelection=function ensureRadarSelectionV25(){
       var ids=state.radarSelection||[];
-      var availableIds=new Set((typeof radarAvailableExams==='function'?radarAvailableExams():[]).map(function(e){return e.id;}));
+      var availableIds=new Set(radarPickerExamsV25().map(function(e){return e.id;}));
       state.radarSelection=ids.filter(function(id){return availableIds.has(id);}).slice(0,4);
     };
   }
@@ -715,27 +720,27 @@
   if(radarCardHtmlBeforeV25){
     radarCardHtml=function radarCardHtmlV25(){
       var html=radarCardHtmlBeforeV25();
-      var available=typeof radarAvailableExams==='function'?radarAvailableExams():[];
+      var available=radarPickerExamsV25();
       var selected=state.radarSelection||[];
-      var picker;
-      if(!available.length){
-        picker='<div class="multi-select" style="margin-top:8px"><span class="subtle-note">当前还没有可用于雷达图的数据</span></div>';
-      }else if(selected.length){
-        picker='<div class="radar-picked-v25">'+selected.map(function(id){
+      var picker='<div class="radar-selection-v25"><div class="radar-pick-v25"><button class="secondary" id="radarPickV25" type="button"'+(!available.length?' disabled':'')+'>'+(selected.length?'调整考试（已选 '+selected.length+'/4）':'选择考试（最多 4 次）')+'</button></div>';
+      if(selected.length){
+        picker+='<div class="radar-picked-v25">'+selected.map(function(id){
           var e=(state.exams||[]).find(function(x){return x.id===id;});
-          return e?'<span class="radar-pick-chip-v25" data-radar-unpick="'+escapeHtml(id)+'">'+escapeHtml(e.name)+' · '+fmtDate(e.exam_date)+' ✕</span>':'';
+          return e?'<button type="button" class="radar-pick-chip-v25" data-radar-unpick="'+escapeHtml(id)+'" aria-label="移除'+escapeHtml(e.name)+'">'+escapeHtml(e.name)+' · '+fmtDate(e.exam_date)+' ✕</button>':'';
         }).join('')+'</div>';
-      }else{
-        picker='<div class="radar-pick-v25"><button class="secondary" id="radarPickV25" type="button">选择最近考试</button></div>';
       }
+      if(!available.length)picker+='<span class="radar-selection-note-v25">当前筛选下暂无考试记录</span>';
+      else if(!radarAvailableExams().length)picker+='<span class="radar-selection-note-v25">当前查看项暂无数据，可切换查看内容或补录对应数据。</span>';
+      picker+='</div>';
       html=html.replace(/<div class="multi-select"[^>]*>[\s\S]*?<\/div>/,picker);
+      if(html.indexOf('class="empty-chart"')!==-1)html=html.replace('class="radar-wrap"','class="radar-wrap radar-empty-v25"');
       return html;
     };
   }
   function openRadarPickerV25(){
-    var available=typeof radarAvailableExams==='function'?radarAvailableExams():[];
+    var available=radarPickerExamsV25();
     if(!available.length)return toast('暂无可用考试');
-    var cats=typeof categoryOptionsV14==='function'?categoryOptionsV14():[];
+    var cats=Array.from(new Set(available.map(function(e){return e.grade_level;}).filter(Boolean)));
     var groups=[].concat(
       cats.map(function(c){return{name:c,list:available.filter(function(e){return e.grade_level===c;})};}),
       [{name:'未分类',list:available.filter(function(e){return !e.grade_level;})}]
@@ -748,7 +753,7 @@
       +groups.map(function(g){
         return '<div class="radar-pick-group-v25"><h4>'+escapeHtml(g.name)+'</h4>'
           +g.list.map(function(e){
-            return '<label class="radar-pick-option-v25"><input type="checkbox" value="'+escapeHtml(e.id)+'"'+(picked.has(String(e.id))?' checked':'')+'> '+escapeHtml(e.name)+' · '+fmtDate(e.exam_date)+'</label>';
+            return '<label class="radar-pick-option-v25"><input type="checkbox" value="'+escapeHtml(e.id)+'"'+(picked.has(String(e.id))?' checked':'')+'><span>'+escapeHtml(e.name)+' · '+fmtDate(e.exam_date)+'</span></label>';
           }).join('')
           +'</div>';
       }).join('')
