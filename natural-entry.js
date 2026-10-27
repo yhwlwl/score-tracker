@@ -760,7 +760,7 @@
       '<div class="nl-entry-upload-card"><label class="nl-entry-file-button"><span>选择成绩单图片</span><small>支持多选，最多 6 张</small><input class="nl-entry-files" type="file" accept="image/*" multiple></label><p>可按成绩单顺序选择多张截图，系统会合并识别同一次考试。长图会自动分段，保留小字细节。</p><p class="nl-entry-help">识别成功后，图片和结果会保存下来，仅供管理员核对准确性。</p></div>' +
       '<div class="nl-entry-image-list" aria-live="polite"><span class="nl-entry-empty">还没有选择图片</span></div>' +
       '<div class="nl-entry-progress" hidden aria-live="polite"><div class="nl-entry-progress-head"><span>识别进度 · 总计</span><strong class="nl-entry-elapsed">0.0s</strong></div><ol class="nl-entry-progress-steps"><li class="nl-entry-progress-step" data-progress-step="0"><span class="nl-entry-progress-dot">1</span><span class="nl-entry-progress-step-label">检查登录与额度</span><strong class="nl-entry-progress-step-time" data-progress-time="0">—</strong></li><li class="nl-entry-progress-step" data-progress-step="1"><span class="nl-entry-progress-dot">2</span><span class="nl-entry-progress-step-label">测试识别服务连通性</span><strong class="nl-entry-progress-step-time" data-progress-time="1">—</strong></li><li class="nl-entry-progress-step" data-progress-step="2"><span class="nl-entry-progress-dot">3</span><span class="nl-entry-progress-step-label">准备清晰图片</span><strong class="nl-entry-progress-step-time" data-progress-time="2">—</strong></li><li class="nl-entry-progress-step" data-progress-step="3"><span class="nl-entry-progress-dot">4</span><span class="nl-entry-progress-step-label">上传并识别图片</span><strong class="nl-entry-progress-step-time" data-progress-time="3">—</strong></li><li class="nl-entry-progress-step" data-progress-step="4"><span class="nl-entry-progress-dot">5</span><span class="nl-entry-progress-step-label">读取识别结果</span><strong class="nl-entry-progress-step-time" data-progress-time="4">—</strong></li><li class="nl-entry-progress-step" data-progress-step="5"><span class="nl-entry-progress-dot">6</span><span class="nl-entry-progress-step-label">整理可编辑结果</span><strong class="nl-entry-progress-step-time" data-progress-time="5">—</strong></li></ol></div>' +
-      '<p class="nl-entry-vision-edit-hint" hidden>识别结果可直接编辑，确认无误后再点击“确认并填入”。题型行格式：科目 | 题型 | 得分 | 满分，未知填 -。</p>' +
+      '<p class="nl-entry-vision-edit-hint" hidden>识别结果可直接编辑，确认无误后再点击“确认并填入”。题型行格式：科目 | 题型 | 得分 | 满分 | 位置 | 难度；后两项可省略，未知填 -。</p>' +
       '<textarea class="nl-entry-vision-output" aria-label="识别结果，可编辑" spellcheck="false" hidden></textarea>' +
       '<div class="modal-actions"><button class="primary nl-entry-vision-submit" type="button" disabled>识别图片</button></div>' +
       '</section>' +
@@ -1281,7 +1281,7 @@
         visionOutput.hidden = false;
         if (visionEditHint) {
           visionEditHint.hidden = false;
-          visionEditHint.textContent = '识别结果可直接编辑，确认无误后再点击“确认并填入”。题型行格式：科目 | 题型 | 得分 | 满分，未知填 -。' + (Array.isArray(visionPayload.warnings) ? visionPayload.warnings.slice(0, 3).join(' ') : '');
+          visionEditHint.textContent = '识别结果可直接编辑，确认无误后再点击“确认并填入”。题型行格式：科目 | 题型 | 得分 | 满分 | 位置 | 难度；后两项可省略，未知填 -。' + (Array.isArray(visionPayload.warnings) ? visionPayload.warnings.slice(0, 3).join(' ') : '');
         }
         finishVisionProgress(true);
         trackUsage('quick_entry_image_recognition_completed', {
