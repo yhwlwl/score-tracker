@@ -1,5 +1,5 @@
 /*! app-bundle.js · 自动生成,勿手改 —— 改源码后运行: node design/build-bundles.js
-   来源顺序: compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js, score-worth-model.js, score-worth.js, release-notices.js, account-recovery.js, trajectory-forecast.js, similar-trajectories.js, school-settings.js, announcement-settings.js, author-support.js, community.js, participant-defaults.js, exam-averages.js, supabase/functions/_shared/question-types.js, question-type-scores.js, exam-changes.js, exam-reflection.js, exam-detail.js */
+   来源顺序: compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js, score-worth-model.js, score-worth.js, release-notices.js, account-recovery.js, trajectory-forecast.js, similar-trajectories.js, school-settings.js, announcement-settings.js, author-support.js, community.js, participant-defaults.js, exam-averages.js, supabase/functions/_shared/question-types.js, question-type-scores.js, question-type-analysis-model.js, question-type-analysis.js, exam-changes.js, exam-reflection.js, exam-detail.js */
 /* ===== compat.js ===== */
 // Compatibility helpers for older iOS Safari/WebViews.
 // Keep this file tiny and load it before the application scripts.
@@ -8961,6 +8961,7 @@ function moduleRanksForExamV32(e,modId){
   return null;
 }
 function routeStatsV32(){
+  if(window.ScoreQuestionTypeAnalysis && window.ScoreQuestionTypeAnalysis.active()){window.ScoreQuestionTypeAnalysis.render();return;}
   try{window.__stTrack&&window.__stTrack("stats_open",{});}catch(e){}
   var cfg=(typeof state!=="undefined"&&state.sv31)||(state.sv31={scope:"__all__",mode:"rank"});
   var exams=scopeFilterV32(visibleExamsV32(cfg.includeHidden),cfg.scope);
@@ -8972,10 +8973,10 @@ function routeStatsV32(){
   try{document.body.classList.toggle("mode-score",cfg.mode==="score");}catch(e){}
   var c=document.getElementById("content");if(!c)return;
   var sy=window.pageYOffset||0;
-  c.innerHTML=statsPageV32(f);
-  try{bindStatsV32(f,c.firstElementChild);}catch(e){}
-  if(window.__stScoreWorth)window.__stScoreWorth.bind(c.firstElementChild,f);
-  if(window.__stTrajectories)window.__stTrajectories.bind(c.firstElementChild,f);
+  c.innerHTML=(window.ScoreQuestionTypeAnalysis ? window.ScoreQuestionTypeAnalysis.tabs() : "")+statsPageV32(f);
+  try{bindStatsV32(f,c.querySelector(".sv31-page"));}catch(e){}
+  if(window.__stScoreWorth)window.__stScoreWorth.bind(c.querySelector(".sv31-page"),f);
+  if(window.__stTrajectories)window.__stTrajectories.bind(c.querySelector(".sv31-page"),f);
   /* 渲染后让 v29 图例取色/显隐对统计页图表生效(图二/图三换色与勾选显示) */
   try{if(window.__v29&&window.__v29.afterRender)window.__v29.afterRender();}catch(e){}
   window.scrollTo(0,sy);
@@ -12180,6 +12181,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
     disconnectVisibilityObservers();
   }
   function mountIfMissing() {
+    if(window.ScoreQuestionTypeAnalysis && window.ScoreQuestionTypeAnalysis.active()) { resetVisibilityTrackingIfOutsideStats(); return; }
     if (!pageIsStats()) { resetVisibilityTrackingIfOutsideStats(); return; }
     var c = document.getElementById("content");
     if (!c) return;
@@ -14177,20 +14179,40 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     var n = Number(value);
     return Number.isFinite(n) && n >= 0 && n <= 99999 && Math.abs(n * 100 - Math.round(n * 100)) < 0.000001 ? n : NaN;
   }
-  function clean(rows, label) {
-    if (!Array.isArray(rows) || rows.length > 30) throw new Error((label || '') + '题型须为列表，每科最多 30 项');
+  var difficulties = {easy:'基础',medium:'中等',hard:'较难'};
+  var causes = {knowledge:'知识不熟',method:'思路受阻',careless:'审题/计算疏漏',time:'时间不足'};
+  function key(row) { return JSON.stringify([String(row.name || '').trim(), String(row.position || '').trim()]); }
+  function label(row) { return row.name + (row.position ? ' · ' + row.position : ''); }
+  function clean(rows, subject) {
+    if (!Array.isArray(rows) || rows.length > 30) throw new Error((subject || '') + '题型须为列表，每科最多 30 项');
     var seen = new Set();
-    return rows.filter(function (r) { return !(r && r.name === '' && (r.score == null || r.score === '') && (r.max == null || r.max === '')); }).map(function (r) {
+    var cleaned = rows.filter(function (r) { return !(r && r.name === '' && (r.score == null || r.score === '') && (r.max == null || r.max === '') && !r.position && !r.difficulty && !r.cause); }).map(function (r) {
       if (!r || typeof r !== 'object' || Array.isArray(r)) throw new Error('题型条目格式不正确');
       var name = typeof r.name === 'string' ? r.name.trim() : '';
       if (!name || name.length > 40) throw new Error('题型名称请填写 1～40 个字符');
-      if (seen.has(name)) throw new Error('题型「' + name + '」重复了，请合并或区分名称');
-      seen.add(name);
+      if (r.position != null && typeof r.position !== 'string') throw new Error('题号/位置须为文字');
+      var position = (r.position || '').trim();
+      if (position.length > 24) throw new Error('题号/位置最多 24 个字符');
+      var identity = key({name:name,position:position});
+      if (seen.has(identity)) throw new Error('题型「' + name + '」重复了，请合并或区分题号/位置');
+      seen.add(identity);
       var score = number(r.score), max = number(r.max);
       if (Number.isNaN(score) || Number.isNaN(max) || max === 0) throw new Error(name + '的得分须为非负数、满分须大于 0，最多两位小数');
       if (max !== null && score !== null && score > max) throw new Error(name + '的得分不能超过满分');
-      return { name: name, score: score, max: max };
+      var result = { name: name, score: score, max: max };
+      if (position) result.position = position;
+      [['difficulty',difficulties],['cause',causes]].forEach(function (pair) {
+        var v = r[pair[0]];
+        if (v == null || v === '') return;
+        if (typeof v !== 'string' || !Object.prototype.hasOwnProperty.call(pair[1],v)) throw new Error(name + '的难度或失分原因选项不正确');
+        result[pair[0]] = v;
+      });
+      return result;
     });
+    cleaned.forEach(function (r) {
+      if (!r.position && cleaned.some(function (other) { return other.name === r.name && other.position; })) throw new Error(r.name + '不能同时录入题型合计和分题得分，请保留一种口径');
+    });
+    return cleaned;
   }
   function sum(rows) {
     var score = 0, max = 0, scored = 0, complete = rows.length > 0;
@@ -14204,7 +14226,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     if (rawScore != null && s.score > rawScore + 0.000001) throw new Error('题型得分合计超过原始分，请核对后保存');
     return s;
   }
-  var api = { number: number, clean: clean, sum: sum, validate: validate };
+  var api = { number: number, clean: clean, sum: sum, validate: validate, key:key, label:label, difficulties:difficulties, causes:causes };
   root.ScoreQuestionTypeModel = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(globalThis);
@@ -14228,13 +14250,18 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   function value(card, selector) { var input = card.querySelector(selector); return model.number(input ? input.value : null); }
   function rawScore(card) { var raw = value(card, '.raw-v16'); return raw === null && value(card, '.rawmax-v16') === value(card, '.max-v16') ? value(card, '.actual-v16') : raw; }
   function track(event, metadata) { if (window.__scoreTrackerTrack) window.__scoreTrackerTrack(event, metadata, 'record'); }
+  function metadata(r, i, subject) {
+    var prefix = esc(subject) + '题型' + (i + 1);
+    function select(field, title, options) { return '<label><span>' + title + '</span><select data-qt-field="' + field + '" aria-label="' + prefix + title + '"><option value="">未标注</option>' + Object.keys(options).map(function (k) { return '<option value="' + k + '"' + (r[field] === k ? ' selected' : '') + '>' + options[k] + '</option>'; }).join('') + '</select></label>'; }
+    return '<details class="qt-meta"' + (r.position || r.difficulty || r.cause ? ' open' : '') + '><summary>位置、难度与原因 <small>选填</small></summary><div><label><span>题号 / 位置</span><input data-qt-field="position" maxlength="24" value="' + esc(r.position) + '" aria-label="' + prefix + '题号位置" placeholder="如：第 21 题 / 阅读 A"></label>' + select('difficulty','难度',model.difficulties) + select('cause','主要失分原因',model.causes) + '</div><p class="qt-help">按本题实际情况填写；难度不确定可以留空，得分低不一定代表题目难。</p></details>';
+  }
   function mount(modal, card) {
     if (card.querySelector('.qt-editor')) return;
     var name = cardName(card); if (!name) return;
     var draft = modal._questionTypeDraft;
     if (!Object.prototype.hasOwnProperty.call(draft, name)) draft[name] = [];
     var box = document.createElement('details'); box.className = 'qt-editor'; box.open = draft[name].length > 0;
-    box.innerHTML = '<summary><span>题型得分 <small>选填</small></span><span class="qt-summary"></span></summary><div class="qt-body"><p class="qt-help">按卷面原始分记录，可只填部分题型。题型与满分可自定义。</p><div class="qt-rows"></div><div class="qt-toolbar"><label><span class="qt-sr">添加常用题型</span><select class="qt-preset" aria-label="' + esc(name) + '添加常用题型"><option value="">＋ 常用题型</option>' + (presets[name] || ['选择题','填空题','解答题']).map(function (n) { return '<option>' + esc(n) + '</option>'; }).join('') + '</select></label><button type="button" class="qt-add">＋ 自定义题型</button></div><div class="qt-status" aria-live="polite"></div><button type="button" class="qt-use" hidden>用合计填入原始分</button></div>';
+    box.innerHTML = '<summary><span>题型得分 <small>选填</small></span><span class="qt-summary"></span></summary><div class="qt-body"><p class="qt-help">按卷面原始分记录，可只填部分题型。可填题型合计，或用题号区分同一题型的小题；同一部分不要重复录入。</p><div class="qt-rows"></div><div class="qt-toolbar"><label><span class="qt-sr">添加常用题型</span><select class="qt-preset" aria-label="' + esc(name) + '添加常用题型"><option value="">＋ 常用题型</option>' + (presets[name] || ['选择题','填空题','解答题']).map(function (n) { return '<option>' + esc(n) + '</option>'; }).join('') + '</select></label><button type="button" class="qt-add">＋ 自定义题型</button></div><div class="qt-status" aria-live="polite"></div><button type="button" class="qt-use" hidden>用合计填入原始分</button></div>';
     card.appendChild(box);
     var rows = box.querySelector('.qt-rows'), status = box.querySelector('.qt-status');
     function update() {
@@ -14251,9 +14278,9 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       } catch (e) { status.textContent = e.message; status.classList.add('qt-error'); }
     }
     function draw() {
-      rows.innerHTML = draft[name].map(function (r,i) { return '<div class="qt-row"><label class="qt-name"><span>题型</span><input data-qt-field="name" maxlength="40" value="' + esc(r.name) + '" aria-label="' + esc(name) + '题型' + (i+1) + '名称" placeholder="如：完形填空"></label><label><span>得分</span><input data-qt-field="score" type="number" min="0" max="99999" step="0.01" inputmode="decimal" value="' + esc(r.score) + '" aria-label="' + esc(name) + '题型' + (i+1) + '得分" placeholder="待补"></label><label><span>满分</span><input data-qt-field="max" type="number" min="0.01" max="99999" step="0.01" inputmode="decimal" value="' + esc(r.max) + '" aria-label="' + esc(name) + '题型' + (i+1) + '满分" placeholder="待补"></label><button type="button" class="qt-remove" aria-label="删除题型' + (i+1) + '">×</button></div>'; }).join('');
+      rows.innerHTML = draft[name].map(function (r,i) { return '<div class="qt-row"><label class="qt-name"><span>题型</span><input data-qt-field="name" maxlength="40" value="' + esc(r.name) + '" aria-label="' + esc(name) + '题型' + (i+1) + '名称" placeholder="如：完形填空"></label><label><span>得分</span><input data-qt-field="score" type="number" min="0" max="99999" step="0.01" inputmode="decimal" value="' + esc(r.score) + '" aria-label="' + esc(name) + '题型' + (i+1) + '得分" placeholder="待补"></label><label><span>满分</span><input data-qt-field="max" type="number" min="0.01" max="99999" step="0.01" inputmode="decimal" value="' + esc(r.max) + '" aria-label="' + esc(name) + '题型' + (i+1) + '满分" placeholder="待补"></label><button type="button" class="qt-remove" aria-label="删除题型' + (i+1) + '">×</button>' + metadata(r,i,name) + '</div>'; }).join('');
       rows.querySelectorAll('.qt-row').forEach(function (row,i) {
-        row.querySelectorAll('input').forEach(function (input) { input.oninput = function () { draft[name][i][input.dataset.qtField] = input.validity.badInput ? 'invalid' : input.value; update(); }; });
+        row.querySelectorAll('input,select').forEach(function (input) { input.oninput = input.onchange = function () { draft[name][i][input.dataset.qtField] = input.validity.badInput ? 'invalid' : input.value; update(); }; });
         row.querySelector('button').onclick = function () { draft[name].splice(i,1); draw(); };
       }); update();
     }
@@ -14312,21 +14339,219 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     if (!modal._questionTypeDraft || modal._questionTypeOwner !== state.token) throw new Error('请重新打开考试录入表');
     var name = cardName(card), incoming = model.clean(rows,name), current = JSON.parse(JSON.stringify(modal._questionTypeDraft[name] || []));
     // Recognition fills missing cells only; existing manual marks always win.
-    incoming.forEach(function (r) { var found = current.find(function (x) { return x.name.trim() === r.name; }); if (!found) current.push(r); else ['score','max'].forEach(function (key) { if (found[key] === null || found[key] === '') found[key] = r[key]; }); });
+    incoming.forEach(function (r) { var found = current.find(function (x) { return model.key(x) === model.key(r); }); if (!found) current.push(r); else ['score','max','position','difficulty','cause'].forEach(function (key) { if (found[key] == null || found[key] === '') if (r[key] != null) found[key] = r[key]; }); });
     if (current.length > 30) throw new Error('合并后题型超过 30 项，请分批核对');
     modal._questionTypeDraft[name] = current; mount(modal,card); var box = card.querySelector('.qt-editor'); box.open = true; box._refresh();
     return incoming.length;
   }
-  function text(exam, subject) { return ((exam.question_type_scores || {})[subject] || []).map(function (r) { return r.name + ' ' + fmt(r.score) + '/' + fmt(r.max); }).join('；'); }
+  function text(exam, subject) { return ((exam.question_type_scores || {})[subject] || []).map(function (r) { return model.label(r) + ' ' + fmt(r.score) + '/' + fmt(r.max) + (r.difficulty ? '（' + model.difficulties[r.difficulty] + '）' : '') + (r.cause ? ' · ' + model.causes[r.cause] : ''); }).join('；'); }
   function detail(exam) {
     var map = exam.question_type_scores || {}, names = Object.keys(exam.scores || {}).filter(function (name) { return Array.isArray(map[name]) && map[name].length; });
     if (!names.length) return '';
-    return '<div class="qt-detail"><h3>题型得分</h3><p class="qt-help">卷面原始分 · 只统计已录入的题型</p><div class="qt-detail-grid">' + names.map(function (name) { return '<article><h4>' + esc(name) + '</h4>' + map[name].map(function (r) { var rate = r.score != null && r.max > 0 ? Math.round(r.score/r.max*1000)/10 : null; return '<div class="qt-detail-row"><span>' + esc(r.name) + '</span><b>' + esc(fmt(r.score)) + ' <small>/ ' + esc(fmt(r.max)) + '</small></b><small>' + (rate == null ? '待补全' : rate + '%') + '</small></div>'; }).join('') + '</article>'; }).join('') + '</div></div>';
+    return '<div class="qt-detail"><h3>题型得分</h3><p class="qt-help">卷面原始分 · 只统计已录入的题型</p><div class="qt-detail-grid">' + names.map(function (name) { return '<article><h4>' + esc(name) + '</h4>' + map[name].map(function (r) { var rate = r.score != null && r.max > 0 ? Math.round(r.score/r.max*1000)/10 : null; return '<div class="qt-detail-row"><span>' + esc(model.label(r)) + (r.difficulty ? '<small class="qt-difficulty">' + model.difficulties[r.difficulty] + '</small>' : '') + '</span><b>' + esc(fmt(r.score)) + ' <small>/ ' + esc(fmt(r.max)) + '</small></b><small>' + (rate == null ? '待补全' : rate + '%') + '</small></div>'; }).join('') + '</article>'; }).join('') + '</div></div>';
   }
   window.ScoreQuestionTypes = { apply:apply, detail:detail, text:text };
   var style = document.createElement('style');
-  style.textContent = '.qt-editor{border-top:1px solid var(--line);margin-top:16px;padding-top:4px}.qt-editor summary{display:flex;justify-content:space-between;gap:12px;cursor:pointer;padding:13px 0;font-size:14px;list-style:none}.qt-editor summary::-webkit-details-marker{display:none}.qt-editor summary small,.qt-summary{color:var(--muted);font-size:12px;font-weight:400}.qt-editor summary small{margin-left:6px}.qt-editor summary:after{content:"＋";color:var(--muted)}.qt-editor[open] summary:after{content:"−"}.qt-summary{margin-left:auto}.qt-help{font-size:13px!important;color:var(--muted);line-height:1.7;margin:0 0 14px}.qt-rows{display:grid;gap:12px}.qt-row{display:grid;grid-template-columns:minmax(100px,1.5fr) minmax(65px,1fr) minmax(65px,1fr) 32px;gap:9px;align-items:end}.qt-row label{min-width:0;display:grid;gap:5px;font-size:12px;color:var(--muted)}.qt-row input,.qt-toolbar select{box-sizing:border-box;width:100%;min-width:0;border:1px solid var(--line);border-radius:9px;background:var(--input-bg,var(--panel-solid,#fff));color:var(--text);font:inherit;font-size:14px;min-height:42px;padding:9px}.qt-row button,.qt-toolbar button,.qt-use{font:inherit;font-size:13px;min-height:40px;border:1px solid var(--line);border-radius:9px;background:var(--panel-solid,#fff);color:var(--text);padding:8px 10px;cursor:pointer}.qt-row .qt-remove{padding:0;color:var(--muted);font-size:20px}.qt-toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.qt-toolbar label{flex:1;min-width:130px}.qt-toolbar button{flex:1;white-space:nowrap}.qt-status{font-size:12px;line-height:1.7;color:var(--muted);margin-top:13px}.qt-error{color:var(--danger)!important}.qt-use{margin-top:10px;color:var(--accent)}.qt-use[hidden]{display:none!important}.qt-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}.qt-editor :focus-visible{outline:2px solid var(--accent);outline-offset:2px}.qt-detail{margin-top:26px;padding-top:22px;border-top:1px solid var(--line)}.qt-detail h3{font-size:18px;margin:0 0 8px}.qt-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}.qt-detail h4{font-size:15px;margin:0 0 6px}.qt-detail-row{display:grid;grid-template-columns:minmax(0,1fr) auto 64px;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px;font-variant-numeric:tabular-nums}.qt-detail-row>span{overflow-wrap:anywhere}.qt-detail-row b{font-weight:600}.qt-detail-row small{font-size:12px;color:var(--muted)}.qt-detail-row>small{text-align:right}@media(max-width:620px){.qt-detail-grid{grid-template-columns:1fr}.qt-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 36px;gap:9px}.qt-row .qt-name{grid-column:1/3}.qt-row .qt-remove{grid-column:3;grid-row:1/3;align-self:center}.qt-row{padding-bottom:14px;border-bottom:1px solid var(--line)}.qt-row label:nth-child(2){grid-column:1;grid-row:2}.qt-row label:nth-child(3){grid-column:2;grid-row:2}.qt-row input{font-size:16px}}';
+  style.textContent = '.qt-editor{border-top:1px solid var(--line);margin-top:16px;padding-top:4px}.qt-editor summary{display:flex;justify-content:space-between;gap:12px;cursor:pointer;padding:13px 0;font-size:14px;list-style:none}.qt-editor summary::-webkit-details-marker{display:none}.qt-editor summary small,.qt-summary{color:var(--muted);font-size:12px;font-weight:400}.qt-editor summary small{margin-left:6px}.qt-editor summary:after{content:"＋";color:var(--muted)}.qt-editor[open]>summary:after{content:"−"}.qt-summary{margin-left:auto}.qt-help{font-size:13px!important;color:var(--muted);line-height:1.7;margin:0 0 14px}.qt-rows{display:grid;gap:12px}.qt-row{display:grid;grid-template-columns:minmax(100px,1.5fr) minmax(65px,1fr) minmax(65px,1fr) 32px;gap:9px;align-items:end}.qt-row label{min-width:0;display:grid;gap:5px;font-size:12px;color:var(--muted)}.qt-row input,.qt-toolbar select{box-sizing:border-box;width:100%;min-width:0;border:1px solid var(--line);border-radius:9px;background:var(--input-bg,var(--panel-solid,#fff));color:var(--text);font:inherit;font-size:14px;min-height:42px;padding:9px}.qt-row button,.qt-toolbar button,.qt-use{font:inherit;font-size:13px;min-height:40px;border:1px solid var(--line);border-radius:9px;background:var(--panel-solid,#fff);color:var(--text);padding:8px 10px;cursor:pointer}.qt-row .qt-remove{padding:0;color:var(--muted);font-size:20px}.qt-toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.qt-toolbar label{flex:1;min-width:130px}.qt-toolbar button{flex:1;white-space:nowrap}.qt-status{font-size:12px;line-height:1.7;color:var(--muted);margin-top:13px}.qt-error{color:var(--danger)!important}.qt-use{margin-top:10px;color:var(--accent)}.qt-use[hidden]{display:none!important}.qt-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}.qt-editor :focus-visible{outline:2px solid var(--accent);outline-offset:2px}.qt-detail{margin-top:26px;padding-top:22px;border-top:1px solid var(--line)}.qt-detail h3{font-size:18px;margin:0 0 8px}.qt-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}.qt-detail h4{font-size:15px;margin:0 0 6px}.qt-detail-row{display:grid;grid-template-columns:minmax(0,1fr) auto 64px;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px;font-variant-numeric:tabular-nums}.qt-detail-row>span{overflow-wrap:anywhere}.qt-detail-row b{font-weight:600}.qt-detail-row small{font-size:12px;color:var(--muted)}.qt-detail-row>small{text-align:right}@media(max-width:620px){.qt-detail-grid{grid-template-columns:1fr}.qt-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 36px;gap:9px}.qt-row .qt-name{grid-column:1/3}.qt-row .qt-remove{grid-column:3;grid-row:1/3;align-self:center}.qt-row{padding-bottom:14px;border-bottom:1px solid var(--line)}.qt-row label:nth-child(2){grid-column:1;grid-row:2}.qt-row label:nth-child(3){grid-column:2;grid-row:2}.qt-row input{font-size:16px}}';
+  style.textContent += '.qt-row select{width:100%;min-width:0;box-sizing:border-box;min-height:42px;padding:8px;border:1px solid var(--line);border-radius:9px;background:var(--input-bg,var(--panel-solid,#fff));color:var(--text);font:inherit;font-size:13px}.qt-row .qt-meta{grid-column:1/-1}.qt-meta>summary{padding:4px 0 10px;font-size:12px;color:var(--muted);justify-content:flex-start}.qt-meta>summary:after{margin-left:auto;content:"＋"}.qt-meta[open]>summary:after{content:"−"}.qt-meta>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.qt-meta .qt-help{margin:8px 0 0;font-size:12px!important}.qt-difficulty{display:block;margin-top:3px}@media(max-width:620px){.qt-meta>div{grid-template-columns:repeat(2,minmax(0,1fr))}.qt-meta>div>label:first-child{grid-column:1/-1}.qt-row .qt-meta label{grid-column:auto;grid-row:auto}.qt-row select{font-size:16px}}';
   document.head.appendChild(style);
+})();
+
+/* ===== question-type-analysis-model.js ===== */
+/* Deterministic, inspectable statistics over optional raw-score breakdowns. */
+(function (root) {
+  'use strict';
+  function num(v) { if (v == null || v === '' || !['number','string'].includes(typeof v) || (typeof v === 'string' && !v.trim())) return null; var n=Number(v); return Number.isFinite(n) && n >= 0 ? n : null; }
+  function ratio(points) { var max=points.reduce(function(s,p){return s+p.max;},0); return max ? points.reduce(function(s,p){return s+p.score;},0)/max : null; }
+  function chronological(a,b) { return String(a.exam_date||'').localeCompare(String(b.exam_date||'')) || String(a.created_at||'').localeCompare(String(b.created_at||'')) || String(a.id||'').localeCompare(String(b.id||'')); }
+  function subjectMark(e, subject) {
+    var r=(e.scores||{})[subject]||{}, max=num(r.rawMax), score=num(r.raw);
+    if (max===null) max=num(r.max);
+    if (score===null && max===num(r.max)) score=num(r.actual);
+    return max>0 && score!==null && score<=max ? {score:score,max:max} : null;
+  }
+  function groupKey(r, group) { return JSON.stringify([r.name.trim(), group==='position' ? (r.position||'').trim() : '']); }
+  function analyze(source, options) {
+    var o=options||{}, subject=o.subject, seen=new Set();
+    var exams=(source||[]).filter(function(e){
+      if (!e || !Object.prototype.hasOwnProperty.call(e.scores||{},subject) || (!o.includeHidden && e.is_hidden)) return false;
+      if (o.category != null && o.category!=='*' && (e.grade_level||'')!==o.category) return false;
+      if(e.id && seen.has(String(e.id)))return false;if(e.id)seen.add(String(e.id));return true;
+    }).slice().sort(chronological);
+    if (Number(o.limit)>0) exams=exams.slice(-Number(o.limit));
+    var groups=new Map(), incomplete=0, invalid=0, recorded=0, coverageMax=0, subjectMax=0, coverageExams=0;
+    exams.forEach(function(e,index){
+      var rows=(e.question_type_scores||{})[subject], cells=new Map();
+      if(!Array.isArray(rows))rows=[];
+      if(rows.length)recorded++;
+      var identities=new Set(), namesWithTotal=new Set(rows.filter(function(r){return r&&typeof r.name==='string'&&!r.position;}).map(function(r){return r.name.trim();}));
+      rows.forEach(function(r){
+        if(!r || typeof r.name!=='string' || !r.name.trim() || (r.position!=null&&typeof r.position!=='string')){invalid++;return;}
+        var id=groupKey(r,'position');
+        if(identities.has(id) || (r.position && namesWithTotal.has(r.name.trim()))){invalid++;return;}identities.add(id);
+        var key=groupKey(r,o.group), name=r.name.trim();
+        if(!groups.has(key))groups.set(key,{key:key,name:name,position:o.group==='position'?(r.position||'').trim():'',cells:new Array(exams.length).fill(null)});
+        if(!cells.has(key))cells.set(key,{score:0,max:0,complete:true,difficulties:[],causes:[],parts:0});
+        var c=cells.get(key), score=num(r.score), max=num(r.max);
+        c.parts++;
+        var valid=score!==null&&max>0&&score<=max;
+        if(!valid){c.complete=false;incomplete++;}else{c.score+=score;c.max+=max;}
+        if(['easy','medium','hard'].includes(r.difficulty))c.difficulties.push(r.difficulty);
+        if(['knowledge','method','careless','time'].includes(r.cause))c.causes.push(r.cause);
+      });
+      cells.forEach(function(c,key){c.rate=c.complete?c.score/c.max:null;c.index=index;groups.get(key).cells[index]=c;});
+      var r=(e.scores||{})[subject]||{}, rawMax=num(r.rawMax);if(rawMax===null)rawMax=num(r.max);
+      if(rawMax>0){coverageExams++;subjectMax+=rawMax;coverageMax+=Math.min(rawMax,Array.from(cells.values()).filter(function(c){return c.complete;}).reduce(function(s,c){return s+c.max;},0));}
+    });
+    var rows=Array.from(groups.values()), totalLost=0, totalScore=0, totalMax=0;
+    rows.forEach(function(g){
+      var valid=g.cells.filter(function(c){return c&&c.complete;}), last=valid.slice(-3), half=Math.min(3,Math.floor(valid.length/2));
+      g.count=valid.length;g.score=valid.reduce(function(s,c){return s+c.score;},0);g.max=valid.reduce(function(s,c){return s+c.max;},0);
+      g.lost=g.max-g.score;g.rate=g.max?g.score/g.max:null;g.lossRate=g.rate===null?null:1-g.rate;
+      g.lossCount=valid.filter(function(c){return c.score<c.max-0.000001;}).length;g.frequency=g.count?g.lossCount/g.count:null;
+      g.recentRate=ratio(last);g.recentLossCount=last.filter(function(c){return c.score<c.max-0.000001;}).length;
+      g.latest=valid.at(-1)||null;
+      // At least two observations in each non-overlapping window; missing entries do not become zeroes.
+      g.trendCount=valid.length>=4?half:0;
+      g.trendRate=g.trendCount?ratio(valid.slice(-half)):null;
+      g.previousRate=g.trendCount?ratio(valid.slice(-half*2,-half)):null;
+      g.change=g.trendCount?g.trendRate-g.previousRate:null;
+      g.minRate=valid.length?Math.min(...valid.map(function(c){return c.rate;})):null;
+      g.maxRate=valid.length?Math.max(...valid.map(function(c){return c.rate;})):null;
+      var dif=last.flatMap(function(c){return c.difficulties;}), cause=last.flatMap(function(c){return c.causes;});
+      var distinct=Array.from(new Set(dif));g.difficulty=distinct.length===1?distinct[0]:distinct.length?'mixed':null;
+      g.difficultyCount=dif.length;g.difficultyComplete=last.length>0&&dif.length===last.reduce(function(s,c){return s+c.parts;},0);
+      // Never turn an unlabelled portion into a confirmed easy/hard recommendation.
+      g.rankDifficulty=g.difficultyComplete?g.difficulty:null;
+      g.causeCounts=Object.fromEntries(Array.from(new Set(cause)).map(function(c){return [c,cause.filter(function(v){return v===c;}).length];}));
+      g.cause=cause.length?cause.sort(function(a,b){return cause.filter(function(c){return c===b;}).length-cause.filter(function(c){return c===a;}).length;})[0]:null;
+      totalLost+=g.lost;totalScore+=g.score;totalMax+=g.max;
+    });
+    var marks=exams.slice(-5).map(function(e){return subjectMark(e,subject);}).filter(Boolean), levelRate=ratio(marks), target=num(o.targetRate);
+    if(target!==null&&(target<=0||target>100))target=null;
+    var latestSubject=exams.length?(exams.at(-1).scores||{})[subject]:null;
+    if(target===null&&latestSubject){var t=num(latestSubject.target), m=num(latestSubject.max), rm=num(latestSubject.rawMax);if(t!==null&&m>0&&t<=m&&(rm===null||rm===m))target=t/m*100;}
+    var level=['foundation','balanced','advanced'].includes(o.level)?o.level:levelRate===null?'unknown':levelRate>=0.85?'advanced':levelRate<0.7?'foundation':'balanced';
+    var maxLoss=Math.max(1,...rows.map(function(g){return g.count?g.lost/g.count:0;}));
+    rows.forEach(function(g){
+      g.contribution=g.count&&totalLost>0?g.lost/totalLost:null;
+      if(!g.count||g.lost<=0){g.priority={quick:0,breakthrough:0,all:0};return;}
+      var loss=g.lost/g.count/maxLoss, freq=0.5+0.5*g.frequency, recent=0.4+0.6*(1-g.recentRate), falling=g.change!==null&&g.change<-.03?1.15:1;
+      var d=g.rankDifficulty, easy={easy:1,medium:.65,hard:level==='advanced'?.3:.12}[d]||.35, hard={hard:1,medium:.55,easy:.15}[d]||.3;
+      var readiness=level==='foundation'?.65:level==='advanced'?1.2:1;
+      if(target!==null&&target>=90)readiness*=1.1;
+      g.priority={quick:loss*easy*freq*recent*falling,breakthrough:hard*Math.sqrt(loss)*freq*(.6+.4*g.recentRate)*readiness,all:loss*freq*recent*falling};
+    });
+    return {exams:exams,rows:rows,subject:subject,recorded:recorded,incomplete:incomplete,invalid:invalid,totalLost:totalLost,rate:totalMax?totalScore/totalMax:null,coverage:subjectMax?coverageMax/subjectMax:null,coverageExams:coverageExams,level:level,levelRate:levelRate,levelCount:marks.length,targetRate:target,recommended:level==='advanced'||(target>=90&&level!=='foundation')?'breakthrough':level==='foundation'?'quick':'all'};
+  }
+  function ranked(result,view){return result.rows.slice().sort(function(a,b){return (b.priority[view]||0)-(a.priority[view]||0)||b.lost-a.lost||a.name.localeCompare(b.name);});}
+  var api={analyze:analyze,ranked:ranked,num:num,subjectMark:subjectMark,groupKey:groupKey};root.ScoreQuestionTypeAnalysisModel=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
+})(globalThis);
+
+/* ===== question-type-analysis.js ===== */
+/* Longitudinal question-type analysis, isolated from overall score/rank statistics. */
+(function () {
+  'use strict';
+  var M=window.ScoreQuestionTypeAnalysisModel, Q=window.ScoreQuestionTypeModel;
+  var views={quick:'快速提分',breakthrough:'高分突破',all:'全面分析'};
+  var cfg, account;
+  var esc=function(v){return escapeHtml(String(v==null?'':v));};
+  var fmt=function(v){return v==null?'—':String(Math.round(v*10)/10);};
+  var pct=function(v){return v==null?'—':fmt(v*100)+'%';};
+  var levels={foundation:'巩固基础',balanced:'稳步提升',advanced:'冲刺高分',unknown:'暂缺完整科目成绩'};
+  function settings() {
+    var owner=String(state.user&&state.user.id||'')+':'+String(state.token||'');
+    if(account!==owner){account=owner;cfg={tab:'overview',subject:'',category:'*',limit:10,group:'type',includeHidden:false,view:'all',viewChosen:false,level:'auto',goals:Object.create(null),selected:'',end:0};}
+    return cfg;
+  }
+  function source(){return Array.isArray(state.allExams)?state.allExams:(state.exams||[]);}
+  function subjects(){var s=new Set();(state.subjectConfigs||[]).forEach(function(r){s.add(r.name||r);});source().forEach(function(e){Object.keys(e.scores||{}).forEach(function(n){s.add(n);});});return Array.from(s).filter(Boolean);}
+  function tabs(){var c=settings();return '<nav class="qta-tabs" aria-label="分析分类"><button type="button" data-qta-tab="overview" aria-pressed="'+(c.tab==='overview')+'">成绩分析</button><button type="button" data-qta-tab="types" aria-pressed="'+(c.tab==='types')+'">题型分析</button></nav>';}
+  function option(v,label,chosen){return '<option value="'+esc(v)+'"'+(String(v)===String(chosen)?' selected':'')+'>'+esc(label)+'</option>';}
+  function field(key,label,options){return '<label><span>'+label+'</span><select data-qta-filter="'+key+'">'+options+'</select></label>';}
+  function title(g){return g.name+(g.position?' · '+g.position:cfg.group==='position'?' · 未标位置':'');}
+  function difficulty(g){return g.difficulty==='mixed'?'难度不一':g.difficulty?Q.difficulties[g.difficulty]+(g.difficultyComplete?'':'（部分标注）'):'难度待标注';}
+  function change(g){return g.change==null?'至少 4 场后比较趋势':Math.abs(g.change)<.005?'近期基本持平':(g.change>0?'提升 ':'下降 ')+fmt(Math.abs(g.change)*100)+' 个百分点';}
+  function interpretation(g){
+    if(!g.count)return '尚无完整记录。';
+    if(g.change===null)return '目前 '+g.count+' 场有效记录，至少 4 场后比较近期变化。';
+    return '最近 '+g.trendCount+' 场得分率 '+pct(g.trendRate)+'，此前 '+g.trendCount+' 场为 '+pct(g.previousRate)+'；'+change(g)+'。';
+  }
+  function annotations(g){
+    var labels=Object.keys(g.causeCounts||{}).map(function(k){return Q.causes[k]+' '+g.causeCounts[k]+' 条';});
+    return labels.length?labels.join('、'):'未标注失分原因';
+  }
+  function opportunities(r,ordered){
+    var eligible=ordered.filter(function(g){return g.count&&g.lost>0&&(cfg.view==='quick'?['easy','medium'].includes(g.rankDifficulty):cfg.view==='breakthrough'?g.rankDifficulty==='hard':true);});
+    var candidates=eligible.slice(0,3),lead={quick:'查看基础、中等难度题的失分，按场均失分、反复程度与近期表现排序。',breakthrough:'查看已标为较难的题型，小分值失分也会纳入排序。',all:'综合长期失分、出现频次与近期变化，展示当前最突出的三项。'}[cfg.view];
+    var split=cfg.group==='type'&&r.rows.some(function(g){return g.difficulty==='mixed';});
+    var empty=r.rows.some(function(g){return g.count&&g.lost>0;})?(split?'同一题型包含不同难度的位置，分开后可查看各题表现。':'本视角暂无难度标注完整且有失分的题型，全部数据仍可在下方查看。'):r.rows.some(function(g){return g.count;})?'已录的完整题型没有失分。':'补全得分与满分后显示数据解读。';
+    return '<section class="qta-card"><div class="qta-section-heading"><div><h2>重点数据解读</h2><p>'+lead+'</p></div><span class="qta-tag">'+views[cfg.view]+'</span></div>'+(candidates.length?'<div class="qta-opportunities">'+candidates.map(function(g,i){return '<article><span class="qta-index">0'+(i+1)+'</span><h3>'+esc(title(g))+'</h3><div class="qta-tags"><span>'+difficulty(g)+'</span><span>'+g.count+' 场有效记录</span></div><dl class="qta-key-metrics"><div><dt>场均失分</dt><dd>'+fmt(g.lost/g.count)+'<small> 分</small></dd></div><div><dt>占已录失分</dt><dd>'+pct(g.contribution)+'</dd></div></dl><p class="qta-reading">'+interpretation(g)+'</p><p class="qta-evidence">'+g.lossCount+' / '+g.count+' 场有失分 · 累计失分 '+fmt(g.lost)+' 分<br>历次得分率 '+pct(g.minRate)+'–'+pct(g.maxRate)+'</p><details class="qta-annotations"><summary>查看最近标注</summary><p>最近最多 3 场有效记录：'+esc(annotations(g))+'。标注是录入信息，不代表系统已确认原因。</p></details><button type="button" data-qta-select="'+esc(g.key)+'">查看历次得分 <span aria-hidden="true">↗</span></button></article>';}).join('')+'</div>':'<div class="qta-empty"><p>'+empty+'</p>'+(split?'<button type="button" data-qta-position>按题型 + 位置查看</button>':'')+'</div>')+'<p class="qta-note">仅解读已录数据；场均失分是历史平均值，不等于可提分数。出现失分的场次不等于错题数。</p></section>';
+  }
+  function plot(g,r,compact){
+    if(!g)return '<p class="qta-empty">选择一个题型，查看得分率变化。</p>';
+    var offset=Math.max(0,r.exams.length-12), cells=g.cells.slice(offset), n=cells.length, width=compact?320:640,height=compact?210:230,left=40,right=20,top=20,bottom=42;
+    var x=function(i){return left+(n===1?.5:i/(n-1))*(width-left-right);}, y=function(rate){return top+(1-rate)*(height-top-bottom);}, body='';
+    [0,.25,.5,.75,1].forEach(function(v){body+='<line x1="'+left+'" y1="'+y(v)+'" x2="'+(width-right)+'" y2="'+y(v)+'" class="qta-grid"/><text x="'+(left-8)+'" y="'+(y(v)+4)+'" text-anchor="end">'+(v*100)+'%</text>';});
+    var prev=null;
+    cells.forEach(function(c,i){
+      var e=r.exams[offset+i],valid=c&&c.complete;
+      if(valid){if(prev)body+='<line x1="'+prev.x+'" y1="'+prev.y+'" x2="'+x(i)+'" y2="'+y(c.rate)+'" class="qta-line"/>';prev={x:x(i),y:y(c.rate)};body+='<circle cx="'+x(i)+'" cy="'+y(c.rate)+'" r="4.5" class="qta-point"><title>'+esc(e.name)+' · '+esc(e.exam_date)+'：'+fmt(c.score)+'/'+fmt(c.max)+'（'+pct(c.rate)+'）</title></circle>';}
+      else{prev=null;body+='<text x="'+x(i)+'" y="'+y(.03)+'" text-anchor="middle">—</text>';}
+      if(n<=(compact?4:6)||i%(compact?3:2)===0||i===n-1)body+='<text x="'+x(i)+'" y="'+(height-17)+'" text-anchor="middle">'+esc((e.exam_date||'无日期').slice(5)||'无日期')+'</text>';
+    });
+    return '<svg class="qta-chart" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="'+esc(title(g))+' 最近'+n+'场得分率趋势；具体分数见下方历史表">'+body+'</svg>';
+  }
+  function history(r,ordered){
+    var selected=r.rows.find(function(g){return g.key===cfg.selected;})||ordered[0];if(selected)cfg.selected=selected.key;
+    var end=cfg.end>0?Math.min(cfg.end,r.exams.length):r.exams.length,start=Math.max(0,end-6), exams=r.exams.slice(start,end);
+    return '<section class="qta-card" id="qta-history"><div class="qta-section-heading"><div><h2>历次得分</h2><p>同科同名题型对齐；满分变化时看得分率。位置相同不代表试题难度相同。</p></div></div><div class="qta-history-controls">'+field('group','比较口径',option('type','按题型汇总',cfg.group)+option('position','按题型 + 位置',cfg.group))+field('selected','趋势题型',ordered.map(function(g){return option(g.key,title(g),cfg.selected);}).join(''))+'</div><div class="qta-chart-wide">'+plot(selected,r,false)+'</div><div class="qta-chart-compact">'+plot(selected,r,true)+'</div><p class="qta-note">折线显示最近最多 12 场；缺失处断开。'+(selected?change(selected)+'（最近与之前各最多 3 场有效记录比较）。':'')+'</p><div class="qta-table-scroll" tabindex="0" role="region" aria-label="题型历次得分表，可横向滚动"><table class="qta-history"><caption>每格为得分 / 满分与得分率；— 为未录入，待补全不参与统计</caption><thead><tr><th scope="col">题型 / 位置</th>'+exams.map(function(e){return '<th scope="col"><button type="button" data-qta-exam="'+esc(e.id)+'" title="查看考试详情">'+esc(e.name||'未命名考试')+'</button><small>'+esc(e.exam_date||'无日期')+'</small></th>';}).join('')+'</tr></thead><tbody>'+ordered.map(function(g){return '<tr'+(g.key===cfg.selected?' class="qta-selected"':'')+'><th scope="row"><button type="button" data-qta-select="'+esc(g.key)+'" aria-pressed="'+(g.key===cfg.selected)+'">'+esc(title(g))+'</button></th>'+g.cells.slice(start,end).map(function(c){return c&&c.complete?'<td><span class="qta-cell '+(c.rate<.6?'qta-low':c.rate>=.85?'qta-high':'qta-mid')+'"><b>'+fmt(c.score)+' <em>/ '+fmt(c.max)+'</em></b><small>'+pct(c.rate)+'</small></span></td>':'<td class="qta-missing">'+(c?'待补全':'—')+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table></div><div class="qta-pagination"><button type="button" data-qta-window="'+start+'"'+(!start?' disabled':'')+'>← 更早</button><span>'+(r.exams.length?(start+1)+'–'+end:'0')+' / '+r.exams.length+' 场</span><button type="button" data-qta-window="'+Math.min(r.exams.length,end+6)+'"'+(end===r.exams.length?' disabled':'')+'>更新 →</button></div></section>';
+  }
+  function structure(r,ordered){
+    return '<section class="qta-card"><div class="qta-section-heading"><div><h2>失分结构与长期表现</h2><p>哪些题型占了更多失分？百分比以当前范围内完整题型的累计失分为分母。</p></div></div>'+(r.totalLost>0?'<div class="qta-bars">'+r.rows.filter(function(g){return g.lost>0;}).sort(function(a,b){return b.lost-a.lost;}).map(function(g){return '<div class="qta-bar-row"><span>'+esc(title(g))+'</span><div class="qta-bar-track"><i style="width:'+Math.max(0,Math.min(100,g.contribution*100))+'%"></i></div><b>'+pct(g.contribution)+'</b></div>';}).join('')+'</div>':'<p class="qta-empty">'+(r.rate===null?'补齐得分与满分后显示失分结构。':'已录题型没有失分。')+'</p>')+'<details class="qta-metric-details"><summary>查看全部题型指标</summary><div class="qta-table-scroll" tabindex="0" role="region" aria-label="各题型统计指标"><table class="qta-metrics"><thead><tr><th scope="col">题型</th><th scope="col">得分率 / 失分率</th><th scope="col">占已录失分</th><th scope="col">场均失分</th><th scope="col">失分频次</th><th scope="col">难度标注</th><th scope="col">近期变化</th></tr></thead><tbody>'+ordered.map(function(g){return '<tr><th scope="row">'+esc(title(g))+'</th><td>'+pct(g.rate)+' / '+pct(g.lossRate)+'</td><td>'+pct(g.contribution)+'</td><td>'+fmt(g.count?g.lost/g.count:null)+' 分</td><td>'+g.lossCount+' / '+g.count+' 场</td><td>'+difficulty(g)+'</td><td>'+change(g)+'</td></tr>';}).join('')+'</tbody></table></div></details></section>';
+  }
+  function render(){
+    var c=settings(), names=subjects();
+    if(!names.includes(c.subject)){c.subject=names.find(function(n){return source().some(function(e){return (e.question_type_scores||{})[n]&&e.question_type_scores[n].length;});})||names[0]||'';}
+    var r=M.analyze(source(),Object.assign({},c,{targetRate:c.goals[c.subject]}));
+    if(!c.viewChosen)c.view=r.recommended;
+    var ordered=M.ranked(r,c.view), cats=Array.from(new Set(source().map(function(e){return e.grade_level||'';})));
+    var showcase=String(state.user&&state.user.username||'').toLowerCase()==='showcase';
+    if(showcase&&!c.demoSelected&&cats.includes('题型演示')){c.category='题型演示';c.demoSelected=true;return render();}
+    var filters=field('subject','科目',names.map(function(n){return option(n,n,c.subject);}).join(''))+field('category','考试分类',option('*','全部分类',c.category)+cats.map(function(n){return option(n,n||'未分类',c.category);}).join(''))+field('limit','时间范围',option(5,'最近 5 场',c.limit)+option(10,'最近 10 场',c.limit)+option(0,'全部考试',c.limit));
+    var demo=showcase?'<p class="qta-notice"><b>showcase 演示账号</b> · 「题型演示」分类中的考试为合成数据。英语有起伏与阅读回落，物理有基础题反复失分；数学按「题型 + 位置」查看难题小问。切换「专项小测」可看不同满分、隐藏和待补全记录。</p>':'';
+    var intro='<div class="qta-heading"><div><span class="qta-eyebrow">看清每一分</span><h1>题型分析</h1><p>看清失分分布、历次变化与不同难度下的表现。</p></div><button type="button" data-qta-add>＋ 录入考试</button></div>';
+    var profile='<details class="qta-profile"><summary>水平与目标 <span>'+levels[r.level]+(r.targetRate!==null?' · 目标得分率 '+fmt(r.targetRate)+'%':'')+'</span></summary><div>'+field('level','当前侧重点',option('auto','根据近期原始分判断',c.level)+option('foundation','巩固基础',c.level)+option('balanced','稳步提升',c.level)+option('advanced','冲刺高分',c.level))+'<label><span>本科目标得分率（%）</span><input data-qta-goal type="number" min="1" max="100" step="0.1" inputmode="decimal" value="'+esc(c.goals[c.subject])+'" placeholder="'+(r.targetRate!==null?fmt(r.targetRate):'选填')+'"><small>留空时使用最近考试中可比的科目目标。</small></label></div><p class="qta-note">'+(r.levelRate===null?'缺少完整科目的原始成绩，可手动选择侧重点。':'当前范围最近 5 场中 '+r.levelCount+' 场原始成绩可用，加权得分率 '+pct(r.levelRate)+'。自动分组：低于 70% 巩固基础，85% 起冲刺高分。')+' 仅用于选择默认分析视角，可随时调整。</p></details>';
+    var summary='<div class="qta-summary"><div><span>有题型记录</span><strong>'+r.recorded+' <small>/ '+r.exams.length+' 场</small></strong></div><div><span>已录题型得分率</span><strong>'+pct(r.rate)+'</strong></div><div><span>卷面覆盖率</span><strong>'+pct(r.coverage)+'</strong></div><div><span>已录部分累计失分</span><strong>'+fmt(r.totalLost)+' <small>分</small></strong></div></div>';
+    var view='<div class="qta-perspectives" role="group" aria-label="分析视角">'+Object.keys(views).map(function(k){return '<button type="button" data-qta-view="'+k+'" aria-pressed="'+(c.view===k)+'">'+views[k]+(k===r.recommended?'<small>当前默认视角</small>':'')+'</button>';}).join('')+'</div>';
+    var status=r.incomplete||r.invalid?'<p class="qta-notice">'+(r.incomplete?r.incomplete+' 项得分或满分待补全。':'')+(r.invalid?r.invalid+' 项重复或格式异常记录已排除。':'')+'不完整的题型汇总不参与统计。</p>':'';
+    var empty='<section class="qta-card qta-empty"><h2>从一个题型开始</h2><p>在新建或编辑考试时，展开科目下的「题型得分」，填入得分与满分。<br>也可以通过 AI 图片识别回填，再核对确认。</p><button type="button" data-qta-records>去考试记录补录</button></section>';
+    var method='<details class="qta-method"><summary>指标说明与排序口径</summary><ul><li>得分率＝有效记录得分之和 ÷ 对应满分之和；失分率＝1 − 得分率。原始分与赋分不混用。</li><li>失分贡献只在当前筛选范围的已录题型之间计算，不代表整张试卷。覆盖率以有卷面满分的考试为分母，未录题型不会当成零分。</li><li>失分频次为完整记录中出现失分的考试次数，不是错题数。难度与原因来自录入或图片中的明确标注，未标注时不作确定判断。</li><li>快速提分综合场均失分、失分频次、近期表现与难度，原因标注仅作补充信息；高分突破更重视已标注难题，并弱化分值大小的影响；全面分析侧重反复失分与近期下降。</li><li>视角只改变数据的查看重点，不给出具体学习建议。少于 3 场只作初步观察；趋势至少需要 4 场有效记录。不同题型覆盖、考试难度和学习阶段会影响比较。</li><li>按题型汇总会合计同名题型下已录的位置；分题覆盖变化时请切换到「题型 + 位置」。同名、同位置才对齐，位置请保持一致。</li></ul></details>';
+    var host=document.getElementById('content');if(!host)return;
+    host.innerHTML=tabs()+'<div class="qta-page">'+intro+demo+'<section class="qta-card qta-controls"><div class="qta-filters">'+filters+'</div><label class="qta-hidden-toggle"><input type="checkbox" data-qta-hidden'+(c.includeHidden?' checked':'')+'> 包含隐藏考试</label>'+profile+'</section>'+summary+status+view+(r.rows.length?opportunities(r,ordered)+history(r,ordered)+structure(r,ordered):empty)+method+'</div>';
+    bind(host,r);return r;
+  }
+  function rerender(focus){render();if(focus){var node=document.querySelector(focus);if(node)node.focus({preventScroll:true});}}
+  function bind(host,r){
+    host.querySelectorAll('[data-qta-filter]').forEach(function(el){el.onchange=function(){var key=el.dataset.qtaFilter;cfg[key]=el.value;if(key!=='selected')cfg.end=0;if(key==='group'||key==='subject')cfg.selected='';rerender('[data-qta-filter="'+key+'"]');};});
+    host.querySelector('[data-qta-hidden]').onchange=function(){cfg.includeHidden=this.checked;cfg.end=0;rerender('[data-qta-hidden]');};
+    host.querySelector('[data-qta-goal]').onchange=function(){if(this.value&&!this.checkValidity()){this.reportValidity();return;}cfg.goals[cfg.subject]=this.value;rerender('[data-qta-goal]');};
+    host.querySelectorAll('[data-qta-view]').forEach(function(b){b.onclick=function(){cfg.view=b.dataset.qtaView;cfg.viewChosen=true;rerender('[data-qta-view="'+cfg.view+'"]');};});
+    host.querySelectorAll('[data-qta-select]').forEach(function(b){b.onclick=function(){cfg.selected=b.dataset.qtaSelect;render();var h=document.querySelector('#qta-history');h.scrollIntoView({block:'start',behavior:'smooth'});h.querySelector('[data-qta-filter="selected"]').focus({preventScroll:true});};});
+    host.querySelectorAll('[data-qta-window]').forEach(function(b){b.onclick=function(){cfg.end=Number(b.dataset.qtaWindow);render();document.querySelector('#qta-history').scrollIntoView({block:'start'});};});
+    host.querySelectorAll('[data-qta-exam]').forEach(function(b){b.onclick=function(){if(window.ScoreExamDetail)window.ScoreExamDetail.open(b.dataset.qtaExam);};});
+    var positions=host.querySelector('[data-qta-position]');if(positions)positions.onclick=function(){cfg.group='position';cfg.selected='';cfg.end=0;rerender('[data-qta-filter="group"]');};
+    host.querySelector('[data-qta-add]').onclick=function(){openExam();};
+    var records=host.querySelector('[data-qta-records]');if(records)records.onclick=function(){state.page='records';renderPage();bindNav();};
+  }
+  document.addEventListener('click',function(e){var b=e.target.closest('[data-qta-tab]');if(!b)return;settings().tab=b.dataset.qtaTab;renderPage();var active=document.querySelector('[data-qta-tab="'+cfg.tab+'"]');if(active)active.focus({preventScroll:true});});
+  window.ScoreQuestionTypeAnalysis={active:function(){return settings().tab==='types';},tabs:tabs,render:render,open:function(subject){var c=settings();c.tab='types';if(subject)c.subject=subject;state.page='stats';renderPage();bindNav();}};
+  var style=document.createElement('style');style.textContent=`
+.qta-tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin:0 0 24px;padding-bottom:10px}.qta-tabs button,.qta-page button{font:inherit;color:var(--text);cursor:pointer;border:1px solid var(--line);border-radius:9px;background:var(--panel-solid,#fff);min-height:40px;padding:9px 14px;font-size:13px}.qta-tabs button{border-color:transparent;background:transparent;font-size:14px}.qta-tabs [aria-pressed=true],.qta-perspectives [aria-pressed=true]{background:var(--accent-soft);color:var(--accent);border-color:var(--accent);font-weight:650}.qta-page{max-width:1180px;margin:auto auto 60px;color:var(--text);min-width:0}.qta-heading{display:flex;justify-content:space-between;gap:18px;align-items:center;margin-bottom:25px}.qta-eyebrow{font-size:12px;color:var(--accent);font-weight:650}.qta-heading h1{font-size:30px;margin:8px 0;line-height:1.35}.qta-heading p,.qta-section-heading p{font-size:13px;color:var(--muted);line-height:1.75;margin:6px 0 0}.qta-heading button{white-space:nowrap}.qta-card{padding:24px;border:1px solid var(--line);background:var(--panel-solid,#fff);border-radius:16px;margin-bottom:22px;min-width:0}.qta-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.qta-page label{display:grid;gap:7px;font-size:12px;color:var(--muted);min-width:0}.qta-page select,.qta-page input[type=number]{width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--line);border-radius:9px;background:var(--input-bg,var(--panel-solid,#fff));color:var(--text);min-height:42px;padding:9px 11px;font:inherit;font-size:14px}.qta-page label small{font-size:11px;line-height:1.6}.qta-hidden-toggle{display:flex!important;align-items:center;gap:7px!important;margin:15px 0 0;width:fit-content}.qta-hidden-toggle input{margin:0}.qta-profile{border-top:1px solid var(--line);padding-top:15px;margin-top:18px}.qta-profile summary{font-size:13px;cursor:pointer;line-height:1.8}.qta-profile summary span{color:var(--muted);margin-left:12px;font-size:12px}.qta-profile>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:15px}.qta-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin:26px 0}.qta-summary>div{padding:4px 18px;border-left:2px solid var(--line);display:grid;gap:10px;min-width:0}.qta-summary span{color:var(--muted);font-size:12px}.qta-summary strong{font-size:26px;font-weight:650;font-variant-numeric:tabular-nums}.qta-summary small{font-size:13px;font-weight:400;color:var(--muted)}.qta-perspectives{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:24px 0 18px}.qta-perspectives button{font-size:14px;min-height:54px}.qta-perspectives small{display:block;font-size:10px;font-weight:400;margin-top:4px}.qta-section-heading{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:22px}.qta-section-heading h2,.qta-empty h2{font-size:20px;line-height:1.5;margin:0}.qta-tag{font-size:12px;color:var(--accent);background:var(--accent-soft);padding:5px 9px;border-radius:6px;white-space:nowrap}.qta-opportunities{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.qta-opportunities article{padding:20px;border:1px solid var(--line);border-radius:12px;min-width:0;display:flex;flex-direction:column;align-items:flex-start}.qta-index{font-size:12px;color:var(--accent);font-weight:700}.qta-opportunities h3{font-size:18px;margin:12px 0;line-height:1.55;overflow-wrap:anywhere}.qta-tags{display:flex;flex-wrap:wrap;gap:6px}.qta-tags span{font-size:11px;background:var(--cell,#f6f7fa);color:var(--muted);padding:4px 7px;border-radius:5px}.qta-opportunities p{font-size:13px;line-height:1.8;margin:14px 0}.qta-opportunities .qta-evidence{font-size:12px;color:var(--muted);margin:0 0 12px;line-height:1.85;width:100%}.qta-evidence b{color:var(--text);font-weight:600}.qta-opportunities button{margin-top:16px;color:var(--accent);border:0;background:var(--accent-soft);font-size:12px}.qta-note,.qta-method{font-size:12px;color:var(--muted);line-height:1.85}.qta-note{margin:18px 0 0}.qta-history-controls{display:grid;grid-template-columns:1fr 2fr;gap:15px;margin:18px 0}.qta-chart-compact{display:none}.qta-chart{display:block;width:100%;height:auto;max-height:280px;margin-top:22px;overflow:visible}.qta-chart text{font-size:11px;fill:var(--muted);font-family:inherit}.qta-grid{stroke:var(--line);stroke-dasharray:3 4}.qta-line{stroke:var(--accent);stroke-width:2.5;fill:none}.qta-point{fill:var(--accent);stroke:var(--panel-solid,#fff);stroke-width:2}.qta-table-scroll{max-width:100%;overflow:auto;margin-top:22px;border:1px solid var(--line);border-radius:10px;overscroll-behavior-x:contain}.qta-page table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;font-variant-numeric:tabular-nums}.qta-page caption{text-align:left;padding:12px;color:var(--muted);line-height:1.7}.qta-page th,.qta-page td{padding:14px 12px;text-align:center;border-bottom:1px solid var(--line);min-width:90px}.qta-page th{font-weight:500;font-size:12px}.qta-page thead th{background:var(--cell,#f6f7fa);color:var(--muted)}.qta-page tbody th{text-align:left;min-width:110px;max-width:180px;overflow-wrap:anywhere}.qta-history thead th{min-width:115px}.qta-history th:first-child{position:sticky;left:0;z-index:1;background:var(--panel-solid,#fff);box-shadow:1px 0 var(--line)}.qta-page th button{font-size:12px;background:transparent;border:0;min-height:0;line-height:1.6;padding:0;text-align:inherit;overflow-wrap:anywhere;color:inherit}.qta-page th small{display:block;font-size:10px;font-weight:400;color:var(--muted);margin-top:6px}.qta-cell{display:block;border-radius:8px;padding:10px 6px;min-width:76px}.qta-cell b{font-size:14px;font-weight:650;white-space:nowrap}.qta-cell em{font-size:11px;font-style:normal;font-weight:400}.qta-cell small{display:block;font-size:11px;margin-top:6px}.qta-low{background:rgba(214,151,63,.13);color:var(--text)}.qta-mid{background:var(--accent-soft);color:var(--text)}.qta-high{background:rgba(50,167,122,.12);color:var(--text)}.qta-missing{color:var(--muted)}.qta-selected>th button{color:var(--accent);font-weight:700}.qta-pagination{display:flex;align-items:center;justify-content:space-between;margin-top:14px;gap:10px;color:var(--muted);font-size:12px}.qta-page button:disabled{opacity:.4;cursor:default}.qta-bars{display:grid;gap:17px;margin:24px 0}.qta-bar-row{display:grid;grid-template-columns:minmax(85px,1fr) minmax(0,3fr) 52px;align-items:center;gap:14px;font-size:13px}.qta-bar-row>span{overflow-wrap:anywhere}.qta-bar-row b{text-align:right;font-size:12px;font-weight:500}.qta-bar-track{height:9px;background:var(--cell,#f6f7fa);border-radius:8px;overflow:hidden}.qta-bar-track i{height:100%;display:block;background:var(--accent);border-radius:8px}.qta-metrics{min-width:780px}.qta-method summary{cursor:pointer;color:var(--text)}.qta-method ul{padding-left:18px}.qta-method li{margin:9px 0}.qta-empty{text-align:center;padding:35px 15px;font-size:13px;line-height:1.85;color:var(--muted)}.qta-empty h2{color:var(--text)}.qta-notice{font-size:12px;line-height:1.8;padding:13px 16px;border-radius:10px;background:var(--accent-soft);color:var(--text)}.qta-page :focus-visible,.qta-tabs :focus-visible{outline:2px solid var(--accent);outline-offset:3px}#qta-history{scroll-margin-top:20px}
+.qta-key-metrics{display:grid;grid-template-columns:1fr 1fr;gap:16px;width:100%;margin:20px 0 0}.qta-key-metrics dt{font-size:11px;color:var(--muted)}.qta-key-metrics dd{margin:6px 0 0;font-size:22px;font-weight:650;font-variant-numeric:tabular-nums}.qta-key-metrics small{font-size:12px;font-weight:400;color:var(--muted)}.qta-opportunities .qta-reading{font-size:13px;line-height:1.85;border-top:1px solid var(--line);padding-top:16px}.qta-annotations{font-size:12px;color:var(--muted);margin-top:auto;width:100%}.qta-annotations summary,.qta-metric-details>summary{cursor:pointer;font-size:12px;color:var(--muted)}.qta-annotations p{font-size:12px;margin:8px 0 0}.qta-metric-details{border-top:1px solid var(--line);padding-top:18px}.qta-metric-details>summary{font-size:13px;color:var(--text)}
+@media(max-width:1000px){.qta-opportunities{grid-template-columns:1fr}.qta-opportunities article{display:block}.qta-opportunities h3{display:inline;margin-left:10px}.qta-tags{margin-top:12px}.qta-opportunities .qta-evidence{margin:0 0 12px}.qta-summary strong{font-size:24px}}
+@media(max-width:620px){.qta-chart-wide{display:none}.qta-chart-compact{display:block}.qta-heading{align-items:flex-start;flex-wrap:wrap}.qta-heading h1{font-size:27px}.qta-heading p{font-size:12px}.qta-card{padding:19px 15px;border-radius:13px}.qta-filters{grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}.qta-filters>label:first-child{grid-column:1/-1}.qta-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 10px}.qta-summary>div{padding-left:12px}.qta-summary span{font-size:11px}.qta-summary strong{font-size:24px}.qta-perspectives{gap:5px}.qta-perspectives button{font-size:13px;padding:9px 3px}.qta-perspectives small{font-size:9px}.qta-profile summary span{display:block;margin:4px 0}.qta-profile>div{grid-template-columns:1fr}.qta-section-heading{gap:8px;flex-wrap:wrap}.qta-section-heading h2{font-size:19px}.qta-opportunities article{padding:17px 14px}.qta-history-controls{grid-template-columns:1fr}.qta-history thead th{min-width:105px}.qta-page tbody th{min-width:85px;max-width:110px}.qta-page th,.qta-page td{padding:12px 8px}.qta-bar-row{grid-template-columns:minmax(75px,1fr) minmax(0,1.5fr) 45px;gap:9px;font-size:12px}.qta-chart{min-height:150px}.qta-page select,.qta-page input[type=number]{font-size:16px}}
+`;document.head.appendChild(style);
 })();
 
 /* ===== exam-changes.js ===== */
@@ -14648,7 +14873,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   function changeText(point, recent) { return Math.abs(point.x) < 0.005 ? '基本持平' : (point.x > 0 ? '进步 ' : '退步 ') + fmtChange(Math.abs(point.x)) + (recent ? ' 个百分点 / 场' : ' 个百分点'); }
   function metric(label, value, sub) { return '<div class="ed-metric"><span>' + esc(label) + '</span><strong>' + esc(value) + '</strong><small>' + esc(sub || '') + '</small></div>'; }
   function header(exam) {
-    return '<div class="ed-top">' + button('← 返回考试记录', 'back') + button('编辑 / 补录', 'edit') + '</div><header class="ed-heading"><span class="ed-eyebrow">单次考试详情</span><h1 tabindex="-1">' + esc(exam.name) + '</h1><p>' + esc(fmtYearDate(exam.exam_date) + (exam.end_date && exam.end_date !== exam.exam_date ? ' — ' + fmtYearDate(exam.end_date) : '') + ' · ' + (exam.grade_level || '未分类')) + (exam.is_hidden ? ' · 已从趋势图隐藏，仍可查看完整记录' : '') + '</p></header>';
+    return '<div class="ed-top">' + button(view && view.returnPage === 'stats' ? '← 返回题型分析' : '← 返回考试记录', 'back') + button('编辑 / 补录', 'edit') + '</div><header class="ed-heading"><span class="ed-eyebrow">单次考试详情</span><h1 tabindex="-1">' + esc(exam.name) + '</h1><p>' + esc(fmtYearDate(exam.exam_date) + (exam.end_date && exam.end_date !== exam.exam_date ? ' — ' + fmtYearDate(exam.end_date) : '') + ' · ' + (exam.grade_level || '未分类')) + (exam.is_hidden ? ' · 已从趋势图隐藏，仍可查看完整记录' : '') + '</p></header>';
   }
   function overview(exam, m) {
     var totalLabel = m.manual ? '已录入总分' : m.complete ? '本次总分' : '已录入科目小计';
@@ -14868,8 +15093,8 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       if (action === 'back') {
         if (!leave()) return;
         track('exam_detail_closed', { reason: 'back' });
-        var scroll = v.scroll; view = null; render(); window.scrollTo(0, scroll);
-        var original = Array.from(document.querySelectorAll('[data-exam-detail]')).find(function (b) { return b.dataset.examDetail === exam.id; }); if (original) original.focus({ preventScroll: true });
+        var scroll = v.scroll; state.page = v.returnPage || 'records'; view = null; render(); window.scrollTo(0, scroll);
+        var original = Array.from(document.querySelectorAll('[data-exam-detail],[data-qta-exam]')).find(function (b) { return (b.dataset.examDetail || b.dataset.qtaExam) === exam.id; }); if (original) original.focus({ preventScroll: true });
       } else if (action === 'edit') {
         track('exam_detail_edit_opened');
         if (editor) { if (!leave()) return; v.report = null; renderPage(); }
@@ -14893,7 +15118,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   }
   function open(id) {
     var exam = allExams().find(function (e) { return e.id === id; }); if (!exam || !leave()) return;
-    view = { id: id, user: owner(), token: state.token, scroll: window.scrollY || 0, papers: null, offset: 0, more: false, loading: false, subject: '', chartMode: 'movement', trendWindow: 'previous', sameCategory: false };
+    view = { id: id, returnPage: state.page === 'stats' && window.ScoreQuestionTypeAnalysis && window.ScoreQuestionTypeAnalysis.active() ? 'stats' : 'records', user: owner(), token: state.token, scroll: window.scrollY || 0, papers: null, offset: 0, more: false, loading: false, subject: '', chartMode: 'movement', trendWindow: 'previous', sameCategory: false };
     track('exam_detail_opened', { source: 'records' });
     state.page = 'records'; render(); window.scrollTo(0, 0);
     var heading = document.querySelector('.ed-heading h1'); if (heading) heading.focus({ preventScroll: true });
