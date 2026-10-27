@@ -81,3 +81,53 @@ html,body,#app{max-width:100%;overflow-x:hidden}
 @media(max-width:880px){
   #app-version-v17{margin-bottom:calc(88px + env(safe-area-inset-bottom))}
 }
+
+/* The exam-entry sheet scrolls vertically; its header and fields must not drift sideways on iOS.
+   Scope to this sheet so intentional horizontal scrolling in charts and other dialogs remains intact. */
+.modal-backdrop:has(#examName) > .modal{
+  box-sizing:border-box;
+  min-width:0;
+  max-width:100%;
+  overflow-x:hidden;
+  overscroll-behavior-x:none;
+}
+.modal-backdrop:has(#examName) :is(.modal-head,.modal-body){
+  box-sizing:border-box;
+  min-width:0;
+  max-width:100%;
+}
+.modal-backdrop:has(#examName) .modal-head > h3{
+  flex:1 1 auto;
+  min-width:0;
+  overflow-wrap:anywhere;
+}
+.modal-backdrop:has(#examName) .modal-head > :is(.close-btn,.nl-entry-trigger){flex-shrink:0}
+
+@media(max-width:620px){
+  .modal-backdrop:has(#examName){
+    grid-template-columns:minmax(0,1fr);
+    overflow-x:hidden;
+  }
+  .modal-backdrop:has(#examName) > .modal{
+    width:100%;
+    touch-action:pan-y pinch-zoom;
+  }
+  .modal-backdrop:has(#examName) :is(
+    .form-grid,.total-ranks-v16,.exam-subjects-v10,.score-compact-v14,
+    .rank-entry-top-v21,.people-total-v25,.combo-section-v21,.rank-scope-card-v16
+  ){min-width:0;max-width:100%}
+  .modal-backdrop:has(#examName) :is(.form-grid,.total-ranks-v16){
+    grid-template-columns:minmax(0,1fr);
+  }
+  .modal-backdrop:has(#examName) :is(.rank-pair-v16,.people-total-v25){
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .modal-backdrop:has(#examName) :is(
+    .rank-scope-card-v16,.rank-pair-v16>div,.people-total-v25>div,
+    .score-compact-v14>.mini-field-v10,.score-with-max-v14,.combo-card-v21
+  ){min-width:0}
+  .modal-backdrop:has(#examName) :is(input,select,textarea){
+    box-sizing:border-box;
+    max-width:100%;
+  }
+}
