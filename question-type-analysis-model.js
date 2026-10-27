@@ -52,12 +52,18 @@
       g.recentRate=ratio(last);g.recentLossCount=last.filter(function(c){return c.score<c.max-0.000001;}).length;
       g.latest=valid.at(-1)||null;
       // At least two observations in each non-overlapping window; missing entries do not become zeroes.
-      g.change=valid.length>=4 ? ratio(valid.slice(-half))-ratio(valid.slice(-half*2,-half)) : null;
+      g.trendCount=valid.length>=4?half:0;
+      g.trendRate=g.trendCount?ratio(valid.slice(-half)):null;
+      g.previousRate=g.trendCount?ratio(valid.slice(-half*2,-half)):null;
+      g.change=g.trendCount?g.trendRate-g.previousRate:null;
+      g.minRate=valid.length?Math.min(...valid.map(function(c){return c.rate;})):null;
+      g.maxRate=valid.length?Math.max(...valid.map(function(c){return c.rate;})):null;
       var dif=last.flatMap(function(c){return c.difficulties;}), cause=last.flatMap(function(c){return c.causes;});
       var distinct=Array.from(new Set(dif));g.difficulty=distinct.length===1?distinct[0]:distinct.length?'mixed':null;
       g.difficultyCount=dif.length;g.difficultyComplete=last.length>0&&dif.length===last.reduce(function(s,c){return s+c.parts;},0);
       // Never turn an unlabelled portion into a confirmed easy/hard recommendation.
       g.rankDifficulty=g.difficultyComplete?g.difficulty:null;
+      g.causeCounts=Object.fromEntries(Array.from(new Set(cause)).map(function(c){return [c,cause.filter(function(v){return v===c;}).length];}));
       g.cause=cause.length?cause.sort(function(a,b){return cause.filter(function(c){return c===b;}).length-cause.filter(function(c){return c===a;}).length;})[0]:null;
       totalLost+=g.lost;totalScore+=g.score;totalMax+=g.max;
     });
@@ -72,10 +78,9 @@
       if(!g.count||g.lost<=0){g.priority={quick:0,breakthrough:0,all:0};return;}
       var loss=g.lost/g.count/maxLoss, freq=0.5+0.5*g.frequency, recent=0.4+0.6*(1-g.recentRate), falling=g.change!==null&&g.change<-.03?1.15:1;
       var d=g.rankDifficulty, easy={easy:1,medium:.65,hard:level==='advanced'?.3:.12}[d]||.35, hard={hard:1,medium:.55,easy:.15}[d]||.3;
-      var causeBoost=['careless','time'].includes(g.cause)?1.2:1;
       var readiness=level==='foundation'?.65:level==='advanced'?1.2:1;
       if(target!==null&&target>=90)readiness*=1.1;
-      g.priority={quick:loss*easy*freq*recent*falling*causeBoost,breakthrough:hard*Math.sqrt(loss)*freq*(.6+.4*g.recentRate)*readiness,all:loss*freq*recent*falling};
+      g.priority={quick:loss*easy*freq*recent*falling,breakthrough:hard*Math.sqrt(loss)*freq*(.6+.4*g.recentRate)*readiness,all:loss*freq*recent*falling};
     });
     return {exams:exams,rows:rows,subject:subject,recorded:recorded,incomplete:incomplete,invalid:invalid,totalLost:totalLost,rate:totalMax?totalScore/totalMax:null,coverage:subjectMax?coverageMax/subjectMax:null,coverageExams:coverageExams,level:level,levelRate:levelRate,levelCount:marks.length,targetRate:target,recommended:level==='advanced'||(target>=90&&level!=='foundation')?'breakthrough':level==='foundation'?'quick':'all'};
   }

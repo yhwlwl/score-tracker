@@ -29,7 +29,7 @@ assert.equal(analyze(ex,{category:''}).exams.length,1);
 assert.equal(analyze(ex,{includeHidden:true,limit:2}).exams[0].id,'3');
 // Four observations minimum and disjoint windows; last two improve by 50 percentage points.
 r=analyze([0,2,6,6].map((s,i)=>exam(i+1,[row('填空',s,10)])));
-assert.equal(r.rows[0].change,.5);
+assert.equal(r.rows[0].change,.5);assert.equal(r.rows[0].previousRate,.1);assert.equal(r.rows[0].trendRate,.6);assert.equal(r.rows[0].trendCount,2);assert.equal(r.rows[0].minRate,0);assert.equal(r.rows[0].maxRate,.6);
 // Unknown difficulty must not be inferred from a zero mark; partial metadata is not confirmed.
 r=analyze([exam(1,[row('填空',0,10)])]);assert.equal(r.rows[0].rankDifficulty,null);
 r=analyze([exam(1,[row('填空',5,10,{difficulty:'easy'})]),exam(2,[row('填空',5,10)])]);assert.equal(r.rows[0].rankDifficulty,null);
