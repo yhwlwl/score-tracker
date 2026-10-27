@@ -6037,8 +6037,17 @@ saveExam=async function saveExamV21(id,modal){
 
   /* ================= A) 主题引擎 ================= */
   var THEME_KEY_V29='st_theme';
+  var READING_KEY_V29='st_reading_v1';
+  var FONT_PRESETS_V29=[
+    {id:'system',name:'系统默认',detail:'熟悉自然',family:'var(--ui-system-font)'},
+    {id:'sans',name:'清晰黑体',detail:'简洁清爽',family:'"Score Sans Sample",sans-serif'},
+    {id:'serif',name:'书卷宋体',detail:'安静耐读',family:'"Score Serif Sample",serif'}
+  ];
+  var SIZE_PRESETS_V29=[{id:'compact',name:'紧凑',px:14},{id:'standard',name:'标准',px:15},{id:'large',name:'大字',px:17}];
+  var readingV29={font:'system',size:'standard'};
   var THEMES_V29=[
     {id:'sunny',name:'晴白 · 默认',dot:'linear-gradient(135deg,#5d72e8,#f5f7fb)',meta:'#f5f7fb'},
+    {id:'sky',name:'天蓝',dot:'linear-gradient(135deg,#268ac0,#e8f4ff)',meta:'#e8f4ff'},
     {id:'paper',name:'暖纸',dot:'linear-gradient(135deg,#bc6b3c,#f6f1e8)',meta:'#f6f1e8'},
     {id:'sakura',name:'樱粉',dot:'linear-gradient(135deg,#cf5f83,#faf4f6)',meta:'#faf4f6'},
     {id:'violet',name:'淡紫',dot:'linear-gradient(135deg,#8a70d6,#f4f2fa)',meta:'#f4f2fa'},
@@ -6047,6 +6056,22 @@ saveExam=async function saveExamV21(id,modal){
   ];
   var THEME_CSS={
     sunny:[],
+    // Radix Colors' Sky scale informs the light surfaces and dark, readable blue ink.
+    sky:[
+      '--bg:#e8f4ff','--panel:rgba(255,255,255,.95)','--panel-solid:#ffffff','--text:#18354c','--muted:#52758c',
+      '--line:#d4e7f4','--accent:#096a9e','--accent-soft:#e1f3fd','--green:#207858','--green-soft:#e6f5ee','--danger:#c54455',
+      '--glow1:#d7ebff','--glow2:#e1f5ff','--logo-a:#12618e','--logo-b:#54addb',
+      '--nav-glass:rgba(250,253,255,.86)','--nav-line:#edf7ff','--nav-active:#def0fd','--navbg:rgba(250,253,255,.96)','--navline:#edf7ff',
+      '--chip-bg:#ffffff','--cell:#f1f8fe','--line-soft:#cbe2f1',
+      '--axis:#69899e','--point-label:#52758c','--grid:#dcebf5','--dotfill:#ffffff',
+      '--info-bg:#eaf6ff','--info-line:#cee6f7','--info-text:#365f7a',
+      '--raw-field:#fff8ec','--final-field:#edf8f3','--combo-cell:#eff8ff','--combo-line:#cbe2f1',
+      '--shadow:0 12px 40px rgba(35,91,132,.09)','--focus:#096a9e','--focus-ring:rgba(9,106,158,.16)',
+      '--sel-bg:#bce3fa','--sel-text:#123e5a',
+      '--hero-bg:linear-gradient(145deg,rgba(255,255,255,.98),rgba(235,247,255,.95))',
+      '--promo-bg:linear-gradient(135deg,#f7fcff,#e6f4ff)','--promo-line:#c4dff1',
+      '--nav-shadow:0 10px 35px rgba(35,91,132,.12)'
+    ],
     paper:[
       '--bg:#f6f1e8','--panel:rgba(255,253,248,.94)','--panel-solid:#fffdf8','--text:#33302a','--muted:#8b8172',
       '--line:#e9e0d1','--accent:#bc6b3c','--accent-soft:#f7ece0','--green:#5e8c61','--green-soft:#ecf3ea','--danger:#c25e52',
@@ -6193,6 +6218,7 @@ saveExam=async function saveExamV21(id,modal){
     if(tc)tc.setAttribute('content',themeMetaColorV29(id));
     document.querySelectorAll('.theme-opt-v29').forEach(function(b){
       b.classList.toggle('on',b.getAttribute('data-theme-opt-v29')===id);
+      b.setAttribute('aria-pressed',String(b.getAttribute('data-theme-opt-v29')===id));
     });
     if(!silent)rerenderPreservingScrollV29();
   }
@@ -6200,6 +6226,23 @@ saveExam=async function saveExamV21(id,modal){
     var saved='sunny';
     try{saved=localStorage.getItem(THEME_KEY_V29)||'sunny';}catch(e){}
     applyThemeV29(saved,true);
+  }
+
+  function applyReadingV29(font,size){
+    if(!FONT_PRESETS_V29.some(function(p){return p.id===font;}))font='system';
+    if(!SIZE_PRESETS_V29.some(function(p){return p.id===size;}))size='standard';
+    readingV29={font:font,size:size};
+    document.documentElement.dataset.uiFont=font;
+    document.documentElement.dataset.uiSize=size;
+    try{localStorage.setItem(READING_KEY_V29,JSON.stringify(readingV29));}catch(e){}
+    document.querySelectorAll('[data-reading-font-v29],[data-reading-size-v29]').forEach(function(b){
+      var selected=b.hasAttribute('data-reading-font-v29')?b.dataset.readingFontV29===font:b.dataset.readingSizeV29===size;
+      b.classList.toggle('on',selected);b.setAttribute('aria-pressed',String(selected));
+    });
+  }
+  function initReadingV29(){
+    var saved={};try{saved=JSON.parse(localStorage.getItem(READING_KEY_V29)||'{}')||{};}catch(e){}
+    applyReadingV29(saved.font,saved.size);
   }
 
   /* ================= B) 图例取色 ================= */
@@ -6395,14 +6438,25 @@ saveExam=async function saveExamV21(id,modal){
     card.className='card account-card appearance-card-v29';
     card.id='appearanceCardV29';
     var cur=currentThemeV29();
-    card.innerHTML='<h3 class="card-title">外观</h3><p class="card-sub">主题保存在本设备上，不影响其他设备。</p>'
-      +'<div class="theme-opts-v29">'+THEMES_V29.map(function(t){
-        return '<button type="button" class="theme-opt-v29'+(t.id===cur?' on':'')+'" data-theme-opt-v29="'+t.id+'"><i style="background:'+t.dot+'"></i>'+t.name+'</button>';
-      }).join('')+'</div>';
+    card.innerHTML='<div class="appearance-heading-v29"><div><h3 class="card-title">外观</h3><p class="card-sub">选择你喜欢的配色和阅读方式，设置保存在当前设备。</p></div><button type="button" class="appearance-reset-v29" data-appearance-reset-v29>恢复默认</button></div>'
+      +'<section class="appearance-section-v29" aria-labelledby="themeLabelV29"><h4 id="themeLabelV29">配色主题</h4><div class="theme-opts-v29">'+THEMES_V29.map(function(t){
+        return '<button type="button" class="theme-opt-v29'+(t.id===cur?' on':'')+'" data-theme-opt-v29="'+t.id+'" aria-pressed="'+(t.id===cur)+'" title="'+t.name+'"><span class="theme-swatch-v29" aria-hidden="true" style="--swatch-bg:'+t.meta+';--swatch-panel:'+(t.id==='night'?'#1d2533':'#ffffff')+';--swatch-accent:'+t.dot+'"><i></i><span></span><b></b></span><span>'+t.name.split(' · ')[0]+'</span><span class="appearance-check-v29" aria-hidden="true">✓</span></button>';
+      }).join('')+'</div></section>'
+      +'<section class="appearance-section-v29" aria-labelledby="fontLabelV29"><h4 id="fontLabelV29">字体</h4><div class="appearance-fonts-v29">'+FONT_PRESETS_V29.map(function(p){
+        return '<button type="button" class="appearance-font-v29'+(p.id===readingV29.font?' on':'')+'" data-reading-font-v29="'+p.id+'" aria-pressed="'+(p.id===readingV29.font)+'"><span class="appearance-font-sample-v29" style=\'font-family:'+p.family+'\' aria-hidden="true">字 Aa</span><b>'+p.name+'</b><small>'+p.detail+'</small></button>';
+      }).join('')+'</div></section>'
+      +'<section class="appearance-section-v29" aria-labelledby="sizeLabelV29"><h4 id="sizeLabelV29">字号</h4><div class="appearance-sizes-v29">'+SIZE_PRESETS_V29.map(function(p){
+        return '<button type="button" class="appearance-size-v29'+(p.id===readingV29.size?' on':'')+'" data-reading-size-v29="'+p.id+'" aria-pressed="'+(p.id===readingV29.size)+'"><b>'+p.name+'</b><span>'+p.px+'</span></button>';
+      }).join('')+'</div></section>'
+      +'<section class="appearance-preview-v29" aria-label="当前字体与字号效果预览"><span class="appearance-preview-label-v29">效果预览</span><p>看见每一次进步，也记录真实的起伏。</p><div><span>数学 · 阶段检测</span><strong>128.5 <small>/ 150</small></strong></div></section>';
     grid.appendChild(card);
     card.addEventListener('click',function(e){
       var b=e.target.closest('[data-theme-opt-v29]');
       if(b)applyThemeV29(b.getAttribute('data-theme-opt-v29'));
+      var font=e.target.closest('[data-reading-font-v29]'),size=e.target.closest('[data-reading-size-v29]');
+      if(font)applyReadingV29(font.dataset.readingFontV29,readingV29.size);
+      if(size)applyReadingV29(readingV29.font,size.dataset.readingSizeV29);
+      if(e.target.closest('[data-appearance-reset-v29]')){applyReadingV29('system','standard');applyThemeV29('sunny');}
     });
   }
 
@@ -6480,6 +6534,7 @@ saveExam=async function saveExamV21(id,modal){
   injectFaviconV29();
   buildDarkPalettesV29();
   installThemedPalettesV29();
+  initReadingV29();
   initThemeV29();
   syncVersionV29();
 
@@ -6490,6 +6545,8 @@ saveExam=async function saveExamV21(id,modal){
     applyTheme:applyThemeV29,
     currentTheme:currentThemeV29,
     themeMetaColor:themeMetaColorV29,
+    applyReading:applyReadingV29,
+    reading:function(){return {font:readingV29.font,size:readingV29.size};},
     groupSvgSeries:groupSvgSeriesV29,
     applyCustomLineColors:applyCustomLineColorsV29,
     swapLogos:swapLogosV29,
