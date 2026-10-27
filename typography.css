@@ -1,125 +1,127 @@
-/* Shared reading scale for the app and management UI. Uses locally available fonts only. */
+/* Shared reading scale. App preferences set a type scale; the admin UI keeps the default. */
 :root{
-  --ui-font:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif;
-  --ui-body:15px;--ui-small:13px;--ui-caption:12px;--ui-heading:26px;--ui-section:18px;
+  --ui-scale:1;
+  --ui-system-font:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif;
+  --ui-font:var(--ui-system-font);
+  --ui-body:calc(15px * var(--ui-scale));--ui-small:calc(13px * var(--ui-scale));--ui-caption:calc(12px * var(--ui-scale));--ui-heading:calc(26px * var(--ui-scale));--ui-section:calc(18px * var(--ui-scale));
   --ui-muted:#657184;
 }
 @supports(color:color-mix(in srgb,black,white)){
   :root{--ui-muted:color-mix(in srgb,var(--text,#18212f) 72%,var(--panel-solid,var(--panel,#fff)))}
 }
-html:root{font-family:var(--ui-font);font-size:16px;line-height:1.65}
+html:root{font-family:var(--ui-font);font-size:calc(16px * var(--ui-scale));line-height:1.65}
 :root body{font-family:var(--ui-font);font-size:var(--ui-body);line-height:1.65}
 :root :is(button,input,select,textarea){font-family:inherit;letter-spacing:normal}
 :root :is(.shell,.auth-page,.recovery-page,.modal-backdrop,.rn-back,.st-fb-overlay,.fv36-back,.export-overlay-v30){--muted:var(--ui-muted)}
 :root :is(h1,h2,h3,h4){font-weight:600;letter-spacing:normal;text-wrap:pretty}
 :root :is(.page-head h2,.ed-heading h1,.auth-card h2,.recovery-card h2){font-size:var(--ui-heading);font-weight:600;line-height:1.4;letter-spacing:-.015em}
 :root :is(.card-title,.modal-head h3,.account-card h3,.ed-section h2,.recovery-section h3){font-size:var(--ui-section);font-weight:600;line-height:1.5}
-:root .brand h1{font-size:19px;font-weight:650;letter-spacing:0}
-:root :is(.brand p,.page-head p,.card-sub,.stat-sub,.stat-label,.hero-desc,.info-box,.form-note,.subtle-note,.rank-compat-v16,.template-note-v10,.account-note-v10,.visibility-box-v10 span){font-size:14px;line-height:1.75}
-:root .auth-card>p{font-size:14px;line-height:1.8}
-:root :is(.hero h2){font-size:clamp(27px,3vw,34px);line-height:1.35;font-weight:600;letter-spacing:-.02em}
+:root .brand h1{font-size:calc(19px * var(--ui-scale));font-weight:650;letter-spacing:0}
+:root :is(.brand p,.page-head p,.card-sub,.stat-sub,.stat-label,.hero-desc,.info-box,.form-note,.subtle-note,.rank-compat-v16,.template-note-v10,.account-note-v10,.visibility-box-v10 span){font-size:calc(14px * var(--ui-scale));line-height:1.75}
+:root .auth-card>p{font-size:calc(14px * var(--ui-scale));line-height:1.8}
+:root :is(.hero h2){font-size:clamp(calc(27px * var(--ui-scale)),calc(3vw * var(--ui-scale)),calc(34px * var(--ui-scale)));line-height:1.35;font-weight:600;letter-spacing:-.02em}
 :root :is(.stat-value,.mini-stat b,.exam-score,.record-date b,.sv31-stat .v,.sv31-ext .v,.gh-total b,.ed-metric strong){font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-:root .stat-value{font-size:38px;line-height:1.2}
-:root .mini-stat b{font-size:23px}
+:root .stat-value{font-size:calc(38px * var(--ui-scale));line-height:1.2}
+:root .mini-stat b{font-size:calc(23px * var(--ui-scale))}
 :root :is(.mini-stat span,.exam-info span,.record-date,.record-name-v10 small,.hidden-badge-v10,.module-badge-v18,.auth-help,.credential small,.gm-hint,.gh-hint,.gh-chip small){font-size:var(--ui-caption);line-height:1.6}
-:root :is(.exam-info b,.exam-score,.account-chip code,.credential code){font-size:15px;font-weight:600}
-:root .sc-name-v26{font-size:13px;font-weight:500}
-:root .sc-val-v26{font-size:18px;font-weight:600;line-height:1.4}
-:root :is(.sc-sub-v26,.sc-rank-v26,.score-total-strip-v26 .t-label,.score-total-strip-v26 .t-sub,.score-total-strip-v26 .t-pill){font-size:12px;line-height:1.7}
+:root :is(.exam-info b,.exam-score,.account-chip code,.credential code){font-size:calc(15px * var(--ui-scale));font-weight:600}
+:root .sc-name-v26{font-size:calc(13px * var(--ui-scale));font-weight:500}
+:root .sc-val-v26{font-size:calc(18px * var(--ui-scale));font-weight:600;line-height:1.4}
+:root :is(.sc-sub-v26,.sc-rank-v26,.score-total-strip-v26 .t-label,.score-total-strip-v26 .t-sub,.score-total-strip-v26 .t-pill){font-size:calc(12px * var(--ui-scale));line-height:1.7}
 :root .sc-rank-v26{word-break:keep-all;overflow-wrap:anywhere;text-wrap:pretty}
 :root .score-total-strip-v26 .t-big{font-weight:600}
 :root :is(.nav-btn,.primary,.secondary,.copy-btn,.metric-btn-v7,.chip,.select-pill,.score-tag,.record-action-btn-v10,.module-chip-v18,.module-subject-v18,.category-chip-v14,.theme-btn-v29,.rank-scope-v16 .label,.rank-view-v16 .label,.combo-chips-v25 .label,.score-view-v25 .label,.trend-actions-v25 button,.radar-pick-chip-v25){font-size:var(--ui-small);font-weight:500;line-height:1.5}
-:root :is(.primary,.secondary){font-size:14px;min-height:42px;font-weight:600}
+:root :is(.primary,.secondary){font-size:calc(14px * var(--ui-scale));min-height:42px;font-weight:600}
 :root :is(.chip,.select-pill,.metric-btn-v7,.module-subject-v18){min-height:36px;display:inline-flex;align-items:center;justify-content:center}
 :root :is(.chip.active,.select-pill.active,.nav-btn.active){font-weight:600}
-:root .bottom-nav button{font-size:12px;line-height:1.25;font-weight:500}
+:root .bottom-nav button{font-size:calc(12px * var(--ui-scale));line-height:1.25;font-weight:500}
 :root .bottom-nav button.active{font-weight:600}
 :root :is(.field label,.mini-field-v10 label,.rank-pair-v16 label,.people-total-v25 label,.average-field,.gm-label,.gm-sf label,.category-head-v14 p){font-size:var(--ui-small);font-weight:500;line-height:1.6;color:var(--ui-muted)}
-:root :is(.modal input:not([type=checkbox]):not([type=radio]),.modal select,.modal textarea,.auth-card input,.recovery-card input,.recovery-card textarea,.gm-input,.gm-sf input){font-size:16px;line-height:1.45}
-:root :is(.exam-subject-name-v10,.module-editor-head-v18 input){font-size:16px;font-weight:600}
-:root :is(.draft-note-v61,.score-entry-tip-v16){font-size:12px;line-height:1.7;font-weight:400}
-:root :is(.subject-rank-row-v16>span,.rank-scope-card-v16>b,.visibility-box-v10 b,.exam-subject-toolbar-v10){font-size:13px;font-weight:500}
+:root :is(.modal input:not([type=checkbox]):not([type=radio]),.modal select,.modal textarea,.auth-card input,.recovery-card input,.recovery-card textarea,.gm-input,.gm-sf input){font-size:calc(16px * var(--ui-scale));line-height:1.45}
+:root :is(.exam-subject-name-v10,.module-editor-head-v18 input){font-size:calc(16px * var(--ui-scale));font-weight:600}
+:root :is(.draft-note-v61,.score-entry-tip-v16){font-size:calc(12px * var(--ui-scale));line-height:1.7;font-weight:400}
+:root :is(.subject-rank-row-v16>span,.rank-scope-card-v16>b,.visibility-box-v10 b,.exam-subject-toolbar-v10){font-size:calc(13px * var(--ui-scale));font-weight:500}
 :root :is(.modal-body,.recovery-card,.rn-modal,.st-fb-modal){line-height:1.75}
 :root :is(.legend,.rank-legend-v7,.overview-legend,.radar-legend,.legend-pill,.summary-list,.comparison-grid){font-size:var(--ui-small);line-height:1.6}
-:root :is(.summary-card h4,.radar-pick-group-v25 h4,.module-settings-head-v18 h3){font-size:15px;font-weight:600}
-:root :is(.trend-pill,.eyebrow,.ed-eyebrow,.sv31-tag,.sv31-page .pill){font-size:12px;font-weight:500;letter-spacing:.02em}
-:root :is(.sv31-stat .lb,.sv31-ext .t){font-size:13px;font-weight:500}
-:root :is(.sv31-stat .v){font-size:28px;line-height:1.35}
-:root :is(.sv31-stat .d,.sv31-stat .v small,.sv31-ext .s,.sv32-trend-hint,.sv31-catch .sub,.sv31-modenote){font-size:12px;line-height:1.7;font-weight:400}
+:root :is(.summary-card h4,.radar-pick-group-v25 h4,.module-settings-head-v18 h3){font-size:calc(15px * var(--ui-scale));font-weight:600}
+:root :is(.trend-pill,.eyebrow,.ed-eyebrow,.sv31-tag,.sv31-page .pill){font-size:calc(12px * var(--ui-scale));font-weight:500;letter-spacing:.02em}
+:root :is(.sv31-stat .lb,.sv31-ext .t){font-size:calc(13px * var(--ui-scale));font-weight:500}
+:root :is(.sv31-stat .v){font-size:calc(28px * var(--ui-scale));line-height:1.35}
+:root :is(.sv31-stat .d,.sv31-stat .v small,.sv31-ext .s,.sv32-trend-hint,.sv31-catch .sub,.sv31-modenote){font-size:calc(12px * var(--ui-scale));line-height:1.7;font-weight:400}
 :root .sv31-stat .d{font-weight:500}
-:root :is(.sv31-insight b,.sv31-ext .v){font-size:15px;font-weight:600}
-:root :is(.sv31-insight p,.sv31-catch .h,.sv31-detail,.sv31-quality ul li,.sv31-method .m-body,.sv31-method summary){font-size:14px;line-height:1.8;font-weight:400}
-:root :is(.sv31-evbody,.sv31-evib,.sv31-insight .ev){font-size:13px;line-height:1.8}
-:root .sv31-seg button{font-size:13px;line-height:1.5;font-weight:500;min-height:38px}
-:root .sv31-page table{font-size:13px;line-height:1.6}
-:root .sv31-page th{font-size:12px;font-weight:500;padding:10px 9px}
-:root .sv31-page td{font-size:13px;font-weight:500;padding:12px 9px}
+:root :is(.sv31-insight b,.sv31-ext .v){font-size:calc(15px * var(--ui-scale));font-weight:600}
+:root :is(.sv31-insight p,.sv31-catch .h,.sv31-detail,.sv31-quality ul li,.sv31-method .m-body,.sv31-method summary){font-size:calc(14px * var(--ui-scale));line-height:1.8;font-weight:400}
+:root :is(.sv31-evbody,.sv31-evib,.sv31-insight .ev){font-size:calc(13px * var(--ui-scale));line-height:1.8}
+:root .sv31-seg button{font-size:calc(13px * var(--ui-scale));line-height:1.5;font-weight:500;min-height:38px}
+:root .sv31-page table{font-size:calc(13px * var(--ui-scale));line-height:1.6}
+:root .sv31-page th{font-size:calc(12px * var(--ui-scale));font-weight:500;padding:10px 9px}
+:root .sv31-page td{font-size:calc(13px * var(--ui-scale));font-weight:500;padding:12px 9px}
 :root .sv31-page td:first-child{font-weight:600}
 :root .sv31-scroll table:not(.sv31-heat){min-width:560px}
 :root .sv31-scroll table:not(.sv31-heat) :is(th,td):first-child{white-space:nowrap}
-:root .worth-number strong{font-size:30px;font-weight:600;line-height:1.4;letter-spacing:-.02em}
-:root :is(.worth-number>span,.worth-number p,.worth-controls label,.worth-reference-choice>span,.worth-ref-exam,.worth-evidence summary,.worth-note){font-size:13px;line-height:1.75}
-html #dsbRoot :is(summary,.dsb-plain-insights,.dsb-why-grid,.dsb-tip){font-size:14px;line-height:1.8;opacity:1}
-html #dsbRoot :is(.dsb-note,.dsb-privacy-note,.dsb-summary-help,.dsb-fig-cap,.dsb-caliber,.dsb-level-head small){font-size:12px;line-height:1.75;opacity:1;color:var(--ui-muted)}
-html #dsbRoot :is(.dsb-block-title,.dsb-fig-title,.dsb-level-head b){font-size:14px;font-weight:600;letter-spacing:0}
-html #dsbRoot .dsb-summary-label{font-size:13px;opacity:1;color:var(--ui-muted)}
-html #dsbRoot .dsb-summary-value{font-size:24px;font-weight:600}
+:root .worth-number strong{font-size:calc(30px * var(--ui-scale));font-weight:600;line-height:1.4;letter-spacing:-.02em}
+:root :is(.worth-number>span,.worth-number p,.worth-controls label,.worth-reference-choice>span,.worth-ref-exam,.worth-evidence summary,.worth-note){font-size:calc(13px * var(--ui-scale));line-height:1.75}
+html #dsbRoot :is(summary,.dsb-plain-insights,.dsb-why-grid,.dsb-tip){font-size:calc(14px * var(--ui-scale));line-height:1.8;opacity:1}
+html #dsbRoot :is(.dsb-note,.dsb-privacy-note,.dsb-summary-help,.dsb-fig-cap,.dsb-caliber,.dsb-level-head small){font-size:calc(12px * var(--ui-scale));line-height:1.75;opacity:1;color:var(--ui-muted)}
+html #dsbRoot :is(.dsb-block-title,.dsb-fig-title,.dsb-level-head b){font-size:calc(14px * var(--ui-scale));font-weight:600;letter-spacing:0}
+html #dsbRoot .dsb-summary-label{font-size:calc(13px * var(--ui-scale));opacity:1;color:var(--ui-muted)}
+html #dsbRoot .dsb-summary-value{font-size:calc(24px * var(--ui-scale));font-weight:600}
 /* These two labels are emitted with inline sizes by the existing analysis module. */
-html #dsbRoot .dsb-head>span:first-child{font-size:18px!important;font-weight:600!important;line-height:1.5}
-html #dsbRoot .dsb-head>sup{font-size:12px!important;opacity:.8!important}
-html #dsbRoot input[aria-label]{font-size:16px;min-height:40px}
-:root .sv32-quad-key{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;margin:12px 0;font-size:12px;line-height:1.7;color:var(--ui-muted)}
-:root .sv32-quad-caption{font-size:12px;line-height:1.8;color:var(--ui-muted);margin:14px 0}
+html #dsbRoot .dsb-head>span:first-child{font-size:calc(18px * var(--ui-scale))!important;font-weight:600!important;line-height:1.5}
+html #dsbRoot .dsb-head>sup{font-size:calc(12px * var(--ui-scale))!important;opacity:.8!important}
+html #dsbRoot input[aria-label]{font-size:calc(16px * var(--ui-scale));min-height:40px}
+:root .sv32-quad-key{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;margin:12px 0;font-size:calc(12px * var(--ui-scale));line-height:1.7;color:var(--ui-muted)}
+:root .sv32-quad-caption{font-size:calc(12px * var(--ui-scale));line-height:1.8;color:var(--ui-muted);margin:14px 0}
 :root :is(.gh-title,.gm-head h3,.gm-total b){font-weight:600}
-:root :is(.gh-title,.gh-school b,.gm-head h3){font-size:15px}
-:root :is(.gh-chip em,.gh-total span,.gm-head small,.v33-goal-line,.v33-entry,.study-tool-v18 p,.support-intro,.community-intro){font-size:13px;line-height:1.75}
+:root :is(.gh-title,.gh-school b,.gm-head h3){font-size:calc(15px * var(--ui-scale))}
+:root :is(.gh-chip em,.gh-total span,.gm-head small,.v33-goal-line,.v33-entry,.study-tool-v18 p,.support-intro,.community-intro){font-size:calc(13px * var(--ui-scale));line-height:1.75}
 :root :is(.gh-chip b,.gh-total b){font-weight:600}
 :root .gh-chip.na{opacity:1;color:var(--ui-muted)}
-:root :is(.rn-title,.fv36-head h2){font-size:23px;font-weight:600;line-height:1.45}
-:root :is(.rn-content,.rn-comment-text,.recovery-message p){font-size:15px;line-height:1.85}
-:root :is(.rn-status,.rn-history,.rn-comments-hint,.rn-comment-meta,.rn-comment-status,.rn-comment-form label,.fv36-sub,.fv36-count,.fv36-state,.fv36-metric span,.fv36-account-row small,.fv36-suggestion,.xf-body-v30 small,.export-note-v30,.export-foot-v30){font-size:13px;line-height:1.7}
-:root :is(.fv36-label,.fv36-account-row b,.xf-body-v30 b){font-size:15px;font-weight:600;line-height:1.6}
-:root :is(.rn-comment-form textarea,.fv36-other input){font-size:16px;line-height:1.7}
-:root :is(.recovery-intro,.recovery-callout,.recovery-foot,.recovery-details,.recovery-section p,.recovery-modes span){font-size:14px;line-height:1.8}
-:root :is(.recovery-tabs button,.recovery-modes b,.recovery-status){font-size:14px;font-weight:500;line-height:1.6}
-:root .recovery-modes span{font-size:13px;line-height:1.75;text-wrap:pretty}
-:root :is(.recovery-message>div,.recovery-message time,.recovery-credentials small){font-size:12px;line-height:1.7}
-:root :is(.st-fb-btn,.st-fb-modal p,.st-fb-modal label,.st-fb-modal button){font-size:14px;line-height:1.6}
-:root :is(.st-fb-modal input,.st-fb-modal textarea,.st-fb-modal select){font-size:16px;line-height:1.65}
-:root .ed-heading h1{font-size:28px}
-:root :is(.ed-page .ed-scope button,.ed-change-tabs button){font-size:13px;font-weight:500}
+:root :is(.rn-title,.fv36-head h2){font-size:calc(23px * var(--ui-scale));font-weight:600;line-height:1.45}
+:root :is(.rn-content,.rn-comment-text,.recovery-message p){font-size:calc(15px * var(--ui-scale));line-height:1.85}
+:root :is(.rn-status,.rn-history,.rn-comments-hint,.rn-comment-meta,.rn-comment-status,.rn-comment-form label,.fv36-sub,.fv36-count,.fv36-state,.fv36-metric span,.fv36-account-row small,.fv36-suggestion,.xf-body-v30 small,.export-note-v30,.export-foot-v30){font-size:calc(13px * var(--ui-scale));line-height:1.7}
+:root :is(.fv36-label,.fv36-account-row b,.xf-body-v30 b){font-size:calc(15px * var(--ui-scale));font-weight:600;line-height:1.6}
+:root :is(.rn-comment-form textarea,.fv36-other input){font-size:calc(16px * var(--ui-scale));line-height:1.7}
+:root :is(.recovery-intro,.recovery-callout,.recovery-foot,.recovery-details,.recovery-section p,.recovery-modes span){font-size:calc(14px * var(--ui-scale));line-height:1.8}
+:root :is(.recovery-tabs button,.recovery-modes b,.recovery-status){font-size:calc(14px * var(--ui-scale));font-weight:500;line-height:1.6}
+:root .recovery-modes span{font-size:calc(13px * var(--ui-scale));line-height:1.75;text-wrap:pretty}
+:root :is(.recovery-message>div,.recovery-message time,.recovery-credentials small){font-size:calc(12px * var(--ui-scale));line-height:1.7}
+:root :is(.st-fb-btn,.st-fb-modal p,.st-fb-modal label,.st-fb-modal button){font-size:calc(14px * var(--ui-scale));line-height:1.6}
+:root :is(.st-fb-modal input,.st-fb-modal textarea,.st-fb-modal select){font-size:calc(16px * var(--ui-scale));line-height:1.65}
+:root .ed-heading h1{font-size:calc(28px * var(--ui-scale))}
+:root :is(.ed-page .ed-scope button,.ed-change-tabs button){font-size:calc(13px * var(--ui-scale));font-weight:500}
 :root :is(.ed-page .ed-scope [aria-pressed=true],.ed-change-tabs [aria-pressed=true]){font-weight:600}
 /* Admin uses the same font and hierarchy, with a denser data-table scale. */
-:root body.st-admin-ui .page-title h1{font-size:25px;font-weight:600;line-height:1.4;letter-spacing:-.015em}
-:root body.st-admin-ui :is(.page-title p,.note,.empty span){font-size:13px;line-height:1.75}
-:root body.st-admin-ui :is(.panel-title,.empty b){font-size:15px;font-weight:600}
-:root body.st-admin-ui :is(.panel-subtitle,.metric-label,.metric-foot,.topbar-meta,.admin-chip span,.nav-label,.muted){font-size:12px;line-height:1.65}
-:root body.st-admin-ui :is(.metric-value,.preview-metric b){font-size:28px;font-weight:600;line-height:1.25}
-:root body.st-admin-ui :is(.btn,.segmented button,.pill,.nav-btn,.admin-chip b){font-size:13px;font-weight:500}
-:root body.st-admin-ui :is(.data-table,.data-table td,.table,.table td){font-size:13px;line-height:1.6}
-:root body.st-admin-ui :is(th,.sort-btn){font-size:12px;font-weight:500}
-:root body.st-admin-ui :is(.input,.select,.textarea){font-size:15px;line-height:1.5}
+:root body.st-admin-ui .page-title h1{font-size:calc(25px * var(--ui-scale));font-weight:600;line-height:1.4;letter-spacing:-.015em}
+:root body.st-admin-ui :is(.page-title p,.note,.empty span){font-size:calc(13px * var(--ui-scale));line-height:1.75}
+:root body.st-admin-ui :is(.panel-title,.empty b){font-size:calc(15px * var(--ui-scale));font-weight:600}
+:root body.st-admin-ui :is(.panel-subtitle,.metric-label,.metric-foot,.topbar-meta,.admin-chip span,.nav-label,.muted){font-size:calc(12px * var(--ui-scale));line-height:1.65}
+:root body.st-admin-ui :is(.metric-value,.preview-metric b){font-size:calc(28px * var(--ui-scale));font-weight:600;line-height:1.25}
+:root body.st-admin-ui :is(.btn,.segmented button,.pill,.nav-btn,.admin-chip b){font-size:calc(13px * var(--ui-scale));font-weight:500}
+:root body.st-admin-ui :is(.data-table,.data-table td,.table,.table td){font-size:calc(13px * var(--ui-scale));line-height:1.6}
+:root body.st-admin-ui :is(th,.sort-btn){font-size:calc(12px * var(--ui-scale));font-weight:500}
+:root body.st-admin-ui :is(.input,.select,.textarea){font-size:calc(15px * var(--ui-scale));line-height:1.5}
 @media(max-width:620px){
-  :root{--ui-heading:24px;--ui-section:18px}
-  :root :is(.hero h2){font-size:27px}
-  :root .stat-value{font-size:34px}
+  :root{--ui-heading:calc(24px * var(--ui-scale));--ui-section:calc(18px * var(--ui-scale))}
+  :root :is(.hero h2){font-size:calc(27px * var(--ui-scale))}
+  :root .stat-value{font-size:calc(34px * var(--ui-scale))}
   :root :is(.hero-main,.hero-stat,.chart-card,.radar-card,.account-card){padding:21px 17px}
   :root .card-title-row{margin-bottom:18px}
   :root .legend{gap:10px 14px}
   :root .hero-actions{gap:10px;row-gap:12px}
-  :root .record-actions-v10 .record-action-btn-v10{font-size:12px}
+  :root .record-actions-v10 .record-action-btn-v10{font-size:calc(12px * var(--ui-scale))}
   :root .record-scores{gap:7px}
-  :root .score-tag{font-size:12px;line-height:1.6}
-  :root .ed-heading h1{font-size:25px}
-  :root .worth-number strong{font-size:28px}
-  :root :is(.rn-title,.fv36-head h2){font-size:22px}
+  :root .score-tag{font-size:calc(12px * var(--ui-scale));line-height:1.6}
+  :root .ed-heading h1{font-size:calc(25px * var(--ui-scale))}
+  :root .worth-number strong{font-size:calc(28px * var(--ui-scale))}
+  :root :is(.rn-title,.fv36-head h2){font-size:calc(22px * var(--ui-scale))}
   :root .exam-score-grid-v10{gap:12px 10px}
   :root .mini-field-v10 input{padding:10px 8px}
   :root .subject-rank-row-v16{grid-template-columns:45px minmax(0,1fr) minmax(0,1fr);gap:10px}
   :root .rank-pair-v16{gap:10px}
   :root .exam-subject-card-v10{padding:15px 13px}
-  :root body.st-admin-ui :is(.input,.select,.textarea){font-size:16px}
-  :root body.st-admin-ui .metric-value{font-size:25px}
+  :root body.st-admin-ui :is(.input,.select,.textarea){font-size:calc(16px * var(--ui-scale))}
+  :root body.st-admin-ui .metric-value{font-size:calc(25px * var(--ui-scale))}
   :root body.st-admin-ui .page-head{gap:14px;flex-wrap:wrap}
 }
 @media(max-width:420px){:root .worth-compare{grid-template-columns:minmax(0,1fr)}}
@@ -128,10 +130,59 @@ html #dsbRoot input[aria-label]{font-size:16px;min-height:40px}
   :root .score-with-max-v14{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px}
 }
 :root :is(.st-fb-back,.support-back,.community-back,.school-back){--muted:var(--ui-muted)}
-:root :is(.st-fb-field label,.school-hint,.school-intro,.school-result small,.support-help,.support-note,.support-status,.community-help,.community-card p,.st-fb-note,.st-fb-meta,.st-fb-tabs button){font-size:13px;line-height:1.75;font-weight:400}
-:root :is(.school-head h2,.support-head h2,.community-panel h2,.st-fb-head h3){font-size:22px;font-weight:600;line-height:1.45}
-:root .st-fb-modal .st-fb-close{font-size:22px}
-:root :is(.school-dialog input,.school-dialog select){font-size:16px;line-height:1.5}
-:root body.st-admin-ui table{font-size:13px;line-height:1.6}
+:root :is(.st-fb-field label,.school-hint,.school-intro,.school-result small,.support-help,.support-note,.support-status,.community-help,.community-card p,.st-fb-note,.st-fb-meta,.st-fb-tabs button){font-size:calc(13px * var(--ui-scale));line-height:1.75;font-weight:400}
+:root :is(.school-head h2,.support-head h2,.community-panel h2,.st-fb-head h3){font-size:calc(22px * var(--ui-scale));font-weight:600;line-height:1.45}
+:root .st-fb-modal .st-fb-close{font-size:calc(22px * var(--ui-scale))}
+:root :is(.school-dialog input,.school-dialog select){font-size:calc(16px * var(--ui-scale));line-height:1.5}
+:root body.st-admin-ui table{font-size:calc(13px * var(--ui-scale));line-height:1.6}
 html:root[data-theme=night] .card{border-color:var(--line)}
 html:root[data-theme=night] .trend-pill.down{background:color-mix(in srgb,var(--danger) 14%,transparent);color:var(--danger)}
+
+/* Self-hosted OFL fonts. Glyphs outside the UI/common-Chinese subset use the platform fallback. */
+@font-face{font-family:"Score Sans";src:url("./assets/fonts/score-sans-sc-v1.woff2") format("woff2");font-style:normal;font-weight:400 700;font-display:swap}
+@font-face{font-family:"Score Serif";src:url("./assets/fonts/score-serif-sc-v1.woff2") format("woff2");font-style:normal;font-weight:400 700;font-display:swap}
+@font-face{font-family:"Score Sans Sample";src:url("./assets/fonts/score-sans-sample-v1.woff2") format("woff2");font-style:normal;font-weight:500;font-display:swap}
+@font-face{font-family:"Score Serif Sample";src:url("./assets/fonts/score-serif-sample-v1.woff2") format("woff2");font-style:normal;font-weight:500;font-display:swap}
+:root[data-ui-font=sans]{--ui-font:"Score Sans",var(--ui-system-font)}
+:root[data-ui-font=serif]{--ui-font:"Score Serif","Songti SC","Noto Serif CJK SC",serif}
+:root[data-ui-size=compact]{--ui-scale:.9333333333}
+:root[data-ui-size=large]{--ui-scale:1.1333333333}
+/* Preserve comfortable data entry and prevent focus zoom on mobile Safari. */
+:root :is(.modal input:not([type=checkbox]):not([type=radio]),.modal select,.modal textarea,.auth-card input,.recovery-card input,.recovery-card textarea,.gm-input,.gm-sf input,.school-dialog input,.school-dialog select){font-size:max(16px,calc(16px * var(--ui-scale)))}
+:root :is(.shell,.modal,.auth-card,.fv36-modal,.community-panel,.rn-modal,.ed-page){font-family:var(--ui-font)}
+:root .appearance-heading-v29{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+:root .appearance-heading-v29 .card-sub{margin:5px 0 0;font-size:var(--ui-small);line-height:1.7}
+:root .appearance-reset-v29{flex-shrink:0;min-height:36px;border:0;border-radius:8px;background:transparent;padding:3px 0 3px 8px;font-size:var(--ui-caption);color:var(--accent)}
+:root .appearance-section-v29{margin-top:22px;min-width:0}
+:root .appearance-section-v29 h4{margin:0 0 10px;font-size:var(--ui-small);font-weight:600;color:var(--text)}
+:root .appearance-card-v29 .theme-opts-v29{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;margin:0}
+:root .appearance-card-v29 .theme-opt-v29{position:relative;display:flex;flex-direction:column;gap:7px;min-width:0;border-radius:12px;padding:7px 7px 9px;background:var(--panel-solid);font-size:var(--ui-caption);font-weight:500;line-height:1.5;color:var(--muted)}
+:root .appearance-card-v29 .theme-opt-v29.on{border-color:var(--accent);background:var(--accent-soft);color:var(--text);box-shadow:0 0 0 1px var(--accent)}
+:root .theme-swatch-v29{position:relative;display:block;width:100%;height:48px;border-radius:7px;background:var(--swatch-bg);overflow:hidden}
+:root .theme-swatch-v29>i{position:absolute;left:9px;top:9px;width:10px;height:10px;border:0;border-radius:4px;background:var(--swatch-accent)}
+:root .theme-swatch-v29>span{position:absolute;left:24px;right:9px;top:12px;height:4px;border-radius:2px;background:var(--swatch-accent);opacity:.6}
+:root .theme-swatch-v29>b{position:absolute;left:9px;right:9px;bottom:8px;height:15px;border-radius:4px;background:var(--swatch-panel);box-shadow:0 2px 5px #18354c0a}
+:root .appearance-check-v29{position:absolute;right:6px;top:5px;display:none;width:16px;height:16px;align-items:center;justify-content:center;border-radius:50%;background:var(--accent);color:#fff;font:600 11px/1 var(--ui-system-font)}
+:root .theme-opt-v29.on .appearance-check-v29{display:flex}
+:root .appearance-fonts-v29{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+:root .appearance-font-v29{min-width:0;padding:12px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;border:1px solid var(--line);border-radius:12px;background:var(--panel-solid);color:var(--text);font-size:var(--ui-small)}
+:root .appearance-font-sample-v29{font-size:calc(23px * var(--ui-scale));font-weight:500;line-height:1.5}
+:root .appearance-font-v29 b{font-size:var(--ui-small);font-weight:500;line-height:1.5}
+:root .appearance-font-v29 small{font-size:var(--ui-caption);color:var(--muted);line-height:1.5}
+:root .appearance-font-v29.on{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 1px var(--accent)}
+:root .appearance-sizes-v29{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:4px;border:1px solid var(--line);border-radius:12px;background:var(--cell)}
+:root .appearance-size-v29{display:flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:7px 4px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--muted);font-size:var(--ui-small)}
+:root .appearance-size-v29 b{font-weight:500}
+:root .appearance-size-v29 span{font-size:var(--ui-caption);font-variant-numeric:tabular-nums}
+:root .appearance-size-v29.on{background:var(--panel-solid);color:var(--text);box-shadow:0 2px 6px #18212f0b;border-color:var(--line)}
+:root .appearance-preview-v29{margin-top:22px;border:1px solid var(--line);border-radius:14px;padding:16px;background:var(--cell);min-width:0}
+:root .appearance-preview-label-v29{font-size:var(--ui-caption);color:var(--muted)}
+:root .appearance-preview-v29 p{font-size:var(--ui-body);line-height:1.8;margin:8px 0 14px;color:var(--text)}
+:root .appearance-preview-v29>div{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:var(--ui-small);color:var(--muted)}
+:root .appearance-preview-v29 strong{font-size:calc(25px * var(--ui-scale));font-weight:600;font-variant-numeric:tabular-nums;color:var(--text)}
+:root .appearance-preview-v29 strong small{font-size:var(--ui-small);font-weight:400;color:var(--muted)}
+:root .appearance-card-v29 button:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
+@media(max-width:760px){:root .appearance-card-v29 .theme-opts-v29{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:480px){:root .appearance-card-v29 .theme-opts-v29{grid-template-columns:repeat(3,minmax(0,1fr))}:root .appearance-heading-v29{flex-wrap:wrap}:root .appearance-heading-v29>div{flex:1;min-width:150px}}
+@media(max-width:360px){:root .appearance-fonts-v29{gap:7px}:root .appearance-font-v29{padding:11px 3px}:root .appearance-font-v29 small{font-size:calc(11px * var(--ui-scale))}}
+@media(prefers-reduced-motion:reduce){:root .appearance-card-v29 *{transition:none}}
