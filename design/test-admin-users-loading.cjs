@@ -9,7 +9,7 @@ const migration1=read('supabase/migrations/20261013150413_admin_users_page_bound
 const migration2=read('supabase/migrations/20261013150441_admin_users_page_cached_activity.sql');
 const migration3=read('supabase/migrations/20261013152125_admin_users_exact_activity_metrics.sql');
 const migration4=read('supabase/migrations/20261013152156_admin_users_cached_metrics_page.sql');
-const tick=()=>new Promise(r=>setTimeout(r,80));
+const tick=()=>new Promise(r=>setTimeout(r,250));
 async function run(){
   const db=new PGlite();
   await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;

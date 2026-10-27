@@ -33,7 +33,7 @@ export async function readCommunity(db, publicRead = false) {
     if (publicRead && ['42P01','PGRST205'].includes(r.error.code)) return {...COMMUNITY_DEFAULTS,revision:1};
     throw Object.assign(new Error('暂时无法读取交流群设置，请确认数据库迁移已部署'),{status:503});
   }
-  let config; try {config=validateCommunity({...COMMUNITY_DEFAULTS,...(r.data?.config||{})});} catch (_) {config={...COMMUNITY_DEFAULTS};}
+  let config; try {config=validateCommunity({...COMMUNITY_DEFAULTS,...(r.data?.config||{})});} catch (e) {if(!publicRead)throw Object.assign(new Error('交流群配置无效：'+e.message),{status:422});config={...COMMUNITY_DEFAULTS};}
   const expired=!!config.expires_at && Date.parse(config.expires_at)<=Date.now();
   if (publicRead && (!config.enabled || expired)) config={...COMMUNITY_DEFAULTS};
   return {...config,expired:publicRead?false:expired,revision:r.data?.revision||1,updated_at:r.data?.updated_at||null};

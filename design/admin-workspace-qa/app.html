@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>
+// Isolated synthetic state. All fetches stay in this local fixture.
+var qaStore={};Object.defineProperty(window,'localStorage',{value:{getItem:function(k){return qaStore[k]||null},setItem:function(k,v){qaStore[k]=String(v)},removeItem:function(k){delete qaStore[k]}}});navigator.sendBeacon=function(){return true};localStorage.setItem('st_theme',new URLSearchParams(location.search).get('theme')||'sunny');localStorage.setItem('st_pwa_install_v1',JSON.stringify({never:true}));
+window.fetch=async function(url,opts){var b=JSON.parse(opts&&opts.body||'{}'),result={ok:true,enabled:false,exams:[],subjects:[],modules:[],profile:{completed_at:'2026-01-01',school_prompted_at:'2026-01-01'}};
+if(b.action==='get_exam_reflection'||b.action==='save_exam_reflection'){result=JSON.parse(localStorage.getItem('visual_reflection_'+b.examId)||'null')||{reflection:'数学先做有把握的题，这次留给最后两题的时间更充足了。\n英语阅读最后一篇有些着急，下次给检查留出几分钟。',reflection_revision:0,reflection_updated_at:'2026-10-20T12:30:00Z'};if(b.action==='save_exam_reflection'){result={reflection:b.text,reflection_revision:result.reflection_revision+1,reflection_updated_at:new Date().toISOString()};localStorage.setItem('visual_reflection_'+b.examId,JSON.stringify(result));}}
+return new Response(JSON.stringify(result),{headers:{'Content-Type':'application/json'}});};
+</script><script>var originalFixtureFetch=window.fetch;window.fetch=async function(url,opts){var b=JSON.parse(opts&&opts.body||'{}'),result;
+if(b.action==='community_public')result={config:{"enabled":true,"title":"成绩轨迹 · 微信交流群","intro":"这是预览用的示例面板。可以一起聊使用问题、功能建议和学习心得。","qr_image":"/pwa-icon-192.png","join_url":"","expires_at":null,"revision":1}};
+if(['notice_public','notice_check','notice_history'].includes(b.action))result={config:{"version":"v8.0","enabled":false,"title":"v8.0 更新内容","content":"后台切换更流畅，反馈也更及时。","announcement_enabled":true,"announcement_title":"一起完善成绩轨迹","announcement_content":"**谢谢每一位认真提建议的同学。**\n你们的投票与反馈，正在变成更顺手的功能。这里也可以继续留言，我会在评论下回复。","announcement_id":"sample-announcement","announcement_comments_enabled":true,"announcement_comments_public":true,"announcement_comment_title":"有什么想法，欢迎告诉我","tip_enabled":false,"tip_content":"","revision":1},releases:[],announcements:[{id:'sample-announcement',title:'一起完善成绩轨迹',content:"**谢谢每一位认真提建议的同学。**\n你们的投票与反馈，正在变成更顺手的功能。这里也可以继续留言，我会在评论下回复。",comments_enabled:true,comments_public:true}],seen:[{kind:'announcement',notice_id:'sample-announcement'}]};
+if(b.action==='announcement_comments')result={rows:[{"id":"22222222-2222-4222-8222-222222222222","notice_id":"sample-announcement","notice_title":"一起完善成绩轨迹","user_id":"11111111-1111-4111-8111-111111111111","author":"示例同学","content":"图片识别很方便！希望可以在后台看到具体投票，也想知道建议有没有被采纳。","created_at":"2026-10-26T09:20:00Z","reply_revision":0,"is_current":true,"can_delete":false,"reply":null},{"id":"22222222-2222-4222-8222-222222222223","notice_id":"sample-announcement","notice_title":"一起完善成绩轨迹","user_id":"11111111-1111-4111-8111-111111111111","author":"另一位同学","content":"切换页面后能保留刚才的筛选条件吗？","created_at":"2026-10-25T13:10:00Z","reply_revision":1,"is_current":true,"admin_reply":"已加上页面缓存和筛选保留，感谢你把这个问题说清楚。欢迎继续反馈使用感受。","admin_replied_at":"2026-10-26T09:20:00Z","can_delete":false,"reply":{"content":"已加上页面缓存和筛选保留，感谢你把这个问题说清楚。欢迎继续反馈使用感受。","created_at":"2026-10-26T09:20:00Z"}}]};
+if(result)return new Response(JSON.stringify(result));return originalFixtureFetch(url,opts);};</script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f8fb" />
+  <meta name="application-version" content="v8.0" />
+  <title>成绩轨迹 · Score Tracker</title>
+  <meta name="description" content="记录全年考试成绩与目标成绩，用趋势图和雷达图看见自己的变化。" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📈</text></svg>">
+  <meta name="theme-color" content="#5d72e8" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="成绩追踪" />
+  <link rel="manifest" href="../../manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="../../pwa-icon-192.png" />
+  <link rel="stylesheet" href="../../styles.css" />
+  <link rel="stylesheet" href="../../pwa-install.css?v=3321b637c0" />
+  <link rel="stylesheet" href="../../mobile-fix.css" />
+  <link rel="stylesheet" href="../../typography.css?v=a63f319b2c" />
+</head>
+<body>
+  <!-- v2.0: subject-list mapping, weighted total overrides, bundled data reads -->
+  <div id="app">
+    <div class="splash">
+      <div class="brand-mark">↗</div>
+      <div>成绩轨迹</div>
+      <small>正在准备你的学习空间…</small>
+      <div class="splash-alt">
+        <span>如果连不进去，可尝试备用网址</span>
+        <span class="splash-alt-links"><a href="https://score1.yhwlwl.xyz">score1.yhwlwl.xyz</a><i>或</i><a href="https://score-tracker-d83.pages.dev">score-tracker-d83.pages.dev</a></span>
+      </div>
+    </div>
+  </div>
+  <style id="app-v33-style">
+.splash-alt{margin-top:3px;display:grid;gap:3px;justify-items:center;font-size:10.5px;line-height:1.55;color:var(--muted,#8490a1);font-weight:400;opacity:.78}
+.splash-alt-links{display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap}
+.splash-alt a{color:inherit;text-decoration:none;border-bottom:1px solid color-mix(in srgb,currentColor 32%,transparent);transition:opacity .15s ease}
+.splash-alt a:hover{opacity:.72}.splash-alt i{font-style:normal;opacity:.58}
+@media(max-width:520px){.splash-alt{max-width:310px;margin-left:auto;margin-right:auto}.splash-alt-links{gap:6px 7px}}
+.goal-hero-v33{display:flex;gap:18px;background:linear-gradient(145deg,var(--panel-solid,#fff),var(--accent-soft,#eef1ff));border:1px solid var(--line,#e8ebf0);border-radius:20px;box-shadow:0 10px 35px rgba(27,37,58,.08);padding:16px 18px;margin:14px 0;cursor:pointer}
+.goal-hero-v33:active{transform:translateY(1px)}
+.gh-main-v33{flex:1;min-width:0}.gh-title-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.gh-title{font-size:13.5px;font-weight:750}.gh-hint{font-size:11px;color:var(--muted,#788392)}
+.gh-chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}.gh-chips::-webkit-scrollbar{display:none}
+.gh-chip{flex:0 0 auto;border:1px solid var(--line,#e8ebf0);background:var(--panel-solid,#fff);border-radius:13px;padding:8px 11px;min-width:84px;cursor:pointer}
+.gh-chip small{display:block;font-size:10.5px;color:var(--muted,#788392)}.gh-chip b{font-size:15px;font-variant-numeric:tabular-nums}.gh-chip em{display:block;font-style:normal;font-size:10.5px;margin-top:1px}
+.gh-chip.ok em{color:var(--green,#32a77a)}.gh-chip.no em{color:var(--danger,#d9534f)}.gh-chip.na{opacity:.55}.gh-chip.na em{color:var(--muted,#788392)}
+.gh-total{margin-top:10px;display:flex;align-items:baseline;gap:8px;font-variant-numeric:tabular-nums}.gh-total b{font-size:23px;letter-spacing:-.5px}.gh-total span{font-size:11.5px;color:var(--muted,#788392)}
+.gh-side{flex:0 0 168px;display:flex;flex-direction:column;gap:10px;justify-content:center}
+.gh-cd{background:var(--accent,#5d72e8);color:#fff;border-radius:16px;padding:13px;text-align:center}.gh-cd small{display:block;font-size:11px;opacity:.85}.gh-cd b{display:block;font-size:29px;font-variant-numeric:tabular-nums;line-height:1.15}
+.gh-cd.expired{background:var(--warn,#b97f24)}
+.gh-school{border:1px solid var(--line,#e8ebf0);background:var(--panel-solid,#fff);border-radius:14px;padding:9px 12px;font-size:12px;color:var(--muted,#788392)}.gh-school b{display:block;color:var(--text,#18212f);font-size:14px;margin-top:2px}
+.goal-bar-v33{border:1.5px dashed var(--line,#e8ebf0);border-radius:16px;padding:12px 14px;font-size:12.5px;color:var(--muted,#788392);cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;margin:14px 0;background:transparent;width:100%;text-align:left}
+.goal-bar-v33 b{color:var(--accent,#5d72e8)}
+.bar-x-v33{border:0;background:transparent;color:var(--muted,#788392);font-size:16px;padding:4px 7px;border-radius:8px;cursor:pointer;flex:0 0 auto}
+.gmodal-backdrop{position:fixed;inset:0;background:rgba(22,28,39,.42);backdrop-filter:blur(6px);display:none;place-items:center;padding:18px;z-index:120}
+.gmodal-backdrop.open{display:grid}
+.gmodal{width:min(600px,100%);max-height:min(88vh,840px);overflow:auto;background:var(--panel-solid,#fff);border-radius:22px;box-shadow:0 30px 90px rgba(15,20,35,.3);color:var(--text,#18212f)}
+.gm-head{position:sticky;top:0;background:var(--panel-solid,#fff);display:flex;justify-content:space-between;align-items:center;padding:17px 20px 11px;border-bottom:1px solid var(--line,#e8ebf0)}
+.gm-head h3{margin:0;font-size:16px}.gm-head small{display:block;font-weight:400;color:var(--muted,#788392);font-size:11.5px;margin-top:3px}
+.gm-x{border:0;background:var(--line,#e8ebf0);width:32px;height:32px;border-radius:10px;font-size:16px;cursor:pointer;color:inherit}
+.gm-body{padding:15px 20px 21px}
+.gm-label{font-size:12px;font-weight:750;margin:15px 0 8px}.gm-label:first-child{margin-top:0}.gm-label span{font-weight:400;color:var(--muted,#788392);font-size:11.5px;margin-left:6px}
+.gm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.gm-sf{border:1px solid var(--line,#e8ebf0);border-radius:13px;padding:7px 10px;background:var(--panel-solid,#fff)}
+.gm-sf label{display:block;font-size:10.5px;color:var(--muted,#788392);margin-bottom:3px}
+.gm-sf input{width:100%;border:0;outline:0;background:transparent;font:inherit;font-size:15px;font-weight:700;color:var(--text,#18212f);font-variant-numeric:tabular-nums}
+.gm-input{width:100%;border:1px solid var(--line,#e8ebf0);border-radius:12px;padding:10px 12px;background:var(--panel-solid,#fff);color:var(--text,#18212f);font:inherit;outline:0}
+.gm-total{display:flex;align-items:center;gap:10px;border:1px solid var(--line,#e8ebf0);border-radius:13px;padding:9px 12px;background:var(--accent-soft,#eef1ff);margin-bottom:6px}
+.gm-total b{font-size:19px;font-variant-numeric:tabular-nums}.gm-total .an{font-size:11px;color:var(--muted,#788392);margin-left:auto}
+.gm-mini{border:1px solid var(--line,#e8ebf0);background:var(--panel-solid,#fff);color:var(--muted,#788392);border-radius:10px;padding:7px 11px;font-size:11.5px;cursor:pointer}
+.gm-mini.on{border-color:var(--accent,#5d72e8);color:var(--accent,#5d72e8);font-weight:700}
+.gm-foot{display:flex;justify-content:space-between;gap:10px;margin-top:18px}
+.gm-save{border:0;background:var(--text,#18212f);color:#fff;border-radius:12px;padding:11px 18px;font-weight:700;cursor:pointer}
+.gm-clear{border:1px solid var(--line,#e8ebf0);background:transparent;color:var(--danger,#d9534f);border-radius:12px;padding:11px 14px;cursor:pointer;font-size:12.5px}
+.gm-hint{font-size:11px;color:var(--warn,#b97f24);margin:6px 2px 0;min-height:14px}
+.v33-goal-line{border-top:1px dashed var(--line,#e8ebf0);margin-top:10px;padding-top:9px;font-size:12.5px;line-height:1.75}
+.tag-ok-v33{font-size:10.5px;font-weight:800;border-radius:999px;padding:3px 8px;background:var(--green-soft,#e9f8f2);color:var(--green,#32a77a);margin-left:6px;white-space:nowrap}
+.v33-entry{font-size:11.5px;color:var(--muted,#788392)}.v33-entry button{color:var(--accent,#5d72e8);background:none;border:0;padding:0;font-size:11.5px;cursor:pointer}
+#v33cityBox{max-width:100%;overflow:hidden}#v33cityBox details{border-top:1px solid var(--line,#e8ebf0)}#v33cityBox summary{list-style:none;cursor:pointer;padding:10px 2px;font-size:12.5px;color:var(--muted,#788392);display:flex;justify-content:space-between}#v33cityBox summary::-webkit-details-marker{display:none}
+.v33-citygrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:2px 0 6px}.v33-citygrid>div{min-width:0}.v33-lab{display:block;font-size:11px;color:var(--muted,#788392);margin-bottom:4px}.v33-pair{display:flex;gap:6px}.v33-pair input{flex:1;width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--line,#e8ebf0);border-radius:10px;padding:8px;background:var(--panel-solid,#fff);font:inherit;color:var(--text,#18212f)}
+@media(max-width:520px){.v33-citygrid{grid-template-columns:1fr}}
+@media(max-width:760px){.goal-hero-v33{flex-direction:column;gap:14px}.gh-side{flex:none;flex-direction:row;width:100%;gap:8px}.gh-side>*{flex:1;min-width:0}.gh-cd{padding:10px 12px}.gh-cd b{font-size:24px}.gh-school{display:flex;flex-direction:column;justify-content:center}.gh-title-row{margin-bottom:8px}.gh-total{flex-wrap:wrap;row-gap:3px;margin-top:9px}.gh-total b{white-space:nowrap;font-size:20px;line-height:1.25}.gh-total span{flex:1 1 100%;line-height:1.65}}
+  </style>
+    <!-- 全部脚本已按原顺序打包:改任何 app-vN.js 后运行 node design/build-bundles.js -->
+    <!-- 全部脚本已按原顺序打包:改任何 app-vN.js 后运行 node design/build-bundles.js -->
+    <!-- 全部脚本已按原顺序打包:改任何 app-vN.js 后运行 node design/build-bundles.js -->
+    <!-- 全部脚本已按原顺序打包:改任何 app-vN.js 后运行 node design/build-bundles.js -->
+    <!-- 全部脚本已按原顺序打包:改任何 app-vN.js 后运行 node design/build-bundles.js -->
+    <!-- 全部脚本已按原顺序打包:改任何 app-vN.js 后运行 node design/build-bundles.js -->
+    <!-- 全部脚本已按原顺序打包:改任何 app-vN.js 后运行 node design/build-bundles.js -->
+    <!-- 全部脚本已按原顺序打包:改任何 app-vN.js 后运行 node design/build-bundles.js -->
+    <!-- 全部脚本已按原顺序打包:改任何 app-vN.js 后运行 node design/build-bundles.js -->
+    <!-- 全部脚本已按原顺序打包:改任何 app-vN.js 后运行 node design/build-bundles.js -->
+    <!-- 全部脚本已按原顺序打包:改任何 app-vN.js 后运行 node design/build-bundles.js -->
+    <!-- 全部脚本已按原顺序打包:改任何 app-vN.js 后运行 node design/build-bundles.js -->
+    <!-- 全部脚本已按原顺序打包:改任何 app-vN.js 后运行 node design/build-bundles.js -->
+    <!-- 全部脚本已按原顺序打包:改任何 app-vN.js 后运行 node design/build-bundles.js -->
+  <script src="../../app-bundle.js?v=83e8857ccc" defer></script>
+  <script src="../../vision-image-prep.js?v=b8a2256662" defer></script>
+  <script src="../../natural-entry.js?v=eb99826ee8" defer></script>
+  <script src="../../feature-vote.js?v=2bad9d85b9" defer></script>
+  <script src="../../app-v36.js?v=5b5ac67bb2" defer></script>
+  <script src="../../app-v37.js?v=bb43ada300" defer></script>
+  <script src="../../app-v38.js?v=fc0358cb12" defer></script>
+  <script src="../../pwa-install.js?v=54e1e94938" defer></script>
+<script>document.addEventListener('DOMContentLoaded',function(){Object.assign(state,{"user":{"id":"11111111-1111-4111-8111-111111111111","username":"视觉验收示例"},"token":"local-visual-fixture","page":"records","allExams":[{"id":"33333333-3333-4333-8333-333333333333","name":"高三上学期第一次阶段性考试","exam_date":"2026-10-20","grade_level":"高三","total_rank":56,"total_participants":620,"total_class_rank":8,"total_class_participants":48,"scores":{"语文":{"actual":115,"max":150,"target":120,"rank":82,"participants":620,"classRank":10,"classParticipants":48},"数学":{"actual":128,"max":150,"target":125,"raw":128,"rawMax":150,"rank":38,"participants":620,"classRank":4,"classParticipants":48},"英语":{"actual":121,"max":150,"target":130,"rank":66,"participants":620,"classRank":8,"classParticipants":48},"物理":{"actual":78,"max":100,"target":85,"raw":78,"rawMax":100,"rank":51,"participants":620,"classRank":7,"classParticipants":48},"化学":{"actual":86,"max":100,"target":85,"raw":75,"rawMax":100,"rank":42,"participants":620,"classRank":5,"classParticipants":48},"生物":{"actual":82,"max":100,"target":85,"raw":72,"rawMax":100,"rank":76,"participants":620,"classRank":9,"classParticipants":48}}},{"id":"55555555-5555-4555-8555-555555555555","name":"九月阶段性考试","exam_date":"2026-09-25","grade_level":"高二","total_rank":74,"total_participants":620,"total_class_rank":10,"total_class_participants":48,"scores":{"语文":{"actual":112,"max":150,"target":120,"rank":95,"participants":620,"classRank":10,"classParticipants":48},"数学":{"actual":113,"max":150,"target":125,"raw":128,"rawMax":150,"rank":90,"participants":620,"classRank":4,"classParticipants":48},"英语":{"actual":126,"max":150,"target":130,"rank":49,"participants":620,"classRank":8,"classParticipants":48},"物理":{"actual":75,"max":100,"target":85,"raw":78,"rawMax":100,"rank":73,"participants":620,"classRank":7,"classParticipants":48},"化学":{"actual":88,"max":100,"target":85,"raw":75,"rawMax":100,"rank":35,"participants":620,"classRank":5,"classParticipants":48},"生物":{"actual":78,"max":100,"target":85,"raw":72,"rawMax":100,"rank":89,"participants":620,"classRank":9,"classParticipants":48}}},{"id":"66666666-6666-4666-8666-666666666666","name":"数学百分制小测（用于跨满分排名对比）","exam_date":"2026-10-10","grade_level":"高二","total_rank":40,"total_participants":500,"total_class_rank":10,"total_class_participants":48,"scores":{"数学":{"actual":80,"max":100,"rank":40,"participants":500,"classRank":9,"classParticipants":45}}}],"exams":[{"id":"33333333-3333-4333-8333-333333333333","name":"高三上学期第一次阶段性考试","exam_date":"2026-10-20","grade_level":"高三","total_rank":56,"total_participants":620,"total_class_rank":8,"total_class_participants":48,"scores":{"语文":{"actual":115,"max":150,"target":120,"rank":82,"participants":620,"classRank":10,"classParticipants":48},"数学":{"actual":128,"max":150,"target":125,"raw":128,"rawMax":150,"rank":38,"participants":620,"classRank":4,"classParticipants":48},"英语":{"actual":121,"max":150,"target":130,"rank":66,"participants":620,"classRank":8,"classParticipants":48},"物理":{"actual":78,"max":100,"target":85,"raw":78,"rawMax":100,"rank":51,"participants":620,"classRank":7,"classParticipants":48},"化学":{"actual":86,"max":100,"target":85,"raw":75,"rawMax":100,"rank":42,"participants":620,"classRank":5,"classParticipants":48},"生物":{"actual":82,"max":100,"target":85,"raw":72,"rawMax":100,"rank":76,"participants":620,"classRank":9,"classParticipants":48}}},{"id":"55555555-5555-4555-8555-555555555555","name":"九月阶段性考试","exam_date":"2026-09-25","grade_level":"高二","total_rank":74,"total_participants":620,"total_class_rank":10,"total_class_participants":48,"scores":{"语文":{"actual":112,"max":150,"target":120,"rank":95,"participants":620,"classRank":10,"classParticipants":48},"数学":{"actual":113,"max":150,"target":125,"raw":128,"rawMax":150,"rank":90,"participants":620,"classRank":4,"classParticipants":48},"英语":{"actual":126,"max":150,"target":130,"rank":49,"participants":620,"classRank":8,"classParticipants":48},"物理":{"actual":75,"max":100,"target":85,"raw":78,"rawMax":100,"rank":73,"participants":620,"classRank":7,"classParticipants":48},"化学":{"actual":88,"max":100,"target":85,"raw":75,"rawMax":100,"rank":35,"participants":620,"classRank":5,"classParticipants":48},"生物":{"actual":78,"max":100,"target":85,"raw":72,"rawMax":100,"rank":89,"participants":620,"classRank":9,"classParticipants":48}}},{"id":"66666666-6666-4666-8666-666666666666","name":"数学百分制小测（用于跨满分排名对比）","exam_date":"2026-10-10","grade_level":"高二","total_rank":40,"total_participants":500,"total_class_rank":10,"total_class_participants":48,"scores":{"数学":{"actual":80,"max":100,"rank":40,"participants":500,"classRank":9,"classParticipants":45}}}],"modulesV18":[],"subjectConfigs":[{"name":"语文","defaultMax":150},{"name":"数学","defaultMax":150},{"name":"英语","defaultMax":150},{"name":"物理","defaultMax":100},{"name":"化学","defaultMax":100},{"name":"生物","defaultMax":100}]},{page:'home'});render();if(new URLSearchParams(location.search).get('scenario')==='announcement')setTimeout(function(){window.__releaseNotices.openAnnouncement()},400);});</script></body>
+</html>

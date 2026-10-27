@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { visionRecords, visionRecordDetail, deleteVisionRecord } from "./vision-records.ts";
+import { userRecords } from "./user-records.ts";
 import { DEFAULT_VISION_TIERS, validateVisionTiers } from "./vision-tiers.ts";
 
 const U=Deno.env.get('SUPABASE_URL')||'',S=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||'';
@@ -35,6 +36,23 @@ async function auth(token){if(!token)return null;const {data,error}=await db.fro
 async function login(username,password){const {data:u}=await db.from('score_tracker_users').select('id,username,password_hash,password_salt,is_admin').eq('username',String(username||'').trim().toLowerCase()).maybeSingle();if(!u||!u.is_admin||await hp(String(password||''),unb64(u.password_salt))!==u.password_hash)return null;const bytes=new Uint8Array(32);crypto.getRandomValues(bytes);const token=b64(bytes).replaceAll('+','-').replaceAll('/','_').replaceAll('=',''),expires=new Date(Date.now()+30*86400000).toISOString();await db.from('score_tracker_users').update({session_token_hash:await sha(token),session_expires_at:expires,updated_at:new Date().toISOString()}).eq('id',u.id);return{token,user:{id:u.id,username:u.username}}}
 const group=(a,key)=>{const m=new Map();for(const x of a){const k=key(x);if(!k)continue;m.set(k,(m.get(k)||0)+1)}return[...m].map(([key,count])=>({key,count})).sort((a,b)=>b.count-a.count)};
 function source(l){const r=l.first_referrer||l.referrer_origin||'';if(!r)return'直接访问 / 无 Referrer';try{const h=new URL(r).hostname.replace(/^www\./,'');if(/score-tracker|vercel\.app/.test(h))return'站内 / Preview';if(h.includes('weixin'))return'微信';if(h.includes('baidu'))return'百度';if(h.includes('bing'))return'Bing';if(h.includes('github'))return'GitHub';return h}catch{return String(r).slice(0,80)}}
+async function readAiConfig(){
+  const ai=await db.from('score_tracker_ai_configs').select('openrouter_api_key,base_url,model,enabled,beta_only,daily_limit,global_daily_limit,cooldown_seconds,tier_enabled,tier_rules,updated_at').eq('id','score_vision').maybeSingle();
+  if(ai.error)throw ai.error;return {
+        configured:!!ai.data?.openrouter_api_key,
+        masked_key:maskVisionKey(ai.data?.openrouter_api_key),
+        base_url:ai.data?.base_url||DEFAULT_VISION_BASE_URL,
+        model:ai.data?.model||DEFAULT_VISION_MODEL,
+        enabled:ai.data?.enabled!==false,
+        beta_only:ai.data?.beta_only!==false,
+        daily_limit:ai.data?.daily_limit??DEFAULT_AI_DAILY_LIMIT,
+        global_daily_limit:ai.data?.global_daily_limit??DEFAULT_AI_GLOBAL_DAILY_LIMIT,
+        cooldown_seconds:ai.data?.cooldown_seconds??DEFAULT_AI_COOLDOWN_SECONDS,
+        tier_enabled:ai.data?.tier_enabled!==false,
+        tier_rules:ai.data?.tier_rules??DEFAULT_VISION_TIERS,
+        updated_at:ai.data?.updated_at||null
+      };
+}
 async function count(table,filter){let q=db.from(table).select('*',{count:'exact',head:true});if(filter)q=filter(q);const {count,error}=await q;if(error)throw error;return count||0}
 async function recentLogs(limit=2500){const {data,error}=await db.from('score_tracker_visit_logs').select('id,user_id,visitor_id,session_id,occurred_at,event_type,app_page,pathname,city,app_version,user_agent,is_pwa,first_referrer,referrer_origin').order('occurred_at',{ascending:false}).limit(limit);if(error)throw error;return data||[]}
 async function firstDate(table,col){const {data,error}=await db.from(table).select(col).order(col,{ascending:true}).limit(1);if(error)throw error;return data?.[0]?.[col]||null}
@@ -81,6 +99,8 @@ async function boot(){if(!T)return login();try{await api('ping');shell();await l
 Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('action');if(!action)return new Response(html,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow, noarchive'}});try{
   if(action==='login'&&req.method==='POST'){const b=await req.json(),x=await login(b.username,b.password);return x?json(x):json({error:'管理员用户名或密码不正确'},401)}
   const admin=await auth(req.headers.get('x-score-token')||'');if(!admin)return json({error:'unauthorized'},401);if(action==='ping')return json({ok:true});
+  if(action==='ai_config'&&req.method==='GET')return json(await readAiConfig());
+  if(action==='user_records'&&req.method==='GET')return json(await userRecords(db,q.searchParams));
   if(action==='vision_requests'&&req.method==='GET')return json(await visionRecords(db,q.searchParams));
   if(action==='vision_request_detail'&&req.method==='GET'){const record=await visionRecordDetail(db,q.searchParams.get('id')||'');return record?json({record}):json({error:'记录不存在'},404)}
   if(action==='vision_record_delete'&&req.method==='POST'){const body=await req.json();const result=await deleteVisionRecord(db,String(body.id||''));return json(result,result.error?result.status:200)}
@@ -170,8 +190,7 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
   }
   if(action==='feature_votes'){
     try{
-    const ai=await db.from('score_tracker_ai_configs').select('openrouter_api_key,base_url,model,enabled,beta_only,daily_limit,global_daily_limit,cooldown_seconds,tier_enabled,tier_rules,updated_at').eq('id','score_vision').maybeSingle();
-    if(ai.error)throw ai.error;
+    const ai=q.searchParams.get('include_ai')==='0'?undefined:await readAiConfig();
     const [or,vr,sr]=await Promise.all([
       db.from('score_tracker_feature_vote_options').select('id,option_key,label,description,source,is_active,sort_order,created_at,updated_at').order('sort_order').order('created_at'),
       (async()=>{
@@ -189,10 +208,9 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
     const options=or.data||[],votes=vr.data||[],suggestions=sr.data||[];
     const userIds=[...new Set(votes.map(x=>x.user_id).concat(suggestions.map(x=>x.user_id)).filter(Boolean))];
     const names=new Map();
-    for(let offset=0;offset<userIds.length;offset+=100){
-      const ur=await db.from('score_tracker_users').select('id,username').in('id',userIds.slice(offset,offset+100));
-      if(ur.error)throw ur.error;
-      for(const u of ur.data||[])names.set(u.id,u.username);
+    for(let offset=0;offset<userIds.length;offset+=400){
+      const batches=[];for(let part=offset;part<Math.min(offset+400,userIds.length);part+=100)batches.push(db.from('score_tracker_users').select('id,username').in('id',userIds.slice(part,part+100)));
+      const results=await Promise.all(batches);for(const ur of results){if(ur.error)throw ur.error;for(const u of ur.data||[])names.set(u.id,u.username);}
     }
     const optMap=new Map(options.map(x=>[x.id,x]));
     const counts=new Map();for(const v of votes)counts.set(v.option_id,(counts.get(v.option_id)||0)+1);
@@ -204,20 +222,7 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
       perUser.set(v.user_id,row);
     }
     return json({
-      ai_config:{
-        configured:!!ai.data?.openrouter_api_key,
-        masked_key:maskVisionKey(ai.data?.openrouter_api_key),
-        base_url:ai.data?.base_url||DEFAULT_VISION_BASE_URL,
-        model:ai.data?.model||DEFAULT_VISION_MODEL,
-        enabled:ai.data?.enabled!==false,
-        beta_only:ai.data?.beta_only!==false,
-        daily_limit:ai.data?.daily_limit??DEFAULT_AI_DAILY_LIMIT,
-        global_daily_limit:ai.data?.global_daily_limit??DEFAULT_AI_GLOBAL_DAILY_LIMIT,
-        cooldown_seconds:ai.data?.cooldown_seconds??DEFAULT_AI_COOLDOWN_SECONDS,
-        tier_enabled:ai.data?.tier_enabled!==false,
-        tier_rules:ai.data?.tier_rules??DEFAULT_VISION_TIERS,
-        updated_at:ai.data?.updated_at||null
-      },
+      ai_config:ai,
       total_voters:perUser.size,total_votes:votes.length,
       options:options.map(o=>({...o,votes:counts.get(o.id)||0})),
       users:[...perUser.values()].sort((a,b)=>+new Date(b.last_voted_at||0)-+new Date(a.last_voted_at||0)),
@@ -310,13 +315,13 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
   if(action==='users'){const limit=Math.max(1,Math.min(100,Number(q.searchParams.get('page_size')||q.searchParams.get('limit')||50)||50)),page=Math.max(1,Number(q.searchParams.get('page')||1)||1),offset=(page-1)*limit,search=String(q.searchParams.get('search')||q.searchParams.get('q')||'').trim().slice(0,80)||null,sort=['username','last_seen','depth_score','exam_count','actual_exams','score_rows','sessions','events','days','feedback_count'].includes(q.searchParams.get('sort')||'')?q.searchParams.get('sort'):'last_seen',order=q.searchParams.get('order')==='asc'?'asc':'desc',depthLevel=String(q.searchParams.get('depth_level')||'').trim()||null,activity=String(q.searchParams.get('activity')||'').trim()||null;const {data,error}=await db.rpc('score_tracker_admin_users_page',{p_limit:limit,p_offset:offset,p_search:search,p_sort:sort,p_order:order,p_depth_level:depthLevel,p_activity:activity});if(error)throw error;const rows=data||[];return json({rows,total_count:Number(rows[0]?.total_count||0),page,page_size:limit,server:true})}
   if(action==='logs'){const limit=Math.max(1,Math.min(100,Number(q.searchParams.get('page_size')||q.searchParams.get('limit')||100)||100)),page=Math.max(1,Number(q.searchParams.get('page')||1)||1),offset=(page-1)*limit,search=String(q.searchParams.get('search')||q.searchParams.get('q')||'').trim().slice(0,80),safeSearch=search.replace(/[^\p{L}\p{N}_\- ]/gu,' ').trim(),eventType=String(q.searchParams.get('event_type')||'').trim(),mode=String(q.searchParams.get('account_mode')||'').trim(),includeHeartbeat=q.searchParams.get('heartbeat')==='show';let query=db.from('score_tracker_visit_logs').select('id,event_id,session_id,event_type,occurred_at,client_time,user_id,country_code,region_code,city,ip_timezone,edge_region,pathname,referrer_origin,user_agent,browser_language,client_timezone,screen_width,screen_height,viewport_width,viewport_height,account_mode,is_pwa,app_version,metadata,visitor_id,app_page,utm_source,utm_campaign,first_referrer,geo_source,geo_resolved_at',{count:'exact'});if(safeSearch){const textFilters=['event_type','app_page','pathname','referrer_origin','city','app_version'].map(field=>`${field}.ilike.%${safeSearch}%`);const uuid= /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(search);if(uuid){textFilters.push(`visitor_id.eq.${search}`,`session_id.eq.${search}`,`user_id.eq.${search}`)}query=query.or(textFilters.join(','))}if(eventType)query=query.eq('event_type',eventType);if(mode)query=query.eq('account_mode',mode);if(!includeHeartbeat)query=query.neq('event_type','heartbeat');const result=await query.order('occurred_at',{ascending:false}).range(offset,offset+limit-1);if(result.error)throw result.error;return json({rows:result.data||[],total_count:result.count||0,page,page_size:limit,server:true})}
   if(action==='user'){
-    const id=q.searchParams.get('id')||'';
+    const id=q.searchParams.get('id')||'',summaryOnly=q.searchParams.get('summary')==='1';
     const [ur,er,sr,lr,fr,dr,pr]=await Promise.all([
       db.from('score_tracker_users').select('id,username,is_admin,created_at,updated_at').eq('id',id).maybeSingle(),
-      db.from('score_tracker_exams').select('*').eq('user_id',id).order('exam_date',{ascending:false}).limit(200),
-      db.from('score_tracker_scores').select('*').eq('user_id',id).limit(2000),
-      db.from('score_tracker_visit_logs').select('*').eq('user_id',id).order('occurred_at',{ascending:false}).limit(500),
-      db.from('score_tracker_feedback_submissions').select('*').eq('user_id',id).order('created_at',{ascending:false}).limit(100),
+      summaryOnly?{data:[]}:db.from('score_tracker_exams').select('*').eq('user_id',id).order('exam_date',{ascending:false}).limit(200),
+      summaryOnly?{data:[]}:db.from('score_tracker_scores').select('*').eq('user_id',id).limit(2000),
+      summaryOnly?{data:[]}:db.from('score_tracker_visit_logs').select('*').eq('user_id',id).order('occurred_at',{ascending:false}).limit(500),
+      summaryOnly?{data:[]}:db.from('score_tracker_feedback_submissions').select('*').eq('user_id',id).order('created_at',{ascending:false}).limit(100),
       db.rpc('score_tracker_depth_breakdown',{uid:id}),
       db.rpc('score_tracker_admin_users_page',{p_limit:1,p_offset:0,p_search:id,p_sort:'last_seen',p_order:'desc',p_depth_level:null,p_activity:null})
     ]);
@@ -390,4 +395,4 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
   if(action==='feedback_detail'){const id=q.searchParams.get('id')||'';const [fr,rr]=await Promise.all([db.from('score_tracker_feedback_submissions').select('*').eq('id',id).maybeSingle(),db.from('score_tracker_feedback_replies').select('*').eq('feedback_id',id).order('created_at')]);if(fr.error)throw fr.error;if(rr.error)throw rr.error;if(!fr.data)return json({error:'not_found'},404);const seenAt=new Date().toISOString();await db.from('score_tracker_feedback_replies').update({read_at:seenAt}).eq('feedback_id',id).neq('author_type','admin').is('read_at',null);const ur=fr.data.user_id?await db.from('score_tracker_users').select('username').eq('id',fr.data.user_id).maybeSingle():{data:null};return json({feedback:fr.data,username:ur.data?.username||null,replies:(rr.data||[]).map(r=>r.author_type==='admin'||r.read_at?r:{...r,read_at:seenAt}),attachments:await signed(id)})}
   if(action==='raw'){const kind=q.searchParams.get('kind');let r;if(kind==='logs')r=await db.from('score_tracker_visit_logs').select('*').order('occurred_at',{ascending:false}).limit(1000);else if(kind==='exams')r=await db.from('score_tracker_exams').select('*').order('exam_date',{ascending:false}).limit(1000);else if(kind==='scores')r=await db.from('score_tracker_scores').select('*').limit(1000);else return json({rows:[]});if(r.error)throw r.error;return json({rows:r.data||[]})}
   return json({error:'unknown_action'},404)
-}catch(e){console.error(e);return json({error:e instanceof Error?e.message:String(e)},500)}});
+}catch(e){console.error(e);return json({error:e instanceof Error?e.message:String(e)},e.status||500)}});

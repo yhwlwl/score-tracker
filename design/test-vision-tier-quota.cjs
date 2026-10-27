@@ -146,13 +146,13 @@ async function domTests() {
   const virtualConsole=new VirtualConsole();virtualConsole.on('jsdomError',e=>errors.push(e));
   let cfg={enabled:true,beta_only:false,base_url:'https://model.test/v1',model:'vision-model',daily_limit:10,global_daily_limit:100,cooldown_seconds:0,tier_enabled:true,tier_rules:serialize(tiers)},posted;
   const html=vm.runInNewContext(read('api/mg-ui.js').replace('export const MG_HTML','const MG_HTML')+'\nMG_HTML');
-  const dom=new JSDOM(html,{url:'https://test/mg?view=featurevotes',runScripts:'dangerously',pretendToBeVisual:true,virtualConsole,beforeParse(w){w.localStorage.setItem('st_admin_token','fixture');w.fetch=async(url,init)=>{
+  const dom=new JSDOM(html,{url:'https://test/mg?view=vision',runScripts:'dangerously',pretendToBeVisual:true,virtualConsole,beforeParse(w){w.localStorage.setItem('st_admin_token','fixture');w.fetch=async(url,init)=>{
     const u=new URL(url,'https://test');assert.equal(u.pathname,'/mg');const action=u.searchParams.get('action');
-    if(action==='feature_votes')return{ok:true,json:async()=>({options:[],users:[],suggestions:[],ai_config:cfg})};
+    if(action==='ai_config')return{ok:true,json:async()=>cfg};
     if(action==='ai_config_save'){posted=JSON.parse(init.body);cfg={...cfg,tier_enabled:posted.tierEnabled,tier_rules:posted.tierRules.map(r=>({...r,min_exams:Number(r.min_exams),min_account_days:Number(r.min_account_days),quota_limit:Number(r.quota_limit),daily_limit:Number(r.quota_limit)}))};}
     return{ok:true,json:async()=>({ok:true,is_admin:true,rows:[],metrics:{}})};
   }}});
-  const w=dom.window;await wait();
+  const w=dom.window;await wait();w.document.querySelector('[data-vision-tab=settings]').click();await wait();
   assert.equal(w.document.querySelectorAll('[data-vision-tier]').length,4);
   let input=w.document.querySelector('[data-vision-tier="1"] [data-tier-field="quota_limit"]');input.value='23';input.dispatchEvent(new w.Event('input'));
   const periodInput=w.document.querySelector('[data-vision-tier="0"] [data-tier-field="period"]');assert.equal(periodInput.value,'lifetime');periodInput.value='month';periodInput.dispatchEvent(new w.Event('change'));
