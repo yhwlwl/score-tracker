@@ -9,6 +9,8 @@ const OUT = path.join(ROOT, "deploy");
 const FILES = [
   "index.html",
   "styles.css",
+  "appearance-studio.css",
+  "appearance-studio.js",
   "typography.css",
   "mobile-fix.css",
   "pwa-install.js",
@@ -43,7 +45,7 @@ fs.mkdirSync(path.join(OUT, "api"), { recursive: true });
 
 for (const f of FILES) fs.copyFileSync(path.join(ROOT, f), path.join(OUT, f));
 // Keep optional typography assets and the synthetic visual review page in preview builds.
-for (const dir of ["assets/fonts", "appearance-qa"]) {
+for (const dir of ["assets/fonts", "assets/themes", "appearance-qa"]) {
   if (fs.existsSync(path.join(ROOT, dir))) fs.cpSync(path.join(ROOT, dir), path.join(OUT, dir), { recursive: true });
 }
 fs.copyFileSync(path.join(ROOT, "functions/mg.js"), path.join(OUT, "functions/mg.js"));

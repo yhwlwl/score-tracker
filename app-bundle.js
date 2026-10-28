@@ -6041,7 +6041,9 @@ saveExam=async function saveExamV21(id,modal){
   var FONT_PRESETS_V29=[
     {id:'system',name:'系统默认',detail:'熟悉自然',family:'var(--ui-system-font)'},
     {id:'sans',name:'清晰黑体',detail:'简洁清爽',family:'"Score Sans Sample",sans-serif'},
-    {id:'serif',name:'书卷宋体',detail:'安静耐读',family:'"Score Serif Sample",serif'}
+    {id:'serif',name:'书卷宋体',detail:'安静耐读',family:'"Score Serif Sample",serif'},
+    {id:'wenkai',name:'霞鹜文楷',detail:'自然手写',family:'"ST Wenkai Sample",serif'},
+    {id:'fangsong',name:'朱雀仿宋',detail:'文雅书卷',family:'"ST Fangsong Sample",serif'}
   ];
   var SIZE_PRESETS_V29=[{id:'compact',name:'紧凑',px:14},{id:'standard',name:'标准',px:15},{id:'large',name:'大字',px:17}];
   var readingV29={font:'system',size:'standard'};
@@ -6195,7 +6197,7 @@ saveExam=async function saveExamV21(id,modal){
     }catch(e){}
   }
 
-  function applyThemeV29(id,silent){
+  function applyThemeV29(id,silent,persist){
     if(!THEME_CSS.hasOwnProperty(id))id='sunny';
     var root=document.documentElement;
     Object.keys(THEME_CSS).forEach(function(key){
@@ -6213,7 +6215,7 @@ saveExam=async function saveExamV21(id,modal){
     }else{
       delete root.dataset.theme;
     }
-    try{localStorage.setItem(THEME_KEY_V29,id);}catch(e){}
+    try{if(persist!==false)localStorage.setItem(THEME_KEY_V29,id);}catch(e){}
     var tc=document.querySelector('meta[name="theme-color"]');
     if(tc)tc.setAttribute('content',themeMetaColorV29(id));
     document.querySelectorAll('.theme-opt-v29').forEach(function(b){
@@ -6228,13 +6230,13 @@ saveExam=async function saveExamV21(id,modal){
     applyThemeV29(saved,true);
   }
 
-  function applyReadingV29(font,size){
+  function applyReadingV29(font,size,persist){
     if(!FONT_PRESETS_V29.some(function(p){return p.id===font;}))font='system';
     if(!SIZE_PRESETS_V29.some(function(p){return p.id===size;}))size='standard';
     readingV29={font:font,size:size};
     document.documentElement.dataset.uiFont=font;
     document.documentElement.dataset.uiSize=size;
-    try{localStorage.setItem(READING_KEY_V29,JSON.stringify(readingV29));}catch(e){}
+    try{if(persist!==false)localStorage.setItem(READING_KEY_V29,JSON.stringify(readingV29));}catch(e){}
     document.querySelectorAll('[data-reading-font-v29],[data-reading-size-v29]').forEach(function(b){
       var selected=b.hasAttribute('data-reading-font-v29')?b.dataset.readingFontV29===font:b.dataset.readingSizeV29===size;
       b.classList.toggle('on',selected);b.setAttribute('aria-pressed',String(selected));

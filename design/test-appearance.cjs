@@ -9,6 +9,7 @@ async function harness(saved={},blocked=false){
   const dom=new JSDOM(read('index.html').replace(/<script[\s\S]*?<\/script>/g,''),{url:'https://appearance.test/',runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:vc}),w=dom.window,d=w.document;
   for(const [key,value]of Object.entries(saved))w.localStorage.setItem(key,value);
   if(blocked){w.Storage.prototype.getItem=()=>{throw Error('blocked')};w.Storage.prototype.setItem=()=>{throw Error('blocked')};}
+  w.requestAnimationFrame=fn=>w.setTimeout(()=>fn(0),0);w.cancelAnimationFrame=id=>w.clearTimeout(id);
   w.matchMedia=()=>({matches:false,addEventListener(){},addListener(){}});w.scrollTo=()=>{};w.setInterval=()=>1;w.AbortController=AbortController;
   w.fetch=async()=>new Response(JSON.stringify({ok:true,enabled:false,exams:[],subjects:[],modules:[],options:[],myVotes:[],suggestions:[],availableCount:0,config:{enabled:false}}));
   w.eval(read('app-bundle.js')+'\nwindow.state=state;');
@@ -24,9 +25,9 @@ async function harness(saved={},blocked=false){
   try{
     assert.equal(h.d.querySelectorAll('.appearance-card-v29').length,1);
     assert.equal(h.d.querySelectorAll('[data-theme-opt-v29]').length,7);
-    assert.equal(h.d.querySelectorAll('[data-reading-font-v29]').length,3);
+    assert.equal(h.d.querySelectorAll('[data-reading-font-v29]').length,5);
     assert.equal(h.d.querySelectorAll('[data-reading-size-v29]').length,3);
-    for(const font of ['system','sans','serif'])for(const size of ['compact','standard','large']){
+    for(const font of ['system','sans','wenkai','fangsong','serif'])for(const size of ['compact','standard','large']){
       h.click('[data-reading-font-v29="'+font+'"]');h.click('[data-reading-size-v29="'+size+'"]');
       assert.equal(h.d.documentElement.dataset.uiFont,font);assert.equal(h.d.documentElement.dataset.uiSize,size);
       assert.deepEqual(JSON.parse(h.w.localStorage.getItem('st_reading_v1')),{font,size});
@@ -56,6 +57,6 @@ async function harness(saved={},blocked=false){
     }
     h=await harness();h.w.Storage.prototype.getItem=()=>{throw Error('blocked')};h.w.Storage.prototype.setItem=()=>{throw Error('blocked')};h.click('[data-reading-font-v29="serif"]');h.click('[data-reading-size-v29="large"]');assert.equal(h.d.documentElement.dataset.uiFont,'serif');assert.deepEqual(h.errors,[]);
     for(const kind of ['sans','serif'])assert.equal(fs.readFileSync(path.join(root,'assets/fonts/score-'+kind+'-sc-v1.woff2')).subarray(0,4).toString(),'wOF2');
-    console.log('PASS: seven themes × three fonts × three sizes, real controls, selection states, page navigation, reload, reset, invalid/blocked storage, collapsed vote details and WOFF2 assets.');
+    console.log('PASS: seven themes × five fonts × three sizes, real controls, selection states, page navigation, reload, reset, invalid/blocked storage, collapsed vote details and WOFF2 assets.');
   }finally{h.close()}
 })().catch(error=>{console.error(error);process.exitCode=1});

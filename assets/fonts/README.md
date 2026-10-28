@@ -18,3 +18,12 @@ python design/subset-ui-fonts.py /path/to/NotoSansSC.ttf /path/to/NotoSerifSC.tt
 ```
 
 The theme colors are adapted to the existing semantic tokens, informed by Radix Colors (https://www.radix-ui.com/colors/docs/palette-composition/understanding-the-scale). Open Props (https://open-props.style/) was reviewed as a reference for typography scale and CSS variables. Neither adds a runtime dependency.
+
+## Theme studio fonts
+
+- LXGW WenKai Regular: https://github.com/lxgw/LxgwWenKai (OFL-wenkai.txt)
+- Zhuque Fangsong v0.212: https://github.com/TrionesType/zhuque/releases/tag/v0.212 (OFL-fangsong.txt)
+- Smiley Sans v2.0.1: https://github.com/atelier-anchor/smiley-sans/releases/tag/v2.0.1 (OFL-smiley.txt)
+- ZCOOL KuaiLe: https://github.com/google/fonts/tree/main/ofl/zcoolkuaile (OFL-happy.txt)
+
+Web subsets are renamed ST Wenkai / ST Fangsong / ST Smiley / ST Happy. The original copyright and OFL notices are retained. Common Chinese and UI text are included; uncommon glyphs fall back to the system. Fonts and samples are self-hosted and loaded only when used. `design/subset-studio-fonts.py` rebuilds all eight WOFF2 files from the four sources. Smiley and Happy are title-only options to keep dense score tables legible.
