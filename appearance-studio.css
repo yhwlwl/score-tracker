@@ -1052,3 +1052,11 @@ html:has(> body.st-studio-open) {
     font-size: calc(9px * var(--ui-scale, 1));
   }
 }
+@media (min-width: 1000px) {
+  .st-theme-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .st-theme-art {
+    height: 124px;
+  }
+}
