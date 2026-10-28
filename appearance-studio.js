@@ -657,6 +657,7 @@
     if (!dialog) return;
     dialog.dataset.tab = tab;
     const scroll = dialog.querySelector(".st-workspace")?.scrollTop || 0;
+    const controlsScroll = dialog.querySelector(".st-controls")?.scrollTop || 0;
     const focus = document.activeElement;
     const attr =
       focus &&
@@ -695,6 +696,7 @@
       (!undo.length ? "disabled" : "") +
       '>撤销</button><button class="st-primary" data-apply>保存设置</button></div></footer>';
     dialog.querySelector(".st-workspace").scrollTop = scroll;
+    dialog.querySelector(".st-controls").scrollTop = controlsScroll;
     if (attr) {
       const b = Array.from(dialog.querySelectorAll("[" + attr + "]")).find(
         (x) => x.getAttribute(attr) === val,
@@ -863,6 +865,7 @@
       target = null;
       draw();
       dialog.querySelector(".st-workspace").scrollTop = 0;
+      dialog.querySelector(".st-controls").scrollTop = 0;
       return;
     }
     if (b.hasAttribute("data-undo")) {

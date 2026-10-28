@@ -810,7 +810,11 @@ html[data-st-card="paper"] :is(.shell .card, .ed-page .card, .st-surface) {
     width: 100%;
     order: 1;
   }
-  .st-studio[data-tab="background"] .st-workspace aside { position: sticky; top: -18px; z-index: 2; box-shadow: 0 7px 18px #102a3812; }
+  .st-studio[data-tab="background"] .st-workspace { overflow: hidden; gap: 14px; }
+  .st-studio[data-tab="background"] .st-workspace aside { flex-shrink: 0; }
+  .st-studio[data-tab="background"] .st-controls { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 2px 2px 12px; }
+  .st-studio[data-tab="background"] .st-preview-chart { display: none; }
+  .st-studio[data-tab="background"] .st-preview-scene { min-height: 122px; }
   .st-background-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .st-preview-scene {
     display: grid;
