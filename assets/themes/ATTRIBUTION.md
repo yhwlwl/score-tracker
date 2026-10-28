@@ -21,10 +21,7 @@ CSS crops images to the viewport and adds a translucent wash to protect text con
 
 ## Stickers
 
-12 unmodified PNG images from [Microsoft Fluent Emoji](https://github.com/microsoft/fluentui-emoji),
-3D collection, copyright Microsoft Corporation. The full MIT license is retained at
-`assets/decor/fluent/LICENSE`. Source files are under `assets/{emoji name}/3D/` in that repository.
-The 24 original line ornaments remain available in the “线条” category.
+The 24 original SVG line ornaments are used. The experimental 3D stickers have been removed.
 
 All wallpaper and sticker assets are served from this site. The app makes no runtime requests to Unsplash or GitHub.
 The AI-generated concept wallpapers explored during design are not included in this catalog.

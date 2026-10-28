@@ -107,7 +107,7 @@ async function harness(storage = {}) {
     const { w, d, click } = h,
       basePalette = w.__v29.currentTheme();
     assert.equal(w.ScoreAppearance.themes.length, 6);
-    assert.equal(w.ScoreAppearance.decorations.length, 36);
+    assert.equal(w.ScoreAppearance.decorations.length, 24);
     assert.equal(d.querySelectorAll("[data-st-open]").length, 1);
     click("[data-st-open]");
     for (const theme of w.ScoreAppearance.themes) {
@@ -134,7 +134,6 @@ async function harness(storage = {}) {
     click("[data-st-open]");
     click("[data-preset=garden]");
     click("[data-tab=decor]");
-    click("[data-decor-filter=line]");
     for (const id of ["cat", "plane", "flower"])
       click("[data-deco=" + id + "]");
     click("[data-position=left]");
@@ -181,7 +180,6 @@ async function harness(storage = {}) {
     const cards = Array.from(h.d.querySelectorAll("[data-st-key]"));
     assert(cards.length > 1);
     cards[0].querySelector(".st-edit-card").click();
-    h.click("[data-decor-filter=line]");
     h.click("[data-deco=cat]");
     const range = h.d.querySelector("[data-range=scale]");
     range.value = "40";
@@ -226,15 +224,15 @@ async function harness(storage = {}) {
     assert.equal(h.w.__v29.currentTheme(), 'sakura');
     assert.equal(h.d.querySelector('[data-bg=coast-photo] .st-item-action').textContent, '试用中');
     h.click('[data-tab=decor]');
-    h.click('[data-deco=fluent-books]');
-    assert(h.d.querySelector('.st-preview .st-ornament img').src.endsWith('/assets/decor/fluent/books.png'));
+    h.click('[data-deco=leaf]');
+    assert(h.d.querySelector('.st-preview .st-ornament svg'));
     assert.equal(h.d.querySelectorAll('.shell .st-ornament').length, 1);
     h.click('[data-apply]');
     assert.equal(h.w.ScoreAppearance.get().background, 'coast-photo');
-    assert.equal(h.w.ScoreAppearance.get().scale, 52);
+    assert.equal(h.w.ScoreAppearance.normalize({deco:'fluent-books',scale:52}).deco, 'none');
     storage = h.saved(); h.close(); h = await harness(storage);
     assert.equal(h.d.getElementById('stBackdrop').dataset.scene, 'coast-photo');
-    assert.equal(h.w.ScoreAppearance.get().deco, 'fluent-books');
+    assert.equal(h.w.ScoreAppearance.get().deco, 'leaf');
     // Palette and body-font controls inherited from #47 remain compatible with the atomic preferences.
     h.click("[data-theme-opt-v29=night]");
     h.click("[data-reading-font-v29=serif]");
@@ -272,7 +270,7 @@ async function harness(storage = {}) {
       h.close();
     }
     console.log(
-      "PASS: six themes, nine backgrounds, 36 decorations, filtered galleries, self-hosted stickers, transient preview, cancel/Escape, undo, save/reload, escaped favorites, local overrides/inheritance, legacy controls, blocked and malformed storage.",
+      "PASS: six themes, nine backgrounds, 24 line decorations, filtered background galleries, transient preview, cancel/Escape, undo, save/reload, escaped favorites, local overrides/inheritance, legacy controls, blocked and malformed storage.",
     );
   } finally {
     h.close();

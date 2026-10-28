@@ -109,8 +109,6 @@ html[data-st-card="paper"] :is(.shell .card, .ed-page .card, .st-surface) {
   height: 100%;
   display: block;
 }
-.st-ornament img { width:100%; height:100%; object-fit:contain; display:block; }
-.st-ornament[data-style="sticker"] { background:none; padding:0; box-shadow:none; opacity:1; top:-20px; filter:drop-shadow(0 3px 3px #1c294b12); }
 .st-ornament[data-position="left"] {
   right: auto;
   left: 18px;
@@ -1138,8 +1136,6 @@ html:has(> body.st-studio-open) {
 .st-collection-banner h3 { font-size:24px; margin:8px 0 !important; }
 .st-collection-banner p { font-size:12px; margin:0 0 8px; }
 .st-banner-link { background:none; color:#246b8a !important; padding:0; border:0; font-size:12px !important; }
-.st-collection-banner>img { position:absolute; width:95px; height:95px; object-fit:contain; right:20px; bottom:8px; transform:rotate(8deg); }
-.st-collection-banner>img:first-of-type { width:70px; height:70px; bottom:auto; top:8px; right:75px; transform:rotate(-10deg); }
 .st-background-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:22px 14px; margin:16px 0 24px; }
 .st-wallpaper { padding:0; display:block; min-width:0; background:transparent; border:0; text-align:left; border-radius:14px; }
 .st-wallpaper-art { display:block; position:relative; aspect-ratio:4/5; overflow:hidden; background-color:var(--tile-bg); background-image:var(--scene-image); background-size:var(--scene-size); background-repeat:var(--scene-repeat); background-position:center; border-radius:14px; border:1px solid var(--line); }
@@ -1152,20 +1148,10 @@ html:has(> body.st-studio-open) {
 .st-wallpaper.is-on .st-wallpaper-art { outline:2px solid var(--accent); outline-offset:2px; }
 .st-filters { display:flex; flex-wrap:wrap; gap:7px; margin:16px 0 22px; }
 .st-filters .st-choice { padding:7px 12px; border-radius:99px; font-size:11px !important; }
-.st-deco-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:22px 14px; }
-.st-deco-grid .st-choice { background:transparent; border:0; padding:0; display:block; text-align:left; color:var(--text); }
-.st-sticker-art, .st-deco-grid .st-none { display:grid; place-items:center; aspect-ratio:1; height:auto; background:color-mix(in srgb,var(--line) 36%,var(--panel-solid)); border:1px solid transparent; border-radius:16px; }
-.st-sticker-art img { width:76%; height:76%; object-fit:contain; filter:drop-shadow(0 6px 8px #1e3d5510); }
-.st-sticker-art svg { width:48%; height:48%; }
-.st-deco-grid .is-on .st-sticker-art,.st-deco-grid .is-on .st-none { border-color:var(--accent); background:var(--accent-soft); }
-.st-sticker-choice>b,.st-deco-grid .st-choice>.st-none+span { display:block; font-size:12px; margin:9px 0 7px; font-weight:550; }
-.st-deco-grid .st-none { font-size:28px; color:var(--muted); }
 .st-mobile-preview-toggle { display:none; }
 .st-preview { box-shadow:0 12px 35px #14283c09; }
 .st-preview-scene { min-height:320px; }
 .st-preview-greeting h3 { margin-bottom:28px; }
-.st-background-grid .st-wallpaper,.st-deco-grid button { transition:transform .18s ease; }
-@media(hover:hover) { .st-wallpaper:hover .st-wallpaper-art,.st-sticker-choice:hover .st-sticker-art { box-shadow:0 6px 20px #14283c12; } }
 @media(max-width:850px) { .st-workspace { grid-template-columns:minmax(0,1fr) 240px; gap:20px; padding:20px; } }
 @media(max-width:620px) {
   .st-studio-head { padding:16px 18px 10px; }
@@ -1190,17 +1176,12 @@ html:has(> body.st-studio-open) {
   .st-wallpaper-art { aspect-ratio:1; border-radius:12px; }
   .st-wallpaper>b { font-size:12px; }
   .st-item-action { min-width:68px; padding:3px 10px; font-size:10px; }
-  .st-deco-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px 12px; }
-  .st-sticker-choice>b { font-size:11px; }
   .st-collection-banner { min-height:146px; padding:18px; }
   .st-collection-banner>div { width:75%; }
   .st-collection-banner p { max-width:168px; }
-  .st-collection-banner>img { right:8px; width:79px; height:79px; }
-  .st-collection-banner>img:first-of-type { right:45px; width:65px; height:65px; }
-  .st-studio .st-preview .st-ornament[data-style="sticker"] { top:-16px; right:8px; }
 }
 @media(max-width:350px) {
-  .st-background-grid,.st-deco-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .st-background-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .st-featured-wallpapers { grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; }
   .st-tabs { gap:20px; }
   .st-studio-footer>div { gap:10px; }

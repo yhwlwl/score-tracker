@@ -155,15 +155,6 @@
     name: names[i],
     group: "line",
   }));
-  const stickers = [
-    ["books", "一摞好书", "study"], ["open-book", "翻开一页", "study"],
-    ["coffee", "课间小憩", "study"], ["cat", "小猫陪伴", "animals"],
-    ["rabbit", "白兔同学", "animals"], ["seedling", "慢慢生长", "nature"],
-    ["potted-plant", "桌边绿植", "nature"], ["blossom", "一枝樱花", "nature"],
-    ["cloud", "柔软云朵", "sky"], ["sun", "晴天", "sky"],
-    ["moon", "月亮晚安", "sky"], ["sparkles", "点点星光", "sky"],
-  ].map(([file, name, group]) => ({id:"fluent-" + file, name, group, file}));
-  decorations.unshift(...stickers);
   const photos = [
     {id:"sky-photo", name:"晴空", desc:"柔软云层 · 浅天蓝", file:"clouds", palette:"sky", bg:"#e8f4ff", panel:"#fff", ink:"#246b8a", category:"scenery", author:"Cuvii"},
     {id:"meadow-photo", name:"青草地", desc:"开阔草坡 · 清新绿", file:"meadow", palette:"mint", bg:"#eef3eb", panel:"#fffefb", ink:"#3f7257", category:"scenery", author:"Spencer DeMera"},
@@ -213,7 +204,6 @@
     pagePreview = false,
     previousEdit = false,
     backgroundFilter = "all",
-    decorFilter = "all",
     showPreview = false;
   if (prefs.palette) setPalette(prefs.palette);
   if (prefs.reading) setReading(prefs.reading.font, prefs.reading.size);
@@ -295,7 +285,7 @@
       // card choices, but never migrate that repetition into the new defaults.
       decorMode: member(x.decorMode, ["none", "custom", "accent"], "custom"),
       position: member(x.position, ["left", "right"], "right"),
-      scale: bounded(x.scale, 24, 64, 32),
+      scale: bounded(x.scale, 24, 40, 32),
       title: member(
         x.title,
         fonts.map((x) => x[0]),
@@ -321,7 +311,7 @@
             p.overrides[k] = {
               deco: member(v.deco, decorationIds, "none"),
               position: member(v.position, ["left", "right"], "right"),
-              scale: bounded(v.scale, 24, 64, p.scale),
+              scale: bounded(v.scale, 24, 40, p.scale),
             };
         });
     return p;
@@ -340,8 +330,6 @@
     );
   }
   function svg(id) {
-    const sticker = stickers.find(d => d.id === id);
-    if (sticker) return '<img src="./assets/decor/fluent/' + sticker.file + '.png" alt="" width="256" height="256" decoding="async" draggable="false">';
     return drawings[id]
       ? '<svg viewBox="0 0 64 64" fill="color-mix(in srgb,currentColor 14%,transparent)" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
           drawings[id] +
@@ -441,7 +429,6 @@
           mark.dataset.id = o.deco;
         }
         mark.dataset.position = o.position;
-        mark.dataset.style = o.deco.startsWith("fluent-") ? "sticker" : "line";
         el.classList.add("st-decorated");
       }
       let b = el.querySelector(":scope > .st-edit-card");
@@ -493,7 +480,7 @@
       p.background +
       '"><div class="st-preview-greeting"><h3>成绩概览</h3></div><div class="st-preview-card st-surface"><span class="st-preview-label">数学 · 阶段检测</span><div class="st-preview-score">128.5 <small>/ 150</small></div><span class="st-preview-gain">较上次 +6.5 分</span><span class="st-ornament" data-position="' +
       ornament.position +
-      '" data-style="' + (ornament.deco.startsWith("fluent-") ? "sticker" : "line") + '">' +
+      '">' +
       svg(ornament.deco) +
       '</span><svg class="st-preview-chart" viewBox="0 0 260 65" role="img" aria-label="示例成绩有升有降的趋势"><path d="M0 55H260M0 25H260" stroke="var(--line)"/><path d="M5 50 48 34 90 42 132 15 175 28 218 9 255 18" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"/><g fill="var(--panel-solid)" stroke="var(--accent)" stroke-width="2"><circle cx="48" cy="34" r="3"/><circle cx="132" cy="15" r="3"/><circle cx="218" cy="9" r="3"/></g></svg></div><div class="st-preview-note st-surface"><b>考后反思</b><p>本次计算失误较少，继续检查解题步骤。</p></div></div><p class="st-preview-foot">当前背景：' +
       (backgrounds.find(t => t.id === p.background)?.name || "纯色") +
@@ -517,7 +504,7 @@
     const p = active();
     if (tab === "themes")
       return (
-        '<div class="st-collection-banner"><div><span>背景 · 挂件 · 卡片</span><h3>外观主题</h3><p>选好背景，再添一点喜欢的装饰。</p><button class="st-banner-link" data-tab="background">浏览背景 →</button></div><img src="./assets/decor/fluent/cloud.png" alt="" width="256" height="256"><img src="./assets/decor/fluent/books.png" alt="" width="256" height="256"></div><div class="st-section-intro"><h3>精选背景</h3><button class="st-link" data-tab="background">查看全部 →</button></div><div class="st-background-grid st-featured-wallpapers">' + photos.map(wallpaperTile).join('') + '</div><div class="st-section-intro"><h3>主题预设</h3><p>背景、卡片与字体的一套搭配</p></div><div class="st-theme-grid">' +
+        '<div class="st-collection-banner"><div><span>背景 · 挂件 · 卡片</span><h3>外观主题</h3><p>背景与挂件，自由搭配。</p><button class="st-banner-link" data-tab="background">浏览背景 →</button></div></div><div class="st-section-intro"><h3>精选背景</h3><button class="st-link" data-tab="background">查看全部 →</button></div><div class="st-background-grid st-featured-wallpapers">' + photos.map(wallpaperTile).join('') + '</div><div class="st-section-intro"><h3>主题预设</h3><p>背景、卡片与字体的一套搭配</p></div><div class="st-theme-grid">' +
         themes
           .map(
             (t) =>
@@ -591,8 +578,8 @@
         '</h3><p class="st-hint">' +
         (target
           ? "此处只修改选中的板块。"
-          : "立体插画与简约线条，只点缀你想装饰的地方。") +
-        '</p>' + filters([["all","精选"],["study","学习"],["animals","小动物"],["nature","植物"],["sky","天空"],["line","线条"]], "data-decor-filter", decorFilter) +
+          : "主题默认不添加挂件。可以手动选择卡片，或仅点缀每页第一张卡片。") +
+        '</p>' + (target ? '' : '<div class="st-options">' + choices([["custom","手动指定卡片"],["accent","每页首张卡片"],["none","不显示挂件"]],"data-decor-mode",p.decorMode) + '</div><button class="st-link" data-pick-card>在页面上选择卡片</button>') +
         '<div class="st-deco-grid">' +
         button(
           "none",
@@ -601,10 +588,10 @@
           o.deco,
           '<span class="st-none">—</span>',
         ) +
-        decorations.filter(d => decorFilter === 'all' ? d.group !== 'line' : d.group === decorFilter)
-          .map(d => '<button type="button" class="st-choice st-sticker-choice ' + (o.deco === d.id ? 'is-on' : '') + '" data-deco="' + d.id + '" aria-pressed="' + (o.deco === d.id) + '"><span class="st-sticker-art">' + svg(d.id) + '</span><b>' + d.name + '</b><span class="st-item-action">' + itemState(o.deco === d.id, (target ? prefs.overrides[target]?.deco : prefs.deco) === d.id) + '</span></button>')
+        decorations
+          .map((d) => button(d.id, d.name, "data-deco", o.deco, svg(d.id)))
           .join("") +
-        '</div>' + (target ? '' : '<h3>显示位置</h3><div class="st-options">' + choices([["accent","每页首张卡片"],["custom","手动指定卡片"],["none","不显示"]],"data-decor-mode",p.decorMode) + '</div><button class="st-link" data-pick-card>在页面上选择卡片 →</button>') + '<h3>挂件位置</h3><div class="st-options">' +
+        '</div><h3>挂件位置</h3><div class="st-options">' +
         choices(
           [
             ["left", "左侧"],
@@ -615,12 +602,12 @@
         ) +
         '</div><label class="st-range">挂件大小 <output>' +
         o.scale +
-        ' px</output><input type="range" min="24" max="64" value="' +
+        ' px</output><input type="range" min="24" max="40" value="' +
         o.scale +
         '" data-range="scale"></label>' +
         (target
           ? '<button class="st-link" data-inherit>清除此卡片的单独设置</button>'
-          : '<p class="st-hint">默认只装饰每页首张卡片，也可以手动指定。素材来自 Microsoft Fluent Emoji（MIT）。</p>')
+          : '<p class="st-hint">选择挂件后，仅预览在每页首张卡片上。其他卡片保持简洁。</p>')
       );
     }
     if (tab === "fonts")
@@ -710,7 +697,6 @@
         "data-tab",
         "data-palette",
         "data-background-filter",
-        "data-decor-filter",
       ].find((a) => focus.hasAttribute(a));
     const val = attr ? focus.getAttribute(attr) : null;
     dialog.innerHTML =
@@ -785,7 +771,6 @@
     tab = section;
     showPreview = Boolean(key);
     backgroundFilter = "all";
-    decorFilter = "all";
     returnFocus = document.activeElement;
     draft = { ...snapshot() };
     undo = [];
@@ -902,7 +887,6 @@
     if (b.hasAttribute("data-pick-card")) return inspectPage(true);
     if (b.hasAttribute("data-toggle-preview")) { showPreview = !showPreview; draw(); return; }
     if (b.dataset.backgroundFilter) { backgroundFilter = b.dataset.backgroundFilter; draw(); return; }
-    if (b.dataset.decorFilter) { decorFilter = b.dataset.decorFilter; draw(); return; }
     if (b.dataset.tab) {
       tab = b.dataset.tab;
       target = null;
@@ -976,7 +960,6 @@
         }
         if (b.dataset.deco) {
           o.deco = b.dataset.deco;
-          if (o.deco.startsWith("fluent-") && o.scale < 44) o.scale = 52;
           showPreview = true;
         }
         if (b.dataset.deco && !target) p.decorMode = "accent";
