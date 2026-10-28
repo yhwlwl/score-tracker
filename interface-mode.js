@@ -67,7 +67,7 @@
       const first = grid.querySelector(':scope > .account-card'); if (first) first.after(card); else grid.prepend(card);
     }
     const label = card.querySelector('.im-current'); if (label.textContent !== name()) label.textContent = name();
-    content.querySelectorAll('.module-settings-v18,.module-settings-v21,.school-card,.community-card,.fv36-account,#communityAccountCard,.goal-account-v33,.author-support-card').forEach(el => advanced(el, 'settings'));
+    content.querySelectorAll('.module-settings-v18,.module-settings-v21,.school-card,.community-card,.fv36-account,#communityAccountCard,#v33AccountCard,.author-support-card').forEach(el => advanced(el, 'settings'));
     if (content.querySelector('[data-im-advanced=settings]') && !grid.querySelector('.im-more-settings')) {
       const more = button('展开更多设置与交流', 'im-more-settings secondary', () => {
         const expanded = content.classList.toggle('im-settings-expanded'); more.setAttribute('aria-expanded', String(expanded));
