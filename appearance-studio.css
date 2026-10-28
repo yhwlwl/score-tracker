@@ -62,12 +62,12 @@ html[data-st-card="paper"] :is(.shell .card, .ed-page .card, .st-surface) {
   right: auto;
   left: 14px;
 }
-.st-decorated > :is(.card-title-row, .card-title, h2, h3):first-of-type {
+.st-decorated > :is(.card-title-row, .card-title, h2, h3):first-child {
   padding-right: 58px;
   min-height: 42px;
 }
 .st-decorated:has(> .st-ornament[data-position="left"])
-  > :is(.card-title-row, .card-title, h2, h3):first-of-type {
+  > :is(.card-title-row, .card-title, h2, h3):first-child {
   padding-left: 58px;
   padding-right: 0;
 }
@@ -990,4 +990,65 @@ html[data-st-title]
 
 body.st-studio-open {
   overflow: hidden;
+}
+
+/* Reserve space only in the first heading; lower hero text keeps its full width. */
+.st-decorated > :is(.card-title-row, .card-title, h2, h3):first-child {
+  padding-right: calc(var(--st-deco-size, 40px) + 18px);
+  min-height: var(--st-deco-size, 40px);
+}
+.st-decorated:has(> .st-ornament[data-position="left"])
+  > :is(.card-title-row, .card-title, h2, h3):first-child {
+  padding-left: calc(var(--st-deco-size, 40px) + 18px);
+  padding-right: 0;
+}
+.st-decorated:has(> .trend-collapse-v36) > .st-ornament[data-position="right"] {
+  right: 58px;
+}
+.st-decorated:has(> .trend-collapse-v36):has(
+    > .st-ornament[data-position="right"]
+  )
+  > .card-title-row:first-child {
+  padding-right: calc(var(--st-deco-size, 40px) + 58px);
+}
+.hero-main.st-decorated > .eyebrow {
+  max-width: calc(100% - var(--st-deco-size, 40px) - 12px);
+  overflow-wrap: anywhere;
+}
+.st-preview-card:has(> .st-ornament[data-position="left"]) .st-preview-label {
+  padding-left: 36px;
+  padding-right: 0;
+  min-height: 32px;
+}
+html:has(> body.st-studio-open) {
+  overflow: hidden;
+}
+.st-tabs {
+  scrollbar-width: none;
+}
+.st-tabs::-webkit-scrollbar {
+  display: none;
+}
+.st-preview-greeting h3 {
+  font-size: calc(22px * var(--ui-scale, 1));
+}
+.st-preview-label {
+  font-size: calc(11px * var(--ui-scale, 1));
+}
+.st-preview-score {
+  font-size: calc(29px * var(--ui-scale, 1));
+}
+.st-preview-note p {
+  font-size: calc(12px * var(--ui-scale, 1));
+}
+@media (max-width: 620px) {
+  .st-preview-greeting h3 {
+    font-size: calc(18px * var(--ui-scale, 1));
+  }
+  .st-preview-score {
+    font-size: calc(24px * var(--ui-scale, 1));
+  }
+  .st-preview-label {
+    font-size: calc(9px * var(--ui-scale, 1));
+  }
 }

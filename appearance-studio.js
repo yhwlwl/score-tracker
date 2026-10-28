@@ -458,7 +458,7 @@
       '" style="--st-art:url(\'' +
       assetRoot +
       p.background +
-      '.svg\')"><div class="st-preview-greeting"><small>MY LEARNING SPACE</small><h3>把每一次进步，<br>写成自己的故事。</h3></div><div class="st-preview-card st-surface"><span class="st-preview-label">数学 · 阶段检测</span><div class="st-preview-score">128.5 <small>/ 150</small></div><span class="st-preview-gain">较上次 +6.5 分</span><span class="st-ornament" data-position="' +
+      '.svg\')"><div class="st-preview-greeting"><small>MY LEARNING SPACE</small><h3>记录起伏，<br>也看见进步。</h3></div><div class="st-preview-card st-surface"><span class="st-preview-label">数学 · 阶段检测</span><div class="st-preview-score">128.5 <small>/ 150</small></div><span class="st-preview-gain">较上次 +6.5 分</span><span class="st-ornament" data-position="' +
       ornament.position +
       '">' +
       svg(ornament.deco) +
