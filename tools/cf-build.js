@@ -23,6 +23,9 @@ const FILES = [
   "feature-vote.js",
   "app-v36.js",
   "app-v37.js",
+  "app-v38.js",
+  "interface-mode.js",
+  "interface-mode.css",
   "study-planner-promo.webp",
   "robots.txt",
   "_headers",
@@ -41,6 +44,7 @@ fs.mkdirSync(path.join(OUT, "functions"), { recursive: true });
 fs.mkdirSync(path.join(OUT, "api"), { recursive: true });
 
 for (const f of FILES) fs.copyFileSync(path.join(ROOT, f), path.join(OUT, f));
+fs.cpSync(path.join(ROOT, "mode-qa"), path.join(OUT, "mode-qa"), {recursive:true});
 fs.copyFileSync(path.join(ROOT, "functions/mg.js"), path.join(OUT, "functions/mg.js"));
 fs.copyFileSync(path.join(ROOT, "api/mg.js"), path.join(OUT, "api/mg.js"));
 fs.copyFileSync(path.join(ROOT, "api/mg-ui.js"), path.join(OUT, "api/mg-ui.js"));
