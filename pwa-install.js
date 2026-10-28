@@ -126,9 +126,10 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready, {once:true}); else ready();
   const accountBefore = typeof accountHtml === 'function' ? accountHtml : null;
+  const accountIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="3"/><path d="M9 13l3-3 3 3M12 10v7M10 6h4"/></svg>';
   if (accountBefore) accountHtml = function () {
     const installed = standalone();
-    return accountBefore.apply(this, arguments) + '<div class="card pwa-account"><div class="pwa-account-main"><span class="pwa-account-icon" aria-hidden="true">↗</span><div class="pwa-account-copy"><p class="pwa-account-kicker">快捷入口</p><h3 class="card-title">' + (installed ? '已从主屏幕打开' : '放到主屏幕') + '</h3><p class="card-sub">' + (installed ? '点图标就能直接打开成绩追踪。' : '下次点图标就能直接打开成绩追踪。') + '</p></div></div>' + (!installed ? '<button type="button" class="pwa-account-open" data-pwa-open>查看步骤</button>' : '') + '</div>';
+    return accountBefore.apply(this, arguments) + '<div class="card pwa-account"><div class="pwa-account-main"><span class="pwa-account-icon" aria-hidden="true">' + accountIcon + '</span><div class="pwa-account-copy"><p class="pwa-account-kicker">快捷入口</p><h3 class="card-title">' + (installed ? '已从主屏幕打开' : '放到主屏幕') + '</h3><p class="card-sub">' + (installed ? '点图标就能直接打开成绩追踪。' : '下次点图标就能直接打开成绩追踪。') + '</p></div></div>' + (!installed ? '<button type="button" class="pwa-account-open" data-pwa-open>查看步骤</button>' : '') + '</div>';
   };
   document.addEventListener('click', e => { if (e.target.closest?.('[data-pwa-open]')) open('account'); });
 })();
