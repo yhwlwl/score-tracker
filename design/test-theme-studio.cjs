@@ -113,6 +113,7 @@ async function harness(storage = {}) {
     for (const theme of w.ScoreAppearance.themes) {
       click("[data-preset=" + theme.id + "]");
       assert.equal(d.documentElement.dataset.stBackground, theme.id);
+      assert.equal(d.querySelectorAll('.shell .st-ornament').length, 0, 'presets never repeat ornaments');
       assert.equal(
         d
           .querySelector("[data-preset=" + theme.id + "]")
@@ -181,7 +182,7 @@ async function harness(storage = {}) {
     cards[0].querySelector(".st-edit-card").click();
     h.click("[data-deco=cat]");
     const range = h.d.querySelector("[data-range=scale]");
-    range.value = "52";
+    range.value = "40";
     range.dispatchEvent(new h.w.Event("change", { bubbles: true }));
     assert(
       h.d
@@ -190,8 +191,8 @@ async function harness(storage = {}) {
     );
     h.click("[data-apply]");
     assert.equal(cards[0].querySelector(".st-ornament").dataset.id, "cat");
-    assert.equal(cards[1].querySelector(".st-ornament").dataset.id, "flower");
-    assert.equal(cards[0].style.getPropertyValue("--st-deco-size"), "52px");
+    assert.equal(cards[1].querySelector(".st-ornament"), null);
+    assert.equal(cards[0].style.getPropertyValue("--st-deco-size"), "40px");
     assert.equal(cards[1].style.getPropertyValue("--st-deco-size"), "");
     cards[0].querySelector(".st-edit-card").click();
     h.click("[data-inherit]");
@@ -199,6 +200,21 @@ async function harness(storage = {}) {
     assert.equal(cards[0].querySelector(".st-ornament").dataset.id, "flower");
     h.d.querySelector(".st-edit-bar button").click();
     assert.equal(h.d.querySelector(".st-edit-card"), null);
+    h.click('[data-st-open]');
+    h.click('[data-tab=background]');
+    h.click('[data-bg=night]');
+    const intensity = h.d.querySelector('[data-range=intensity]');
+    intensity.value = '25';
+    intensity.dispatchEvent(new h.w.Event('input', {bubbles:true}));
+    assert.equal(h.d.documentElement.style.getPropertyValue('--st-art-opacity'), '0.25');
+    intensity.dispatchEvent(new h.w.Event('change', {bubbles:true}));
+    h.click('[data-page-preview]');
+    assert(!h.d.querySelector('dialog').open);
+    assert.equal(h.d.getElementById('stBackdrop').dataset.scene, 'night');
+    h.click('[data-return]');
+    assert(h.d.querySelector('dialog').open);
+    h.click('[data-close]');
+    assert.equal(h.d.documentElement.dataset.stBackground, 'garden');
     // Palette and body-font controls inherited from #47 remain compatible with the atomic preferences.
     h.click("[data-theme-opt-v29=night]");
     h.click("[data-reading-font-v29=serif]");

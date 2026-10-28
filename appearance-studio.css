@@ -1,17 +1,50 @@
-/* Original lightweight scenes. UI surfaces remain opaque for legibility. */
+/* The same proportional scene is rendered in thumbnails, preview and page. */
 html[data-st-background]:not([data-st-background="none"]) body {
   background: var(--bg) !important;
 }
-html[data-st-background]:not([data-st-background="none"]) body:before {
-  content: "";
+#stBackdrop {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  background-image: var(--st-art);
-  background-size: 1000px 480px;
-  background-position: center top;
-  opacity: var(--st-art-opacity, 0.6);
+  opacity: var(--st-art-opacity, 0.75);
   z-index: 0;
+}
+#stBackdrop[data-scene="none"] { display: none; }
+html[data-st-background] #app { position: relative; }
+[data-scene] {
+  --scene-image: none;
+  --scene-size: 100% 100%;
+  --scene-repeat: no-repeat;
+}
+[data-scene="cloud"] {
+  --scene-image: url("./assets/themes/cloud-v2.svg"), linear-gradient(160deg, #acd5ee 0%, #e7f3fc 52%, #d5e5f4 100%);
+}
+[data-scene="notebook"] {
+  --scene-image: url("./assets/themes/graph-paper.svg"), linear-gradient(145deg, #e3edf0, #f5f7f2);
+  --scene-size: 100px 100px, 100% 100%;
+  --scene-repeat: repeat, no-repeat;
+}
+[data-scene="garden"] {
+  --scene-image: radial-gradient(ellipse at 5% 0%, #9ebba9 0%, transparent 58%), radial-gradient(ellipse at 95% 90%, #b4c8a4 0%, transparent 56%), linear-gradient(140deg, #edf4ec, #f6f3e5);
+}
+[data-scene="dawn"] {
+  --scene-image: radial-gradient(ellipse at 90% 5%, #f0c6a6 0%, transparent 54%), radial-gradient(ellipse at 0% 95%, #e6d4a9 0%, transparent 58%), linear-gradient(130deg, #fff9ee, #f6e9d8);
+}
+[data-scene="night"] {
+  --scene-image: radial-gradient(circle at 18% 20%, #e6edff 0 1px, transparent 1.6px), radial-gradient(circle at 78% 65%, #b1c5ed 0 1px, transparent 1.4px), radial-gradient(ellipse at 80% 0%, #354965 0%, transparent 65%), linear-gradient(155deg, #111d30, #1d2b43 55%, #162238);
+  --scene-size: 83px 97px, 137px 113px, 100% 100%, 100% 100%;
+  --scene-repeat: repeat, repeat, no-repeat, no-repeat;
+}
+[data-scene="journal"] {
+  --scene-image: url("./assets/themes/polka-dots.svg"), linear-gradient(125deg, #e5d7bd, #f7efdf 52%, #ebdfc9);
+  --scene-size: 20px 20px, 100% 100%;
+  --scene-repeat: repeat, no-repeat;
+}
+#stBackdrop, .st-theme-art, .st-background-swatch {
+  background-image: var(--scene-image);
+  background-size: var(--scene-size);
+  background-repeat: var(--scene-repeat);
+  background-position: center;
 }
 html[data-st-background] .shell {
   position: relative;
@@ -45,14 +78,20 @@ html[data-st-card="paper"] :is(.shell .card, .ed-page .card, .st-surface) {
 .st-ornament {
   display: block;
   position: absolute;
-  right: 14px;
-  top: 12px;
-  width: var(--st-deco-size, 40px);
-  height: var(--st-deco-size, 40px);
+  right: 18px;
+  top: -10px;
+  width: var(--st-deco-size, 32px);
+  height: var(--st-deco-size, 32px);
   color: var(--st-ornament, var(--accent));
   pointer-events: none;
-  opacity: 0.85;
+  opacity: 0.8;
+  background: var(--panel-solid);
+  border-radius: 9px;
+  padding: 3px;
+  box-shadow: 0 2px 5px #102a3810;
 }
+.st-ornament:empty { display: none; }
+.st-decorated { overflow: visible; }
 .st-ornament svg {
   width: 100%;
   height: 100%;
@@ -60,16 +99,7 @@ html[data-st-card="paper"] :is(.shell .card, .ed-page .card, .st-surface) {
 }
 .st-ornament[data-position="left"] {
   right: auto;
-  left: 14px;
-}
-.st-decorated > :is(.card-title-row, .card-title, h2, h3):first-child {
-  padding-right: 58px;
-  min-height: 42px;
-}
-.st-decorated:has(> .st-ornament[data-position="left"])
-  > :is(.card-title-row, .card-title, h2, h3):first-child {
-  padding-left: 58px;
-  padding-right: 0;
+  left: 18px;
 }
 .st-edit-card {
   display: block;
@@ -120,7 +150,7 @@ html[data-st-card="paper"] :is(.shell .card, .ed-page .card, .st-surface) {
   min-width: 170px;
 }
 .st-entry h3 {
-  font-size: 24px;
+  font-size: 19px;
   margin: 9px 0;
 }
 .st-entry p {
@@ -195,7 +225,7 @@ html[data-st-card="paper"] :is(.shell .card, .ed-page .card, .st-surface) {
   flex-shrink: 0;
 }
 .st-studio-head h2 {
-  font: 600 28px/1.4 var(--ui-font);
+  font: 600 24px/1.4 var(--ui-font);
   letter-spacing: -0.6px;
   margin: 6px 0;
 }
@@ -301,9 +331,7 @@ html[data-st-card="paper"] :is(.shell .card, .ed-page .card, .st-surface) {
   display: block;
   position: relative;
   height: 132px;
-  background:
-    var(--tile-art) center/cover,
-    var(--tile-bg);
+  background-color: var(--tile-bg);
   padding: 14px;
   color: var(--tile-ink);
   overflow: hidden;
@@ -322,7 +350,7 @@ html[data-st-card="paper"] :is(.shell .card, .ed-page .card, .st-surface) {
   border-radius: 8px;
   background: var(--tile-panel);
   box-shadow: 0 5px 18px #132d3d0b;
-  transform: rotate(-4deg);
+  transform: none;
   padding: 14px;
 }
 .st-tile-card > i,
@@ -426,8 +454,11 @@ html[data-st-card="paper"] :is(.shell .card, .ed-page .card, .st-surface) {
   content: "";
   position: absolute;
   inset: 0;
-  background: var(--st-art) center top/680px auto;
-  opacity: var(--st-art-opacity, 0.6);
+  background-image: var(--scene-image);
+  background-size: var(--scene-size);
+  background-repeat: var(--scene-repeat);
+  background-position: center;
+  opacity: var(--st-art-opacity, 0.75);
   pointer-events: none;
 }
 .st-preview-scene[data-scene="none"]:before {
@@ -442,8 +473,8 @@ html[data-st-card="paper"] :is(.shell .card, .ed-page .card, .st-surface) {
   color: var(--accent);
 }
 .st-preview-greeting h3 {
-  font: 500 22px/1.6 var(--st-title-font, var(--ui-font));
-  margin: 12px 0 23px;
+  font: 600 17px/1.6 var(--st-title-font, var(--ui-font));
+  margin: 4px 0 24px;
   letter-spacing: -0.4px;
 }
 .st-preview-card {
@@ -454,7 +485,7 @@ html[data-st-card="paper"] :is(.shell .card, .ed-page .card, .st-surface) {
   font-size: 11px;
   color: var(--ui-muted, var(--muted));
   display: block;
-  padding-right: 32px;
+  padding-right: 0;
 }
 .st-preview-score {
   font: 600 29px/1.5 var(--ui-system-font);
@@ -496,6 +527,16 @@ html[data-st-card="paper"] :is(.shell .card, .ed-page .card, .st-surface) {
   padding: 12px 16px;
   color: var(--ui-muted, var(--muted));
 }
+.st-page-preview { width: 100%; border-top: 1px solid var(--line); padding: 10px 12px !important; }
+.st-background-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 18px 0 24px; }
+.st-background-grid .st-choice { padding: 0; overflow: hidden; text-align: left; display: block; }
+.st-background-grid .st-choice > span:last-child { display: block; padding: 10px 12px; font-size: 12px; }
+.st-background-swatch { display: block; height: 90px; background-color: var(--tile-bg); border-bottom: 1px solid var(--line); }
+.st-source { margin-top: 22px; font-size: 10px; }
+.st-source a { color: inherit; text-underline-offset: 3px; }
+.st-inspect-bar { z-index: 150; flex-wrap: wrap; justify-content: center; }
+.st-inspect-bar [data-cancel] { background: transparent; color: var(--text); }
+.st-inspect-bar [data-save] { background: var(--accent); color: white; }
 .st-studio-footer {
   padding: 16px 30px;
   border-top: 1px solid var(--line);
@@ -769,6 +810,8 @@ html[data-st-card="paper"] :is(.shell .card, .ed-page .card, .st-surface) {
     width: 100%;
     order: 1;
   }
+  .st-studio[data-tab="background"] .st-workspace aside { position: sticky; top: -18px; z-index: 2; box-shadow: 0 7px 18px #102a3812; }
+  .st-background-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .st-preview-scene {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -794,13 +837,13 @@ html[data-st-card="paper"] :is(.shell .card, .ed-page .card, .st-surface) {
   }
   .st-preview-label {
     font-size: 9px;
-    padding-right: 15px;
+    padding-right: 0;
   }
   .st-preview .st-ornament {
-    width: calc(var(--st-deco-size, 40px) * 0.7);
-    height: calc(var(--st-deco-size, 40px) * 0.7);
-    top: 8px;
-    right: 8px;
+    width: calc(var(--st-deco-size, 32px) * 0.85);
+    height: calc(var(--st-deco-size, 32px) * 0.85);
+    top: -8px;
+    right: 12px;
   }
   .st-preview-chart {
     margin-top: 8px;

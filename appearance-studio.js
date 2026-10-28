@@ -6,17 +6,11 @@
     root = document.documentElement,
     KEY = "st_studio_v1",
     SAVED = "st_studio_saved_v1";
-  const script = document.currentScript;
-  const assetRoot = new URL(
-    "./assets/themes/",
-    script ? script.src : location.href,
-  ).href;
   const themes = [
     {
       id: "cloud",
       name: "云间天蓝",
-      en: "ABOVE THE CLOUDS",
-      desc: "把天空，留在每一次进步旁",
+      desc: "浅蓝渐变 · 层叠云影",
       palette: "sky",
       bg: "#e8f4ff",
       ink: "#246b8a",
@@ -29,8 +23,7 @@
     {
       id: "notebook",
       name: "方格笔记",
-      en: "A PAGE A DAY",
-      desc: "一格一笔，写下自己的节奏",
+      desc: "浅灰蓝 · 细方格纹理",
       palette: "sky",
       bg: "#edf3f5",
       ink: "#376275",
@@ -43,8 +36,7 @@
     {
       id: "garden",
       name: "薄荷花园",
-      en: "ROOM TO GROW",
-      desc: "慢慢生长，也是一种力量",
+      desc: "鼠尾草绿 · 柔和光晕",
       palette: "mint",
       bg: "#eef3eb",
       ink: "#3f7257",
@@ -57,8 +49,7 @@
     {
       id: "dawn",
       name: "晨光奶油",
-      en: "A GENTLE START",
-      desc: "新的一天，从一点温暖开始",
+      desc: "暖米白 · 杏色渐变",
       palette: "paper",
       bg: "#f7f0e1",
       ink: "#8c6237",
@@ -71,8 +62,7 @@
     {
       id: "night",
       name: "星河夜读",
-      en: "UNDER THE STARS",
-      desc: "星光很轻，向前的脚步很坚定",
+      desc: "深海蓝 · 星点微光",
       palette: "night",
       bg: "#101927",
       ink: "#c7b88c",
@@ -85,8 +75,7 @@
     {
       id: "journal",
       name: "复古手账",
-      en: "LITTLE THINGS MATTER",
-      desc: "把真实的起伏，都认真收藏",
+      desc: "暖纸色 · 细点纹理",
       palette: "paper",
       bg: "#f0e8da",
       ink: "#88664e",
@@ -183,11 +172,12 @@
   const base = {
     theme: "",
     background: "none",
-    intensity: 60,
+    intensity: 75,
     card: "soft",
     deco: "none",
+    decorMode: "custom",
     position: "right",
-    scale: 40,
+    scale: 32,
     title: "system",
     overrides: {},
     palette: null,
@@ -200,7 +190,10 @@
     tab = "themes",
     undo = [],
     returnFocus = null,
-    edit = false;
+    edit = false,
+    rangeEditing = null,
+    pagePreview = false,
+    previousEdit = false;
   if (prefs.palette) setPalette(prefs.palette);
   if (prefs.reading) setReading(prefs.reading.font, prefs.reading.size);
   if (!Array.isArray(saved)) saved = [];
@@ -270,15 +263,18 @@
         ["none", ...themes.map((t) => t.id)],
         "none",
       ),
-      intensity: bounded(x.intensity, 0, 100, 60),
+      intensity: bounded(x.intensity, 0, 100, 75),
       card: member(
         x.card,
         cardStyles.map((x) => x[0]),
         "soft",
       ),
       deco: member(x.deco, ["none", ...Object.keys(drawings)], "none"),
+      // Older presets duplicated an ornament onto every card. Keep explicit
+      // card choices, but never migrate that repetition into the new defaults.
+      decorMode: member(x.decorMode, ["none", "custom", "accent"], "custom"),
       position: member(x.position, ["left", "right"], "right"),
-      scale: bounded(x.scale, 28, 52, 40),
+      scale: bounded(x.scale, 24, 40, 32),
       title: member(
         x.title,
         fonts.map((x) => x[0]),
@@ -304,7 +300,7 @@
             p.overrides[k] = {
               deco: member(v.deco, ["none", ...Object.keys(drawings)], "none"),
               position: member(v.position, ["left", "right"], "right"),
-              scale: bounded(v.scale, 28, 52, p.scale),
+              scale: bounded(v.scale, 24, 40, p.scale),
             };
         });
     return p;
@@ -349,12 +345,14 @@
     root.dataset.stCard = p.card;
     root.dataset.stTitle = p.title;
     root.dataset.stBackground = p.background;
-    root.style.setProperty(
-      "--st-art",
-      p.background === "none"
-        ? "none"
-        : 'url("' + assetRoot + p.background + '.svg")',
-    );
+    let backdrop = document.getElementById("stBackdrop");
+    if (!backdrop) {
+      backdrop = document.createElement("div");
+      backdrop.id = "stBackdrop";
+      backdrop.setAttribute("aria-hidden", "true");
+      document.body.prepend(backdrop);
+    }
+    backdrop.dataset.scene = p.background;
     root.style.setProperty("--st-art-opacity", String(p.intensity / 100));
     root.style.setProperty("--st-deco-size", p.scale + "px");
     const theme = themes.find((t) => t.id === p.theme);
@@ -396,11 +394,12 @@
   }
   function decorate() {
     const p = active();
-    eligible().forEach((el) => {
+    eligible().forEach((el, index) => {
       const key = cardKey(el);
       el.dataset.stKey = key;
-      const o = p.overrides[key] || p;
-      if (p.overrides[key])
+      const o = p.decorMode === "none" ? { deco: "none" } :
+        p.overrides[key] || (p.decorMode === "accent" && index === 0 ? p : { deco: "none" });
+      if (p.overrides[key] && o.scale)
         el.style.setProperty("--st-deco-size", o.scale + "px");
       else el.style.removeProperty("--st-deco-size");
       let mark = el.querySelector(":scope > .st-ornament");
@@ -426,8 +425,14 @@
         b = document.createElement("button");
         b.className = "st-edit-card";
         b.type = "button";
-        b.textContent = "装扮此卡片";
-        b.addEventListener("click", () => open("decor", key));
+        b.textContent = "设置挂件";
+        b.addEventListener("click", () => {
+          if (pagePreview) {
+            target = key;
+            tab = "decor";
+            resumePreview();
+          } else open("decor", key);
+        });
         el.appendChild(b);
       }
       if (!edit && b) b.remove();
@@ -455,20 +460,20 @@
   }
   function preview() {
     const p = active(),
-      ornament = target ? p.overrides[target] || p : p;
+      ornament = target ? p.overrides[target] || { ...p, deco: "none" } :
+        p.decorMode === "accent" ? p : { ...p, deco: "none" };
     return (
       '<div class="st-preview" style="--st-deco-size:' +
       ornament.scale +
-      'px" aria-label="搭配预览"><div class="st-preview-top"><span>效果预览</span><span>示例数据</span></div><div class="st-preview-scene" data-scene="' +
+      'px" aria-label="外观预览"><div class="st-preview-top"><span>效果预览</span><span>示例数据</span></div><div class="st-preview-scene" data-scene="' +
       p.background +
-      '" style="--st-art:url(\'' +
-      assetRoot +
-      p.background +
-      '.svg\')"><div class="st-preview-greeting"><small>MY LEARNING SPACE</small><h3>记录起伏，<br>也看见进步。</h3></div><div class="st-preview-card st-surface"><span class="st-preview-label">数学 · 阶段检测</span><div class="st-preview-score">128.5 <small>/ 150</small></div><span class="st-preview-gain">较上次 +6.5 分</span><span class="st-ornament" data-position="' +
+      '"><div class="st-preview-greeting"><h3>成绩概览</h3></div><div class="st-preview-card st-surface"><span class="st-preview-label">数学 · 阶段检测</span><div class="st-preview-score">128.5 <small>/ 150</small></div><span class="st-preview-gain">较上次 +6.5 分</span><span class="st-ornament" data-position="' +
       ornament.position +
       '">' +
       svg(ornament.deco) +
-      '</span><svg class="st-preview-chart" viewBox="0 0 260 65" role="img" aria-label="示例成绩有升有降的趋势"><path d="M0 55H260M0 25H260" stroke="var(--line)"/><path d="M5 50 48 34 90 42 132 15 175 28 218 9 255 18" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"/><g fill="var(--panel-solid)" stroke="var(--accent)" stroke-width="2"><circle cx="48" cy="34" r="3"/><circle cx="132" cy="15" r="3"/><circle cx="218" cy="9" r="3"/></g></svg></div><div class="st-preview-note st-surface"><b>考后反思</b><p>记录真实的起伏，也看见积累的力量。</p></div></div><p class="st-preview-foot">背景留在卡片之外，让数据始终清楚。</p></div>'
+      '</span><svg class="st-preview-chart" viewBox="0 0 260 65" role="img" aria-label="示例成绩有升有降的趋势"><path d="M0 55H260M0 25H260" stroke="var(--line)"/><path d="M5 50 48 34 90 42 132 15 175 28 218 9 255 18" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"/><g fill="var(--panel-solid)" stroke="var(--accent)" stroke-width="2"><circle cx="48" cy="34" r="3"/><circle cx="132" cy="15" r="3"/><circle cx="218" cy="9" r="3"/></g></svg></div><div class="st-preview-note st-surface"><b>考后反思</b><p>本次计算失误较少，继续检查解题步骤。</p></div></div><p class="st-preview-foot">当前背景：' +
+      (themes.find(t => t.id === p.background)?.name || "纯色") +
+      ' · <span data-preview-intensity>' + p.intensity + '</span>%</p><button type="button" class="st-link st-page-preview" data-page-preview>在当前页面预览</button></div>'
     );
   }
   let target = null;
@@ -476,7 +481,7 @@
     const p = active();
     if (tab === "themes")
       return (
-        '<div class="st-section-intro"><h3>选择一种心情</h3><p>背景、卡片与挂件，已经为你搭配好了。</p></div><div class="st-theme-grid">' +
+        '<div class="st-section-intro"><h3>主题预设</h3><p>选择配套的背景、卡片与字体，也可以单独调整。</p></div><div class="st-theme-grid">' +
         themes
           .map(
             (t) =>
@@ -486,22 +491,13 @@
               t.id +
               '" aria-pressed="' +
               (p.theme === t.id) +
-              '"><span class="st-theme-art" style="--tile-bg:' +
+              '"><span class="st-theme-art" data-scene="' + t.id + '" style="--tile-bg:' +
               t.bg +
               ";--tile-ink:" +
               t.ink +
               ";--tile-panel:" +
               t.panel +
-              ";--tile-art:url('" +
-              assetRoot +
-              t.id +
-              '.svg\')"><span class="st-theme-kicker">' +
-              t.en +
-              '</span><span class="st-tile-card"><i></i><b></b><span>' +
-              svg(t.deco) +
-              '</span><em></em></span><span class="st-theme-number">0' +
-              (themes.indexOf(t) + 1) +
-              '</span></span><span class="st-theme-copy"><b>' +
+              '"><span class="st-tile-card"><i></i><b></b><em></em></span></span><span class="st-theme-copy"><b>' +
               t.name +
               "</b><small>" +
               t.desc +
@@ -512,12 +508,11 @@
       );
     if (tab === "background")
       return (
-        '<h3>让背景轻一点</h3><p class="st-hint">配色和背景可以自由组合，图表区域保持实底。</p><div class="st-options">' +
-        choices(
-          [["none", "无图案"], ...themes.map((t) => [t.id, t.name])],
-          "data-bg",
-          p.background,
-        ) +
+        '<h3>页面背景</h3><p class="st-hint">点选即可预览。背景会同步合适的基础配色，卡片与字体保留。</p><div class="st-background-grid">' +
+        [{id:"none",name:"纯色",bg:"var(--bg)"}, ...themes].map(t =>
+          button(t.id, t.name, "data-bg", p.background,
+            '<span class="st-background-swatch" data-scene="' + t.id + '" style="--tile-bg:' + t.bg + '"></span>')
+        ).join("") +
         '</div><label class="st-range">背景浓度 <output>' +
         p.intensity +
         '%</output><input type="range" min="0" max="100" value="' +
@@ -532,7 +527,7 @@
             '<i class="st-color" style="background:' + t.dot + '"></i>',
           ),
         ).join("") +
-        "</div>"
+        '</div><p class="st-hint st-source">方格与点阵改编自 <a href="https://heropatterns.com/" target="_blank" rel="noopener noreferrer">Steve Schoger · Hero Patterns</a>，已调整颜色、尺寸和透明度（<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>）。</p>'
       );
     if (tab === "cards")
       return (
@@ -555,15 +550,16 @@
         "</div>"
       );
     if (tab === "decor") {
-      const o = target ? p.overrides[target] || p : p;
+      const o = target ? p.overrides[target] || { ...p, deco: "none" } : p;
       return (
         "<h3>" +
-        (target ? "装扮这张卡片" : "给页面一点小点缀") +
+        (target ? "此卡片的挂件" : "卡片挂件") +
         '</h3><p class="st-hint">' +
         (target
           ? "此处只修改选中的板块。"
-          : "默认应用到各板块；也可以在页面上单独选择。") +
-        '</p><div class="st-deco-grid">' +
+          : "主题默认不添加挂件。可以手动选择卡片，或仅点缀每页第一张卡片。") +
+        '</p>' + (target ? '' : '<div class="st-options">' + choices([["custom","手动指定卡片"],["accent","每页首张卡片"],["none","不显示挂件"]],"data-decor-mode",p.decorMode) + '</div><button class="st-link" data-pick-card>在页面上选择卡片</button>') +
+        '<div class="st-deco-grid">' +
         button(
           "none",
           "不使用",
@@ -585,17 +581,17 @@
         ) +
         '</div><label class="st-range">挂件大小 <output>' +
         o.scale +
-        ' px</output><input type="range" min="28" max="52" value="' +
+        ' px</output><input type="range" min="24" max="40" value="' +
         o.scale +
         '" data-range="scale"></label>' +
         (target
-          ? '<button class="st-link" data-inherit>恢复跟随全局装扮</button>'
-          : '<p class="st-hint">保存后点击「逐卡装扮」，可以单独修改页面上的板块。</p>')
+          ? '<button class="st-link" data-inherit>清除此卡片的单独设置</button>'
+          : '<p class="st-hint">选择挂件后，仅预览在每页首张卡片上。其他卡片保持简洁。</p>')
       );
     }
     if (tab === "fonts")
       return (
-        '<h3>舒服地读，也有自己的风格</h3><p class="st-hint">正文保持清楚，标题可以更有个性。字体按需加载。</p><h4>正文字体</h4><div class="st-font-grid">' +
+        '<h3>字体与字号</h3><p class="st-hint">正文和标题可分别设置。</p><h4>正文字体</h4><div class="st-font-grid">' +
         fonts
           .slice(0, 5)
           .map((f) =>
@@ -637,7 +633,7 @@
         "</div>"
       );
     return (
-      '<h3>收藏自己的搭配</h3><p class="st-hint">保存在当前设备，最多 8 套。包含主题、字体与卡片装扮。</p><form class="st-save-form"><label for="stLookName">搭配名称</label><div><input id="stLookName" maxlength="24" placeholder="例如：我的夜间自习室" required><button type="submit" class="st-primary">收藏当前搭配</button></div></form><div class="st-saved">' +
+      '<h3>已保存的外观</h3><p class="st-hint">保存在当前设备，最多 8 套。</p><form class="st-save-form"><label for="stLookName">名称</label><div><input id="stLookName" maxlength="24" placeholder="例如：夜间阅读" required><button type="submit" class="st-primary">收藏当前设置</button></div></form><div class="st-saved">' +
       (saved.length
         ? saved
             .map(
@@ -653,12 +649,13 @@
                 '">删除</button></div>',
             )
             .join("")
-        : '<p class="st-hint">还没有收藏。调出喜欢的样子，就把它留在这里。</p>') +
+        : '<p class="st-hint">暂无收藏。</p>') +
       "</div>"
     );
   }
   function draw() {
     if (!dialog) return;
+    dialog.dataset.tab = tab;
     const scroll = dialog.querySelector(".st-workspace")?.scrollTop || 0;
     const focus = document.activeElement;
     const attr =
@@ -670,6 +667,7 @@
         "data-size",
         "data-deco",
         "data-position",
+        "data-decor-mode",
         "data-bg",
         "data-card",
         "data-preset",
@@ -678,14 +676,14 @@
       ].find((a) => focus.hasAttribute(a));
     const val = attr ? focus.getAttribute(attr) : null;
     dialog.innerHTML =
-      '<header class="st-studio-head"><div><span class="st-eyebrow">MAKE IT YOURS</span><h2>我的学习空间</h2><p>让每次打开，都有一点喜欢。</p></div><button class="st-close" aria-label="取消并关闭外观设置" data-close>×</button></header><nav class="st-tabs" aria-label="外观设置分类">' +
+      '<header class="st-studio-head"><div><h2>外观设置</h2><p>主题预设、背景与阅读样式</p></div><button class="st-close" aria-label="取消并关闭外观设置" data-close>×</button></header><nav class="st-tabs" aria-label="外观设置分类">' +
       [
-        ["themes", "成套主题"],
+        ["themes", "主题预设"],
         ["background", "背景"],
         ["cards", "卡片"],
         ["decor", "挂件"],
         ["fonts", "字体"],
-        ["saved", "我的搭配"],
+        ["saved", "收藏"],
       ]
         .map((x) => button(x[0], x[1], "data-tab", tab))
         .join("") +
@@ -695,7 +693,7 @@
       preview() +
       '</aside></div><footer class="st-studio-footer"><span id="stStudioStatus" role="status" aria-live="polite">预览中 · 保存后应用到当前设备</span><div><button class="st-link" data-reset>恢复默认</button><button class="st-link" data-undo ' +
       (!undo.length ? "disabled" : "") +
-      '>撤销</button><button class="st-primary" data-apply>保存搭配</button></div></footer>';
+      '>撤销</button><button class="st-primary" data-apply>保存设置</button></div></footer>';
     dialog.querySelector(".st-workspace").scrollTop = scroll;
     if (attr) {
       const b = Array.from(dialog.querySelectorAll("[" + attr + "]")).find(
@@ -716,6 +714,32 @@
     const el = document.getElementById("stStudioStatus");
     if (el) el.textContent = msg;
   }
+  function inspectPage(pick = false) {
+    pagePreview = true;
+    previousEdit = edit;
+    edit = pick;
+    dialog.close();
+    document.body.classList.remove("st-studio-open");
+    const bar = document.createElement("div");
+    bar.className = "st-edit-bar st-inspect-bar";
+    bar.innerHTML = '<span>' + (pick ? '选择一张卡片设置挂件' : '正在预览 · 尚未保存') + '</span><button type="button" data-return>返回设置</button><button type="button" data-save>保存</button><button type="button" data-cancel>取消</button>';
+    bar.querySelector("[data-return]").onclick = resumePreview;
+    bar.querySelector("[data-save]").onclick = () => { resumePreview(); close(true); };
+    bar.querySelector("[data-cancel]").onclick = () => { resumePreview(); close(false); };
+    document.body.appendChild(bar);
+    decorate();
+    bar.querySelector("[data-return]").focus();
+  }
+  function resumePreview() {
+    document.querySelector(".st-inspect-bar")?.remove();
+    edit = previousEdit;
+    pagePreview = false;
+    decorate();
+    draw();
+    document.body.classList.add("st-studio-open");
+    dialog.showModal();
+    dialog.querySelector(".st-close").focus();
+  }
   function open(section = "themes", key = null) {
     if (dialog) return;
     target = key;
@@ -725,7 +749,7 @@
     undo = [];
     dialog = document.createElement("dialog");
     dialog.className = "st-studio";
-    dialog.setAttribute("aria-label", "我的学习空间 · 外观设置");
+    dialog.setAttribute("aria-label", "外观设置");
     document.body.appendChild(dialog);
     draw();
     dialog.addEventListener("cancel", (e) => {
@@ -735,9 +759,20 @@
     dialog.addEventListener("click", onClick);
     dialog.addEventListener("change", onChange);
     dialog.addEventListener("input", (e) => {
-      if (e.target.matches("[data-range]"))
+      if (e.target.matches("[data-range]")) {
+        if (!rangeEditing) {
+          undo.push(snapshot());
+          if (undo.length > 30) undo.shift();
+        }
+        rangeEditing = e.target.dataset.range;
+        updateRange(rangeEditing, +e.target.value);
+        setVisual(draft.prefs);
+        // Keep the slider node alive while dragging; only redraw its preview.
+        dialog.querySelector("aside").innerHTML = preview();
         e.target.previousElementSibling.textContent =
           e.target.value + (e.target.dataset.range === "scale" ? " px" : "%");
+        dialog.querySelector("[data-undo]").disabled = false;
+      }
     });
     dialog.addEventListener("submit", (e) => {
       e.preventDefault();
@@ -782,6 +817,7 @@
     document.body.classList.remove("st-studio-open");
     dialog = null;
     draft = null;
+    rangeEditing = null;
     setVisual(prefs);
     mount();
     if (commit && typeof render === "function" && !edit) {
@@ -794,26 +830,34 @@
     else
       document.querySelector("[data-st-open]")?.focus({ preventScroll: true });
   }
-  function onChange(e) {
-    const key = e.target.dataset.range;
-    if (key)
-      change(() => {
+  function updateRange(key, value) {
         const p = draft.prefs;
         if (target && key === "scale") {
           p.overrides[target] = p.overrides[target] || {
-            deco: p.deco,
+            deco: "none",
             position: p.position,
             scale: p.scale,
           };
-          p.overrides[target].scale = +e.target.value;
-        } else p[key] = +e.target.value;
-      });
+          p.overrides[target].scale = value;
+        } else p[key] = value;
+  }
+  function onChange(e) {
+    const key = e.target.dataset.range;
+    if (!key) return;
+    if (rangeEditing) {
+      updateRange(key, +e.target.value);
+      rangeEditing = null;
+      setVisual(draft.prefs);
+      draw();
+    } else change(() => updateRange(key, +e.target.value));
   }
   function onClick(e) {
     const b = e.target.closest("button");
     if (!b || (b.type === "submit" && b.closest("form"))) return;
     if (b.hasAttribute("data-close")) return close(false);
     if (b.hasAttribute("data-apply")) return close(true);
+    if (b.hasAttribute("data-page-preview")) return inspectPage();
+    if (b.hasAttribute("data-pick-card")) return inspectPage(true);
     if (b.dataset.tab) {
       tab = b.dataset.tab;
       target = null;
@@ -851,12 +895,17 @@
           theme: t.id,
           background: t.id,
           card: t.card,
-          deco: t.deco,
+          deco: "none",
           title: t.title,
         };
         setPalette(t.palette, true);
         setReading(t.font, engine.reading().size);
-      } else if (b.dataset.bg) p.background = b.dataset.bg;
+      } else if (b.dataset.bg) {
+        p.background = b.dataset.bg;
+        const t = themes.find(t => t.id === p.background);
+        if (t) { p.theme = t.id; setPalette(t.palette); }
+      }
+      else if (b.dataset.decorMode) p.decorMode = b.dataset.decorMode;
       else if (b.dataset.card) p.card = b.dataset.card;
       else if (b.dataset.title) p.title = b.dataset.title;
       else if (b.dataset.font)
@@ -870,13 +919,15 @@
         let o = p;
         if (target) {
           p.overrides[target] = p.overrides[target] || {
-            deco: p.deco,
+            deco: "none",
             position: p.position,
             scale: p.scale,
           };
           o = p.overrides[target];
+          if (p.decorMode === "none") p.decorMode = "custom";
         }
         if (b.dataset.deco) o.deco = b.dataset.deco;
+        if (b.dataset.deco && !target) p.decorMode = "accent";
         if (b.dataset.position) o.position = b.dataset.position;
       } else if (b.hasAttribute("data-inherit")) delete p.overrides[target];
       else if (b.hasAttribute("data-reset")) {
@@ -899,7 +950,7 @@
       const el = document.createElement("div");
       el.className = "st-entry";
       el.innerHTML =
-        '<div><span class="st-eyebrow">YOUR OWN LITTLE WORLD</span><h3>我的学习空间</h3><p>六套主题 · 原创挂件 · 自由搭配</p></div><button type="button" class="st-primary" data-st-open>挑选主题 <span aria-hidden="true">↗</span></button>';
+        '<div><h3>外观主题</h3><p>主题预设、页面背景与字体设置</p></div><button type="button" class="st-primary" data-st-open>设置外观</button>';
       card.prepend(el);
       const old = document.createElement("details");
       old.className = "st-legacy";
@@ -910,11 +961,11 @@
       card.appendChild(old);
       el.querySelector("button").onclick = () => open();
     }
-    if (edit && !document.querySelector(".st-edit-bar")) {
+    if (edit && !pagePreview && !document.querySelector(".st-edit-bar")) {
       const b = document.createElement("div");
       b.className = "st-edit-bar";
       b.innerHTML =
-        '<span>点击板块上的「装扮此卡片」</span><button type="button">完成装扮</button>';
+        '<span>选择卡片设置挂件</span><button type="button">完成</button>';
       b.querySelector("button").onclick = () => {
         edit = false;
         b.remove();
@@ -926,7 +977,7 @@
       const b = document.createElement("button");
       b.className = "st-link st-edit-launch";
       b.dataset.stEdit = "";
-      b.textContent = "逐卡装扮";
+      b.textContent = "单独设置卡片挂件";
       b.onclick = () => {
         edit = true;
         mount();
