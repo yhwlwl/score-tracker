@@ -797,8 +797,8 @@ html[data-st-card="paper"] :is(.shell .card, .ed-page .card, .st-surface) {
     padding-right: 15px;
   }
   .st-preview .st-ornament {
-    width: 27px;
-    height: 27px;
+    width: calc(var(--st-deco-size, 40px) * 0.7);
+    height: calc(var(--st-deco-size, 40px) * 0.7);
     top: 8px;
     right: 8px;
   }

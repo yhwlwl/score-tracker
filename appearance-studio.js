@@ -304,6 +304,7 @@
             p.overrides[k] = {
               deco: member(v.deco, ["none", ...Object.keys(drawings)], "none"),
               position: member(v.position, ["left", "right"], "right"),
+              scale: bounded(v.scale, 28, 52, p.scale),
             };
         });
     return p;
@@ -399,6 +400,9 @@
       const key = cardKey(el);
       el.dataset.stKey = key;
       const o = p.overrides[key] || p;
+      if (p.overrides[key])
+        el.style.setProperty("--st-deco-size", o.scale + "px");
+      else el.style.removeProperty("--st-deco-size");
       let mark = el.querySelector(":scope > .st-ornament");
       if (o.deco === "none") {
         if (mark) mark.remove();
@@ -453,7 +457,9 @@
     const p = active(),
       ornament = target ? p.overrides[target] || p : p;
     return (
-      '<div class="st-preview" aria-label="搭配预览"><div class="st-preview-top"><span>效果预览</span><span>示例数据</span></div><div class="st-preview-scene" data-scene="' +
+      '<div class="st-preview" style="--st-deco-size:' +
+      ornament.scale +
+      'px" aria-label="搭配预览"><div class="st-preview-top"><span>效果预览</span><span>示例数据</span></div><div class="st-preview-scene" data-scene="' +
       p.background +
       '" style="--st-art:url(\'' +
       assetRoot +
@@ -578,9 +584,9 @@
           o.position,
         ) +
         '</div><label class="st-range">挂件大小 <output>' +
-        p.scale +
+        o.scale +
         ' px</output><input type="range" min="28" max="52" value="' +
-        p.scale +
+        o.scale +
         '" data-range="scale"></label>' +
         (target
           ? '<button class="st-link" data-inherit>恢复跟随全局装扮</button>'
@@ -792,7 +798,15 @@
     const key = e.target.dataset.range;
     if (key)
       change(() => {
-        draft.prefs[key] = +e.target.value;
+        const p = draft.prefs;
+        if (target && key === "scale") {
+          p.overrides[target] = p.overrides[target] || {
+            deco: p.deco,
+            position: p.position,
+            scale: p.scale,
+          };
+          p.overrides[target].scale = +e.target.value;
+        } else p[key] = +e.target.value;
       });
   }
   function onClick(e) {
@@ -858,6 +872,7 @@
           p.overrides[target] = p.overrides[target] || {
             deco: p.deco,
             position: p.position,
+            scale: p.scale,
           };
           o = p.overrides[target];
         }

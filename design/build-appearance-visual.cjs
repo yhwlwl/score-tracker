@@ -48,19 +48,19 @@ ${select('size','字号',[['standard','标准'],['compact','小字'],['large','�
 <small>合成数据 · 不连接真实账号</small></header><main><iframe id="preview" title="外观和设置预览" width="390" height="844"></iframe></main>
 <script>
 const f=document.getElementById('preview'),controls=['page','theme','font','size','preset'].map(id=>document.getElementById(id));
-const p=new URLSearchParams(location.search);let carry=null;
+const p=new URLSearchParams(location.search);let carry=null,loading=true;f.addEventListener('load',()=>{loading=false;});
 try{carry=JSON.parse(p.get('look')||'null')}catch(e){}
 controls.forEach(el=>{if(p.has(el.id)&&[...el.options].some(o=>o.value===p.get(el.id)))el.value=p.get(el.id)});
 function reload(event){
- try{const latest=f.contentWindow.localStorage.getItem('st_studio_v1');if(latest)carry=JSON.parse(latest)}catch(e){}
+ if(!loading)try{const latest=f.contentWindow.localStorage.getItem('st_studio_v1');if(latest)carry=JSON.parse(latest)}catch(e){}
  const id=event&&event.target.id;
  if(id==='preset')carry=null;
  if(id==='theme'){document.getElementById('preset').value='';if(carry){carry.theme='';carry.palette=document.getElementById('theme').value;}}
- if((id==='font'||id==='size')&&carry){carry.reading={font:document.getElementById('font').value,size:document.getElementById('size').value};}
+ if((id==='font'||id==='size')&&carry){carry.reading=carry.reading||{font:document.getElementById('font').value,size:document.getElementById('size').value};carry.reading[id]=document.getElementById(id).value;}
  const q=new URLSearchParams(Object.fromEntries(controls.map(el=>[el.id,el.value])));
  if(carry){q.set('look',JSON.stringify(carry));q.delete('preset');}
  if(document.getElementById('page').value==='appearance')q.set('studio','1');
- f.src='./frame.html?'+q;history.replaceState(null,'','?'+q);
+ loading=true;f.src='./frame.html?'+q;history.replaceState(null,'','?'+q);
 }
 controls.forEach(el=>el.onchange=reload);
 const view=document.getElementById('viewport');function size(){let[w,h]=view.value.split(',');f.width=w;f.height=h;}view.onchange=size;

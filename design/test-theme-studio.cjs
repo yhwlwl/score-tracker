@@ -180,6 +180,9 @@ async function harness(storage = {}) {
     assert(cards.length > 1);
     cards[0].querySelector(".st-edit-card").click();
     h.click("[data-deco=cat]");
+    const range = h.d.querySelector("[data-range=scale]");
+    range.value = "52";
+    range.dispatchEvent(new h.w.Event("change", { bubbles: true }));
     assert(
       h.d
         .querySelector(".st-preview .st-ornament")
@@ -188,6 +191,8 @@ async function harness(storage = {}) {
     h.click("[data-apply]");
     assert.equal(cards[0].querySelector(".st-ornament").dataset.id, "cat");
     assert.equal(cards[1].querySelector(".st-ornament").dataset.id, "flower");
+    assert.equal(cards[0].style.getPropertyValue("--st-deco-size"), "52px");
+    assert.equal(cards[1].style.getPropertyValue("--st-deco-size"), "");
     cards[0].querySelector(".st-edit-card").click();
     h.click("[data-inherit]");
     h.click("[data-apply]");
