@@ -22,7 +22,7 @@ function reload(event){
  const q=new URLSearchParams(Object.fromEntries(controls.map(el=>[el.id,el.value])));
  if(carry){q.set('look',JSON.stringify(carry));q.delete('preset');}
  if(document.getElementById('page').value==='appearance')q.set('studio','1');
- loading=true;f.src='./frame.html?'+q;history.replaceState(null,'','?'+q);
+ loading=true;f.src='/appearance-qa/frame.html?'+q;history.replaceState(null,'','?'+q);
 }
 controls.forEach(el=>el.onchange=reload);
 const view=document.getElementById('viewport');function size(){let[w,h]=view.value.split(',');f.width=w;f.height=h;}view.onchange=size;
