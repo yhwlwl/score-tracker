@@ -54,3 +54,7 @@ Changes: proportional resize and WebP compression. Two legacy CSS backdrops arra
 ## Simplified artwork revision
 
 Current recommended backgrounds use `art/sakura-atelier-v2.webp` and `art/starlit-tide-v2.webp`, generated with fewer objects and broad areas of quiet sky. Current character stickers are `charms/exam-pony.webp`, `hello-puppy.webp`, `quiet-kitten.webp` and `quiet-fox.webp`. The pony and puppy were redrawn with image_gen from user-supplied visual references; the kitten and fox follow the supplied puppy's simplified style. Reference artwork remains the property of its respective rights holder; these are not represented as independently licensed stock. Original complex generated ornaments remain available only to existing saved preferences. Full generation and refinement prompts are retained in GENERATED-ART.json. Encoding preserves each sticker's original transparency and aspect ratio.
+
+## Study shore collection (2026-10-30)
+
+`art/study-shore.webp` and `art/study-shore-wide.webp` are original lakeshore sunrise illustrations generated with the built-in image_gen tool for this project. The landscape version expands the same portrait scene for desktop composition. Only proportional thumbnail resampling and WebP encoding are applied. The collection pairs this scenery with the existing `charms/exam-pony.webp`; that sticker is unchanged. The full-art viewer and actual wallpaper use the same viewport breakpoint for the two compositions. Prompts, dimensions and companion-image reference are recorded in GENERATED-ART.json.

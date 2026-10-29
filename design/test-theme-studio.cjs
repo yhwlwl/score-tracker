@@ -106,7 +106,7 @@ async function harness(storage = {}) {
   try {
     const { w, d, click } = h,
       basePalette = w.__v29.currentTheme();
-    assert.equal(w.ScoreAppearance.themes.length, 8);
+    assert.equal(w.ScoreAppearance.themes.length, 9);
     assert.equal(w.ScoreAppearance.decorations.length, 44);
     assert.equal(d.querySelectorAll("[data-st-open]").length, 1);
     click("[data-st-open]");
@@ -130,6 +130,7 @@ async function harness(storage = {}) {
     click("[data-close]");
     assert.equal(w.__v29.currentTheme(), basePalette);
     assert.equal(d.documentElement.dataset.stBackground, "none");
+    assert.equal(d.documentElement.dataset.stLook, "");
     assert.equal(d.querySelector(".st-studio"), null);
     click("[data-st-open]");
     click("[data-preset=garden]");
@@ -291,6 +292,23 @@ async function harness(storage = {}) {
     assert.equal(h.w.__v29.currentTheme(), "night");
     assert.deepEqual(h.errors, []);
     h.close();
+    const shore = await harness();
+    shore.click('[data-st-open]'); shore.click('[data-preset=study-shore]');
+    assert.equal(shore.d.documentElement.style.getPropertyValue('--accent'),'#356763');
+    assert.equal(shore.d.querySelector('.shell .st-ornament').dataset.id,'charm-exam-pony');
+    shore.click('[data-view-art]');
+    assert(shore.d.querySelector('.st-art-viewer picture source').srcset.endsWith('study-shore-wide.webp'));
+    shore.click('.st-art-viewer button'); shore.click('[data-apply]');
+    const shoreReloaded = await harness(shore.saved());
+    assert.equal(shoreReloaded.w.ScoreAppearance.get().theme,'study-shore');
+    assert.equal(shoreReloaded.w.ScoreAppearance.get().deco,'charm-exam-pony');
+    assert.equal(shoreReloaded.w.ScoreAppearance.get().scale,112);
+    assert.equal(shoreReloaded.d.documentElement.dataset.stLook,'study-shore');
+    shoreReloaded.click('[data-st-open]');shoreReloaded.click('[data-preset=cloud]');
+    assert.equal(shoreReloaded.d.documentElement.style.getPropertyValue('--accent'),'#096a9e','leaving the theme restores base palette');
+    shoreReloaded.click('[data-close]');
+    assert.equal(shoreReloaded.d.documentElement.style.getPropertyValue('--accent'),'#356763','cancel restores the complete palette');
+    shoreReloaded.close();shore.close();
     for (const raw of [
       "null",
       "[]",
@@ -305,7 +323,7 @@ async function harness(storage = {}) {
       h.close();
     }
     console.log(
-      "PASS: eight themes, compatible backgrounds, simple character stickers, classic ornaments and legacy preferences, filtered galleries, preview, cancel/Escape, undo, save/reload, favorites, local overrides and malformed storage.",
+      "PASS: nine themes, study-shore paired pony and palette save/reload/cancel, compatible backgrounds, classic ornaments, galleries, preview, undo, favorites, local overrides and malformed storage.",
     );
   } finally {
     h.close();

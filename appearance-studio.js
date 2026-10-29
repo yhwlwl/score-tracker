@@ -191,6 +191,14 @@
   ];
   legacyIllustrated.forEach(t => t.category = "legacy");
   const illustrated = [
+    {id:"study-shore",name:"马上上岸",desc:"晴岸晨光 · 奶油蓝绿",category:"illustration",wallpaper:"study-shore",landscape:"study-shore-wide",palette:"sky",bg:"#edf4f1",panel:"#fffef9",ink:"#356763",card:"soft",font:"system",title:"system",charm:"charm-exam-pony",tokens:{
+      "--text":"#263f3b","--muted":"#60756e","--line":"#dde6df","--accent":"#356763","--accent-soft":"#e8f1eb",
+      "--green":"#387658","--green-soft":"#eaf4eb","--logo-a":"#6e9281","--logo-b":"#c3d8ba",
+      "--nav-glass":"rgba(255,254,249,.96)","--navbg":"rgba(255,254,249,.96)","--nav-active":"#e7eee1","--nav-line":"#e5eade","--navline":"#e5eade",
+      "--chip-bg":"#fffef9","--cell":"#f1f6ef","--line-soft":"#dbe5da","--axis":"#6d837a","--point-label":"#60756e","--grid":"#e1e9e4","--dotfill":"#fffef9",
+      "--focus":"#356763","--focus-ring":"rgba(53,103,99,.18)","--sel-bg":"#d4e7db","--sel-text":"#263f3b",
+      "--shadow":"0 8px 28px rgba(48,84,67,.07)","--nav-shadow":"0 8px 28px rgba(48,84,67,.10)"
+    }},
     {id:"sakura-atelier",name:"樱风书屋",desc:"一枝樱花 · 开阔晴空",category:"illustration",wallpaper:"sakura-atelier-v2",palette:"paper",bg:"#edf3f4",panel:"#fffdf9",ink:"#916d54",card:"soft",font:"system",title:"system",charm:"charm-quiet-kitten"},
     {id:"starlit-tide",name:"星海夜航",desc:"弯月云海 · 轻柔留白",category:"illustration",wallpaper:"starlit-tide-v2",palette:"violet",bg:"#edf0fa",panel:"#fdfbff",ink:"#7665a0",card:"soft",font:"system",title:"system",charm:"charm-quiet-fox"},
   ];
@@ -396,6 +404,7 @@
     root.dataset.stCard = p.card;
     root.dataset.stTitle = p.title;
     root.dataset.stBackground = p.background;
+    root.dataset.stLook = p.theme;
     root.dataset.stArt = backgrounds.find(t => t.id === p.background)?.wallpaper ? "illustrated" : "basic";
     let backdrop = document.getElementById("stBackdrop");
     if (!backdrop) {
@@ -416,6 +425,7 @@
       root.style.setProperty("--bg", theme.bg);
       root.style.setProperty("--panel-solid", theme.panel);
       root.style.setProperty("--panel", theme.panel);
+      Object.entries(theme.tokens || {}).forEach(([key,value]) => root.style.setProperty(key,value));
       const meta = document.querySelector('meta[name="theme-color"]');
       if (meta) meta.content = theme.bg;
     }
@@ -537,9 +547,10 @@
   }
   function wallpaperTile(t) {
     const selected = active().background === t.id;
-    return '<button type="button" class="st-wallpaper ' + (selected ? 'is-on' : '') + '" data-bg="' + t.id + '" aria-pressed="' + selected + '"><span class="st-wallpaper-art" data-scene="' + t.id + '" style="--tile-bg:' + (t.bg || 'var(--bg)') + '">' +
-      (t.wallpaper ? '<img src="./assets/themes/art/' + t.wallpaper + '-thumb.webp" width="480" height="720" alt="" loading="lazy" decoding="async">' : t.file ? '<img src="./assets/themes/photos/' + t.file + '-thumb.webp" width="480" height="480" alt="" loading="lazy" decoding="async">' : '') +
-      '<span class="st-material-label">' + (t.category === 'illustration' ? '插画' : t.file ? '风景' : '简约') + '</span></span><b>' + t.name + '</b><span class="st-item-action">' + itemState(selected, prefs.background === t.id) + '</span></button>';
+    const attr = t.landscape && tab === "themes" ? "data-preset" : "data-bg";
+    return '<button type="button" class="st-wallpaper ' + (selected ? 'is-on' : '') + '" ' + attr + '="' + t.id + '" aria-pressed="' + selected + '"><span class="st-wallpaper-art" data-scene="' + t.id + '" style="--tile-bg:' + (t.bg || 'var(--bg)') + '">' +
+      (t.wallpaper ? '<img src="./assets/themes/art/' + (t.landscape || t.wallpaper) + '-thumb.webp" width="480" height="' + (t.landscape ? '300' : '720') + '" alt="" loading="lazy" decoding="async">' : t.file ? '<img src="./assets/themes/photos/' + t.file + '-thumb.webp" width="480" height="480" alt="" loading="lazy" decoding="async">' : '') +
+      '<span class="st-material-label">' + (t.landscape && tab === "themes" ? '成套主题' : t.category === 'illustration' ? '插画' : t.file ? '风景' : '简约') + '</span></span><b>' + t.name + '</b><span class="st-item-action">' + itemState(selected, prefs.background === t.id) + '</span></button>';
   }
   function filters(items, attr, selected) {
     return '<div class="st-filters" aria-label="素材分类">' + choices(items, attr, selected) + '</div>';
@@ -930,7 +941,8 @@
     if (!t?.wallpaper) return;
     const viewer = document.createElement("dialog");
     viewer.className = "st-art-viewer"; viewer.setAttribute("aria-label", t.name + "完整背景");
-    viewer.innerHTML = '<button type="button" aria-label="关闭完整背景">×</button><img src="./assets/themes/art/' + t.wallpaper + '.webp" alt="' + t.name + '完整背景原画"><p><b>' + t.name + '</b><span>完整背景预览</span></p>';
+    const painting = '<img src="./assets/themes/art/' + t.wallpaper + '.webp" alt="' + t.name + '完整背景原画">';
+    viewer.innerHTML = '<button type="button" aria-label="关闭完整背景">×</button>' + (t.landscape ? '<picture><source media="(min-width:900px)" srcset="./assets/themes/art/' + t.landscape + '.webp">' + painting + '</picture>' : painting) + '<p><b>' + t.name + '</b><span>完整背景预览</span></p>';
     const close = () => {viewer.close();viewer.remove();dialog?.querySelector('[data-view-art]')?.focus();};
     viewer.querySelector('button').onclick = close;
     viewer.addEventListener('cancel', e => {e.preventDefault();close();});

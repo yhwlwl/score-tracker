@@ -111,6 +111,31 @@
         1536
       ],
       "revision": "quiet-character-stickers"
+    },
+    {
+      "id": "study-shore",
+      "prompt": "Use case: illustration-story. Asset type: polished portrait 2:3 wallpaper for a real student exam-score dashboard, a coordinated theme titled \"马上上岸\" (heading is NOT to appear in the image). Primary request: an exceptionally lovely, calm, enduring lakeshore morning illustration that subtly evokes reaching a hopeful shore. Quiet pale celadon-blue lake, a broad smooth curving grassy bank entering from bottom right, a narrow warm ivory footpath following that bank toward the far light, two softly layered sage-green hills in the distance. A small warm pale-gold sun low near the horizon, a faint peach blush on the far shore. The top 60 percent is expansive luminous very pale powder-blue sky, just one broad soft ivory cloud high toward the left. Keep the horizon in the lower third and the grass/path detail concentrated at the bottom and right margin. No foreground objects. Style: refined simplified Japanese-animation background painting, clean elegant large shapes, very subtle soft brush shading, harmonious delicate pastel colors, gentle natural light, restrained fine finish without tiny texture. Color palette: airy pale blue, soft sage, warm ivory, a whisper of peach; these should quietly accompany an existing pink/lilac cartoon pony sticker with yellow graduation cap, but DO NOT draw the pony, a cap or any sticker here. Mood: peaceful, optimistic, fresh, spacious and premium, no visual fatigue. 75 percent of the composition should remain low-contrast open sky/water with no objects, suitable behind readable white cards. Beautifully composed whole landscape, not generic flat gradient wallpaper. No buildings, no flowers, no scattered petals, no trees around all edges, no glitter, no flags, no birds, no sailboat, no books, no stars, no cute animal, no ornate decoration, no vignetting, no grain, no lettering, no logos or watermark. No UI.",
+      "date": "2026-10-30",
+      "transparent": false,
+      "file": "assets/themes/art/study-shore.webp",
+      "size": [
+        1024,
+        1536
+      ],
+      "revision": "study-shore-collection"
+    },
+    {
+      "id": "study-shore-wide",
+      "prompt": "Use case: precise-object-edit. Edit target: attached lakeshore morning wallpaper. Produce its LANDSCAPE desktop companion, aspect ratio 16:10, by widening the same world to the left and right, not adding any new subjects. Preserve exactly its pale sky blue / sage grass / ivory path / peach sunrise palette, calm lake, low distant hills, sun just above the horizon slightly left of center, and path along the green right-hand shore. The broad serene sky should occupy the top half, lake fills middle and bottom left, green bank and winding ivory path at bottom right. Slightly simplify the tiny grass blades into broad soft shapes. Same refined gentle Japanese animation background painting, softly shaded but not busy, airy low contrast, quiet and enduring as wallpaper behind white dashboard panels. No text, no new props, no animal, no pony, no books, no buildings, no flowers, no decorative elements, no UI, no watermark. Full-bleed LANDSCAPE 16:10 composition.",
+      "reference": "study-shore",
+      "date": "2026-10-30",
+      "transparent": false,
+      "file": "assets/themes/art/study-shore-wide.webp",
+      "size": [
+        1586,
+        992
+      ],
+      "revision": "study-shore-collection"
     }
   ]
 }

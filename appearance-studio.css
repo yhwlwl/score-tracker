@@ -1244,3 +1244,16 @@ html[data-st-art="illustrated"] .hero-main{background:color-mix(in srgb,var(--pa
 /* Keep utility text legible over illustrated wallpaper. */
 html[data-st-art="illustrated"] .topbar {background:color-mix(in srgb,var(--panel-solid) 96%,transparent);border:1px solid var(--line);border-radius:17px;padding:12px 14px;backdrop-filter:blur(12px)}
 html[data-st-art="illustrated"] :is(.goal-bar-v33,.goal-hero-v33,.page-head,.grade-filter-v13){background:color-mix(in srgb,var(--panel-solid) 96%,transparent)!important;border:1px solid var(--line);border-radius:16px;padding:14px 16px;backdrop-filter:blur(10px)}
+
+/* A quiet lakeshore collection, paired with the existing graduation pony. */
+[data-scene="study-shore"]{--scene-image:url("./assets/themes/art/study-shore.webp");--scene-size:cover;--scene-position:right 62%}
+@media(min-width:900px){[data-scene="study-shore"]{--scene-image:url("./assets/themes/art/study-shore-wide.webp");--scene-position:center 60%}}
+.st-wallpaper:is([data-bg="study-shore"],[data-preset="study-shore"]){grid-column:1/-1}
+.st-wallpaper:is([data-bg="study-shore"],[data-preset="study-shore"]) .st-wallpaper-art{aspect-ratio:16/7!important}
+.st-wallpaper:is([data-bg="study-shore"],[data-preset="study-shore"]) .st-wallpaper-art img{object-position:center 65%}
+.st-art-viewer>picture{display:block;width:100%;height:calc(100% - 52px)}
+.st-art-viewer>picture>img{display:block;width:100%;height:100%;object-fit:contain;border-radius:12px}
+html[data-st-look="study-shore"] .primary{background:var(--accent);color:#fff;box-shadow:0 5px 15px #35676320}
+html[data-st-look="study-shore"] .hero-main{background:color-mix(in srgb,var(--panel-solid) 97%,transparent)!important}
+html[data-st-look="study-shore"] .st-collection-banner{background:linear-gradient(125deg,#eef5ed,#e4f0f4);color:#356763}
+html[data-st-look="study-shore"] :is(.st-collection-banner h3,.st-banner-link){color:#356763!important}

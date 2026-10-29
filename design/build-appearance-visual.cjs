@@ -4,7 +4,7 @@ const { seed, pre } = require('./build-exam-detail-visual.cjs');
 const root = path.resolve(__dirname, '..'), out = path.join(root, 'appearance-qa');
 fs.mkdirSync(out, {recursive:true});
 const example = {...seed, page:'account'};
-const presets = [['sakura-atelier','樱风书屋'],['starlit-tide','星海夜航'],['cloud','云间天蓝'],['notebook','方格笔记'],['garden','薄荷花园'],['dawn','晨光奶油'],['night','星河夜读'],['journal','复古手账']];
+const presets = [['study-shore','马上上岸'],['sakura-atelier','樱风书屋'],['starlit-tide','星海夜航'],['cloud','云间天蓝'],['notebook','方格笔记'],['garden','薄荷花园'],['dawn','晨光奶油'],['night','星河夜读'],['journal','复古手账']];
 const options=Array.from({length:28},(_,i)=>({id:'example-'+i,key:'example-'+i,label:['成绩对比','目标跟踪','数据导出','自定义科目'][i%4]+' · 示例 '+(i+1),isActive:true,votes:70-i,votedByMe:i<3}));
 const fixture = `<script>
 var params=new URLSearchParams(location.search);
