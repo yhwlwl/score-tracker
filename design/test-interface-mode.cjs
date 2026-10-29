@@ -27,11 +27,16 @@ async function harness(storage={}) {
   assert.equal(w.getComputedStyle(d.querySelector('.radar-card')).display,'none');
   assert.notEqual(w.getComputedStyle(d.querySelector('.chart-card')).display,'none');
   assert.equal(JSON.stringify(w.state.allExams),exams);
+  w.ScoreInterfaceMode.select('full');
+  assert.notEqual(w.getComputedStyle(d.querySelector('.bottom-nav [data-page=stats]')).display,'none');
+  assert.notEqual(w.getComputedStyle(d.querySelector('.radar-card')).display,'none');
+  w.ScoreInterfaceMode.select('simple');
   w.state.page='account';w.render();await pause();
   assert.equal(d.querySelectorAll('#interfaceModeCard').length,1);
   assert.equal(w.getComputedStyle(d.querySelector('#featureVoteCardV36')).display,'none');
   click('.im-more-settings');assert.notEqual(w.getComputedStyle(d.querySelector('#featureVoteCardV36')).display,'none');
   assert(d.querySelector('.password-card-v15'));assert(d.querySelector('#dataCardV30'));
+  w.ScoreInterfaceMode.select('full');assert.notEqual(w.getComputedStyle(d.querySelector('#featureVoteCardV36')).display,'none');w.ScoreInterfaceMode.select('simple');
   // Switches do not replace an open editor or clear optional values and actual zero scores.
   const exam=JSON.parse(JSON.stringify(seed.allExams[0]));exam.total_actual_score=611;exam.scores['语文'].actual=0;
   w.openExam(exam);await pause();const modal=w.state.modal;
