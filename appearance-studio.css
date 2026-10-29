@@ -1257,3 +1257,10 @@ html[data-st-look="study-shore"] .primary{background:var(--accent);color:#fff;bo
 html[data-st-look="study-shore"] .hero-main{background:color-mix(in srgb,var(--panel-solid) 97%,transparent)!important}
 html[data-st-look="study-shore"] .st-collection-banner{background:linear-gradient(125deg,#eef5ed,#e4f0f4);color:#356763}
 html[data-st-look="study-shore"] :is(.st-collection-banner h3,.st-banner-link){color:#356763!important}
+
+/* Soft storybook collections use the same art in gallery, preview and page. */
+[data-scene="woolly-meadow"]{--scene-image:url("./assets/themes/art/woolly-meadow.webp");--scene-size:cover;--scene-position:center 56%}
+[data-scene="summer-float"]{--scene-image:url("./assets/themes/art/summer-float.webp");--scene-size:cover;--scene-position:center}
+[data-scene="butter-daisy"]{--scene-image:url("./assets/themes/art/butter-daisy.webp");--scene-size:cover;--scene-position:right 58%}
+[data-scene="lotus-pond"]{--scene-image:url("./assets/themes/art/lotus-pond.webp");--scene-size:cover;--scene-position:center}
+html:is([data-st-look="woolly-meadow"],[data-st-look="summer-float"],[data-st-look="butter-daisy"],[data-st-look="lotus-pond"]) .primary{background:var(--accent);color:#fff;box-shadow:0 5px 15px color-mix(in srgb,var(--accent) 13%,transparent)}

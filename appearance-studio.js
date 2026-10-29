@@ -151,6 +151,10 @@
     "绶带",
   ];
   const charms = [
+    ["little-lamb","软绵小羊","软软羊毛 · 一片三叶草"],
+    ["float-bunny","游泳小兔","蓝白泳圈 · 一口西瓜"],
+    ["daisy-bear","雏菊小熊","奶油小熊 · 一朵雏菊"],
+    ["pond-duck","荷叶小鸭","圆圆小鸭 · 一片荷叶"],
     ["exam-pony","马上上岸","粉色小马 · 轻快出发"],
     ["hello-puppy","小狗打招呼","软软耳朵 · 一声 Hi"],
     ["quiet-kitten","趴书小猫","奶油小猫 · 一本小书"],
@@ -191,6 +195,10 @@
   ];
   legacyIllustrated.forEach(t => t.category = "legacy");
   const illustrated = [
+    {id:"woolly-meadow",name:"绵绵草原",desc:"奶油云朵 · 小羊与溪流",category:"illustration",wallpaper:"woolly-meadow",palette:"mint",bg:"#eef4df",panel:"#fffef8",ink:"#54724b",card:"soft",font:"system",title:"system",charm:"charm-little-lamb",tokens:{"--text":"#304637","--muted":"#64745b","--line":"#dfe6d6","--accent":"#54724b","--accent-soft":"#eaf0dc","--nav-active":"#e8eed8","--logo-a":"#7b9869","--logo-b":"#d1dcaa"}},
+    {id:"summer-float",name:"冰爽夏日",desc:"清透水面 · 软软泳圈",category:"illustration",wallpaper:"summer-float",palette:"sky",bg:"#e8f8fa",panel:"#fbffff",ink:"#327a89",card:"soft",font:"system",title:"system",charm:"charm-float-bunny",tokens:{"--text":"#224650","--muted":"#587c82","--line":"#d7e9e9","--accent":"#327a89","--accent-soft":"#e3f3f4","--nav-active":"#dceff0","--logo-a":"#73adb4","--logo-b":"#a6dadd"}},
+    {id:"butter-daisy",name:"奶油花田",desc:"暖黄晴空 · 雏菊与小熊",category:"illustration",wallpaper:"butter-daisy",palette:"paper",bg:"#fff5dd",panel:"#fffef7",ink:"#8a6835",card:"soft",font:"system",title:"system",charm:"charm-daisy-bear",tokens:{"--text":"#494131","--muted":"#817154","--line":"#e9e1ca","--accent":"#8a6835","--accent-soft":"#f6edd7","--nav-active":"#f4eccd","--logo-a":"#b9a06a","--logo-b":"#e8d5a1"}},
+    {id:"lotus-pond",name:"荷塘小憩",desc:"薄荷池水 · 荷叶与小鸭",category:"illustration",wallpaper:"lotus-pond",palette:"mint",bg:"#e7f4ed",panel:"#fbfffb",ink:"#477967",card:"soft",font:"system",title:"system",charm:"charm-pond-duck",tokens:{"--text":"#29483f","--muted":"#5f776c","--line":"#d9e7dc","--accent":"#477967","--accent-soft":"#e6f1e8","--nav-active":"#dcece0","--logo-a":"#6f9f8d","--logo-b":"#b9d6b9"}},
     {id:"study-shore",name:"马上上岸",desc:"晴岸晨光 · 奶油蓝绿",category:"illustration",wallpaper:"study-shore",landscape:"study-shore-wide",palette:"sky",bg:"#edf4f1",panel:"#fffef9",ink:"#356763",card:"soft",font:"system",title:"system",charm:"charm-exam-pony",tokens:{
       "--text":"#263f3b","--muted":"#60756e","--line":"#dde6df","--accent":"#356763","--accent-soft":"#e8f1eb",
       "--green":"#387658","--green-soft":"#eaf4eb","--logo-a":"#6e9281","--logo-b":"#c3d8ba",
@@ -547,10 +555,10 @@
   }
   function wallpaperTile(t) {
     const selected = active().background === t.id;
-    const attr = t.landscape && tab === "themes" ? "data-preset" : "data-bg";
+    const attr = t.charm && tab === "themes" ? "data-preset" : "data-bg";
     return '<button type="button" class="st-wallpaper ' + (selected ? 'is-on' : '') + '" ' + attr + '="' + t.id + '" aria-pressed="' + selected + '"><span class="st-wallpaper-art" data-scene="' + t.id + '" style="--tile-bg:' + (t.bg || 'var(--bg)') + '">' +
       (t.wallpaper ? '<img src="./assets/themes/art/' + (t.landscape || t.wallpaper) + '-thumb.webp" width="480" height="' + (t.landscape ? '300' : '720') + '" alt="" loading="lazy" decoding="async">' : t.file ? '<img src="./assets/themes/photos/' + t.file + '-thumb.webp" width="480" height="480" alt="" loading="lazy" decoding="async">' : '') +
-      '<span class="st-material-label">' + (t.landscape && tab === "themes" ? '成套主题' : t.category === 'illustration' ? '插画' : t.file ? '风景' : '简约') + '</span></span><b>' + t.name + '</b><span class="st-item-action">' + itemState(selected, prefs.background === t.id) + '</span></button>';
+      '<span class="st-material-label">' + (t.charm && tab === "themes" ? '成套主题' : t.category === 'illustration' ? '插画' : t.file ? '风景' : '简约') + '</span></span><b>' + t.name + '</b><span class="st-item-action">' + itemState(selected, prefs.background === t.id) + '</span></button>';
   }
   function filters(items, attr, selected) {
     return '<div class="st-filters" aria-label="素材分类">' + choices(items, attr, selected) + '</div>';

@@ -58,3 +58,7 @@ Current recommended backgrounds use `art/sakura-atelier-v2.webp` and `art/starli
 ## Study shore collection (2026-10-30)
 
 `art/study-shore.webp` and `art/study-shore-wide.webp` are original lakeshore sunrise illustrations generated with the built-in image_gen tool for this project. The landscape version expands the same portrait scene for desktop composition. Only proportional thumbnail resampling and WebP encoding are applied. The collection pairs this scenery with the existing `charms/exam-pony.webp`; that sticker is unchanged. The full-art viewer and actual wallpaper use the same viewport breakpoint for the two compositions. Prompts, dimensions and companion-image reference are recorded in GENERATED-ART.json.
+
+## Pastel storybook collections (2026-10-30)
+
+Backgrounds `woolly-meadow`, `summer-float`, `butter-daisy` and `lotus-pond`, plus transparent charms `little-lamb`, `float-bunny`, `daisy-bear` and `pond-duck`, were created using the built-in image_gen tool with two user-supplied screenshots as visual references for soft pastoral and summer-pool styling. The scenes and character arrangements are newly generated; screenshot UI, membership badges and labels are not incorporated. This does not claim a stock-art license for the reference screenshots. Prompts, reference filenames, image dimensions and output paths are recorded in GENERATED-ART.json. Site versions use proportional resampling and WebP compression; transparent alpha is preserved for charms.

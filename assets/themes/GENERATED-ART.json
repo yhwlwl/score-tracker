@@ -136,6 +136,128 @@
         992
       ],
       "revision": "study-shore-collection"
+    },
+    {
+      "id": "woolly-meadow",
+      "date": "2026-10-30",
+      "transparent": false,
+      "prompt": "Use case: illustration-story. Asset type: one finished cute wallpaper for a student dashboard. Portrait 2:3 composition, full bleed. Use the attached reference ONLY for the gentle QQ-decoration-like pastel storybook aesthetic, not its UI or text. Clean large shapes, softly brushed flat pastel shading, delicate controlled outlines, adorable but visually simple. The center should be quiet and low contrast enough to sit behind opaque reading cards, with accents around the top and lower side edges. Polished, pleasing color harmony. No realistic rendering, no fur texture, no microdetails, no busy glitter field, no text, no captions, no logos, no membership badge, no border, no app UI. SCENE: a dreamy spring meadow below two enormous rounded buttercream clouds, their broad soft edges lit pale gold, pale powder-blue sky with expansive quiet space. Soft rolling pistachio and sage grass fills the lower third; a tiny curving pale blue stream enters from lower left. Exactly three small fluffy white sheep with dark gray round faces and tiny legs graze far apart near the lower side edges, one at lower right, one lower left and one farther back. Sheep bodies are simple rounded cotton shapes, not detailed wool. A couple tiny daisies only. A cheerful gentle children's picture-book world, slightly hand painted, not a photorealistic anime landscape. Muted greens, ivory, butter yellow and baby blue. Avoid dense grass texture and scenery objects.",
+      "references": [
+        "IMG_5522.jpeg"
+      ],
+      "file": "assets/themes/art/woolly-meadow.webp",
+      "size": [
+        1024,
+        1536
+      ],
+      "revision": "pastel-storybook-collections"
+    },
+    {
+      "id": "summer-float",
+      "date": "2026-10-30",
+      "transparent": false,
+      "prompt": "Use case: illustration-story. Asset type: one finished cute wallpaper for a student dashboard. Portrait 2:3 composition, full bleed. Use the attached reference ONLY for the gentle QQ-decoration-like pastel storybook aesthetic, not its UI or text. Clean large shapes, softly brushed flat pastel shading, delicate controlled outlines, adorable but visually simple. The center should be quiet and low contrast enough to sit behind opaque reading cards, with accents around the top and lower side edges. Polished, pleasing color harmony. No realistic rendering, no fur texture, no microdetails, no busy glitter field, no text, no captions, no logos, no membership badge, no border, no app UI. SCENE: top-down view of a clear very pale turquoise summer pool, the water rendered as a smooth airy aqua field with only a few broad loose white ripple curves. Exactly two original chubby white animal friends, one bunny and one round-eared bear, floating in simple pastel swim rings: bunny in a pale blue ring near upper right, bear in a pale butter-yellow ring near lower left. Keep each friend fairly small and close to the side edges, leaving a large calm open center. One small watermelon wedge near bottom right and two tiny white daisies floating near edges, one little yellow star-shaped float high on left. Minimal pastel picture-book shapes, friendly faces, simple proportions. Clean refreshing summery color harmony, no full-screen repeated pattern, no dense caustic textures. No famous characters.",
+      "references": [
+        "IMG_5523.jpeg"
+      ],
+      "file": "assets/themes/art/summer-float.webp",
+      "size": [
+        1024,
+        1536
+      ],
+      "revision": "pastel-storybook-collections"
+    },
+    {
+      "id": "butter-daisy",
+      "date": "2026-10-30",
+      "transparent": false,
+      "prompt": "Use case: illustration-story. Asset type: one finished cute wallpaper for a student dashboard. Portrait 2:3 composition, full bleed. Use the attached reference ONLY for the gentle QQ-decoration-like pastel storybook aesthetic, not its UI or text. Clean large shapes, softly brushed flat pastel shading, delicate controlled outlines, adorable but visually simple. The center should be quiet and low contrast enough to sit behind opaque reading cards, with accents around the top and lower side edges. Polished, pleasing color harmony. No realistic rendering, no fur texture, no microdetails, no busy glitter field, no text, no captions, no logos, no membership badge, no border, no app UI. SCENE: an airy butter-yellow and warm cream sky above a gentle pale peach and sage meadow. Two enormous softly rounded warm white clouds frame upper side edges, expansive pale creamy central sky. A loose handful of large simple white daisies with butter-yellow centers and broad sage leaves grows only along the bottom corners; no dense flower garden. One small round cream teddy bear sits at the lower-right edge holding one daisy, a tiny white butterfly near upper left. Gentle picture-book landscape, very soft warm yellow and apricot pastels, clean simplified flower and character shapes, not overly babyish. Beautiful calm substantial negative space, no grain or busy scattered petals.",
+      "references": [
+        "IMG_5522.jpeg",
+        "IMG_5523.jpeg"
+      ],
+      "file": "assets/themes/art/butter-daisy.webp",
+      "size": [
+        1024,
+        1536
+      ],
+      "revision": "pastel-storybook-collections"
+    },
+    {
+      "id": "lotus-pond",
+      "date": "2026-10-30",
+      "transparent": false,
+      "prompt": "Use case: illustration-story. Asset type: one finished cute wallpaper for a student dashboard. Portrait 2:3 composition, full bleed. Use the attached reference ONLY for the gentle QQ-decoration-like pastel storybook aesthetic, not its UI or text. Clean large shapes, softly brushed flat pastel shading, delicate controlled outlines, adorable but visually simple. The center should be quiet and low contrast enough to sit behind opaque reading cards, with accents around the top and lower side edges. Polished, pleasing color harmony. No realistic rendering, no fur texture, no microdetails, no busy glitter field, no text, no captions, no logos, no membership badge, no border, no app UI. SCENE: an original serene top-down pale mint-green pond, broad quiet water area in the middle. A few large simple rounded lily pads frame only the lower corners and upper-left edge; one soft blush-pink lotus blossom at the lower-right corner. Exactly two small chubby white ducklings with yellow beaks, one nestled by a lily pad near upper right and one floating near lower left. Just three or four loose ripple curves around them. Soft pale mint, sage, ivory, blush pink and butter yellow; cute polished children's picture-book art, simple shapes and delicate outlines, restrained soft shading. The water remains open and calm, with no dense reeds, fish, patterned texture or background clutter.",
+      "references": [
+        "IMG_5523.jpeg"
+      ],
+      "file": "assets/themes/art/lotus-pond.webp",
+      "size": [
+        1024,
+        1536
+      ],
+      "revision": "pastel-storybook-collections"
+    },
+    {
+      "id": "little-lamb",
+      "date": "2026-10-30",
+      "transparent": true,
+      "prompt": "Use case: illustration-story. Asset type: ONE transparent website card charm, wide 3:2 composition, whole silhouette contained with a small clear margin. Use the attached picture as a STYLE reference for soft, simple, cute characters. A professionally finished simple pastel cartoon sticker with a clear rounded silhouette, tiny dot eyes and a tiny mouth, soft but readable gray-brown outlines, a few broad solid pastel fills, very gentle cheek blush. Only ONE character with ONE simple prop, and at most two tiny accent marks close to it. Readable at 112px wide. True alpha transparency immediately outside the shapes. No glow, haze, shadow, backdrop, floor, badge, frame, text, letters, fur rendering, jewelry, many flowers, crystals, realistic 3D or elaborate detail. SUBJECT: one very cute tiny lamb with a round fluffy white cotton-cloud body, a small soft charcoal-gray face, little dark floppy ears and tiny dark hooves. Sitting slightly tilted, holding ONE small sage-green clover leaf in its mouth. One tiny butter-yellow four-point sparkle nearby. Extremely simple rounded cotton bumps, no individual wool strands. Gentle gray outline, white/ivory body, gray face and muted green leaf. Compact wide playful pose, looks like a QQ cute sticker, not an emoji.",
+      "references": [
+        "IMG_5522.jpeg"
+      ],
+      "file": "assets/themes/charms/little-lamb.webp",
+      "size": [
+        768,
+        512
+      ],
+      "revision": "pastel-storybook-collections"
+    },
+    {
+      "id": "float-bunny",
+      "date": "2026-10-30",
+      "transparent": true,
+      "prompt": "Use case: illustration-story. Asset type: ONE transparent website card charm, wide 3:2 composition, whole silhouette contained with a small clear margin. Use the attached picture as a STYLE reference for soft, simple, cute characters. A professionally finished simple pastel cartoon sticker with a clear rounded silhouette, tiny dot eyes and a tiny mouth, soft but readable gray-brown outlines, a few broad solid pastel fills, very gentle cheek blush. Only ONE character with ONE simple prop, and at most two tiny accent marks close to it. Readable at 112px wide. True alpha transparency immediately outside the shapes. No glow, haze, shadow, backdrop, floor, badge, frame, text, letters, fur rendering, jewelry, many flowers, crystals, realistic 3D or elaborate detail. SUBJECT: one adorable chubby white bunny with two short rounded upright ears and tiny pink inner ears, relaxed in ONE pale sky-blue inflatable swim ring, two little paws draped over its front. One small watermelon wedge close beside the ring and two short aqua water-motion curves. Simple friendly dot eyes, tiny smile. White, very pale blue, peach blush, a small watermelon red/green accent. Compact slightly tilted composition and cheerful vacation feeling, no extra character and no elaborate objects.",
+      "references": [
+        "IMG_5523.jpeg"
+      ],
+      "file": "assets/themes/charms/float-bunny.webp",
+      "size": [
+        768,
+        512
+      ],
+      "revision": "pastel-storybook-collections"
+    },
+    {
+      "id": "daisy-bear",
+      "date": "2026-10-30",
+      "transparent": true,
+      "prompt": "Use case: illustration-story. Asset type: ONE transparent website card charm, wide 3:2 composition, whole silhouette contained with a small clear margin. Use the attached picture as a STYLE reference for soft, simple, cute characters. A professionally finished simple pastel cartoon sticker with a clear rounded silhouette, tiny dot eyes and a tiny mouth, soft but readable gray-brown outlines, a few broad solid pastel fills, very gentle cheek blush. Only ONE character with ONE simple prop, and at most two tiny accent marks close to it. Readable at 112px wide. True alpha transparency immediately outside the shapes. No glow, haze, shadow, backdrop, floor, badge, frame, text, letters, fur rendering, jewelry, many flowers, crystals, realistic 3D or elaborate detail. SUBJECT: one tiny round cream teddy bear with small circular ears, butter-yellow paw pads, dot eyes and a sweet small smile, seated hugging ONE large simple white daisy with a pale yellow center and sage stem. One tiny outlined peach heart near the bear's head. Just broad simple cream shapes and delicate warm gray outlines. Very charming soft stationery-sticker style, no fur strands, ribbons, clothes, hats or other props.",
+      "references": [
+        "IMG_5522.jpeg",
+        "IMG_5523.jpeg"
+      ],
+      "file": "assets/themes/charms/daisy-bear.webp",
+      "size": [
+        768,
+        512
+      ],
+      "revision": "pastel-storybook-collections"
+    },
+    {
+      "id": "pond-duck",
+      "date": "2026-10-30",
+      "transparent": true,
+      "prompt": "Use case: illustration-story. Asset type: ONE transparent website card charm, wide 3:2 composition, whole silhouette contained with a small clear margin. Use the attached picture as a STYLE reference for soft, simple, cute characters. A professionally finished simple pastel cartoon sticker with a clear rounded silhouette, tiny dot eyes and a tiny mouth, soft but readable gray-brown outlines, a few broad solid pastel fills, very gentle cheek blush. Only ONE character with ONE simple prop, and at most two tiny accent marks close to it. Readable at 112px wide. True alpha transparency immediately outside the shapes. No glow, haze, shadow, backdrop, floor, badge, frame, text, letters, fur rendering, jewelry, many flowers, crystals, realistic 3D or elaborate detail. SUBJECT: one adorable round white duckling with a soft butter-yellow beak and tiny black dot eyes, sitting on ONE simple broad sage-green lily pad tilted slightly, its tiny wings held in front. One very small blush-pink lotus bud tucked against the edge of the pad and two short pale aqua ripple marks. Compact cozy pose, mostly ivory/sage/butter yellow with a tiny pink accent. Very simple cute shapes and controlled gray outlines, no detailed feathers, no costume, no additional animal.",
+      "references": [
+        "IMG_5523.jpeg"
+      ],
+      "file": "assets/themes/charms/pond-duck.webp",
+      "size": [
+        768,
+        512
+      ],
+      "revision": "pastel-storybook-collections"
     }
   ]
 }

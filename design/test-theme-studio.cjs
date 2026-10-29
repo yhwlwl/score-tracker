@@ -106,8 +106,8 @@ async function harness(storage = {}) {
   try {
     const { w, d, click } = h,
       basePalette = w.__v29.currentTheme();
-    assert.equal(w.ScoreAppearance.themes.length, 9);
-    assert.equal(w.ScoreAppearance.decorations.length, 44);
+    assert.equal(w.ScoreAppearance.themes.length, 13);
+    assert.equal(w.ScoreAppearance.decorations.length, 48);
     assert.equal(d.querySelectorAll("[data-st-open]").length, 1);
     click("[data-st-open]");
     for (const theme of w.ScoreAppearance.themes) {
@@ -189,7 +189,7 @@ async function harness(storage = {}) {
     click('.st-art-viewer button');
     assert.equal(d.querySelector('.st-art-viewer'),null);
     click('[data-tab=decor]');
-    assert.equal(d.querySelectorAll('.st-charm-grid img').length,4);
+    assert.equal(d.querySelectorAll('.st-charm-grid img').length,8);
     click('[data-deco=charm-hello-puppy]');click('[data-apply]');
     const detailed = await harness(h.saved());
     assert.equal(detailed.w.ScoreAppearance.get().deco,'charm-hello-puppy');
@@ -323,7 +323,7 @@ async function harness(storage = {}) {
       h.close();
     }
     console.log(
-      "PASS: nine themes, study-shore paired pony and palette save/reload/cancel, compatible backgrounds, classic ornaments, galleries, preview, undo, favorites, local overrides and malformed storage.",
+      "PASS: thirteen themes, eight simple charms, paired palettes and pony save/reload/cancel, compatible backgrounds, classic ornaments, galleries, preview, undo, favorites, local overrides and malformed storage.",
     );
   } finally {
     h.close();
