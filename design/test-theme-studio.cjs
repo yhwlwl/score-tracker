@@ -107,7 +107,7 @@ async function harness(storage = {}) {
     const { w, d, click } = h,
       basePalette = w.__v29.currentTheme();
     assert.equal(w.ScoreAppearance.themes.length, 8);
-    assert.equal(w.ScoreAppearance.decorations.length, 40);
+    assert.equal(w.ScoreAppearance.decorations.length, 44);
     assert.equal(d.querySelectorAll("[data-st-open]").length, 1);
     click("[data-st-open]");
     for (const theme of w.ScoreAppearance.themes) {
@@ -184,15 +184,16 @@ async function harness(storage = {}) {
     assert.equal(d.querySelectorAll('.shell .st-ornament').length,1);
     click('[data-view-art]');
     assert(d.querySelector('.st-art-viewer').open);
-    assert(d.querySelector('.st-art-viewer img').src.endsWith('starlit-tide.webp'));
+    assert(d.querySelector('.st-art-viewer img').src.endsWith('starlit-tide-v2.webp'));
     click('.st-art-viewer button');
     assert.equal(d.querySelector('.st-art-viewer'),null);
     click('[data-tab=decor]');
     assert.equal(d.querySelectorAll('.st-charm-grid img').length,4);
-    click('[data-deco=charm-garden-bear]');click('[data-apply]');
+    click('[data-deco=charm-hello-puppy]');click('[data-apply]');
     const detailed = await harness(h.saved());
-    assert.equal(detailed.w.ScoreAppearance.get().deco,'charm-garden-bear');
-    assert.equal(detailed.w.ScoreAppearance.get().scale,96);
+    assert.equal(detailed.w.ScoreAppearance.get().deco,'charm-hello-puppy');
+    assert.equal(detailed.w.ScoreAppearance.get().scale,112);
+    assert.equal(detailed.d.querySelector('.shell .st-ornament').dataset.style,'simple');
     detailed.close();
     click('[data-st-open]');click('[data-preset=garden]');click('[data-tab=decor]');click('[data-decoration-filter=line]');click('[data-deco=flower]');click('[data-tab=fonts]');click('[data-title=smiley]');click('[data-font=wenkai]');click('[data-size=large]');click('[data-apply]');
     let storage = h.saved();
@@ -304,7 +305,7 @@ async function harness(storage = {}) {
       h.close();
     }
     console.log(
-      "PASS: eight themes, thirteen compatible backgrounds, four detailed charms, classic ornaments and optional flat stickers, filtered background galleries, transient preview, cancel/Escape, undo, save/reload, escaped favorites, local overrides/inheritance, legacy controls, blocked and malformed storage.",
+      "PASS: eight themes, compatible backgrounds, simple character stickers, classic ornaments and legacy preferences, filtered galleries, preview, cancel/Escape, undo, save/reload, favorites, local overrides and malformed storage.",
     );
   } finally {
     h.close();

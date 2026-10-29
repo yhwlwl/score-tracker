@@ -151,12 +151,19 @@
     "绶带",
   ];
   const charms = [
+    ["exam-pony","马上上岸","粉色小马 · 轻快出发"],
+    ["hello-puppy","小狗打招呼","软软耳朵 · 一声 Hi"],
+    ["quiet-kitten","趴书小猫","奶油小猫 · 一本小书"],
+    ["quiet-fox","晚安小狐","弯弯月牙 · 安静好梦"],
+  ].map(([file,name,desc]) => ({id:"charm-"+file,name,desc,file,group:"charm",simple:true}));
+  const legacyCharms = [
     ["reading-kitten","书香小猫","奶油绒毛 · 书本与花枝"],
     ["moon-fox","月光小狐","琉璃月牙 · 星星与绣球"],
     ["garden-bear","花园小熊","花瓷茶杯 · 缎带与雏菊"],
     ["cloud-whale","云海来信","珍珠云鲸 · 星瓶与花晶"],
-  ].map(([file,name,desc]) => ({id:"charm-"+file,name,desc,file,group:"charm"}));
-  const isCharm = id => charms.some(d => d.id === id);
+  ].map(([file,name,desc]) => ({id:"charm-"+file,name,desc,file,group:"legacy"}));
+  const isSimpleCharm = id => charms.some(d => d.id === id);
+  const isCharm = id => isSimpleCharm(id) || legacyCharms.some(d => d.id === id);
   const decorKind = id => isCharm(id) ? "charm" : isSticker(id) ? "sticker" : "line";
   const stickers = [
     ["rain-window", "雨后窗边"], ["crescent", "晚安月牙"],
@@ -167,12 +174,12 @@
     ["houseplant", "窗边绿植"], ["warm-mug", "热饮时光"],
   ].map(([id, name]) => ({id: "sticker-" + id, name, group: "sticker", file: id}));
   const isSticker = id => stickers.some(d => d.id === id);
-  const scaleLimits = id => isCharm(id) ? [80, 120, 96] : isSticker(id) ? [40, 72, 56] : [24, 40, 32];
+  const scaleLimits = id => isSimpleCharm(id) ? [96, 144, 112] : isCharm(id) ? [80, 120, 96] : isSticker(id) ? [40, 72, 56] : [24, 40, 32];
   const decorations = Object.keys(drawings).map((id, i) => ({
     id,
     name: names[i],
     group: "line",
-  })).concat(stickers, charms);
+  })).concat(stickers, charms, legacyCharms);
   const photos = [
     {id:"sky-photo", name:"晴空", desc:"柔软云层 · 浅天蓝", file:"clouds", palette:"sky", bg:"#e8f4ff", panel:"#fff", ink:"#246b8a", category:"scenery", author:"Cuvii"},
     {id:"meadow-photo", name:"青草地", desc:"开阔草坡 · 清新绿", file:"meadow", palette:"mint", bg:"#eef3eb", panel:"#fffefb", ink:"#3f7257", category:"scenery", author:"Spencer DeMera"},
@@ -184,8 +191,8 @@
   ];
   legacyIllustrated.forEach(t => t.category = "legacy");
   const illustrated = [
-    {id:"sakura-atelier",name:"樱风书屋",desc:"花影长窗 · 春日山湖",category:"illustration",wallpaper:"sakura-atelier",palette:"paper",bg:"#f0e8dd",panel:"#fffdf9",ink:"#916d54",card:"soft",font:"system",title:"system",charm:"charm-reading-kitten"},
-    {id:"starlit-tide",name:"星海夜航",desc:"月光云海 · 浮岛花庭",category:"illustration",wallpaper:"starlit-tide",palette:"violet",bg:"#e4e6f5",panel:"#fdfbff",ink:"#7665a0",card:"soft",font:"system",title:"system",charm:"charm-moon-fox"},
+    {id:"sakura-atelier",name:"樱风书屋",desc:"一枝樱花 · 开阔晴空",category:"illustration",wallpaper:"sakura-atelier-v2",palette:"paper",bg:"#edf3f4",panel:"#fffdf9",ink:"#916d54",card:"soft",font:"system",title:"system",charm:"charm-quiet-kitten"},
+    {id:"starlit-tide",name:"星海夜航",desc:"弯月云海 · 轻柔留白",category:"illustration",wallpaper:"starlit-tide-v2",palette:"violet",bg:"#edf0fa",panel:"#fdfbff",ink:"#7665a0",card:"soft",font:"system",title:"system",charm:"charm-quiet-fox"},
   ];
   const presets = [...illustrated, ...themes];
   const backgrounds = [...illustrated, ...photos, ...themes.map(t => ({...t, category:"minimal"})), ...legacyIllustrated];
@@ -359,8 +366,8 @@
     );
   }
   function svg(id) {
-    const charm = charms.find(d => d.id === id);
-    if (charm) return '<img src="./assets/themes/charms/' + charm.file + '.webp" alt="" width="640" height="640" decoding="async">';
+    const charm = [...charms, ...legacyCharms].find(d => d.id === id);
+    if (charm) return '<img src="./assets/themes/charms/' + charm.file + '.webp" alt="" width="' + (charm.simple ? '768' : '640') + '" height="' + (charm.simple ? '512' : '640') + '" decoding="async">';
     const sticker = stickers.find(d => d.id === id);
     if (sticker) return '<img src="./assets/themes/stickers/' + sticker.file + '.webp" alt="" width="480" height="480" decoding="async">';
     return drawings[id]
@@ -464,6 +471,7 @@
         }
         mark.dataset.position = o.position;
         mark.dataset.kind = decorKind(o.deco);
+        mark.dataset.style = isSimpleCharm(o.deco) ? "simple" : "classic";
         el.classList.add("st-decorated");
       }
       let b = el.querySelector(":scope > .st-edit-card");
@@ -516,7 +524,7 @@
       p.background +
       '"><div class="st-preview-greeting"><h3>成绩概览</h3></div><div class="st-preview-card st-surface"><span class="st-preview-label">数学 · 阶段检测</span><div class="st-preview-score">128.5 <small>/ 150</small></div><span class="st-preview-gain">较上次 +6.5 分</span><span class="st-ornament" data-position="' +
       ornament.position +
-      '" data-kind="' + decorKind(ornament.deco) + '">' +
+      '" data-kind="' + decorKind(ornament.deco) + '" data-style="' + (isSimpleCharm(ornament.deco) ? 'simple' : 'classic') + '">' +
       svg(ornament.deco) +
       '</span><svg class="st-preview-chart" viewBox="0 0 260 65" role="img" aria-label="示例成绩有升有降的趋势"><path d="M0 55H260M0 25H260" stroke="var(--line)"/><path d="M5 50 48 34 90 42 132 15 175 28 218 9 255 18" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"/><g fill="var(--panel-solid)" stroke="var(--accent)" stroke-width="2"><circle cx="48" cy="34" r="3"/><circle cx="132" cy="15" r="3"/><circle cx="218" cy="9" r="3"/></g></svg></div><div class="st-preview-note st-surface"><b>考后反思</b><p>本次计算失误较少，继续检查解题步骤。</p></div></div><p class="st-preview-foot">当前背景：' +
       (backgrounds.find(t => t.id === p.background)?.name || "纯色") +
@@ -584,7 +592,7 @@
             '<i class="st-color" style="background:' + t.dot + '"></i>',
           ),
         ).join("") +
-        '</div><p class="st-hint st-source">精细插画为 AI 生成。简约贴纸：<a href="https://openstickers.craftwork.design/" target="_blank" rel="noopener noreferrer">Craftwork Open Stickers</a>。摄影：Cuvii、Spencer DeMera、Veronica Moreno-Alvarez / Unsplash。纹理：Steve Schoger / Hero Patterns。<a href="./assets/themes/ATTRIBUTION.md" target="_blank" rel="noopener noreferrer">素材来源</a></p>'
+        '</div><p class="st-hint st-source">插画背景与可爱挂件为 AI 生成。简约插画：<a href="https://openstickers.craftwork.design/" target="_blank" rel="noopener noreferrer">Craftwork Open Stickers</a>。摄影：Cuvii、Spencer DeMera、Veronica Moreno-Alvarez / Unsplash。纹理：Steve Schoger / Hero Patterns。<a href="./assets/themes/ATTRIBUTION.md" target="_blank" rel="noopener noreferrer">素材来源</a></p>'
       );
     if (tab === "cards")
       return (
@@ -616,7 +624,7 @@
           ? "此处只修改选中的板块。"
           : "精选主题配有一款挂件，也可以单独选择或关闭。每页最多自动点缀首张卡片。") +
         '</p>' + (target ? '' : '<div class="st-options">' + choices([["custom","手动指定卡片"],["accent","每页首张卡片"],["none","不显示挂件"]],"data-decor-mode",p.decorMode) + '</div><button class="st-link" data-pick-card>在页面上选择卡片</button>') +
-        filters([["charm","精细挂件"],["line","经典线条"],["sticker","简约贴纸"]], "data-decoration-filter", decorationFilter) +
+        filters([["charm","可爱挂件"],["line","经典线条"],["sticker","简约插画"]], "data-decoration-filter", decorationFilter) +
         '<div class="st-deco-grid ' + (decorationFilter === 'charm' ? 'st-charm-grid' : decorationFilter === 'sticker' ? 'st-sticker-grid' : '') + '">' +
         button(
           "none",
@@ -628,7 +636,7 @@
         decorations.filter(d => d.group === decorationFilter)
           .map((d) => button(d.id, d.name, "data-deco", o.deco, svg(d.id) + (d.desc ? '<small>' + esc(d.desc) + '</small>' : '')))
           .join("") +
-        '</div><p class="st-hint st-source">精细插画为 AI 生成。简约贴纸：<a href="https://openstickers.craftwork.design/" target="_blank" rel="noopener noreferrer">Craftwork Open Stickers</a> · <a href="./assets/themes/ATTRIBUTION.md" target="_blank" rel="noopener noreferrer">素材来源</a></p><h3>挂件位置</h3><div class="st-options">' +
+        '</div><p class="st-hint st-source">可爱挂件为 AI 生成。简约插画：<a href="https://openstickers.craftwork.design/" target="_blank" rel="noopener noreferrer">Craftwork Open Stickers</a> · <a href="./assets/themes/ATTRIBUTION.md" target="_blank" rel="noopener noreferrer">素材来源</a></p><h3>挂件位置</h3><div class="st-options">' +
         choices(
           [
             ["left", "左侧"],
@@ -979,7 +987,7 @@
           card: t.card,
           deco: t.charm || "none",
           decorMode: t.charm ? "accent" : "custom",
-          scale: t.charm ? 96 : 32,
+          scale: t.charm ? scaleLimits(t.charm)[2] : 32,
           title: t.title,
           intensity: t.wallpaper ? 100 : 75,
         };

@@ -1211,15 +1211,15 @@ html:has(> body.st-studio-open) {
 .st-preview-card:has(>.st-ornament[data-kind="sticker"][data-position="left"]) .st-preview-label {padding-left:calc(var(--st-deco-size) - 12px)}
 @media(min-width:1000px) {.st-sticker-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:380px) {.st-sticker-grid{gap:9px}.st-sticker-grid .st-choice{min-height:116px;padding:10px 5px}.st-sticker-grid .st-choice img,.st-sticker-grid .st-none{width:68px;height:68px}.st-sticker-grid .st-choice>span{font-size:11px}}
-/* Detailed painted scenes and transparent collectible-style charms. */
-[data-scene="sakura-atelier"] {--scene-image:url("./assets/themes/art/sakura-atelier.webp");--scene-size:cover;--scene-position:center 38%;}
-[data-scene="starlit-tide"] {--scene-image:url("./assets/themes/art/starlit-tide.webp");--scene-size:cover;--scene-position:center 38%;}
+/* Airy illustrated scenes and small, simple character stickers. */
+[data-scene="sakura-atelier"] {--scene-image:url("./assets/themes/art/sakura-atelier-v2.webp");--scene-size:cover;--scene-position:center 38%;}
+[data-scene="starlit-tide"] {--scene-image:url("./assets/themes/art/starlit-tide-v2.webp");--scene-size:cover;--scene-position:center 38%;}
 .st-curated-wallpapers{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:16px}
 .st-curated-wallpapers .st-wallpaper-art{aspect-ratio:2/3}
 .st-curated-wallpapers .st-wallpaper>b{font-size:15px;margin-top:12px}
 .st-charm-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:18px 0}
-.st-charm-grid .st-choice{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-width:0;padding:14px 10px;border-radius:18px;background:linear-gradient(145deg,var(--panel-solid),color-mix(in srgb,var(--accent-soft) 35%,var(--panel-solid)));}
-.st-charm-grid .st-choice img{display:block;width:100%;height:auto;aspect-ratio:1;object-fit:contain;max-width:180px;filter:drop-shadow(0 6px 6px #24345010)}
+.st-charm-grid .st-choice{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-width:0;padding:14px 10px;border-radius:18px;background:var(--panel-solid);}
+.st-charm-grid .st-choice img{display:block;width:100%;height:auto;aspect-ratio:3/2;object-fit:contain;max-width:180px;filter:none}
 .st-charm-grid .st-choice>span{order:1;font-size:14px;font-weight:600}
 .st-charm-grid .st-choice>small{order:2;font-size:10px;line-height:1.6;color:var(--muted);text-align:center}
 .st-charm-grid .st-choice:first-child{grid-column:1/-1;flex-direction:row;padding:9px;min-height:42px}
@@ -1227,6 +1227,8 @@ html:has(> body.st-studio-open) {
 .st-charm-grid .st-choice.is-on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);background:var(--accent-soft)}
 .st-ornament[data-kind="charm"]{top:8px;right:14px;opacity:1;background:none;box-shadow:none;padding:0;filter:drop-shadow(0 3px 3px #25324716)}
 .hero-main:has(>.st-ornament[data-kind="charm"])>h2{margin-top:calc(var(--st-deco-size) - 30px)!important}
+.st-ornament[data-style="simple"]{height:calc(var(--st-deco-size) * 2 / 3);filter:none}
+.hero-main:has(>.st-ornament[data-style="simple"])>h2{margin-top:max(28px,calc(var(--st-deco-size) * 2 / 3 - 24px))!important}
 .st-preview-card:has(>.st-ornament[data-kind="charm"]){padding-top:22px!important;min-height:170px}
 .st-preview-card:has(>.st-ornament[data-kind="charm"][data-position="right"]) :is(.st-preview-label,.st-preview-score,.st-preview-gain){padding-right:calc(var(--st-deco-size) - 8px)}
 .st-preview-card:has(>.st-ornament[data-kind="charm"][data-position="left"]) :is(.st-preview-label,.st-preview-score,.st-preview-gain){padding-left:calc(var(--st-deco-size) - 8px);padding-right:0}

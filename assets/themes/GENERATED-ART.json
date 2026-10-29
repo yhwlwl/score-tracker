@@ -31,6 +31,86 @@
       "id": "cloud-whale",
       "transparent": true,
       "prompt": "Use case: stylized-concept. Asset type: refined premium illustrated social app ornament with true transparent alpha. A small exceptionally adorable pearly pale-blue whale with rounded soft shape, friendly large luminous eyes and rosy cheek, gently floating through a compact fluffy cloud cradle. It carries a tiny glass bottle containing a golden star, suspended with a flowing blush silk ribbon. Miniature seashells, pearls, translucent blue crystal flowers and a few tiny close glowing stars create a complete delicate composition around it. Sophisticated 2.5D hand-painted anime collectible artwork, subtle dimensional shading, pearlescent surface, satin ribbon detail, soft painted cloud textures, harmonious lavender pale blue ivory and champagne gold. Elaborate but visually balanced ornament rather than a standalone emoji. Square composition, whole group contained with 8 percent transparent padding. No background, no ground plane, rectangle, badge, heavy outline, typography, watermark, logo or existing fictional character."
+    },
+    {
+      "id": "exam-pony",
+      "transparent": true,
+      "prompt": "Use case: style-transfer. Asset type: a small transparent website card decoration. The attached reference is the exact design to reproduce as a clean high-quality sticker. Recreate the same cute chubby lilac-pink pony galloping toward the left, short rounded legs, pale pink mane, tiny smiling muzzle, dark round eyes, a yellow graduation cap resting on its back. Match its cheerful flat pastel silhouette and loose composition. Preserve the four black handwritten Chinese characters EXACTLY \"马上上岸\", naturally arranged at upper-right in two short staggered lines, easily legible. Include only the few tiny yellow crown/star and blue motion marks shown in the reference. This must look like the reference: simple, funny, lovable flat cartoon, smooth shapes and clean contours, no fur rendering, no realistic detail, no complex borders, no extra flowers, no jewels, no gradients, no cast shadow, no surrounding card. Horizontal composition around 3:2, leave transparent breathing room. Truly transparent background, no white rectangle, no watermark.",
+      "reference": [
+        "IMG_5518.jpeg"
+      ],
+      "file": "assets/themes/charms/exam-pony.webp",
+      "size": [
+        768,
+        512
+      ],
+      "revision": "quiet-character-stickers"
+    },
+    {
+      "id": "hello-puppy",
+      "transparent": true,
+      "prompt": "Use case: style-transfer. Asset type: transparent website card decoration. Faithfully recreate the attached white puppy sticker, with the same very simple rounded sitting puppy, big floppy ears, small black shiny dot eyes, tiny tiny mouth, short rounded paws, light gray hand-drawn outlines with subtly irregular pencil line. To its left is the small speech bubble with the word \"Hi\" in gray; one simple gray heart upper right, a simple four-point sparkle on the far right, one little bone lower left and small ball lower right. Exactly this simple quiet cute doodle style, same compact layout, predominantly white, limited soft gray outline/shading, just a hint of cheek blush permitted. Keep the body clear white so it stays visible over colored backgrounds. No extra items, no fur detail, no flowers, no gems, no ribbons, no ornamented frame, no surrounding card, no heavy shadow, no realistic rendering. Wide composition about 4:3. Genuine alpha transparency outside the illustrated shapes. No background color or white rectangle, no watermark.",
+      "reference": [
+        "IMG_5519.jpeg"
+      ],
+      "file": "assets/themes/charms/hello-puppy.webp",
+      "size": [
+        768,
+        576
+      ],
+      "revision": "quiet-character-stickers"
+    },
+    {
+      "id": "quiet-kitten",
+      "transparent": true,
+      "prompt": "Use case: illustration-story. Asset type: a transparent small website decoration in the same visual simplicity as the attached puppy sticker, which is a STYLE reference only. Create one charming round cream kitten lying with two little front paws on ONE small closed sage-green book. Simple floppy rounded contour, tiny dark dot eyes and tiny smiling mouth, peach-pink ears, one small orange patch above one eye. One small outlined heart upper right and two short gray motion marks only. Smooth slightly hand-drawn warm gray outlines, mostly flat white/cream plus muted pastel sage and peach. Few broad shapes, easy to recognize at 90 pixels; feels like a QQ cute doodle sticker, not an app icon. No lettering, no fur texture, no realistic lighting, no flowers, no jewelry, no complex props, no border or badge, no drop shadow. Compact wide composition with generous transparent breathing room. True transparent background.",
+      "reference": [
+        "IMG_5519.jpeg"
+      ],
+      "refinement_prompt": "Edit target: attached transparent sticker. Change ONLY rendering and the outer edge treatment: remove every bit of the broad soft glow, haze, aura, colored fog and shadow OUTSIDE the drawn shape. Output a clean flat 2D sticker with crisp antialiased silhouette and FULLY TRANSPARENT empty space immediately outside its contours. Preserve the subject, all its little features, pose, colors, composition, and all lettering exactly; do not add objects or a background. Remove dimensional gradients within the subject too; use broad solid pastel fills and the same soft gray outline (the pony can remain outline-free). No cast shadow, no bloom, no glows, no white matte or border. It must look like a simple cute hand-drawn sticker, not luminous. True alpha background.",
+      "file": "assets/themes/charms/quiet-kitten.webp",
+      "size": [
+        768,
+        512
+      ],
+      "revision": "quiet-character-stickers"
+    },
+    {
+      "id": "quiet-fox",
+      "transparent": true,
+      "prompt": "Use case: illustration-story. Asset type: a transparent small website decoration, use attached puppy sticker ONLY as style reference for rounded simplicity and soft hand-drawn outline. Create one adorable small white fox curled up sleeping in ONE pale butter-yellow crescent moon. Chubby rounded head, oversized softly pointed ears, fluffy tail shown as one simple sweeping shape, tiny curved closed eyes and tiny nose, just faint peach inside ears. One small four-point star nearby, one tiny outlined heart only. White/cream fox, pale yellow moon, soft gray outlines, 3 or 4 flat muted colors. Clean simple lovable QQ doodle sticker aesthetic. No fur rendering, no gems, no pearls, no chains, no ribbons, no crystals, no flowers, no ornate frame, no background square, no word, no shadow. Compact wide composition, instantly readable at 90 pixels, true alpha transparency.",
+      "reference": [
+        "IMG_5519.jpeg"
+      ],
+      "refinement_prompt": "Edit target: attached transparent sticker. Change ONLY rendering and the outer edge treatment: remove every bit of the broad soft glow, haze, aura, colored fog and shadow OUTSIDE the drawn shape. Output a clean flat 2D sticker with crisp antialiased silhouette and FULLY TRANSPARENT empty space immediately outside its contours. Preserve the subject, all its little features, pose, colors, composition, and all lettering exactly; do not add objects or a background. Remove dimensional gradients within the subject too; use broad solid pastel fills and the same soft gray outline (the pony can remain outline-free). No cast shadow, no bloom, no glows, no white matte or border. It must look like a simple cute hand-drawn sticker, not luminous. True alpha background.",
+      "file": "assets/themes/charms/quiet-fox.webp",
+      "size": [
+        768,
+        512
+      ],
+      "revision": "quiet-character-stickers"
+    },
+    {
+      "id": "sakura-atelier-v2",
+      "transparent": false,
+      "prompt": "Use case: illustration-story. Asset type: tall mobile website wallpaper, 2:3 portrait. A beautiful very calm pastel anime spring view through a simple large open window. IMPORTANT: visual simplicity and lots of quiet negative space. Pale ivory window edge only at far left, one single slim cherry blossom branch with about twelve broad simple blossoms gently enters from upper left; most of the canvas (at least 75%) is luminous very pale powder-blue sky fading toward warm ivory. Below the bottom quarter, soft broad sage-green hills, a quiet blue lake and a simple sunlit cream windowsill. One small green book on the lower-left sill only. Elegant simplified 2D anime background painting, broad clean forms with soft edge shading, restrained peach-pink, sky blue, sage and warm cream, pleasant color harmony, low contrast, airy daylight. Looks intentionally designed and lovely, not a generic texture. Center and right remain spacious and quiet for website cards. Avoid elaborate architecture, gardens, flower clusters, petals raining, many objects, cats, distant villages, microdetails, dense foliage, grain, sparkles, vignette, typography, logos and watermarks.",
+      "file": "assets/themes/art/sakura-atelier-v2.webp",
+      "size": [
+        1024,
+        1536
+      ],
+      "revision": "quiet-character-stickers"
+    },
+    {
+      "id": "starlit-tide-v2",
+      "transparent": false,
+      "prompt": "Use case: illustration-story. Asset type: tall mobile website wallpaper, portrait 2:3. A serene beautiful simplified anime twilight sky above a distant cloud sea. At least 75% of the image is smooth very pale periwinkle and misty powder-blue open sky, softly fading to cream at the horizon. One simple large warm ivory crescent moon sits high toward upper right. Three or four broad rounded fluffy cloud shapes frame only the bottom quarter and left edge, a quiet barely visible blue horizon beneath. Include exactly three tiny simple stars near the upper edge, with plenty of space between. Delicate but minimal high-quality 2D anime art, clean broad shapes, soft restrained cel shading, low contrast, dreamy and restful. Bright enough to work behind a white-card study dashboard, not a dark fantasy scene. No whale, no islands, no buildings, no crystal flowers, no hydrangea, no detailed waves, no hanging decorations, no busy glitter field, no petals, no ornate frame, no text, no watermark. Center remains open and visually quiet.",
+      "file": "assets/themes/art/starlit-tide-v2.webp",
+      "size": [
+        1024,
+        1536
+      ],
+      "revision": "quiet-character-stickers"
     }
   ]
 }

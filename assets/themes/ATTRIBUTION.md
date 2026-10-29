@@ -24,13 +24,13 @@ CSS crops images to the viewport and adds a translucent wash to protect text con
 The 24 original SVG line ornaments are used. The experimental 3D stickers have been removed.
 
 All wallpaper and sticker assets are served from this site. The app makes no runtime requests to Unsplash or GitHub.
-The AI-generated concept wallpapers explored during design are not included in this catalog.
+Earlier concept wallpapers are not included in this catalog. See the generated-art sections below for the current illustrations.
 
 ## Craftwork Open Stickers (2026-10-29)
 
 12 selected illustrations by [Craftwork](https://craftwork.design), from [Open Stickers](https://openstickers.craftwork.design/). Free for personal and commercial websites under the [Craftwork License](https://craftwork.design/license). Artwork remains copyright Craftwork and is **not covered by this repository’s MIT code license**. These WebP files are incorporated into this website’s interface. Do not redistribute or sell them as standalone assets, packs, templates or stock.
 
-Changes: proportional resize and WebP compression. Two CSS backdrops arrange the same illustrations over gradients. Credit links appear in the background and ornament galleries. No generated imagery is included.
+Changes: proportional resize and WebP compression. Two legacy CSS backdrops arrange the same illustrations over gradients. Credit links appear in the background and ornament galleries. This section describes only the Craftwork assets.
 
 | Site file | Original asset at https://openstickers.craftwork.design/img/ |
 | --- | --- |
@@ -50,3 +50,7 @@ Changes: proportional resize and WebP compression. Two CSS backdrops arrange the
 ## Detailed illustrated scenes and charms (2026-10-29)
 
 `art/sakura-atelier.webp`, `art/starlit-tide.webp` and the four files under `charms/` were created specifically for this project using the built-in image_gen tool. They are AI-generated illustrations, not downloads of Pixiv, game or QQ artwork. The themes use complete paintings rather than composed stock icons. Transparent alpha is preserved for charms; only responsive resampling and WebP encoding are applied. Full prompts are retained in GENERATED-ART.json. Original generated PNGs remain in the workspace generated_images folder. Background thumbnails use the same painting and CSS position as the page; the full-art dialog shows the uncropped painting.
+
+## Simplified artwork revision
+
+Current recommended backgrounds use `art/sakura-atelier-v2.webp` and `art/starlit-tide-v2.webp`, generated with fewer objects and broad areas of quiet sky. Current character stickers are `charms/exam-pony.webp`, `hello-puppy.webp`, `quiet-kitten.webp` and `quiet-fox.webp`. The pony and puppy were redrawn with image_gen from user-supplied visual references; the kitten and fox follow the supplied puppy's simplified style. Reference artwork remains the property of its respective rights holder; these are not represented as independently licensed stock. Original complex generated ornaments remain available only to existing saved preferences. Full generation and refinement prompts are retained in GENERATED-ART.json. Encoding preserves each sticker's original transparency and aspect ratio.
