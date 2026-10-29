@@ -1226,7 +1226,7 @@ html:has(> body.st-studio-open) {
 .st-charm-grid .st-none{font-size:16px;width:auto;height:auto}
 .st-charm-grid .st-choice.is-on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);background:var(--accent-soft)}
 .st-ornament[data-kind="charm"]{top:8px;right:14px;opacity:1;background:none;box-shadow:none;padding:0;filter:drop-shadow(0 3px 3px #25324716)}
-.hero-main:has(>.st-ornament[data-kind="charm"])>h2{margin-top:66px!important}
+.hero-main:has(>.st-ornament[data-kind="charm"])>h2{margin-top:calc(var(--st-deco-size) - 30px)!important}
 .st-preview-card:has(>.st-ornament[data-kind="charm"]){padding-top:22px!important;min-height:170px}
 .st-preview-card:has(>.st-ornament[data-kind="charm"][data-position="right"]) :is(.st-preview-label,.st-preview-score,.st-preview-gain){padding-right:calc(var(--st-deco-size) - 8px)}
 .st-preview-card:has(>.st-ornament[data-kind="charm"][data-position="left"]) :is(.st-preview-label,.st-preview-score,.st-preview-gain){padding-left:calc(var(--st-deco-size) - 8px);padding-right:0}
@@ -1241,4 +1241,4 @@ html[data-st-art="illustrated"] .hero-main{background:color-mix(in srgb,var(--pa
 @media(max-width:620px){.st-charm-grid{gap:12px}.st-charm-grid .st-choice{padding:10px 7px}.st-charm-grid .st-choice>small{font-size:9px}.st-studio .st-preview-scene:has(.st-ornament[data-kind="charm"]){grid-template-columns:1fr;max-height:none;min-height:230px}.st-curated-wallpapers .st-wallpaper-art{aspect-ratio:3/4}html[data-st-art="illustrated"] #content:before{height:40px}}
 /* Keep utility text legible over illustrated wallpaper. */
 html[data-st-art="illustrated"] .topbar {background:color-mix(in srgb,var(--panel-solid) 96%,transparent);border:1px solid var(--line);border-radius:17px;padding:12px 14px;backdrop-filter:blur(12px)}
-html[data-st-art="illustrated"] :is(.goal-bar-v33,.goal-hero-v33,.page-head){background:color-mix(in srgb,var(--panel-solid) 96%,transparent)!important;border:1px solid var(--line);border-radius:16px;padding:14px 16px;backdrop-filter:blur(10px)}
+html[data-st-art="illustrated"] :is(.goal-bar-v33,.goal-hero-v33,.page-head,.grade-filter-v13){background:color-mix(in srgb,var(--panel-solid) 96%,transparent)!important;border:1px solid var(--line);border-radius:16px;padding:14px 16px;backdrop-filter:blur(10px)}
