@@ -1205,7 +1205,7 @@ html:has(> body.st-studio-open) {
 .st-sticker-grid .st-choice>span {font-size:12px;line-height:1.5}
 .st-sticker-grid .st-none {display:grid;place-items:center;width:88px;height:88px;font-size:24px!important;color:var(--muted)}
 .st-sticker-grid .st-choice.is-on {background:var(--accent-soft);border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
-.st-ornament[data-kind="sticker"] {top:-22px;background:none;box-shadow:none;padding:0;opacity:1;filter:drop-shadow(0 2px 2px #25324712)}
+.st-ornament[data-kind="sticker"] {top:8px;background:none;box-shadow:none;padding:0;opacity:1;filter:drop-shadow(0 2px 2px #25324712)}
 .st-ornament img {display:block;width:100%;height:100%;object-fit:contain}
 .st-preview-card:has(>.st-ornament[data-kind="sticker"][data-position="right"]) .st-preview-label {padding-right:calc(var(--st-deco-size) - 12px)}
 .st-preview-card:has(>.st-ornament[data-kind="sticker"][data-position="left"]) .st-preview-label {padding-left:calc(var(--st-deco-size) - 12px)}
