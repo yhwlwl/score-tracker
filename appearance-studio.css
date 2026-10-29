@@ -1239,3 +1239,6 @@ html[data-st-art="illustrated"] .hero-main{background:color-mix(in srgb,var(--pa
 .st-art-viewer>p{display:flex;justify-content:space-between;align-items:center;padding:10px 8px;margin:0;font:13px/1.6 system-ui}.st-art-viewer>p>span{color:#c9d2e4;font-size:11px}
 .st-art-link{display:block;margin:8px auto}
 @media(max-width:620px){.st-charm-grid{gap:12px}.st-charm-grid .st-choice{padding:10px 7px}.st-charm-grid .st-choice>small{font-size:9px}.st-studio .st-preview-scene:has(.st-ornament[data-kind="charm"]){grid-template-columns:1fr;max-height:none;min-height:230px}.st-curated-wallpapers .st-wallpaper-art{aspect-ratio:3/4}html[data-st-art="illustrated"] #content:before{height:40px}}
+/* Keep utility text legible over illustrated wallpaper. */
+html[data-st-art="illustrated"] .topbar {background:color-mix(in srgb,var(--panel-solid) 96%,transparent);border:1px solid var(--line);border-radius:17px;padding:12px 14px;backdrop-filter:blur(12px)}
+html[data-st-art="illustrated"] :is(.goal-bar-v33,.goal-hero-v33,.page-head){background:color-mix(in srgb,var(--panel-solid) 96%,transparent)!important;border:1px solid var(--line);border-radius:16px;padding:14px 16px;backdrop-filter:blur(10px)}
