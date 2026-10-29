@@ -150,17 +150,32 @@
     "铃铛",
     "绶带",
   ];
+  const stickers = [
+    ["rain-window", "雨后窗边"], ["crescent", "晚安月牙"],
+    ["butterfly", "橙色蝴蝶"], ["ginger-cat", "橘猫探头"],
+    ["sunshine", "晴天心情"], ["blossom", "花开正好"],
+    ["mushrooms", "林间蘑菇"], ["rainbow", "云上彩虹"],
+    ["aquarium", "小鱼来信"], ["open-book", "翻开一页"],
+    ["houseplant", "窗边绿植"], ["warm-mug", "热饮时光"],
+  ].map(([id, name]) => ({id: "sticker-" + id, name, group: "sticker", file: id}));
+  const isSticker = id => stickers.some(d => d.id === id);
+  const scaleLimits = id => isSticker(id) ? [40, 72, 56] : [24, 40, 32];
   const decorations = Object.keys(drawings).map((id, i) => ({
     id,
     name: names[i],
     group: "line",
-  }));
+  })).concat(stickers);
   const photos = [
     {id:"sky-photo", name:"晴空", desc:"柔软云层 · 浅天蓝", file:"clouds", palette:"sky", bg:"#e8f4ff", panel:"#fff", ink:"#246b8a", category:"scenery", author:"Cuvii"},
     {id:"meadow-photo", name:"青草地", desc:"开阔草坡 · 清新绿", file:"meadow", palette:"mint", bg:"#eef3eb", panel:"#fffefb", ink:"#3f7257", category:"scenery", author:"Spencer DeMera"},
     {id:"coast-photo", name:"晚霞海岸", desc:"粉色晚霞 · 平静海面", file:"sea", palette:"sakura", bg:"#f9edf1", panel:"#fffafa", ink:"#a95d76", category:"scenery", author:"Veronica Moreno-Alvarez"},
   ];
-  const backgrounds = [...photos, ...themes.map(t => ({...t, category:"minimal"}))];
+  const illustrated = [
+    {id:"flower-day", name:"花间晴日", desc:"奶油底色 · 彩色花园", category:"illustration", palette:"paper", bg:"#f8f4e6", panel:"#fffdf8", ink:"#817339", card:"soft", font:"system", title:"system"},
+    {id:"moon-window", name:"月色窗边", desc:"雾蓝夜色 · 月牙星光", category:"illustration", palette:"sky", bg:"#e9edf6", panel:"#fcfcff", ink:"#657794", card:"soft", font:"system", title:"system"},
+  ];
+  const presets = [...illustrated, ...themes];
+  const backgrounds = [...illustrated, ...photos, ...themes.map(t => ({...t, category:"minimal"}))];
   const backgroundIds = ["none", ...backgrounds.map(t => t.id)];
   const decorationIds = ["none", ...decorations.map(d => d.id)];
   const fonts = [
@@ -204,6 +219,7 @@
     pagePreview = false,
     previousEdit = false,
     backgroundFilter = "all",
+    decorationFilter = "sticker",
     showPreview = false;
   if (prefs.palette) setPalette(prefs.palette);
   if (prefs.reading) setReading(prefs.reading.font, prefs.reading.size);
@@ -266,7 +282,7 @@
     const p = {
       theme: member(
         x.theme,
-        [...themes, ...photos].map((t) => t.id),
+        backgrounds.map((t) => t.id),
         "",
       ),
       background: member(
@@ -285,7 +301,7 @@
       // card choices, but never migrate that repetition into the new defaults.
       decorMode: member(x.decorMode, ["none", "custom", "accent"], "custom"),
       position: member(x.position, ["left", "right"], "right"),
-      scale: bounded(x.scale, 24, 40, 32),
+      scale: bounded(x.scale, ...scaleLimits(x.deco)),
       title: member(
         x.title,
         fonts.map((x) => x[0]),
@@ -311,7 +327,7 @@
             p.overrides[k] = {
               deco: member(v.deco, decorationIds, "none"),
               position: member(v.position, ["left", "right"], "right"),
-              scale: bounded(v.scale, 24, 40, p.scale),
+              scale: bounded(v.scale, ...scaleLimits(v.deco)),
             };
         });
     return p;
@@ -330,6 +346,8 @@
     );
   }
   function svg(id) {
+    const sticker = stickers.find(d => d.id === id);
+    if (sticker) return '<img src="./assets/themes/stickers/' + sticker.file + '.webp" alt="" width="480" height="480" decoding="async">';
     return drawings[id]
       ? '<svg viewBox="0 0 64 64" fill="color-mix(in srgb,currentColor 14%,transparent)" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
           drawings[id] +
@@ -429,6 +447,7 @@
           mark.dataset.id = o.deco;
         }
         mark.dataset.position = o.position;
+        mark.dataset.kind = isSticker(o.deco) ? "sticker" : "line";
         el.classList.add("st-decorated");
       }
       let b = el.querySelector(":scope > .st-edit-card");
@@ -480,7 +499,7 @@
       p.background +
       '"><div class="st-preview-greeting"><h3>成绩概览</h3></div><div class="st-preview-card st-surface"><span class="st-preview-label">数学 · 阶段检测</span><div class="st-preview-score">128.5 <small>/ 150</small></div><span class="st-preview-gain">较上次 +6.5 分</span><span class="st-ornament" data-position="' +
       ornament.position +
-      '">' +
+      '" data-kind="' + (isSticker(ornament.deco) ? 'sticker' : 'line') + '">' +
       svg(ornament.deco) +
       '</span><svg class="st-preview-chart" viewBox="0 0 260 65" role="img" aria-label="示例成绩有升有降的趋势"><path d="M0 55H260M0 25H260" stroke="var(--line)"/><path d="M5 50 48 34 90 42 132 15 175 28 218 9 255 18" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"/><g fill="var(--panel-solid)" stroke="var(--accent)" stroke-width="2"><circle cx="48" cy="34" r="3"/><circle cx="132" cy="15" r="3"/><circle cx="218" cy="9" r="3"/></g></svg></div><div class="st-preview-note st-surface"><b>考后反思</b><p>本次计算失误较少，继续检查解题步骤。</p></div></div><p class="st-preview-foot">当前背景：' +
       (backgrounds.find(t => t.id === p.background)?.name || "纯色") +
@@ -495,7 +514,7 @@
     const selected = active().background === t.id;
     return '<button type="button" class="st-wallpaper ' + (selected ? 'is-on' : '') + '" data-bg="' + t.id + '" aria-pressed="' + selected + '"><span class="st-wallpaper-art" data-scene="' + t.id + '" style="--tile-bg:' + (t.bg || 'var(--bg)') + '">' +
       (t.file ? '<img src="./assets/themes/photos/' + t.file + '-thumb.webp" width="480" height="480" alt="" loading="lazy" decoding="async">' : '') +
-      '<span class="st-material-label">' + (t.file ? '风景' : '简约') + '</span></span><b>' + t.name + '</b><span class="st-item-action">' + itemState(selected, prefs.background === t.id) + '</span></button>';
+      '<span class="st-material-label">' + (t.category === 'illustration' ? '插画' : t.file ? '风景' : '简约') + '</span></span><b>' + t.name + '</b><span class="st-item-action">' + itemState(selected, prefs.background === t.id) + '</span></button>';
   }
   function filters(items, attr, selected) {
     return '<div class="st-filters" aria-label="素材分类">' + choices(items, attr, selected) + '</div>';
@@ -504,8 +523,8 @@
     const p = active();
     if (tab === "themes")
       return (
-        '<div class="st-collection-banner"><div><span>背景 · 挂件 · 卡片</span><h3>外观主题</h3><p>背景与挂件，自由搭配。</p><button class="st-banner-link" data-tab="background">浏览背景 →</button></div></div><div class="st-section-intro"><h3>精选背景</h3><button class="st-link" data-tab="background">查看全部 →</button></div><div class="st-background-grid st-featured-wallpapers">' + photos.map(wallpaperTile).join('') + '</div><div class="st-section-intro"><h3>主题预设</h3><p>背景、卡片与字体的一套搭配</p></div><div class="st-theme-grid">' +
-        themes
+        '<div class="st-collection-banner"><div><span>背景 · 挂件 · 卡片</span><h3>外观主题</h3><p>背景与挂件，自由搭配。</p><button class="st-banner-link" data-tab="background">浏览背景 →</button></div></div><div class="st-section-intro"><h3>精选背景</h3><button class="st-link" data-tab="background">查看全部 →</button></div><div class="st-background-grid st-featured-wallpapers">' + [...illustrated, ...photos].map(wallpaperTile).join('') + '</div><div class="st-section-intro"><h3>主题预设</h3><p>背景、卡片与字体的一套搭配</p></div><div class="st-theme-grid">' +
+        presets
           .map(
             (t) =>
               '<button type="button" class="st-theme ' +
@@ -532,7 +551,7 @@
     if (tab === "background")
       return (
         '<div class="st-section-intro"><h3>页面背景</h3><p>点选试用，保存后生效</p></div>' +
-        filters([["all","全部"],["scenery","风景"],["minimal","简约纹理"]], "data-background-filter", backgroundFilter) +
+        filters([["all","全部"],["illustration","插画"],["scenery","风景"],["minimal","简约纹理"]], "data-background-filter", backgroundFilter) +
         '<div class="st-background-grid">' + backgrounds.filter(t => backgroundFilter === 'all' || t.category === backgroundFilter).map(wallpaperTile).join('') +
         '</div><button class="st-link" data-bg="none" aria-pressed="' + (p.background === 'none') + '">不使用背景图片</button><label class="st-range">背景浓度 <output>' +
         p.intensity +
@@ -548,7 +567,7 @@
             '<i class="st-color" style="background:' + t.dot + '"></i>',
           ),
         ).join("") +
-        '</div><p class="st-hint st-source">摄影：Cuvii、Spencer DeMera、Veronica Moreno-Alvarez / Unsplash。纹理：Steve Schoger / Hero Patterns。<a href="./assets/themes/ATTRIBUTION.md" target="_blank" rel="noopener noreferrer">素材来源</a></p>'
+        '</div><p class="st-hint st-source">插画：<a href="https://openstickers.craftwork.design/" target="_blank" rel="noopener noreferrer">Craftwork Open Stickers</a>。摄影：Cuvii、Spencer DeMera、Veronica Moreno-Alvarez / Unsplash。纹理：Steve Schoger / Hero Patterns。<a href="./assets/themes/ATTRIBUTION.md" target="_blank" rel="noopener noreferrer">素材来源</a></p>'
       );
     if (tab === "cards")
       return (
@@ -580,7 +599,8 @@
           ? "此处只修改选中的板块。"
           : "主题默认不添加挂件。可以手动选择卡片，或仅点缀每页第一张卡片。") +
         '</p>' + (target ? '' : '<div class="st-options">' + choices([["custom","手动指定卡片"],["accent","每页首张卡片"],["none","不显示挂件"]],"data-decor-mode",p.decorMode) + '</div><button class="st-link" data-pick-card>在页面上选择卡片</button>') +
-        '<div class="st-deco-grid">' +
+        filters([["sticker","插画贴纸"],["line","经典线条"]], "data-decoration-filter", decorationFilter) +
+        '<div class="st-deco-grid ' + (decorationFilter === 'sticker' ? 'st-sticker-grid' : '') + '">' +
         button(
           "none",
           "不使用",
@@ -588,10 +608,10 @@
           o.deco,
           '<span class="st-none">—</span>',
         ) +
-        decorations
+        decorations.filter(d => d.group === decorationFilter)
           .map((d) => button(d.id, d.name, "data-deco", o.deco, svg(d.id)))
           .join("") +
-        '</div><h3>挂件位置</h3><div class="st-options">' +
+        '</div><p class="st-hint st-source">插画：<a href="https://openstickers.craftwork.design/" target="_blank" rel="noopener noreferrer">Craftwork Open Stickers</a> · <a href="./assets/themes/ATTRIBUTION.md" target="_blank" rel="noopener noreferrer">素材来源</a></p><h3>挂件位置</h3><div class="st-options">' +
         choices(
           [
             ["left", "左侧"],
@@ -602,7 +622,7 @@
         ) +
         '</div><label class="st-range">挂件大小 <output>' +
         o.scale +
-        ' px</output><input type="range" min="24" max="40" value="' +
+        ' px</output><input type="range" min="' + scaleLimits(o.deco)[0] + '" max="' + scaleLimits(o.deco)[1] + '" value="' +
         o.scale +
         '" data-range="scale"></label>' +
         (target
@@ -697,6 +717,7 @@
         "data-tab",
         "data-palette",
         "data-background-filter",
+        "data-decoration-filter",
       ].find((a) => focus.hasAttribute(a));
     const val = attr ? focus.getAttribute(attr) : null;
     dialog.innerHTML =
@@ -771,6 +792,7 @@
     tab = section;
     showPreview = Boolean(key);
     backgroundFilter = "all";
+    decorationFilter = key && !isSticker(active().overrides[key]?.deco) ? "line" : "sticker";
     returnFocus = document.activeElement;
     draft = { ...snapshot() };
     undo = [];
@@ -886,6 +908,7 @@
     if (b.hasAttribute("data-page-preview")) return inspectPage();
     if (b.hasAttribute("data-pick-card")) return inspectPage(true);
     if (b.hasAttribute("data-toggle-preview")) { showPreview = !showPreview; draw(); return; }
+    if (b.dataset.decorationFilter) { decorationFilter = b.dataset.decorationFilter; draw(); return; }
     if (b.dataset.backgroundFilter) { backgroundFilter = b.dataset.backgroundFilter; draw(); return; }
     if (b.dataset.tab) {
       tab = b.dataset.tab;
@@ -918,7 +941,7 @@
     change(() => {
       const p = draft.prefs;
       if (b.dataset.preset) {
-        const t = themes.find((t) => t.id === b.dataset.preset);
+        const t = presets.find((t) => t.id === b.dataset.preset);
         if (!t) return;
         draft.prefs = {
           ...copy(base),
@@ -959,6 +982,7 @@
           if (p.decorMode === "none") p.decorMode = "custom";
         }
         if (b.dataset.deco) {
+          if (isSticker(o.deco) !== isSticker(b.dataset.deco)) o.scale = scaleLimits(b.dataset.deco)[2];
           o.deco = b.dataset.deco;
           showPreview = true;
         }
@@ -1072,7 +1096,7 @@
   window.ScoreAppearance = {
     open,
     normalize,
-    themes,
+    themes: presets,
     decorations,
     backgrounds,
     get: () => copy(prefs),

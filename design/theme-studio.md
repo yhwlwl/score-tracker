@@ -33,3 +33,11 @@
 `/appearance-qa/` 使用实际应用资源和隔离的合成数据。顶部可以选择页面、尺寸、主题、正文和字号。已保存的搭配随页面切换；此页不读取登录凭证或真实成绩。直接预览：`/appearance-qa/frame.html?studio=1&page=appearance`。
 
 重新生成：`node design/build-bundles.js && node design/build-appearance-visual.cjs`。
+
+## 现成插画素材（2026-10-29）
+
+新分支 `feat/appearance-assets-20261029` 基于 `feat/theme-studio`。新增 Craftwork Open Stickers 的12款插画贴纸，按插画贴纸/经典线条浏览；保留24款原有线条。插画40–72px（默认56px），线条24–40px。透明WebP合计约104KB，无运行时外部素材请求。来源和独立许可见 assets/themes/ATTRIBUTION.md。
+
+新增花间晴日/月色窗边两套背景，采用上述现成插画与渐变组合；图库、预览和页面共用素材与定位。预设默认不自动添加卡片挂件。DrawKit风景包下载链接实测404，未集成未取得的素材。
+
+回归覆盖新贴纸保存/刷新、大小、经典挂件切换、旧偏好、取消还原、资源指纹和Cloudflare打包。

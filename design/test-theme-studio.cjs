@@ -106,8 +106,8 @@ async function harness(storage = {}) {
   try {
     const { w, d, click } = h,
       basePalette = w.__v29.currentTheme();
-    assert.equal(w.ScoreAppearance.themes.length, 6);
-    assert.equal(w.ScoreAppearance.decorations.length, 24);
+    assert.equal(w.ScoreAppearance.themes.length, 8);
+    assert.equal(w.ScoreAppearance.decorations.length, 36);
     assert.equal(d.querySelectorAll("[data-st-open]").length, 1);
     click("[data-st-open]");
     for (const theme of w.ScoreAppearance.themes) {
@@ -134,6 +134,7 @@ async function harness(storage = {}) {
     click("[data-st-open]");
     click("[data-preset=garden]");
     click("[data-tab=decor]");
+    click("[data-decoration-filter=line]");
     for (const id of ["cat", "plane", "flower"])
       click("[data-deco=" + id + "]");
     click("[data-position=left]");
@@ -162,6 +163,20 @@ async function harness(storage = {}) {
     assert.equal(w.ScoreAppearance.get().deco, "flower");
     assert.equal(w.ScoreAppearance.get().title, "smiley");
     assert.equal(w.__v29.reading().font, "wenkai");
+    click('[data-st-open]');
+    click('[data-tab=decor]');
+    assert.equal(d.querySelectorAll('.st-sticker-grid img').length,12);
+    click('[data-deco=sticker-open-book]');
+    assert.equal(d.querySelectorAll('.shell .st-ornament').length,1);
+    assert.equal(d.querySelector('.shell .st-ornament').dataset.kind,'sticker');
+    assert.equal(d.querySelector('.st-preview .st-ornament').dataset.kind,'sticker');
+    assert.equal(d.querySelector('[data-range=scale]').value,'56');
+    click('[data-apply]');
+    const reloaded = await harness(h.saved());
+    assert.equal(reloaded.w.ScoreAppearance.get().deco,'sticker-open-book');
+    assert.equal(reloaded.w.ScoreAppearance.get().scale,56);
+    reloaded.close();
+    click('[data-st-open]'); click('[data-tab=decor]'); click('[data-decoration-filter=line]'); click('[data-deco=flower]'); click('[data-apply]');
     let storage = h.saved();
     h.close();
     h = await harness(storage);
@@ -224,6 +239,7 @@ async function harness(storage = {}) {
     assert.equal(h.w.__v29.currentTheme(), 'sakura');
     assert.equal(h.d.querySelector('[data-bg=coast-photo] .st-item-action').textContent, '试用中');
     h.click('[data-tab=decor]');
+    h.click('[data-decoration-filter=line]');
     h.click('[data-deco=leaf]');
     assert(h.d.querySelector('.st-preview .st-ornament svg'));
     assert.equal(h.d.querySelectorAll('.shell .st-ornament').length, 1);
@@ -270,7 +286,7 @@ async function harness(storage = {}) {
       h.close();
     }
     console.log(
-      "PASS: six themes, nine backgrounds, 24 line decorations, filtered background galleries, transient preview, cancel/Escape, undo, save/reload, escaped favorites, local overrides/inheritance, legacy controls, blocked and malformed storage.",
+      "PASS: eight themes, eleven backgrounds, 24 classic ornaments and 12 illustration stickers, filtered background galleries, transient preview, cancel/Escape, undo, save/reload, escaped favorites, local overrides/inheritance, legacy controls, blocked and malformed storage.",
     );
   } finally {
     h.close();

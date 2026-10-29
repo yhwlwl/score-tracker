@@ -25,3 +25,24 @@ The 24 original SVG line ornaments are used. The experimental 3D stickers have b
 
 All wallpaper and sticker assets are served from this site. The app makes no runtime requests to Unsplash or GitHub.
 The AI-generated concept wallpapers explored during design are not included in this catalog.
+
+## Craftwork Open Stickers (2026-10-29)
+
+12 selected illustrations by [Craftwork](https://craftwork.design), from [Open Stickers](https://openstickers.craftwork.design/). Free for personal and commercial websites under the [Craftwork License](https://craftwork.design/license). Artwork remains copyright Craftwork and is **not covered by this repository’s MIT code license**. These WebP files are incorporated into this website’s interface. Do not redistribute or sell them as standalone assets, packs, templates or stock.
+
+Changes: proportional resize and WebP compression. Two CSS backdrops arrange the same illustrations over gradients. Credit links appear in the background and ornament galleries. No generated imagery is included.
+
+| Site file | Original asset at https://openstickers.craftwork.design/img/ |
+| --- | --- |
+| stickers/rain-window.webp | nature-2.png |
+| stickers/crescent.webp | nature-4.png |
+| stickers/butterfly.webp | nature-5.png |
+| stickers/ginger-cat.webp | nature-8.png |
+| stickers/sunshine.webp | nature-9.png |
+| stickers/blossom.webp | nature-10.png |
+| stickers/mushrooms.webp | nature-15.png |
+| stickers/rainbow.webp | nature-19.png |
+| stickers/aquarium.webp | nature-20.png |
+| stickers/open-book.webp | life-2.png |
+| stickers/houseplant.webp | life-11.png |
+| stickers/warm-mug.webp | life-20.png |

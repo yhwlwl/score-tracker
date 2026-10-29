@@ -1187,3 +1187,27 @@ html:has(> body.st-studio-open) {
   .st-studio-footer>div { gap:10px; }
   .st-studio-footer .st-primary { padding:9px 12px; }
 }
+/* Curated Craftwork illustrations: shared gallery, preview and page assets. */
+[data-scene="flower-day"] {
+  --scene-image: url("./assets/themes/stickers/sunshine.webp"), url("./assets/themes/stickers/blossom.webp"), url("./assets/themes/stickers/butterfly.webp"), linear-gradient(150deg,#fff6d9,#f7f6ec 50%,#e3eddb);
+  --scene-size: 24% auto, 38% auto, 16% auto, 100% 100%;
+  --scene-position: 98% 2%, -12% 108%, 96% 75%, center;
+}
+[data-scene="moon-window"] {
+  --scene-image: url("./assets/themes/stickers/crescent.webp"), url("./assets/themes/stickers/rain-window.webp"), linear-gradient(155deg,#d6e0f5,#f0eef6 55%,#dae8ec);
+  --scene-size: 25% auto, 36% auto, 100% 100%;
+  --scene-position: 96% 2%, -10% 105%, center;
+}
+#stBackdrop,.st-theme-art,.st-wallpaper-art,.st-preview-scene:before {background-position:var(--scene-position,center)}
+.st-sticker-grid {grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:16px 0}
+.st-sticker-grid .st-choice {display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:12px 8px;border-radius:15px;background:color-mix(in srgb,var(--bg) 60%,var(--panel-solid));min-width:0;min-height:138px}
+.st-sticker-grid .st-choice img {display:block;width:88px;height:88px;max-width:100%;object-fit:contain;filter:drop-shadow(0 3px 2px #1e293b08)}
+.st-sticker-grid .st-choice>span {font-size:12px;line-height:1.5}
+.st-sticker-grid .st-none {display:grid;place-items:center;width:88px;height:88px;font-size:24px!important;color:var(--muted)}
+.st-sticker-grid .st-choice.is-on {background:var(--accent-soft);border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.st-ornament[data-kind="sticker"] {top:-22px;background:none;box-shadow:none;padding:0;opacity:1;filter:drop-shadow(0 2px 2px #25324712)}
+.st-ornament img {display:block;width:100%;height:100%;object-fit:contain}
+.st-preview-card:has(>.st-ornament[data-kind="sticker"][data-position="right"]) .st-preview-label {padding-right:calc(var(--st-deco-size) - 12px)}
+.st-preview-card:has(>.st-ornament[data-kind="sticker"][data-position="left"]) .st-preview-label {padding-left:calc(var(--st-deco-size) - 12px)}
+@media(min-width:1000px) {.st-sticker-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:380px) {.st-sticker-grid{gap:9px}.st-sticker-grid .st-choice{min-height:116px;padding:10px 5px}.st-sticker-grid .st-choice img,.st-sticker-grid .st-none{width:68px;height:68px}.st-sticker-grid .st-choice>span{font-size:11px}}
