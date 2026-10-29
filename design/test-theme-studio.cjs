@@ -107,13 +107,13 @@ async function harness(storage = {}) {
     const { w, d, click } = h,
       basePalette = w.__v29.currentTheme();
     assert.equal(w.ScoreAppearance.themes.length, 8);
-    assert.equal(w.ScoreAppearance.decorations.length, 36);
+    assert.equal(w.ScoreAppearance.decorations.length, 40);
     assert.equal(d.querySelectorAll("[data-st-open]").length, 1);
     click("[data-st-open]");
     for (const theme of w.ScoreAppearance.themes) {
       click("[data-preset=" + theme.id + "]");
       assert.equal(d.documentElement.dataset.stBackground, theme.id);
-      assert.equal(d.querySelectorAll('.shell .st-ornament').length, 0, 'presets never repeat ornaments');
+      assert.equal(d.querySelectorAll('.shell .st-ornament').length, theme.charm ? 1 : 0, 'paired presets decorate only one card');
       assert.equal(
         d
           .querySelector("[data-preset=" + theme.id + "]")
@@ -165,6 +165,7 @@ async function harness(storage = {}) {
     assert.equal(w.__v29.reading().font, "wenkai");
     click('[data-st-open]');
     click('[data-tab=decor]');
+    click('[data-decoration-filter=sticker]');
     assert.equal(d.querySelectorAll('.st-sticker-grid img').length,12);
     click('[data-deco=sticker-open-book]');
     assert.equal(d.querySelectorAll('.shell .st-ornament').length,1);
@@ -177,6 +178,23 @@ async function harness(storage = {}) {
     assert.equal(reloaded.w.ScoreAppearance.get().scale,56);
     reloaded.close();
     click('[data-st-open]'); click('[data-tab=decor]'); click('[data-decoration-filter=line]'); click('[data-deco=flower]'); click('[data-apply]');
+    click('[data-st-open]');click('[data-preset=starlit-tide]');
+    assert.equal(d.documentElement.dataset.stArt,'illustrated');
+    assert.equal(d.querySelector('.shell .st-ornament').dataset.kind,'charm');
+    assert.equal(d.querySelectorAll('.shell .st-ornament').length,1);
+    click('[data-view-art]');
+    assert(d.querySelector('.st-art-viewer').open);
+    assert(d.querySelector('.st-art-viewer img').src.endsWith('starlit-tide.webp'));
+    click('.st-art-viewer button');
+    assert.equal(d.querySelector('.st-art-viewer'),null);
+    click('[data-tab=decor]');
+    assert.equal(d.querySelectorAll('.st-charm-grid img').length,4);
+    click('[data-deco=charm-garden-bear]');click('[data-apply]');
+    const detailed = await harness(h.saved());
+    assert.equal(detailed.w.ScoreAppearance.get().deco,'charm-garden-bear');
+    assert.equal(detailed.w.ScoreAppearance.get().scale,96);
+    detailed.close();
+    click('[data-st-open]');click('[data-preset=garden]');click('[data-tab=decor]');click('[data-decoration-filter=line]');click('[data-deco=flower]');click('[data-tab=fonts]');click('[data-title=smiley]');click('[data-font=wenkai]');click('[data-size=large]');click('[data-apply]');
     let storage = h.saved();
     h.close();
     h = await harness(storage);
@@ -286,7 +304,7 @@ async function harness(storage = {}) {
       h.close();
     }
     console.log(
-      "PASS: eight themes, eleven backgrounds, 24 classic ornaments and 12 illustration stickers, filtered background galleries, transient preview, cancel/Escape, undo, save/reload, escaped favorites, local overrides/inheritance, legacy controls, blocked and malformed storage.",
+      "PASS: eight themes, thirteen compatible backgrounds, four detailed charms, classic ornaments and optional flat stickers, filtered background galleries, transient preview, cancel/Escape, undo, save/reload, escaped favorites, local overrides/inheritance, legacy controls, blocked and malformed storage.",
     );
   } finally {
     h.close();

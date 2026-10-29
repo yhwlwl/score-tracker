@@ -1,0 +1,36 @@
+{
+  "tool": "built-in image_gen",
+  "date": "2026-10-29",
+  "assets": [
+    {
+      "id": "sakura-atelier",
+      "transparent": false,
+      "prompt": "Use case: illustration-story. Asset type: high-end full-screen wallpaper for a Chinese student's personal theme, portrait 2:3 composition, finished production illustration. A breathtaking cozy sunlit glass conservatory reading room beside an enormous arched window, flowering cherry branches outside and climbing wisteria, tiny wooden writing desk with open blank book, porcelain tea, soft linen curtains, potted fern, a cream kitten sleeping on the window bench. Luminous spring sky, distant emerald hills, a few drifting pink petals. Painterly anime background art, sophisticated soft brushwork, intricate natural material textures and tiny environmental details, elegant pastel sage, blush, ivory and sky blue. Warm luminous sunlight, atmospheric perspective, convincing depth. Large softly lit quiet central area for UI cards; architectural detail and blossoms framing upper and side edges, interesting lower landscape still visible around cards. Beautiful coherent scene, commercially polished wallpaper craftsmanship, not a flat vector illustration, not a collage of icons. No UI, lettering, watermark, logo or text. No existing fictional characters."
+    },
+    {
+      "id": "starlit-tide",
+      "transparent": false,
+      "prompt": "Use case: illustration-story. Asset type: refined full-screen portrait 2:3 fantasy anime wallpaper for a student's personal theme. An exquisite dreamlike ocean of luminous clouds under a lavender-blue evening sky, a huge opalescent crescent high in the sky, a tiny warmly lit glass observatory on a floating island near the bottom, winding moonlit waterway, hydrangeas and translucent crystal flowers at lower side edges, tiny faraway white cloud whales, gold constellations and very restrained fairy lights. High-end hand-painted Japanese fantasy illustration, watercolor and gouache softness with delicately rendered environmental details, dreamy layered depth, rich but gentle blue-lilac-peach tones, pearly highlights, subtle starlight. Large central quiet sky/water area with low visual contrast to hold opaque UI cards. Concentrate storybook detail around sides and lower scene, no large foreground face. A complete atmospheric landscape, not a flat gradient or icon pattern. No text, logos, UI, watermark, copyrighted characters."
+    },
+    {
+      "id": "reading-kitten",
+      "transparent": true,
+      "prompt": "Use case: stylized-concept. Asset type: premium illustrated app ornament, one independent transparent PNG cutout with true alpha. A very cute fluffy cream kitten with large warm amber eyes and tiny rosy cheeks, wearing a sage satin bow with a small brass bell, leaning over a miniature open storybook whose pages have no readable text. Beside it a tiny stack of blue clothbound books, pale peach flowers, delicate ivy and a small hovering blue butterfly; an elegant trailing satin ribbon ties the composition together. Refined 2.5D hand-painted anime chibi collectible artwork, soft dimensional shading, individual fine fur and fabric details, luminous highlights, warm pastel colors. Complex unified character-and-props scene as a premium social-app decorative charm. Recognizable adorable face and balanced silhouette at small scale. Square composition, entire group within central 84 percent with transparent padding, nothing cut off. No background, no ground plane, no rectangular card, no badge, no solid drop-shadow plate, no thick sticker border. Not an emoji, not a vector icon, not generic 3D clipart. No letters, logos or watermark. Original character."
+    },
+    {
+      "id": "moon-fox",
+      "transparent": true,
+      "prompt": "Use case: stylized-concept. Asset type: premium social app ornamental cutout, one independent transparent image with true alpha. An adorable little arctic fox with soft ivory fur, big periwinkle eyes, blushing cheeks and a silky lavender ribbon, curled inside a delicate iridescent glass crescent moon. The fox holds a tiny luminous gold star, fluffy tail spilling across moon, a cluster of small blue hydrangeas at the base, tiny pearl chains and constellation charms, two petite floating stars and flowing ribbon that stay close to the group. Polished 2.5D hand-painted anime chibi collectible illustration with subtle watercolor softness, careful fur, glass refraction, satin folds, soft luminous shading and intricate details. Gentle lilac, pale blue, ivory, champagne gold. Unified balanced scene and adorable character, not an icon or emoji. Square framing, full silhouette contained with 8 percent transparent padding. No rectangle, badge, frame box, solid background, ground, text, logo, watermark, heavy outline or existing fictional character."
+    },
+    {
+      "id": "garden-bear",
+      "transparent": true,
+      "prompt": "Use case: stylized-concept. Asset type: exquisitely illustrated cute app charm cutout with true transparent alpha. A tiny caramel teddy bear with sweet glossy eyes, rosy cheeks and a miniature woven straw bonnet with pale blue silk ribbon, nestled inside a porcelain teacup decorated with subtle painted blossoms. The bear holds a small bouquet of daisies; mushrooms, strawberries, delicate lily-of-the-valley sprigs and an embroidered handkerchief surround the cup in a compact elegant arrangement. High-end 2.5D hand-painted anime chibi collectible illustration, soft painterly dimensional light, fine plush fur, ceramic glaze and satin material detail, cohesive ivory/sage/peach/powder-blue palette, no garish flat colors. Clear friendly face and balanced detailed silhouette readable at app-card size. Square composition full silhouette in central 84 percent with generous transparency. No solid background or floor, no square card, no icon, emoji, thick white sticker outline, text, logo, watermark or copyrighted character."
+    },
+    {
+      "id": "cloud-whale",
+      "transparent": true,
+      "prompt": "Use case: stylized-concept. Asset type: refined premium illustrated social app ornament with true transparent alpha. A small exceptionally adorable pearly pale-blue whale with rounded soft shape, friendly large luminous eyes and rosy cheek, gently floating through a compact fluffy cloud cradle. It carries a tiny glass bottle containing a golden star, suspended with a flowing blush silk ribbon. Miniature seashells, pearls, translucent blue crystal flowers and a few tiny close glowing stars create a complete delicate composition around it. Sophisticated 2.5D hand-painted anime collectible artwork, subtle dimensional shading, pearlescent surface, satin ribbon detail, soft painted cloud textures, harmonious lavender pale blue ivory and champagne gold. Elaborate but visually balanced ornament rather than a standalone emoji. Square composition, whole group contained with 8 percent transparent padding. No background, no ground plane, rectangle, badge, heavy outline, typography, watermark, logo or existing fictional character."
+    }
+  ]
+}

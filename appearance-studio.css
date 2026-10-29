@@ -1211,3 +1211,31 @@ html:has(> body.st-studio-open) {
 .st-preview-card:has(>.st-ornament[data-kind="sticker"][data-position="left"]) .st-preview-label {padding-left:calc(var(--st-deco-size) - 12px)}
 @media(min-width:1000px) {.st-sticker-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:380px) {.st-sticker-grid{gap:9px}.st-sticker-grid .st-choice{min-height:116px;padding:10px 5px}.st-sticker-grid .st-choice img,.st-sticker-grid .st-none{width:68px;height:68px}.st-sticker-grid .st-choice>span{font-size:11px}}
+/* Detailed painted scenes and transparent collectible-style charms. */
+[data-scene="sakura-atelier"] {--scene-image:url("./assets/themes/art/sakura-atelier.webp");--scene-size:cover;--scene-position:center 38%;}
+[data-scene="starlit-tide"] {--scene-image:url("./assets/themes/art/starlit-tide.webp");--scene-size:cover;--scene-position:center 38%;}
+.st-curated-wallpapers{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:16px}
+.st-curated-wallpapers .st-wallpaper-art{aspect-ratio:2/3}
+.st-curated-wallpapers .st-wallpaper>b{font-size:15px;margin-top:12px}
+.st-charm-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:18px 0}
+.st-charm-grid .st-choice{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-width:0;padding:14px 10px;border-radius:18px;background:linear-gradient(145deg,var(--panel-solid),color-mix(in srgb,var(--accent-soft) 35%,var(--panel-solid)));}
+.st-charm-grid .st-choice img{display:block;width:100%;height:auto;aspect-ratio:1;object-fit:contain;max-width:180px;filter:drop-shadow(0 6px 6px #24345010)}
+.st-charm-grid .st-choice>span{order:1;font-size:14px;font-weight:600}
+.st-charm-grid .st-choice>small{order:2;font-size:10px;line-height:1.6;color:var(--muted);text-align:center}
+.st-charm-grid .st-choice:first-child{grid-column:1/-1;flex-direction:row;padding:9px;min-height:42px}
+.st-charm-grid .st-none{font-size:16px;width:auto;height:auto}
+.st-charm-grid .st-choice.is-on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);background:var(--accent-soft)}
+.st-ornament[data-kind="charm"]{top:8px;right:14px;opacity:1;background:none;box-shadow:none;padding:0;filter:drop-shadow(0 3px 3px #25324716)}
+.hero-main:has(>.st-ornament[data-kind="charm"])>h2{margin-top:66px!important}
+.st-preview-card:has(>.st-ornament[data-kind="charm"]){padding-top:22px!important;min-height:170px}
+.st-preview-card:has(>.st-ornament[data-kind="charm"][data-position="right"]) :is(.st-preview-label,.st-preview-score,.st-preview-gain){padding-right:calc(var(--st-deco-size) - 8px)}
+.st-preview-card:has(>.st-ornament[data-kind="charm"][data-position="left"]) :is(.st-preview-label,.st-preview-score,.st-preview-gain){padding-left:calc(var(--st-deco-size) - 8px);padding-right:0}
+html[data-st-art="illustrated"] #content:before{content:"";display:block;height:56px;grid-column:1/-1;pointer-events:none}
+html[data-st-art="illustrated"] .hero-main{background:color-mix(in srgb,var(--panel-solid) 94%,transparent)!important;backdrop-filter:blur(5px)}
+.st-art-viewer{width:min(880px,calc(100% - 24px));height:min(94dvh,1120px);padding:12px;border:1px solid #ffffff55;border-radius:20px;background:#172033;color:#fff;box-shadow:0 25px 80px #121c35aa;overflow:hidden}
+.st-art-viewer::backdrop{background:#091020d9;backdrop-filter:blur(10px)}
+.st-art-viewer>img{display:block;width:100%;height:calc(100% - 52px);object-fit:contain;border-radius:12px}
+.st-art-viewer>button{position:absolute;right:20px;top:20px;width:38px;height:38px;border-radius:50%;border:1px solid #ffffff55;background:#172033bb;color:#fff;font:24px/1 system-ui;cursor:pointer}
+.st-art-viewer>p{display:flex;justify-content:space-between;align-items:center;padding:10px 8px;margin:0;font:13px/1.6 system-ui}.st-art-viewer>p>span{color:#c9d2e4;font-size:11px}
+.st-art-link{display:block;margin:8px auto}
+@media(max-width:620px){.st-charm-grid{gap:12px}.st-charm-grid .st-choice{padding:10px 7px}.st-charm-grid .st-choice>small{font-size:9px}.st-studio .st-preview-scene:has(.st-ornament[data-kind="charm"]){grid-template-columns:1fr;max-height:none;min-height:230px}.st-curated-wallpapers .st-wallpaper-art{aspect-ratio:3/4}html[data-st-art="illustrated"] #content:before{height:40px}}

@@ -46,3 +46,7 @@ Changes: proportional resize and WebP compression. Two CSS backdrops arrange the
 | stickers/open-book.webp | life-2.png |
 | stickers/houseplant.webp | life-11.png |
 | stickers/warm-mug.webp | life-20.png |
+
+## Detailed illustrated scenes and charms (2026-10-29)
+
+`art/sakura-atelier.webp`, `art/starlit-tide.webp` and the four files under `charms/` were created specifically for this project using the built-in image_gen tool. They are AI-generated illustrations, not downloads of Pixiv, game or QQ artwork. The themes use complete paintings rather than composed stock icons. Transparent alpha is preserved for charms; only responsive resampling and WebP encoding are applied. Full prompts are retained in GENERATED-ART.json. Original generated PNGs remain in the workspace generated_images folder. Background thumbnails use the same painting and CSS position as the page; the full-art dialog shows the uncropped painting.

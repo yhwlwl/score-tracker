@@ -150,6 +150,14 @@
     "铃铛",
     "绶带",
   ];
+  const charms = [
+    ["reading-kitten","书香小猫","奶油绒毛 · 书本与花枝"],
+    ["moon-fox","月光小狐","琉璃月牙 · 星星与绣球"],
+    ["garden-bear","花园小熊","花瓷茶杯 · 缎带与雏菊"],
+    ["cloud-whale","云海来信","珍珠云鲸 · 星瓶与花晶"],
+  ].map(([file,name,desc]) => ({id:"charm-"+file,name,desc,file,group:"charm"}));
+  const isCharm = id => charms.some(d => d.id === id);
+  const decorKind = id => isCharm(id) ? "charm" : isSticker(id) ? "sticker" : "line";
   const stickers = [
     ["rain-window", "雨后窗边"], ["crescent", "晚安月牙"],
     ["butterfly", "橙色蝴蝶"], ["ginger-cat", "橘猫探头"],
@@ -159,23 +167,28 @@
     ["houseplant", "窗边绿植"], ["warm-mug", "热饮时光"],
   ].map(([id, name]) => ({id: "sticker-" + id, name, group: "sticker", file: id}));
   const isSticker = id => stickers.some(d => d.id === id);
-  const scaleLimits = id => isSticker(id) ? [40, 72, 56] : [24, 40, 32];
+  const scaleLimits = id => isCharm(id) ? [80, 120, 96] : isSticker(id) ? [40, 72, 56] : [24, 40, 32];
   const decorations = Object.keys(drawings).map((id, i) => ({
     id,
     name: names[i],
     group: "line",
-  })).concat(stickers);
+  })).concat(stickers, charms);
   const photos = [
     {id:"sky-photo", name:"晴空", desc:"柔软云层 · 浅天蓝", file:"clouds", palette:"sky", bg:"#e8f4ff", panel:"#fff", ink:"#246b8a", category:"scenery", author:"Cuvii"},
     {id:"meadow-photo", name:"青草地", desc:"开阔草坡 · 清新绿", file:"meadow", palette:"mint", bg:"#eef3eb", panel:"#fffefb", ink:"#3f7257", category:"scenery", author:"Spencer DeMera"},
     {id:"coast-photo", name:"晚霞海岸", desc:"粉色晚霞 · 平静海面", file:"sea", palette:"sakura", bg:"#f9edf1", panel:"#fffafa", ink:"#a95d76", category:"scenery", author:"Veronica Moreno-Alvarez"},
   ];
-  const illustrated = [
+  const legacyIllustrated = [
     {id:"flower-day", name:"花间晴日", desc:"奶油底色 · 彩色花园", category:"illustration", palette:"paper", bg:"#f8f4e6", panel:"#fffdf8", ink:"#817339", card:"soft", font:"system", title:"system"},
     {id:"moon-window", name:"月色窗边", desc:"雾蓝夜色 · 月牙星光", category:"illustration", palette:"sky", bg:"#e9edf6", panel:"#fcfcff", ink:"#657794", card:"soft", font:"system", title:"system"},
   ];
+  legacyIllustrated.forEach(t => t.category = "legacy");
+  const illustrated = [
+    {id:"sakura-atelier",name:"樱风书屋",desc:"花影长窗 · 春日山湖",category:"illustration",wallpaper:"sakura-atelier",palette:"paper",bg:"#f0e8dd",panel:"#fffdf9",ink:"#916d54",card:"soft",font:"system",title:"system",charm:"charm-reading-kitten"},
+    {id:"starlit-tide",name:"星海夜航",desc:"月光云海 · 浮岛花庭",category:"illustration",wallpaper:"starlit-tide",palette:"violet",bg:"#e4e6f5",panel:"#fdfbff",ink:"#7665a0",card:"soft",font:"system",title:"system",charm:"charm-moon-fox"},
+  ];
   const presets = [...illustrated, ...themes];
-  const backgrounds = [...illustrated, ...photos, ...themes.map(t => ({...t, category:"minimal"}))];
+  const backgrounds = [...illustrated, ...photos, ...themes.map(t => ({...t, category:"minimal"})), ...legacyIllustrated];
   const backgroundIds = ["none", ...backgrounds.map(t => t.id)];
   const decorationIds = ["none", ...decorations.map(d => d.id)];
   const fonts = [
@@ -219,7 +232,7 @@
     pagePreview = false,
     previousEdit = false,
     backgroundFilter = "all",
-    decorationFilter = "sticker",
+    decorationFilter = "charm",
     showPreview = false;
   if (prefs.palette) setPalette(prefs.palette);
   if (prefs.reading) setReading(prefs.reading.font, prefs.reading.size);
@@ -346,6 +359,8 @@
     );
   }
   function svg(id) {
+    const charm = charms.find(d => d.id === id);
+    if (charm) return '<img src="./assets/themes/charms/' + charm.file + '.webp" alt="" width="640" height="640" decoding="async">';
     const sticker = stickers.find(d => d.id === id);
     if (sticker) return '<img src="./assets/themes/stickers/' + sticker.file + '.webp" alt="" width="480" height="480" decoding="async">';
     return drawings[id]
@@ -374,6 +389,7 @@
     root.dataset.stCard = p.card;
     root.dataset.stTitle = p.title;
     root.dataset.stBackground = p.background;
+    root.dataset.stArt = backgrounds.find(t => t.id === p.background)?.wallpaper ? "illustrated" : "basic";
     let backdrop = document.getElementById("stBackdrop");
     if (!backdrop) {
       backdrop = document.createElement("div");
@@ -447,7 +463,7 @@
           mark.dataset.id = o.deco;
         }
         mark.dataset.position = o.position;
-        mark.dataset.kind = isSticker(o.deco) ? "sticker" : "line";
+        mark.dataset.kind = decorKind(o.deco);
         el.classList.add("st-decorated");
       }
       let b = el.querySelector(":scope > .st-edit-card");
@@ -489,6 +505,7 @@
     return items.map((x) => button(x[0], x[1], attr, selected)).join("");
   }
   function preview() {
+    const art = backgrounds.find(t => t.id === active().background);
     const p = active(),
       ornament = target ? p.overrides[target] || { ...p, deco: "none" } :
         p.decorMode === "accent" ? p : { ...p, deco: "none" };
@@ -499,11 +516,11 @@
       p.background +
       '"><div class="st-preview-greeting"><h3>成绩概览</h3></div><div class="st-preview-card st-surface"><span class="st-preview-label">数学 · 阶段检测</span><div class="st-preview-score">128.5 <small>/ 150</small></div><span class="st-preview-gain">较上次 +6.5 分</span><span class="st-ornament" data-position="' +
       ornament.position +
-      '" data-kind="' + (isSticker(ornament.deco) ? 'sticker' : 'line') + '">' +
+      '" data-kind="' + decorKind(ornament.deco) + '">' +
       svg(ornament.deco) +
       '</span><svg class="st-preview-chart" viewBox="0 0 260 65" role="img" aria-label="示例成绩有升有降的趋势"><path d="M0 55H260M0 25H260" stroke="var(--line)"/><path d="M5 50 48 34 90 42 132 15 175 28 218 9 255 18" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"/><g fill="var(--panel-solid)" stroke="var(--accent)" stroke-width="2"><circle cx="48" cy="34" r="3"/><circle cx="132" cy="15" r="3"/><circle cx="218" cy="9" r="3"/></g></svg></div><div class="st-preview-note st-surface"><b>考后反思</b><p>本次计算失误较少，继续检查解题步骤。</p></div></div><p class="st-preview-foot">当前背景：' +
       (backgrounds.find(t => t.id === p.background)?.name || "纯色") +
-      ' · <span data-preview-intensity>' + p.intensity + '</span>%</p><button type="button" class="st-link st-page-preview" data-page-preview>在当前页面预览</button></div>'
+      ' · <span data-preview-intensity>' + p.intensity + '</span>%</p>' + (art?.wallpaper ? '<button type="button" class="st-link st-art-link" data-view-art>查看完整背景</button>' : '') + '<button type="button" class="st-link st-page-preview" data-page-preview>在当前页面预览</button></div>'
     );
   }
   let target = null;
@@ -513,7 +530,7 @@
   function wallpaperTile(t) {
     const selected = active().background === t.id;
     return '<button type="button" class="st-wallpaper ' + (selected ? 'is-on' : '') + '" data-bg="' + t.id + '" aria-pressed="' + selected + '"><span class="st-wallpaper-art" data-scene="' + t.id + '" style="--tile-bg:' + (t.bg || 'var(--bg)') + '">' +
-      (t.file ? '<img src="./assets/themes/photos/' + t.file + '-thumb.webp" width="480" height="480" alt="" loading="lazy" decoding="async">' : '') +
+      (t.wallpaper ? '<img src="./assets/themes/art/' + t.wallpaper + '-thumb.webp" width="480" height="720" alt="" loading="lazy" decoding="async">' : t.file ? '<img src="./assets/themes/photos/' + t.file + '-thumb.webp" width="480" height="480" alt="" loading="lazy" decoding="async">' : '') +
       '<span class="st-material-label">' + (t.category === 'illustration' ? '插画' : t.file ? '风景' : '简约') + '</span></span><b>' + t.name + '</b><span class="st-item-action">' + itemState(selected, prefs.background === t.id) + '</span></button>';
   }
   function filters(items, attr, selected) {
@@ -523,7 +540,7 @@
     const p = active();
     if (tab === "themes")
       return (
-        '<div class="st-collection-banner"><div><span>背景 · 挂件 · 卡片</span><h3>外观主题</h3><p>背景与挂件，自由搭配。</p><button class="st-banner-link" data-tab="background">浏览背景 →</button></div></div><div class="st-section-intro"><h3>精选背景</h3><button class="st-link" data-tab="background">查看全部 →</button></div><div class="st-background-grid st-featured-wallpapers">' + [...illustrated, ...photos].map(wallpaperTile).join('') + '</div><div class="st-section-intro"><h3>主题预设</h3><p>背景、卡片与字体的一套搭配</p></div><div class="st-theme-grid">' +
+        '<div class="st-collection-banner"><div><span>背景 · 挂件 · 卡片</span><h3>外观主题</h3><p>背景与挂件，自由搭配。</p><button class="st-banner-link" data-tab="background">浏览背景 →</button></div></div><div class="st-section-intro"><h3>精选背景</h3><button class="st-link" data-tab="background">查看全部 →</button></div><div class="st-background-grid st-featured-wallpapers st-curated-wallpapers">' + illustrated.map(wallpaperTile).join('') + '</div><div class="st-section-intro"><h3>主题预设</h3><p>背景、卡片与字体的一套搭配</p></div><div class="st-theme-grid">' +
         presets
           .map(
             (t) =>
@@ -552,7 +569,7 @@
       return (
         '<div class="st-section-intro"><h3>页面背景</h3><p>点选试用，保存后生效</p></div>' +
         filters([["all","全部"],["illustration","插画"],["scenery","风景"],["minimal","简约纹理"]], "data-background-filter", backgroundFilter) +
-        '<div class="st-background-grid">' + backgrounds.filter(t => backgroundFilter === 'all' || t.category === backgroundFilter).map(wallpaperTile).join('') +
+        '<div class="st-background-grid">' + backgrounds.filter(t => t.category !== 'legacy' && (backgroundFilter === 'all' || t.category === backgroundFilter)).map(wallpaperTile).join('') +
         '</div><button class="st-link" data-bg="none" aria-pressed="' + (p.background === 'none') + '">不使用背景图片</button><label class="st-range">背景浓度 <output>' +
         p.intensity +
         '%</output><input type="range" min="0" max="100" value="' +
@@ -567,7 +584,7 @@
             '<i class="st-color" style="background:' + t.dot + '"></i>',
           ),
         ).join("") +
-        '</div><p class="st-hint st-source">插画：<a href="https://openstickers.craftwork.design/" target="_blank" rel="noopener noreferrer">Craftwork Open Stickers</a>。摄影：Cuvii、Spencer DeMera、Veronica Moreno-Alvarez / Unsplash。纹理：Steve Schoger / Hero Patterns。<a href="./assets/themes/ATTRIBUTION.md" target="_blank" rel="noopener noreferrer">素材来源</a></p>'
+        '</div><p class="st-hint st-source">精细插画为 AI 生成。简约贴纸：<a href="https://openstickers.craftwork.design/" target="_blank" rel="noopener noreferrer">Craftwork Open Stickers</a>。摄影：Cuvii、Spencer DeMera、Veronica Moreno-Alvarez / Unsplash。纹理：Steve Schoger / Hero Patterns。<a href="./assets/themes/ATTRIBUTION.md" target="_blank" rel="noopener noreferrer">素材来源</a></p>'
       );
     if (tab === "cards")
       return (
@@ -597,10 +614,10 @@
         '</h3><p class="st-hint">' +
         (target
           ? "此处只修改选中的板块。"
-          : "主题默认不添加挂件。可以手动选择卡片，或仅点缀每页第一张卡片。") +
+          : "精选主题配有一款挂件，也可以单独选择或关闭。每页最多自动点缀首张卡片。") +
         '</p>' + (target ? '' : '<div class="st-options">' + choices([["custom","手动指定卡片"],["accent","每页首张卡片"],["none","不显示挂件"]],"data-decor-mode",p.decorMode) + '</div><button class="st-link" data-pick-card>在页面上选择卡片</button>') +
-        filters([["sticker","插画贴纸"],["line","经典线条"]], "data-decoration-filter", decorationFilter) +
-        '<div class="st-deco-grid ' + (decorationFilter === 'sticker' ? 'st-sticker-grid' : '') + '">' +
+        filters([["charm","精细挂件"],["line","经典线条"],["sticker","简约贴纸"]], "data-decoration-filter", decorationFilter) +
+        '<div class="st-deco-grid ' + (decorationFilter === 'charm' ? 'st-charm-grid' : decorationFilter === 'sticker' ? 'st-sticker-grid' : '') + '">' +
         button(
           "none",
           "不使用",
@@ -609,9 +626,9 @@
           '<span class="st-none">—</span>',
         ) +
         decorations.filter(d => d.group === decorationFilter)
-          .map((d) => button(d.id, d.name, "data-deco", o.deco, svg(d.id)))
+          .map((d) => button(d.id, d.name, "data-deco", o.deco, svg(d.id) + (d.desc ? '<small>' + esc(d.desc) + '</small>' : '')))
           .join("") +
-        '</div><p class="st-hint st-source">插画：<a href="https://openstickers.craftwork.design/" target="_blank" rel="noopener noreferrer">Craftwork Open Stickers</a> · <a href="./assets/themes/ATTRIBUTION.md" target="_blank" rel="noopener noreferrer">素材来源</a></p><h3>挂件位置</h3><div class="st-options">' +
+        '</div><p class="st-hint st-source">精细插画为 AI 生成。简约贴纸：<a href="https://openstickers.craftwork.design/" target="_blank" rel="noopener noreferrer">Craftwork Open Stickers</a> · <a href="./assets/themes/ATTRIBUTION.md" target="_blank" rel="noopener noreferrer">素材来源</a></p><h3>挂件位置</h3><div class="st-options">' +
         choices(
           [
             ["left", "左侧"],
@@ -792,7 +809,7 @@
     tab = section;
     showPreview = Boolean(key);
     backgroundFilter = "all";
-    decorationFilter = key && !isSticker(active().overrides[key]?.deco) ? "line" : "sticker";
+    decorationFilter = key ? decorKind(active().overrides[key]?.deco || "none") : "charm";
     returnFocus = document.activeElement;
     draft = { ...snapshot() };
     undo = [];
@@ -900,9 +917,21 @@
       draw();
     } else change(() => updateRange(key, +e.target.value));
   }
+  function viewArtwork() {
+    const t = backgrounds.find(t => t.id === active().background);
+    if (!t?.wallpaper) return;
+    const viewer = document.createElement("dialog");
+    viewer.className = "st-art-viewer"; viewer.setAttribute("aria-label", t.name + "完整背景");
+    viewer.innerHTML = '<button type="button" aria-label="关闭完整背景">×</button><img src="./assets/themes/art/' + t.wallpaper + '.webp" alt="' + t.name + '完整背景原画"><p><b>' + t.name + '</b><span>完整背景预览</span></p>';
+    const close = () => {viewer.close();viewer.remove();dialog?.querySelector('[data-view-art]')?.focus();};
+    viewer.querySelector('button').onclick = close;
+    viewer.addEventListener('cancel', e => {e.preventDefault();close();});
+    document.body.appendChild(viewer);viewer.showModal();viewer.querySelector('button').focus();
+  }
   function onClick(e) {
     const b = e.target.closest("button");
     if (!b || (b.type === "submit" && b.closest("form"))) return;
+    if (b.hasAttribute("data-view-art")) return viewArtwork();
     if (b.hasAttribute("data-close")) return close(false);
     if (b.hasAttribute("data-apply")) return close(true);
     if (b.hasAttribute("data-page-preview")) return inspectPage();
@@ -948,15 +977,18 @@
           theme: t.id,
           background: t.id,
           card: t.card,
-          deco: "none",
+          deco: t.charm || "none",
+          decorMode: t.charm ? "accent" : "custom",
+          scale: t.charm ? 96 : 32,
           title: t.title,
+          intensity: t.wallpaper ? 100 : 75,
         };
         setPalette(t.palette, true);
         setReading(t.font, engine.reading().size);
       } else if (b.dataset.bg) {
         p.background = b.dataset.bg;
         const t = backgrounds.find(t => t.id === p.background);
-        if (t) { p.theme = t.id; setPalette(t.palette); }
+        if (t) { p.theme = t.id; if (t.wallpaper) p.intensity = 100; setPalette(t.palette); }
         else { p.theme = ""; setPalette(engine.currentTheme()); }
         showPreview = true;
       }
@@ -982,7 +1014,7 @@
           if (p.decorMode === "none") p.decorMode = "custom";
         }
         if (b.dataset.deco) {
-          if (isSticker(o.deco) !== isSticker(b.dataset.deco)) o.scale = scaleLimits(b.dataset.deco)[2];
+          if (decorKind(o.deco) !== decorKind(b.dataset.deco)) o.scale = scaleLimits(b.dataset.deco)[2];
           o.deco = b.dataset.deco;
           showPreview = true;
         }
