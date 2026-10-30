@@ -90,7 +90,7 @@ function sendHtml(res) {
   secureHeaders(res).status(200);
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
-  return res.send(MG_HTML);
+  return res.send(MG_HTML.replace('</head>', '<script src="/notice-media.js?v=6288ddc197"></script><script src="/notice-embed.js?v=30a1daa1a8"></script></head>'));
 }
 
 export default async function handler(req, res) {
