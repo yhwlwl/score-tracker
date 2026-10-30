@@ -199,13 +199,13 @@
     {id:"summer-float",name:"冰爽夏日",desc:"清透水面 · 软软泳圈",category:"illustration",wallpaper:"summer-float",palette:"sky",bg:"#e8f8fa",panel:"#fbffff",ink:"#327a89",card:"soft",font:"system",title:"system",charm:"charm-float-bunny",tokens:{"--text":"#224650","--muted":"#587c82","--line":"#d7e9e9","--accent":"#327a89","--accent-soft":"#e3f3f4","--nav-active":"#dceff0","--logo-a":"#73adb4","--logo-b":"#a6dadd"}},
     {id:"butter-daisy",name:"奶油花田",desc:"暖黄晴空 · 雏菊与小熊",category:"illustration",wallpaper:"butter-daisy",palette:"paper",bg:"#fff5dd",panel:"#fffef7",ink:"#8a6835",card:"soft",font:"system",title:"system",charm:"charm-daisy-bear",tokens:{"--text":"#494131","--muted":"#817154","--line":"#e9e1ca","--accent":"#8a6835","--accent-soft":"#f6edd7","--nav-active":"#f4eccd","--logo-a":"#b9a06a","--logo-b":"#e8d5a1"}},
     {id:"lotus-pond",name:"荷塘小憩",desc:"薄荷池水 · 荷叶与小鸭",category:"illustration",wallpaper:"lotus-pond",palette:"mint",bg:"#e7f4ed",panel:"#fbfffb",ink:"#477967",card:"soft",font:"system",title:"system",charm:"charm-pond-duck",tokens:{"--text":"#29483f","--muted":"#5f776c","--line":"#d9e7dc","--accent":"#477967","--accent-soft":"#e6f1e8","--nav-active":"#dcece0","--logo-a":"#6f9f8d","--logo-b":"#b9d6b9"}},
-    {id:"study-shore",name:"马上上岸",desc:"晴岸晨光 · 奶油蓝绿",category:"illustration",wallpaper:"study-shore",landscape:"study-shore-wide",palette:"sky",bg:"#edf4f1",panel:"#fffef9",ink:"#356763",card:"soft",font:"system",title:"system",charm:"charm-exam-pony",tokens:{
-      "--text":"#263f3b","--muted":"#60756e","--line":"#dde6df","--accent":"#356763","--accent-soft":"#e8f1eb",
-      "--green":"#387658","--green-soft":"#eaf4eb","--logo-a":"#6e9281","--logo-b":"#c3d8ba",
-      "--nav-glass":"rgba(255,254,249,.96)","--navbg":"rgba(255,254,249,.96)","--nav-active":"#e7eee1","--nav-line":"#e5eade","--navline":"#e5eade",
-      "--chip-bg":"#fffef9","--cell":"#f1f6ef","--line-soft":"#dbe5da","--axis":"#6d837a","--point-label":"#60756e","--grid":"#e1e9e4","--dotfill":"#fffef9",
-      "--focus":"#356763","--focus-ring":"rgba(53,103,99,.18)","--sel-bg":"#d4e7db","--sel-text":"#263f3b",
-      "--shadow":"0 8px 28px rgba(48,84,67,.07)","--nav-shadow":"0 8px 28px rgba(48,84,67,.10)"
+    {id:"study-shore",name:"马上上岸",desc:"高分来信 · 粉蓝好彩头",category:"illustration",wallpaper:"exam-good-luck",landscape:"exam-good-luck-wide",palette:"sky",bg:"#eef2fb",panel:"#fffdfb",ink:"#596a9b",card:"soft",font:"system",title:"system",charm:"charm-exam-pony",tokens:{
+      "--text":"#303d58","--muted":"#6d7890","--line":"#e1e4f0","--accent":"#596a9b","--accent-soft":"#edf0fa",
+      "--green":"#387658","--green-soft":"#eaf4eb","--logo-a":"#8293b7","--logo-b":"#c5cbed",
+      "--nav-glass":"rgba(255,253,251,.96)","--navbg":"rgba(255,253,251,.96)","--nav-active":"#e9edf8","--nav-line":"#e4e7f3","--navline":"#e4e7f3",
+      "--chip-bg":"#fffdfb","--cell":"#f3f5fc","--line-soft":"#dce3f1","--axis":"#7886a6","--point-label":"#6d7890","--grid":"#e5e9f4","--dotfill":"#fffdfb",
+      "--focus":"#596a9b","--focus-ring":"rgba(89,106,155,.18)","--sel-bg":"#dce4fa","--sel-text":"#303d58",
+      "--shadow":"0 8px 28px rgba(71,84,126,.07)","--nav-shadow":"0 8px 28px rgba(71,84,126,.10)"
     }},
     {id:"sakura-atelier",name:"樱风书屋",desc:"一枝樱花 · 开阔晴空",category:"illustration",wallpaper:"sakura-atelier-v2",palette:"paper",bg:"#edf3f4",panel:"#fffdf9",ink:"#916d54",card:"soft",font:"system",title:"system",charm:"charm-quiet-kitten"},
     {id:"starlit-tide",name:"星海夜航",desc:"弯月云海 · 轻柔留白",category:"illustration",wallpaper:"starlit-tide-v2",palette:"violet",bg:"#edf0fa",panel:"#fdfbff",ink:"#7665a0",card:"soft",font:"system",title:"system",charm:"charm-quiet-fox"},

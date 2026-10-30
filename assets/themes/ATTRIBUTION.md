@@ -57,7 +57,7 @@ Current recommended backgrounds use `art/sakura-atelier-v2.webp` and `art/starli
 
 ## Study shore collection (2026-10-30)
 
-`art/study-shore.webp` and `art/study-shore-wide.webp` are original lakeshore sunrise illustrations generated with the built-in image_gen tool for this project. The landscape version expands the same portrait scene for desktop composition. Only proportional thumbnail resampling and WebP encoding are applied. The collection pairs this scenery with the existing `charms/exam-pony.webp`; that sticker is unchanged. The full-art viewer and actual wallpaper use the same viewport breakpoint for the two compositions. Prompts, dimensions and companion-image reference are recorded in GENERATED-ART.json.
+The `study-shore` preset now uses `art/exam-good-luck.webp` and `art/exam-good-luck-wide.webp`: original exam-good-luck illustrations generated with the built-in image_gen tool. The existing pony charm supplied color and simplicity guidance, then the generated concept supplied the composition reference for 4:9 phone and landscape companions. Only proportional thumbnail resampling and WebP encoding are applied. The existing `charms/exam-pony.webp` is unchanged. The full-art viewer and actual wallpaper use the same viewport breakpoint. Full prompts and dimensions are recorded in GENERATED-ART.json. The earlier lakeshore originals `art/study-shore.webp` and `art/study-shore-wide.webp` remain in the source archive but are no longer the preset's active artwork.
 
 ## Pastel storybook collections (2026-10-30)
 

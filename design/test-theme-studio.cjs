@@ -294,10 +294,11 @@ async function harness(storage = {}) {
     h.close();
     const shore = await harness();
     shore.click('[data-st-open]'); shore.click('[data-preset=study-shore]');
-    assert.equal(shore.d.documentElement.style.getPropertyValue('--accent'),'#356763');
+    assert.equal(shore.d.documentElement.style.getPropertyValue('--accent'),'#596a9b');
     assert.equal(shore.d.querySelector('.shell .st-ornament').dataset.id,'charm-exam-pony');
     shore.click('[data-view-art]');
-    assert(shore.d.querySelector('.st-art-viewer picture source').srcset.endsWith('study-shore-wide.webp'));
+    assert(shore.d.querySelector('.st-art-viewer picture source').srcset.endsWith('exam-good-luck-wide.webp'));
+    assert(shore.d.querySelector('.st-art-viewer img').src.endsWith('exam-good-luck.webp'));
     shore.click('.st-art-viewer button'); shore.click('[data-apply]');
     const shoreReloaded = await harness(shore.saved());
     assert.equal(shoreReloaded.w.ScoreAppearance.get().theme,'study-shore');
@@ -307,7 +308,7 @@ async function harness(storage = {}) {
     shoreReloaded.click('[data-st-open]');shoreReloaded.click('[data-preset=cloud]');
     assert.equal(shoreReloaded.d.documentElement.style.getPropertyValue('--accent'),'#096a9e','leaving the theme restores base palette');
     shoreReloaded.click('[data-close]');
-    assert.equal(shoreReloaded.d.documentElement.style.getPropertyValue('--accent'),'#356763','cancel restores the complete palette');
+    assert.equal(shoreReloaded.d.documentElement.style.getPropertyValue('--accent'),'#596a9b','cancel restores the complete palette');
     shoreReloaded.close();shore.close();
     for (const raw of [
       "null",
