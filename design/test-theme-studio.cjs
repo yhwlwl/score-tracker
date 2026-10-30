@@ -106,14 +106,14 @@ async function harness(storage = {}) {
   try {
     const { w, d, click } = h,
       basePalette = w.__v29.currentTheme();
-    assert.equal(w.ScoreAppearance.themes.length, 6);
-    assert.equal(w.ScoreAppearance.decorations.length, 24);
+    assert.equal(w.ScoreAppearance.themes.length, 13);
+    assert.equal(w.ScoreAppearance.decorations.length, 48);
     assert.equal(d.querySelectorAll("[data-st-open]").length, 1);
     click("[data-st-open]");
     for (const theme of w.ScoreAppearance.themes) {
       click("[data-preset=" + theme.id + "]");
       assert.equal(d.documentElement.dataset.stBackground, theme.id);
-      assert.equal(d.querySelectorAll('.shell .st-ornament').length, 0, 'presets never repeat ornaments');
+      assert.equal(d.querySelectorAll('.shell .st-ornament').length, theme.charm ? 1 : 0, 'paired presets decorate only one card');
       assert.equal(
         d
           .querySelector("[data-preset=" + theme.id + "]")
@@ -130,10 +130,12 @@ async function harness(storage = {}) {
     click("[data-close]");
     assert.equal(w.__v29.currentTheme(), basePalette);
     assert.equal(d.documentElement.dataset.stBackground, "none");
+    assert.equal(d.documentElement.dataset.stLook, "");
     assert.equal(d.querySelector(".st-studio"), null);
     click("[data-st-open]");
     click("[data-preset=garden]");
     click("[data-tab=decor]");
+    click("[data-decoration-filter=line]");
     for (const id of ["cat", "plane", "flower"])
       click("[data-deco=" + id + "]");
     click("[data-position=left]");
@@ -162,6 +164,39 @@ async function harness(storage = {}) {
     assert.equal(w.ScoreAppearance.get().deco, "flower");
     assert.equal(w.ScoreAppearance.get().title, "smiley");
     assert.equal(w.__v29.reading().font, "wenkai");
+    click('[data-st-open]');
+    click('[data-tab=decor]');
+    click('[data-decoration-filter=sticker]');
+    assert.equal(d.querySelectorAll('.st-sticker-grid img').length,12);
+    click('[data-deco=sticker-open-book]');
+    assert.equal(d.querySelectorAll('.shell .st-ornament').length,1);
+    assert.equal(d.querySelector('.shell .st-ornament').dataset.kind,'sticker');
+    assert.equal(d.querySelector('.st-preview .st-ornament').dataset.kind,'sticker');
+    assert.equal(d.querySelector('[data-range=scale]').value,'56');
+    click('[data-apply]');
+    const reloaded = await harness(h.saved());
+    assert.equal(reloaded.w.ScoreAppearance.get().deco,'sticker-open-book');
+    assert.equal(reloaded.w.ScoreAppearance.get().scale,56);
+    reloaded.close();
+    click('[data-st-open]'); click('[data-tab=decor]'); click('[data-decoration-filter=line]'); click('[data-deco=flower]'); click('[data-apply]');
+    click('[data-st-open]');click('[data-preset=starlit-tide]');
+    assert.equal(d.documentElement.dataset.stArt,'illustrated');
+    assert.equal(d.querySelector('.shell .st-ornament').dataset.kind,'charm');
+    assert.equal(d.querySelectorAll('.shell .st-ornament').length,1);
+    click('[data-view-art]');
+    assert(d.querySelector('.st-art-viewer').open);
+    assert(d.querySelector('.st-art-viewer img').src.endsWith('starlit-tide-v2.webp'));
+    click('.st-art-viewer button');
+    assert.equal(d.querySelector('.st-art-viewer'),null);
+    click('[data-tab=decor]');
+    assert.equal(d.querySelectorAll('.st-charm-grid img').length,8);
+    click('[data-deco=charm-hello-puppy]');click('[data-apply]');
+    const detailed = await harness(h.saved());
+    assert.equal(detailed.w.ScoreAppearance.get().deco,'charm-hello-puppy');
+    assert.equal(detailed.w.ScoreAppearance.get().scale,112);
+    assert.equal(detailed.d.querySelector('.shell .st-ornament').dataset.style,'simple');
+    detailed.close();
+    click('[data-st-open]');click('[data-preset=garden]');click('[data-tab=decor]');click('[data-decoration-filter=line]');click('[data-deco=flower]');click('[data-tab=fonts]');click('[data-title=smiley]');click('[data-font=wenkai]');click('[data-size=large]');click('[data-apply]');
     let storage = h.saved();
     h.close();
     h = await harness(storage);
@@ -224,6 +259,7 @@ async function harness(storage = {}) {
     assert.equal(h.w.__v29.currentTheme(), 'sakura');
     assert.equal(h.d.querySelector('[data-bg=coast-photo] .st-item-action').textContent, '试用中');
     h.click('[data-tab=decor]');
+    h.click('[data-decoration-filter=line]');
     h.click('[data-deco=leaf]');
     assert(h.d.querySelector('.st-preview .st-ornament svg'));
     assert.equal(h.d.querySelectorAll('.shell .st-ornament').length, 1);
@@ -256,6 +292,24 @@ async function harness(storage = {}) {
     assert.equal(h.w.__v29.currentTheme(), "night");
     assert.deepEqual(h.errors, []);
     h.close();
+    const shore = await harness();
+    shore.click('[data-st-open]'); shore.click('[data-preset=study-shore]');
+    assert.equal(shore.d.documentElement.style.getPropertyValue('--accent'),'#596a9b');
+    assert.equal(shore.d.querySelector('.shell .st-ornament').dataset.id,'charm-exam-pony');
+    shore.click('[data-view-art]');
+    assert(shore.d.querySelector('.st-art-viewer picture source').srcset.endsWith('exam-good-luck-wide.webp'));
+    assert(shore.d.querySelector('.st-art-viewer img').src.endsWith('exam-good-luck.webp'));
+    shore.click('.st-art-viewer button'); shore.click('[data-apply]');
+    const shoreReloaded = await harness(shore.saved());
+    assert.equal(shoreReloaded.w.ScoreAppearance.get().theme,'study-shore');
+    assert.equal(shoreReloaded.w.ScoreAppearance.get().deco,'charm-exam-pony');
+    assert.equal(shoreReloaded.w.ScoreAppearance.get().scale,112);
+    assert.equal(shoreReloaded.d.documentElement.dataset.stLook,'study-shore');
+    shoreReloaded.click('[data-st-open]');shoreReloaded.click('[data-preset=cloud]');
+    assert.equal(shoreReloaded.d.documentElement.style.getPropertyValue('--accent'),'#096a9e','leaving the theme restores base palette');
+    shoreReloaded.click('[data-close]');
+    assert.equal(shoreReloaded.d.documentElement.style.getPropertyValue('--accent'),'#596a9b','cancel restores the complete palette');
+    shoreReloaded.close();shore.close();
     for (const raw of [
       "null",
       "[]",
@@ -270,7 +324,7 @@ async function harness(storage = {}) {
       h.close();
     }
     console.log(
-      "PASS: six themes, nine backgrounds, 24 line decorations, filtered background galleries, transient preview, cancel/Escape, undo, save/reload, escaped favorites, local overrides/inheritance, legacy controls, blocked and malformed storage.",
+      "PASS: thirteen themes, eight simple charms, paired palettes and pony save/reload/cancel, compatible backgrounds, classic ornaments, galleries, preview, undo, favorites, local overrides and malformed storage.",
     );
   } finally {
     h.close();

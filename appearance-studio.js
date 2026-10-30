@@ -150,17 +150,68 @@
     "铃铛",
     "绶带",
   ];
+  const charms = [
+    ["little-lamb","软绵小羊","软软羊毛 · 一片三叶草"],
+    ["float-bunny","游泳小兔","蓝白泳圈 · 一口西瓜"],
+    ["daisy-bear","雏菊小熊","奶油小熊 · 一朵雏菊"],
+    ["pond-duck","荷叶小鸭","圆圆小鸭 · 一片荷叶"],
+    ["exam-pony","马上上岸","粉色小马 · 轻快出发"],
+    ["hello-puppy","小狗打招呼","软软耳朵 · 一声 Hi"],
+    ["quiet-kitten","趴书小猫","奶油小猫 · 一本小书"],
+    ["quiet-fox","晚安小狐","弯弯月牙 · 安静好梦"],
+  ].map(([file,name,desc]) => ({id:"charm-"+file,name,desc,file,group:"charm",simple:true}));
+  const legacyCharms = [
+    ["reading-kitten","书香小猫","奶油绒毛 · 书本与花枝"],
+    ["moon-fox","月光小狐","琉璃月牙 · 星星与绣球"],
+    ["garden-bear","花园小熊","花瓷茶杯 · 缎带与雏菊"],
+    ["cloud-whale","云海来信","珍珠云鲸 · 星瓶与花晶"],
+  ].map(([file,name,desc]) => ({id:"charm-"+file,name,desc,file,group:"legacy"}));
+  const isSimpleCharm = id => charms.some(d => d.id === id);
+  const isCharm = id => isSimpleCharm(id) || legacyCharms.some(d => d.id === id);
+  const decorKind = id => isCharm(id) ? "charm" : isSticker(id) ? "sticker" : "line";
+  const stickers = [
+    ["rain-window", "雨后窗边"], ["crescent", "晚安月牙"],
+    ["butterfly", "橙色蝴蝶"], ["ginger-cat", "橘猫探头"],
+    ["sunshine", "晴天心情"], ["blossom", "花开正好"],
+    ["mushrooms", "林间蘑菇"], ["rainbow", "云上彩虹"],
+    ["aquarium", "小鱼来信"], ["open-book", "翻开一页"],
+    ["houseplant", "窗边绿植"], ["warm-mug", "热饮时光"],
+  ].map(([id, name]) => ({id: "sticker-" + id, name, group: "sticker", file: id}));
+  const isSticker = id => stickers.some(d => d.id === id);
+  const scaleLimits = id => isSimpleCharm(id) ? [96, 144, 112] : isCharm(id) ? [80, 120, 96] : isSticker(id) ? [40, 72, 56] : [24, 40, 32];
   const decorations = Object.keys(drawings).map((id, i) => ({
     id,
     name: names[i],
     group: "line",
-  }));
+  })).concat(stickers, charms, legacyCharms);
   const photos = [
     {id:"sky-photo", name:"晴空", desc:"柔软云层 · 浅天蓝", file:"clouds", palette:"sky", bg:"#e8f4ff", panel:"#fff", ink:"#246b8a", category:"scenery", author:"Cuvii"},
     {id:"meadow-photo", name:"青草地", desc:"开阔草坡 · 清新绿", file:"meadow", palette:"mint", bg:"#eef3eb", panel:"#fffefb", ink:"#3f7257", category:"scenery", author:"Spencer DeMera"},
     {id:"coast-photo", name:"晚霞海岸", desc:"粉色晚霞 · 平静海面", file:"sea", palette:"sakura", bg:"#f9edf1", panel:"#fffafa", ink:"#a95d76", category:"scenery", author:"Veronica Moreno-Alvarez"},
   ];
-  const backgrounds = [...photos, ...themes.map(t => ({...t, category:"minimal"}))];
+  const legacyIllustrated = [
+    {id:"flower-day", name:"花间晴日", desc:"奶油底色 · 彩色花园", category:"illustration", palette:"paper", bg:"#f8f4e6", panel:"#fffdf8", ink:"#817339", card:"soft", font:"system", title:"system"},
+    {id:"moon-window", name:"月色窗边", desc:"雾蓝夜色 · 月牙星光", category:"illustration", palette:"sky", bg:"#e9edf6", panel:"#fcfcff", ink:"#657794", card:"soft", font:"system", title:"system"},
+  ];
+  legacyIllustrated.forEach(t => t.category = "legacy");
+  const illustrated = [
+    {id:"woolly-meadow",name:"绵绵草原",desc:"奶油云朵 · 小羊与溪流",category:"illustration",wallpaper:"woolly-meadow",palette:"mint",bg:"#eef4df",panel:"#fffef8",ink:"#54724b",card:"soft",font:"system",title:"system",charm:"charm-little-lamb",tokens:{"--text":"#304637","--muted":"#64745b","--line":"#dfe6d6","--accent":"#54724b","--accent-soft":"#eaf0dc","--nav-active":"#e8eed8","--logo-a":"#7b9869","--logo-b":"#d1dcaa"}},
+    {id:"summer-float",name:"冰爽夏日",desc:"清透水面 · 软软泳圈",category:"illustration",wallpaper:"summer-float",palette:"sky",bg:"#e8f8fa",panel:"#fbffff",ink:"#327a89",card:"soft",font:"system",title:"system",charm:"charm-float-bunny",tokens:{"--text":"#224650","--muted":"#587c82","--line":"#d7e9e9","--accent":"#327a89","--accent-soft":"#e3f3f4","--nav-active":"#dceff0","--logo-a":"#73adb4","--logo-b":"#a6dadd"}},
+    {id:"butter-daisy",name:"奶油花田",desc:"暖黄晴空 · 雏菊与小熊",category:"illustration",wallpaper:"butter-daisy",palette:"paper",bg:"#fff5dd",panel:"#fffef7",ink:"#8a6835",card:"soft",font:"system",title:"system",charm:"charm-daisy-bear",tokens:{"--text":"#494131","--muted":"#817154","--line":"#e9e1ca","--accent":"#8a6835","--accent-soft":"#f6edd7","--nav-active":"#f4eccd","--logo-a":"#b9a06a","--logo-b":"#e8d5a1"}},
+    {id:"lotus-pond",name:"荷塘小憩",desc:"薄荷池水 · 荷叶与小鸭",category:"illustration",wallpaper:"lotus-pond",palette:"mint",bg:"#e7f4ed",panel:"#fbfffb",ink:"#477967",card:"soft",font:"system",title:"system",charm:"charm-pond-duck",tokens:{"--text":"#29483f","--muted":"#5f776c","--line":"#d9e7dc","--accent":"#477967","--accent-soft":"#e6f1e8","--nav-active":"#dcece0","--logo-a":"#6f9f8d","--logo-b":"#b9d6b9"}},
+    {id:"study-shore",name:"马上上岸",desc:"高分来信 · 粉蓝好彩头",category:"illustration",wallpaper:"exam-good-luck",landscape:"exam-good-luck-wide",palette:"sky",bg:"#eef2fb",panel:"#fffdfb",ink:"#596a9b",card:"soft",font:"system",title:"system",charm:"charm-exam-pony",tokens:{
+      "--text":"#303d58","--muted":"#6d7890","--line":"#e1e4f0","--accent":"#596a9b","--accent-soft":"#edf0fa",
+      "--green":"#387658","--green-soft":"#eaf4eb","--logo-a":"#8293b7","--logo-b":"#c5cbed",
+      "--nav-glass":"rgba(255,253,251,.96)","--navbg":"rgba(255,253,251,.96)","--nav-active":"#e9edf8","--nav-line":"#e4e7f3","--navline":"#e4e7f3",
+      "--chip-bg":"#fffdfb","--cell":"#f3f5fc","--line-soft":"#dce3f1","--axis":"#7886a6","--point-label":"#6d7890","--grid":"#e5e9f4","--dotfill":"#fffdfb",
+      "--focus":"#596a9b","--focus-ring":"rgba(89,106,155,.18)","--sel-bg":"#dce4fa","--sel-text":"#303d58",
+      "--shadow":"0 8px 28px rgba(71,84,126,.07)","--nav-shadow":"0 8px 28px rgba(71,84,126,.10)"
+    }},
+    {id:"sakura-atelier",name:"樱风书屋",desc:"一枝樱花 · 开阔晴空",category:"illustration",wallpaper:"sakura-atelier-v2",palette:"paper",bg:"#edf3f4",panel:"#fffdf9",ink:"#916d54",card:"soft",font:"system",title:"system",charm:"charm-quiet-kitten"},
+    {id:"starlit-tide",name:"星海夜航",desc:"弯月云海 · 轻柔留白",category:"illustration",wallpaper:"starlit-tide-v2",palette:"violet",bg:"#edf0fa",panel:"#fdfbff",ink:"#7665a0",card:"soft",font:"system",title:"system",charm:"charm-quiet-fox"},
+  ];
+  const presets = [...illustrated, ...themes];
+  const backgrounds = [...illustrated, ...photos, ...themes.map(t => ({...t, category:"minimal"})), ...legacyIllustrated];
   const backgroundIds = ["none", ...backgrounds.map(t => t.id)];
   const decorationIds = ["none", ...decorations.map(d => d.id)];
   const fonts = [
@@ -204,6 +255,7 @@
     pagePreview = false,
     previousEdit = false,
     backgroundFilter = "all",
+    decorationFilter = "charm",
     showPreview = false;
   if (prefs.palette) setPalette(prefs.palette);
   if (prefs.reading) setReading(prefs.reading.font, prefs.reading.size);
@@ -266,7 +318,7 @@
     const p = {
       theme: member(
         x.theme,
-        [...themes, ...photos].map((t) => t.id),
+        backgrounds.map((t) => t.id),
         "",
       ),
       background: member(
@@ -285,7 +337,7 @@
       // card choices, but never migrate that repetition into the new defaults.
       decorMode: member(x.decorMode, ["none", "custom", "accent"], "custom"),
       position: member(x.position, ["left", "right"], "right"),
-      scale: bounded(x.scale, 24, 40, 32),
+      scale: bounded(x.scale, ...scaleLimits(x.deco)),
       title: member(
         x.title,
         fonts.map((x) => x[0]),
@@ -311,7 +363,7 @@
             p.overrides[k] = {
               deco: member(v.deco, decorationIds, "none"),
               position: member(v.position, ["left", "right"], "right"),
-              scale: bounded(v.scale, 24, 40, p.scale),
+              scale: bounded(v.scale, ...scaleLimits(v.deco)),
             };
         });
     return p;
@@ -330,6 +382,10 @@
     );
   }
   function svg(id) {
+    const charm = [...charms, ...legacyCharms].find(d => d.id === id);
+    if (charm) return '<img src="./assets/themes/charms/' + charm.file + '.webp" alt="" width="' + (charm.simple ? '768' : '640') + '" height="' + (charm.simple ? '512' : '640') + '" decoding="async">';
+    const sticker = stickers.find(d => d.id === id);
+    if (sticker) return '<img src="./assets/themes/stickers/' + sticker.file + '.webp" alt="" width="480" height="480" decoding="async">';
     return drawings[id]
       ? '<svg viewBox="0 0 64 64" fill="color-mix(in srgb,currentColor 14%,transparent)" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
           drawings[id] +
@@ -356,6 +412,8 @@
     root.dataset.stCard = p.card;
     root.dataset.stTitle = p.title;
     root.dataset.stBackground = p.background;
+    root.dataset.stLook = p.theme;
+    root.dataset.stArt = backgrounds.find(t => t.id === p.background)?.wallpaper ? "illustrated" : "basic";
     let backdrop = document.getElementById("stBackdrop");
     if (!backdrop) {
       backdrop = document.createElement("div");
@@ -375,6 +433,7 @@
       root.style.setProperty("--bg", theme.bg);
       root.style.setProperty("--panel-solid", theme.panel);
       root.style.setProperty("--panel", theme.panel);
+      Object.entries(theme.tokens || {}).forEach(([key,value]) => root.style.setProperty(key,value));
       const meta = document.querySelector('meta[name="theme-color"]');
       if (meta) meta.content = theme.bg;
     }
@@ -429,6 +488,8 @@
           mark.dataset.id = o.deco;
         }
         mark.dataset.position = o.position;
+        mark.dataset.kind = decorKind(o.deco);
+        mark.dataset.style = isSimpleCharm(o.deco) ? "simple" : "classic";
         el.classList.add("st-decorated");
       }
       let b = el.querySelector(":scope > .st-edit-card");
@@ -470,6 +531,7 @@
     return items.map((x) => button(x[0], x[1], attr, selected)).join("");
   }
   function preview() {
+    const art = backgrounds.find(t => t.id === active().background);
     const p = active(),
       ornament = target ? p.overrides[target] || { ...p, deco: "none" } :
         p.decorMode === "accent" ? p : { ...p, deco: "none" };
@@ -480,11 +542,11 @@
       p.background +
       '"><div class="st-preview-greeting"><h3>成绩概览</h3></div><div class="st-preview-card st-surface"><span class="st-preview-label">数学 · 阶段检测</span><div class="st-preview-score">128.5 <small>/ 150</small></div><span class="st-preview-gain">较上次 +6.5 分</span><span class="st-ornament" data-position="' +
       ornament.position +
-      '">' +
+      '" data-kind="' + decorKind(ornament.deco) + '" data-style="' + (isSimpleCharm(ornament.deco) ? 'simple' : 'classic') + '">' +
       svg(ornament.deco) +
       '</span><svg class="st-preview-chart" viewBox="0 0 260 65" role="img" aria-label="示例成绩有升有降的趋势"><path d="M0 55H260M0 25H260" stroke="var(--line)"/><path d="M5 50 48 34 90 42 132 15 175 28 218 9 255 18" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"/><g fill="var(--panel-solid)" stroke="var(--accent)" stroke-width="2"><circle cx="48" cy="34" r="3"/><circle cx="132" cy="15" r="3"/><circle cx="218" cy="9" r="3"/></g></svg></div><div class="st-preview-note st-surface"><b>考后反思</b><p>本次计算失误较少，继续检查解题步骤。</p></div></div><p class="st-preview-foot">当前背景：' +
       (backgrounds.find(t => t.id === p.background)?.name || "纯色") +
-      ' · <span data-preview-intensity>' + p.intensity + '</span>%</p><button type="button" class="st-link st-page-preview" data-page-preview>在当前页面预览</button></div>'
+      ' · <span data-preview-intensity>' + p.intensity + '</span>%</p>' + (art?.wallpaper ? '<button type="button" class="st-link st-art-link" data-view-art>查看完整背景</button>' : '') + '<button type="button" class="st-link st-page-preview" data-page-preview>在当前页面预览</button></div>'
     );
   }
   let target = null;
@@ -493,9 +555,10 @@
   }
   function wallpaperTile(t) {
     const selected = active().background === t.id;
-    return '<button type="button" class="st-wallpaper ' + (selected ? 'is-on' : '') + '" data-bg="' + t.id + '" aria-pressed="' + selected + '"><span class="st-wallpaper-art" data-scene="' + t.id + '" style="--tile-bg:' + (t.bg || 'var(--bg)') + '">' +
-      (t.file ? '<img src="./assets/themes/photos/' + t.file + '-thumb.webp" width="480" height="480" alt="" loading="lazy" decoding="async">' : '') +
-      '<span class="st-material-label">' + (t.file ? '风景' : '简约') + '</span></span><b>' + t.name + '</b><span class="st-item-action">' + itemState(selected, prefs.background === t.id) + '</span></button>';
+    const attr = t.charm && tab === "themes" ? "data-preset" : "data-bg";
+    return '<button type="button" class="st-wallpaper ' + (selected ? 'is-on' : '') + '" ' + attr + '="' + t.id + '" aria-pressed="' + selected + '"><span class="st-wallpaper-art" data-scene="' + t.id + '" style="--tile-bg:' + (t.bg || 'var(--bg)') + '">' +
+      (t.wallpaper ? '<img src="./assets/themes/art/' + (t.landscape || t.wallpaper) + '-thumb.webp" width="480" height="' + (t.landscape ? '300' : '720') + '" alt="" loading="lazy" decoding="async">' : t.file ? '<img src="./assets/themes/photos/' + t.file + '-thumb.webp" width="480" height="480" alt="" loading="lazy" decoding="async">' : '') +
+      '<span class="st-material-label">' + (t.charm && tab === "themes" ? '成套主题' : t.category === 'illustration' ? '插画' : t.file ? '风景' : '简约') + '</span></span><b>' + t.name + '</b><span class="st-item-action">' + itemState(selected, prefs.background === t.id) + '</span></button>';
   }
   function filters(items, attr, selected) {
     return '<div class="st-filters" aria-label="素材分类">' + choices(items, attr, selected) + '</div>';
@@ -504,8 +567,8 @@
     const p = active();
     if (tab === "themes")
       return (
-        '<div class="st-collection-banner"><div><span>背景 · 挂件 · 卡片</span><h3>外观主题</h3><p>背景与挂件，自由搭配。</p><button class="st-banner-link" data-tab="background">浏览背景 →</button></div></div><div class="st-section-intro"><h3>精选背景</h3><button class="st-link" data-tab="background">查看全部 →</button></div><div class="st-background-grid st-featured-wallpapers">' + photos.map(wallpaperTile).join('') + '</div><div class="st-section-intro"><h3>主题预设</h3><p>背景、卡片与字体的一套搭配</p></div><div class="st-theme-grid">' +
-        themes
+        '<div class="st-collection-banner"><div><span>背景 · 挂件 · 卡片</span><h3>外观主题</h3><p>背景与挂件，自由搭配。</p><button class="st-banner-link" data-tab="background">浏览背景 →</button></div></div><div class="st-section-intro"><h3>精选背景</h3><button class="st-link" data-tab="background">查看全部 →</button></div><div class="st-background-grid st-featured-wallpapers st-curated-wallpapers">' + illustrated.map(wallpaperTile).join('') + '</div><div class="st-section-intro"><h3>主题预设</h3><p>背景、卡片与字体的一套搭配</p></div><div class="st-theme-grid">' +
+        presets
           .map(
             (t) =>
               '<button type="button" class="st-theme ' +
@@ -532,8 +595,8 @@
     if (tab === "background")
       return (
         '<div class="st-section-intro"><h3>页面背景</h3><p>点选试用，保存后生效</p></div>' +
-        filters([["all","全部"],["scenery","风景"],["minimal","简约纹理"]], "data-background-filter", backgroundFilter) +
-        '<div class="st-background-grid">' + backgrounds.filter(t => backgroundFilter === 'all' || t.category === backgroundFilter).map(wallpaperTile).join('') +
+        filters([["all","全部"],["illustration","插画"],["scenery","风景"],["minimal","简约纹理"]], "data-background-filter", backgroundFilter) +
+        '<div class="st-background-grid">' + backgrounds.filter(t => t.category !== 'legacy' && (backgroundFilter === 'all' || t.category === backgroundFilter)).map(wallpaperTile).join('') +
         '</div><button class="st-link" data-bg="none" aria-pressed="' + (p.background === 'none') + '">不使用背景图片</button><label class="st-range">背景浓度 <output>' +
         p.intensity +
         '%</output><input type="range" min="0" max="100" value="' +
@@ -548,7 +611,7 @@
             '<i class="st-color" style="background:' + t.dot + '"></i>',
           ),
         ).join("") +
-        '</div><p class="st-hint st-source">摄影：Cuvii、Spencer DeMera、Veronica Moreno-Alvarez / Unsplash。纹理：Steve Schoger / Hero Patterns。<a href="./assets/themes/ATTRIBUTION.md" target="_blank" rel="noopener noreferrer">素材来源</a></p>'
+        '</div><p class="st-hint st-source">插画背景与可爱挂件为 AI 生成。简约插画：<a href="https://openstickers.craftwork.design/" target="_blank" rel="noopener noreferrer">Craftwork Open Stickers</a>。摄影：Cuvii、Spencer DeMera、Veronica Moreno-Alvarez / Unsplash。纹理：Steve Schoger / Hero Patterns。<a href="./assets/themes/ATTRIBUTION.md" target="_blank" rel="noopener noreferrer">素材来源</a></p>'
       );
     if (tab === "cards")
       return (
@@ -578,9 +641,10 @@
         '</h3><p class="st-hint">' +
         (target
           ? "此处只修改选中的板块。"
-          : "主题默认不添加挂件。可以手动选择卡片，或仅点缀每页第一张卡片。") +
+          : "精选主题配有一款挂件，也可以单独选择或关闭。每页最多自动点缀首张卡片。") +
         '</p>' + (target ? '' : '<div class="st-options">' + choices([["custom","手动指定卡片"],["accent","每页首张卡片"],["none","不显示挂件"]],"data-decor-mode",p.decorMode) + '</div><button class="st-link" data-pick-card>在页面上选择卡片</button>') +
-        '<div class="st-deco-grid">' +
+        filters([["charm","可爱挂件"],["line","经典线条"],["sticker","简约插画"]], "data-decoration-filter", decorationFilter) +
+        '<div class="st-deco-grid ' + (decorationFilter === 'charm' ? 'st-charm-grid' : decorationFilter === 'sticker' ? 'st-sticker-grid' : '') + '">' +
         button(
           "none",
           "不使用",
@@ -588,10 +652,10 @@
           o.deco,
           '<span class="st-none">—</span>',
         ) +
-        decorations
-          .map((d) => button(d.id, d.name, "data-deco", o.deco, svg(d.id)))
+        decorations.filter(d => d.group === decorationFilter)
+          .map((d) => button(d.id, d.name, "data-deco", o.deco, svg(d.id) + (d.desc ? '<small>' + esc(d.desc) + '</small>' : '')))
           .join("") +
-        '</div><h3>挂件位置</h3><div class="st-options">' +
+        '</div><p class="st-hint st-source">可爱挂件为 AI 生成。简约插画：<a href="https://openstickers.craftwork.design/" target="_blank" rel="noopener noreferrer">Craftwork Open Stickers</a> · <a href="./assets/themes/ATTRIBUTION.md" target="_blank" rel="noopener noreferrer">素材来源</a></p><h3>挂件位置</h3><div class="st-options">' +
         choices(
           [
             ["left", "左侧"],
@@ -602,7 +666,7 @@
         ) +
         '</div><label class="st-range">挂件大小 <output>' +
         o.scale +
-        ' px</output><input type="range" min="24" max="40" value="' +
+        ' px</output><input type="range" min="' + scaleLimits(o.deco)[0] + '" max="' + scaleLimits(o.deco)[1] + '" value="' +
         o.scale +
         '" data-range="scale"></label>' +
         (target
@@ -697,6 +761,7 @@
         "data-tab",
         "data-palette",
         "data-background-filter",
+        "data-decoration-filter",
       ].find((a) => focus.hasAttribute(a));
     const val = attr ? focus.getAttribute(attr) : null;
     dialog.innerHTML =
@@ -771,6 +836,7 @@
     tab = section;
     showPreview = Boolean(key);
     backgroundFilter = "all";
+    decorationFilter = key ? decorKind(active().overrides[key]?.deco || "none") : "charm";
     returnFocus = document.activeElement;
     draft = { ...snapshot() };
     undo = [];
@@ -878,14 +944,28 @@
       draw();
     } else change(() => updateRange(key, +e.target.value));
   }
+  function viewArtwork() {
+    const t = backgrounds.find(t => t.id === active().background);
+    if (!t?.wallpaper) return;
+    const viewer = document.createElement("dialog");
+    viewer.className = "st-art-viewer"; viewer.setAttribute("aria-label", t.name + "完整背景");
+    const painting = '<img src="./assets/themes/art/' + t.wallpaper + '.webp" alt="' + t.name + '完整背景原画">';
+    viewer.innerHTML = '<button type="button" aria-label="关闭完整背景">×</button>' + (t.landscape ? '<picture><source media="(min-width:900px)" srcset="./assets/themes/art/' + t.landscape + '.webp">' + painting + '</picture>' : painting) + '<p><b>' + t.name + '</b><span>完整背景预览</span></p>';
+    const close = () => {viewer.close();viewer.remove();dialog?.querySelector('[data-view-art]')?.focus();};
+    viewer.querySelector('button').onclick = close;
+    viewer.addEventListener('cancel', e => {e.preventDefault();close();});
+    document.body.appendChild(viewer);viewer.showModal();viewer.querySelector('button').focus();
+  }
   function onClick(e) {
     const b = e.target.closest("button");
     if (!b || (b.type === "submit" && b.closest("form"))) return;
+    if (b.hasAttribute("data-view-art")) return viewArtwork();
     if (b.hasAttribute("data-close")) return close(false);
     if (b.hasAttribute("data-apply")) return close(true);
     if (b.hasAttribute("data-page-preview")) return inspectPage();
     if (b.hasAttribute("data-pick-card")) return inspectPage(true);
     if (b.hasAttribute("data-toggle-preview")) { showPreview = !showPreview; draw(); return; }
+    if (b.dataset.decorationFilter) { decorationFilter = b.dataset.decorationFilter; draw(); return; }
     if (b.dataset.backgroundFilter) { backgroundFilter = b.dataset.backgroundFilter; draw(); return; }
     if (b.dataset.tab) {
       tab = b.dataset.tab;
@@ -918,22 +998,25 @@
     change(() => {
       const p = draft.prefs;
       if (b.dataset.preset) {
-        const t = themes.find((t) => t.id === b.dataset.preset);
+        const t = presets.find((t) => t.id === b.dataset.preset);
         if (!t) return;
         draft.prefs = {
           ...copy(base),
           theme: t.id,
           background: t.id,
           card: t.card,
-          deco: "none",
+          deco: t.charm || "none",
+          decorMode: t.charm ? "accent" : "custom",
+          scale: t.charm ? scaleLimits(t.charm)[2] : 32,
           title: t.title,
+          intensity: t.wallpaper ? 100 : 75,
         };
         setPalette(t.palette, true);
         setReading(t.font, engine.reading().size);
       } else if (b.dataset.bg) {
         p.background = b.dataset.bg;
         const t = backgrounds.find(t => t.id === p.background);
-        if (t) { p.theme = t.id; setPalette(t.palette); }
+        if (t) { p.theme = t.id; if (t.wallpaper) p.intensity = 100; setPalette(t.palette); }
         else { p.theme = ""; setPalette(engine.currentTheme()); }
         showPreview = true;
       }
@@ -959,6 +1042,7 @@
           if (p.decorMode === "none") p.decorMode = "custom";
         }
         if (b.dataset.deco) {
+          if (decorKind(o.deco) !== decorKind(b.dataset.deco)) o.scale = scaleLimits(b.dataset.deco)[2];
           o.deco = b.dataset.deco;
           showPreview = true;
         }
@@ -1072,7 +1156,7 @@
   window.ScoreAppearance = {
     open,
     normalize,
-    themes,
+    themes: presets,
     decorations,
     backgrounds,
     get: () => copy(prefs),
