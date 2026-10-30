@@ -40,6 +40,8 @@ html = html.replace(/(href="\.\/typography\.css)\?v=[^"\s]+/g, '$1?v=' + typeHas
 const adminPath = path.join(ROOT, 'api/mg-ui.js');
 fs.writeFileSync(adminPath, fs.readFileSync(adminPath, 'utf8').replace(/(href="\/typography\.css)\?v=[^"\s]+/g, '$1?v=' + typeHash));
 fs.writeFileSync(htmlPath, html);
+const gatewayPath = path.join(ROOT, 'api/mg.js');
+fs.writeFileSync(gatewayPath, fs.readFileSync(gatewayPath, 'utf8').replace(/(src="\/)(notice-(?:media|embed)\.js)\?v=[^"\s]+/g, (match, prefix, file) => prefix + file + '?v=' + crypto.createHash('md5').update(fs.readFileSync(path.join(ROOT, file))).digest('hex').slice(0, 10)));
 
 console.log("app-bundle.js 已生成 (" + Math.round(bundle.length / 1024) + " KB)，hash=" + hash);
 console.log("index.html 的 ?v= 已同步");
