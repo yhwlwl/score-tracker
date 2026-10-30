@@ -1248,6 +1248,7 @@ html[data-st-art="illustrated"] :is(.goal-bar-v33,.goal-hero-v33,.page-head,.gra
 /* Exam good-luck stationery, paired with the existing graduation pony. */
 [data-scene="study-shore"]{--scene-image:url("./assets/themes/art/exam-good-luck.webp");--scene-size:cover;--scene-position:center}
 @media(min-width:900px){[data-scene="study-shore"]{--scene-image:url("./assets/themes/art/exam-good-luck-wide.webp");--scene-position:center}}
+@media(min-width:900px){html[data-st-look="study-shore"] #content:before{height:128px}}
 .st-wallpaper:is([data-bg="study-shore"],[data-preset="study-shore"]){grid-column:1/-1}
 .st-wallpaper:is([data-bg="study-shore"],[data-preset="study-shore"]) .st-wallpaper-art{aspect-ratio:16/7!important}
 .st-wallpaper:is([data-bg="study-shore"],[data-preset="study-shore"]) .st-wallpaper-art img{object-position:center 65%}

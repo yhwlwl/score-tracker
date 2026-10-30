@@ -271,7 +271,8 @@
         836,
         1881
       ],
-      "revision": "exam-good-luck-theme"
+      "revision": "exam-good-luck-theme",
+      "layout_prompt": "Edit the attached 4:9 portrait wallpaper. Keep the 4:9 aspect ratio, background colors, all clouds, bottom exam paper with 100 and blue pencil, and bottom graduation cap exactly the same. Change ONLY the two upper corner motifs to clear space for a website header: remove the existing upper-left lettering and upper-right envelope from their original positions. Place a SMALLER, compact version of exact Chinese text \"高分来\" in one gently rounded horizontal line entirely inside x=8%..34%, y=11%..15% of the canvas. Put a small envelope with pink heart seal and red check entirely inside x=76%..94%, y=11%..16%. Text height must be no more than 4% of the full canvas height, around 18-25px when viewed on a phone. All space above 10% height contains only the original pale sky and cloud edges, with no letters, symbols or envelope. This precisely positions the good-luck motifs BELOW a header and ABOVE the first card in the actual app. Keep small nearby yellow sparkles very restrained. Do not alter bottom corner motifs or the large calm center. Same soft illustration style, no new labels or objects. Genuine tall portrait aspect 4:9."
     },
     {
       "id": "exam-good-luck-wide",
@@ -282,10 +283,11 @@
       "reference": "Existing exam-pony charm for color and simplicity, then the generated exam-good-luck concept for composition.",
       "file": "assets/themes/art/exam-good-luck-wide.webp",
       "size": [
-        1586,
+        1585,
         992
       ],
-      "revision": "exam-good-luck-theme"
+      "revision": "exam-good-luck-theme",
+      "layout_prompt": "Edit the attached 16:10 landscape wallpaper. Preserve aspect ratio, pastel blue/blush colors, clouds, lower-left 100-marked exam paper and pencil, and lower-right graduation cap exactly. Change ONLY the upper lettering and envelope positions/scale so they fit BELOW a desktop website header. Remove their originals near the top edge. Place compact exact Chinese lettering \"高分来\" in one horizontal line inside x=12%..26%, y=16%..22% of canvas; maximum text height 6% of image height. Place a small envelope with pink heart seal and red check inside x=81%..93%, y=16%..24%. The top 14% must be quiet sky and original clouds only, no lettering or envelope. Keep the central 70% quiet and empty, retain all lower motifs, do not add subjects or labels. Same simple soft pastel illustration style. Full landscape16:10."
     }
   ]
 }
