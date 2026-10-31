@@ -181,7 +181,7 @@
     if (!available || !signedIn() || modal || blocked() || state.onboarding) return false;
     const back = document.createElement('div'); back.className = 'support-back modal-backdrop';
     const phone = mobile.matches;
-    back.innerHTML = '<section class="support-panel" role="dialog" aria-modal="true" aria-labelledby="supportTitle" aria-describedby="supportIntro supportNote"><div class="support-drag" aria-hidden="true"></div><header class="support-head">' + heart + '<h2 id="supportTitle">' + text('title') + '</h2><button class="support-close" type="button" aria-label="关闭赞赏面板">×</button></header><p class="support-intro" id="supportIntro">' + text('intro') + '</p><p class="support-thanks">' + text('thanks') + '</p><div class="support-qr"><img src="' + esc(qrImage) + '" alt="作者的微信赞赏码"></div><p class="support-qr-label">' + text('qr_label') + '</p><p class="support-help">' + text(phone ? 'phone_help' : 'desktop_help') + '</p><button type="button" class="support-save">' + text('save_label') + '</button><p class="support-status" role="status"></p><p class="support-note" id="supportNote">' + text('note') + '</p></section>';
+    back.innerHTML = '<section class="support-panel" role="dialog" aria-modal="true" aria-labelledby="supportTitle" aria-describedby="supportIntro supportNote"><div class="support-drag" aria-hidden="true"></div><header class="support-head">' + heart + '<h2 id="supportTitle">' + text('title') + '</h2><button class="support-close" type="button" aria-label="关闭赞赏面板">×</button></header><p class="support-intro" id="supportIntro">' + text('intro') + '</p><p class="support-thanks">' + text('thanks') + '</p><div class="support-qr"><img ' + (window.__scoreTrackerAssets ? window.__scoreTrackerAssets.attributes(qrImage) : 'src="' + esc(qrImage) + '"') + ' alt="作者的微信赞赏码"></div><p class="support-qr-label">' + text('qr_label') + '</p><p class="support-help">' + text(phone ? 'phone_help' : 'desktop_help') + '</p><button type="button" class="support-save">' + text('save_label') + '</button><p class="support-status" role="status"></p><p class="support-note" id="supportNote">' + text('note') + '</p></section>';
     const controller = new AbortController(), options = {signal:controller.signal};
     modal = {back, controller, source, focus:document.activeElement, overflow:document.body.style.overflow, background:[]};
     document.body.appendChild(back); document.body.style.overflow = 'hidden';
@@ -206,13 +206,17 @@
       if (mobile.matches && dy > 65 && dy > Math.abs(dx) * 1.3) close('swipe');
     }, options);
     handle.addEventListener('pointercancel', () => { drag = null; }, options);
-    back.querySelector('.support-save').addEventListener('click', () => {
-      const link = document.createElement('a'); link.href = qrImage;
-      const format = qrImage.startsWith('data:') ? /^data:image\/(png|jpeg|webp)/.exec(qrImage)[1] : new URL(qrImage).pathname.split('.').pop().toLowerCase();
-      link.download = '成绩轨迹-赞赏码.' + (format === 'jpeg' ? 'jpg' : format);
-      document.body.appendChild(link); link.click(); link.remove();
-      back.querySelector('.support-status').textContent = '已发起图片下载。如果没有保存，可长按图片保存。';
+    back.querySelector('.support-save').addEventListener('click', async () => {
+      const button = back.querySelector('.support-save'); button.disabled = true;
       track('support_qr_download_requested', {source});
+      try {
+        const format = qrImage.startsWith('data:') ? /^data:image\/(png|jpeg|webp)/.exec(qrImage)[1] : new URL(qrImage).pathname.split('.').pop().toLowerCase();
+        const filename = '成绩轨迹-赞赏码.' + (format === 'jpeg' ? 'jpg' : format);
+        if (window.__scoreTrackerAssets) await window.__scoreTrackerAssets.save(qrImage, filename);
+        else { const link = document.createElement('a'); link.href = qrImage; link.download = filename; document.body.appendChild(link); link.click(); link.remove(); }
+        back.querySelector('.support-status').textContent = '已发起图片下载。如果没有保存，可长按图片保存。';
+      } catch (_) { back.querySelector('.support-status').textContent = '保存失败，可以长按图片保存，或稍后重试。'; }
+      finally { button.disabled = false; }
     }, options);
     back.querySelector('.support-qr img').addEventListener('error', () => {
       back.querySelector('.support-qr').innerHTML = '<div class="support-qr-error">赞赏码暂时加载不出来，请稍后再试。</div>';

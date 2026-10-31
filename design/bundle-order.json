@@ -1,4 +1,5 @@
 [
+  "public-assets.js",
   "compat.js",
   "request-budget-v24.js",
   "telemetry-feedback.js",
@@ -40,9 +41,9 @@
   "score-worth-model.js",
   "score-worth.js",
   "release-notices.js",
-   "account-recovery.js",
-   "trajectory-forecast.js",
-   "similar-trajectories.js",
+  "account-recovery.js",
+  "trajectory-forecast.js",
+  "similar-trajectories.js",
   "school-settings.js",
   "announcement-settings.js",
   "author-support.js",

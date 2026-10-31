@@ -18,6 +18,7 @@ const FILES = [
   "pwa-icon-192.png",
   "pwa-icon-512.png",
   "app-bundle.js",
+  "public-assets.js",
   "notice-media.js",
   "notice-embed.js",
   "community-qr-20261024.jpg",

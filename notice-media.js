@@ -12,7 +12,7 @@
       if(match&&imagePath(match[2])){
         hasMedia=true;
         flushText();
-        gallery.push('<figure class="notice-shot"><button type="button" data-notice-image aria-expanded="false" aria-label="查看大图：'+esc(match[1])+'"><img src="'+esc(match[2])+'" alt="'+esc(match[1])+'" loading="lazy" decoding="async"><span>'+esc(match[1])+'</span><small>点击看大图</small></button></figure>');return;
+        gallery.push('<figure class="notice-shot"><button type="button" data-notice-image aria-expanded="false" aria-label="查看大图：'+esc(match[1])+'"><img '+(window.__scoreTrackerAssets?window.__scoreTrackerAssets.attributes(match[2]):'src="'+esc(match[2])+'"')+' alt="'+esc(match[1])+'" loading="lazy" decoding="async"><span>'+esc(match[1])+'</span><small>点击看大图</small></button></figure>');return;
       }
       flush();
       if(/^\[[^\]\n]{1,80}\]\(#community-qr\)$/.test(line)){hasMedia=true;flushText();out.push('<section class="notice-community-inline" data-notice-community-inline aria-label="加入微信交流群"><p role="status">正在读取群二维码…</p></section>');}
