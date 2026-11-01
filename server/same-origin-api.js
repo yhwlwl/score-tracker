@@ -9,6 +9,7 @@ export const API_ENDPOINTS = Object.freeze([
   'score-tracker-trajectories',
   'score-tracker-setup',
   'score-tracker-vision-preview',
+  'score-tracker-paper-review',
 ]);
 
 const NO_STORE = 'private, no-store, max-age=0';

@@ -1,0 +1,31 @@
+const assert=require('node:assert/strict'),vm=require('node:vm');
+const {harness,input,raw,rid,stagedReply}=require('./test-paper-review.cjs');
+const evaluate=(h,s)=>vm.runInContext(s,h.scope);
+(async()=>{
+ const h=harness();await h.init();
+ h.scope.ledger={questions:[{label:'F-A',stem:'填写8÷2的值：____',answer:'-4',status:'answered',teacher_score:null,max_score:7,max_mark:{page:1,quote:'每题7分'},provided_reference:'4',reference_pages:[2],subparts:[]}]};
+ h.scope.response={questions:[{label:'F-A',closed_response:true,task_evidence:'填写8÷2的值：____',student_answer:'4',answer_key:'4',reference_source:'provided',solution_check:'8÷2=4，乘回4×2=8',comparison:'作答与答案等价',verdict:'correct',rule:'binary',rule_quote:'',score:7,uncertainty:''}]};
+ h.scope.checked=evaluate(h,'mergeGrading(response,ledger,["F-A"],{},true)');assert.equal(h.scope.checked.evidence.questions[0].ai_grading.status,'pending');assert.equal(h.scope.checked.evidence.questions[0].answer,'-4','one image read cannot overwrite a saved answer');
+ h.scope.confirmed=evaluate(h,'mergeGrading(response,checked.evidence,["F-A"],checked.readings,true)');const q=h.scope.confirmed.evidence.questions[0];assert.equal(q.ai_grading.status,'confirmed');assert.equal(q.answer,'4');assert.equal(q.ai_grading.score,7);assert.equal(q.teacher_score,null);assert.equal(q.ai_grading.original_answer,'-4');
+ h.scope.groups=[{label:'结果题',questions:['F-A'],teacher_score:7}];assert.equal(evaluate(h,'gradingChecks(confirmed.evidence.questions,groups)[0].status'),'matched');h.scope.groups[0].teacher_score=0;assert.equal(evaluate(h,'gradingChecks(confirmed.evidence.questions,groups)[0].status'),'conflict');assert.equal(q.ai_grading.score,7,'a group discrepancy never changes a verdict to fit a total');
+ h.scope.ledger.questions[0].answer_verification='user_corrected';assert.equal(evaluate(h,'mergeGrading(response,ledger,["F-A"],checked.readings,true).evidence.questions[0].answer'),'-4','manual answers are preserved');delete h.scope.ledger.questions[0].answer_verification;
+ h.scope.response.questions[0].score=3;assert(!evaluate(h,'mergeGrading(response,ledger,["F-A"],{},true).evidence.questions[0].ai_grading'),'cannot invent partial credit for a binary response');
+ h.scope.response.questions[0].score=0;h.scope.response.questions[0].closed_response=false;h.scope.response.questions[0].verdict='incorrect';assert(!evaluate(h,'mergeGrading(response,ledger,["F-A"],{},true).evidence.questions[0].ai_grading'),'an unsupported process or essay task is not reduced to final-answer zero');
+ h.scope.response.questions[0].closed_response=true;h.scope.response.questions[0].reference_source='ai';h.scope.response.questions[0].solution_check='';delete h.scope.ledger.questions[0].provided_reference;assert(!evaluate(h,'mergeGrading(response,ledger,["F-A"],{},true).evidence.questions[0].ai_grading'),'no-answer grading requires visible solution verification');
+ h.scope.response.questions[0].solution_check='8÷2=4，再乘2返回8';h.scope.response.questions[0].student_answer='3';h.scope.response.questions[0].comparison='3×2≠8';h.scope.checked=evaluate(h,'mergeGrading(response,ledger,["F-A"],{},false)');h.scope.confirmed=evaluate(h,'mergeGrading(response,checked.evidence,["F-A"],checked.readings,false)');assert.equal(h.scope.confirmed.evidence.questions[0].ai_grading.score,0);assert.equal(h.scope.confirmed.evidence.questions[0].ai_grading.source,'ai');
+ assert(!evaluate(h,'gradingPrompt({subject:"自定义学科"},ledger.questions,true)').includes('"student_answer":"-4"'),'old OCR text is not used to anchor an image reread');
+ h.scope.ledger.questions[0].provided_reference='√6';h.scope.ledger.questions[0].reference_pages=[2];Object.assign(h.scope.response.questions[0],{reference_source:'provided',answer_key:'√6',student_answer:'√6',score:7,verdict:'correct',comparison:'与答案等价'});h.scope.checked=evaluate(h,'mergeGrading(response,ledger,["F-A"],{},true)');h.scope.response.questions[0].student_answer='√(6)';assert.equal(evaluate(h,'mergeGrading(response,checked.evidence,["F-A"],checked.readings,true).evidence.questions[0].ai_grading.status'),'confirmed','format-only root brackets do not create a false conflict');
+ h.scope.response.questions[0].answer_key='√9';assert(!evaluate(h,'mergeGrading(response,ledger,["F-A"],{},true).evidence.questions[0].ai_grading'),'provided-reference grading cannot silently replace the supplied answer');
+ console.log('PASS: provided answers, independent solving, two-read OCR repair, explicit zero, objective-only rules, manual corrections, and group mismatches');
+
+ const flow=harness();await flow.init();const fixture=structuredClone(raw);fixture.questions[0].teacher_score=null;fixture.questions[0].score_evidence='';fixture.questions[0].stem='填写1+1的值：____';fixture.questions[0].provided_reference='2';fixture.questions[0].reference_pages=[2];flow.reply=fixture;
+ flow.transport=(_url,options)=>{
+   const request=JSON.parse(options.body),prompt=request.messages[0].content[0].text;
+   let result=stagedReply(fixture,request);
+   if(prompt.startsWith('独立答案核对与AI判分。'))result={questions:[{label:'1',closed_response:true,task_evidence:'填写1+1的值：____',student_answer:'2',answer_key:'2',reference_source:'provided',solution_check:'1+1=2，适用于此题',comparison:'与参考答案相同',verdict:'correct',rule:'binary',score:5,uncertainty:''}]};
+   return new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify(result)}}]}));
+ };
+ const source={...input,pages:[...input.pages,{role:'reference',url:input.pages[0].url}]};await flow.call({action:'start',...source});await flow.drain();const row=flow.tables.score_tracker_paper_reviews[0];assert.equal(row.status,'succeeded');assert.equal(row.result.questions[0].teacher_score,null);assert.equal(row.result.questions[0].estimated_score,5);assert.equal(row.result.questions[0].ai_grading.status,'confirmed');assert.equal(row.result.total.score,5);assert.equal(flow.calls.filter(x=>x==='score_tracker_paper_reserve').length,1);
+ assert.equal(flow.upstream.filter(r=>r.messages[0].content[0].text.startsWith('独立答案核对与AI判分。')).length,2,'the real pipeline obtains two independent judgments');
+ console.log('PASS: actual handler → saved grading checkpoints → two independent answer checks → report AI score, with unchanged teacher/total scores and one reservation');
+})().catch(e=>{console.error(e);process.exitCode=1});

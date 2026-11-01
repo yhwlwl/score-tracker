@@ -51,7 +51,16 @@
   "community.js",
   "participant-defaults.js",
   "exam-averages.js",
+  "supabase/functions/_shared/question-types.js",
+  "question-type-scores.js",
+  "question-type-analysis-model.js",
+  "question-type-analysis.js",
   "exam-changes.js",
   "exam-reflection.js",
+  "paper-review-support.js",
+  "paper-review.js",
+  "paper-review-scans.js",
+  "paper-review-hub.js",
+  "paper-records.js",
   "exam-detail.js"
 ]
