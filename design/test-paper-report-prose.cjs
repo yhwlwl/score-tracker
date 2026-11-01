@@ -1,0 +1,26 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const {JSDOM}=require('jsdom');
+const root=path.resolve(__dirname,'..');
+const dom=new JSDOM('<!doctype html><body><main></main>',{runScripts:'outside-only'}),w=dom.window;
+w.escapeHtml=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+w.eval(fs.readFileSync(path.join(root,'paper-review-support.js'),'utf8'));
+const source='## 先列式\n\n这里**两边同时减去2**。\n\n1. 先写 $x+2=5$\n2. 再写 $x=3$\n\n$$\\begin{aligned}\nx+2&=5\\\\\nx&=3\n\\end{aligned}$$\n\n- 把结果代回检查\n\n<script>alert(1)</script><img src=x onerror=alert(1)>';
+const main=w.document.querySelector('main');main.innerHTML=w.ScorePaperSupport.prose(source);
+assert.equal(main.querySelectorAll('script,img').length,0,'model content is text, never executable HTML');
+assert.equal(main.querySelectorAll('ol>li').length,2);assert.equal(main.querySelectorAll('ul>li').length,1);
+assert.equal(main.querySelector('ol>li:nth-child(2)').getAttribute('value'),'2');
+assert(main.textContent.includes('\\begin{aligned}\nx+2&=5\\\\\nx&=3\n\\end{aligned}'),'multiline math is not split into paragraphs');
+assert(!main.textContent.includes('**'));assert.equal(main.querySelector('.pr-prose-heading').textContent,'先列式');
+w.eval(fs.readFileSync(path.join(root,'vendor/katex/katex.min.js'),'utf8'));
+w.eval(fs.readFileSync(path.join(root,'vendor/katex/auto-render.min.js'),'utf8'));
+(async()=>{
+ await w.ScorePaperSupport.renderMath(main);
+ assert.equal(main.querySelectorAll('.katex-error').length,0);assert(main.querySelectorAll('.katex').length>=3);
+ assert.equal(main.querySelectorAll('.katex-display').length,1);
+ assert(main.querySelectorAll('annotation')[2].textContent.includes('\\begin{aligned}'));
+ const latex=main.querySelector('annotation').textContent;assert.equal(latex,'x+2=5');
+ const first=main.innerHTML;await w.ScorePaperSupport.renderMath(main);assert.equal(main.innerHTML,first,'rendering twice is idempotent');
+ main.innerHTML=w.ScorePaperSupport.prose('\uE0000\uE001 **<img src=x>**');assert.equal(main.querySelectorAll('img').length,0);
+ const options=fs.readFileSync(path.join(root,'supabase/functions/score-tracker-paper-review/options.ts'),'utf8');assert(options.includes('原题、学生原文和引文必须原样保留'));assert(options.includes('overview始终用2～3句'));
+ console.log('PASS: readable paragraphs/lists, bold, exact multiline LaTeX, safe HTML escaping, placeholder isolation and natural-language prompt contract');
+})().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>w.close());

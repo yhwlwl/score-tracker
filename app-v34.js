@@ -2323,7 +2323,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
     document.head.appendChild(st);
   }
   function pageIsStats() {
-    try { return state.page === "stats"; } catch (e) { return false; }
+    try { return state.page === "stats" && state.analysisTab !== "ai" && !!document.querySelector("#content .sv31-page"); } catch (e) { return false; }
   }
   /* ---------- 可见性埋点:只在板块/隐私说明真正进入视口时触发 ---------- */
   var deepBetaViewTracked = false;
@@ -2393,6 +2393,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
     disconnectVisibilityObservers();
   }
   function mountIfMissing() {
+    if(window.ScoreQuestionTypeAnalysis && window.ScoreQuestionTypeAnalysis.active()) { resetVisibilityTrackingIfOutsideStats(); return; }
     if (!pageIsStats()) { resetVisibilityTrackingIfOutsideStats(); return; }
     var c = document.getElementById("content");
     if (!c) return;
@@ -2408,6 +2409,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
     observeSectionVisibility($("#dsbRoot", c));
   }
   function refresh() {
+    if (!pageIsStats()) return;
     var root = $("#dsbRoot");
     if (!root) { mountIfMissing(); return; }
     root.outerHTML = sectionHtml();

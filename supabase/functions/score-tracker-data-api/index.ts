@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { examReflection } from "./reflection.ts";
+import "../_shared/question-types.js";
 
 const db = createClient(
   Deno.env.get("SUPABASE_URL") ?? "",
@@ -222,7 +223,7 @@ async function list(user: any) {
     db
       .from("score_tracker_exams")
       .select(
-        "id,name,exam_date,end_date,total_rank,total_participants,total_class_rank,total_class_participants,total_year_position_percent,total_class_position_percent,total_actual_score,total_raw_score,is_hidden,grade_level,created_at,updated_at,city_rank,city_participants,district_rank,district_participants,averages,reflection,reflection_revision,reflection_updated_at"
+        "id,name,exam_date,end_date,total_rank,total_participants,total_class_rank,total_class_participants,total_year_position_percent,total_class_position_percent,total_actual_score,total_raw_score,is_hidden,grade_level,created_at,updated_at,city_rank,city_participants,district_rank,district_participants,averages,reflection,reflection_revision,reflection_updated_at,question_type_scores"
       )
       .eq("user_id", user.id)
       .order("exam_date")
@@ -531,6 +532,23 @@ async function saveExam(uid: string, exam: any) {
     try { averages = await cleanAverages(uid, exam, rows); }
     catch (e) { return { error: e instanceof Error ? e.message : "均分格式不正确", status: 400 }; }
   }
+  let questionTypes: any;
+  if (hasKey("question_type_scores")) {
+    const input = exam.question_type_scores;
+    if (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).length > 40) return {error:"题型得分格式不正确",status:400};
+    questionTypes = Object.create(null);
+    try {
+      const model = (globalThis as any).ScoreQuestionTypeModel;
+      for (const [subject, types] of Object.entries(input)) {
+        const row = rows.find((r) => r.subject === subject);
+        if (!row) throw new Error(`题型「${subject}」须属于本次考试的科目`);
+        const cleaned = model.clean(types, subject);
+        const rawScore = row.raw_score ?? (row.raw_max_score === row.max_score ? row.actual_score : null);
+        model.validate(cleaned, row.raw_max_score, rawScore);
+        if (cleaned.length) questionTypes[subject] = cleaned;
+      }
+    } catch (e) { return {error: e instanceof Error ? e.message : "题型得分格式不正确",status:400}; }
+  }
   const values: any = {
     name,
     exam_date: date,
@@ -554,6 +572,8 @@ async function saveExam(uid: string, exam: any) {
   if (hasKey("end_date")) values.end_date = endDate;
   // Older clients omit this optional field; their saves must preserve existing references.
   if (hasKey("averages")) values.averages = averages;
+  // Omission preserves data from older clients; an explicit {} clears it.
+  if (hasKey("question_type_scores")) values.question_type_scores = questionTypes;
   if (id) {
     const owned = await db.from("score_tracker_exams").select("id").eq("id", id).eq("user_id", uid).maybeSingle();
     if (owned.error) throw owned.error;
