@@ -186,7 +186,7 @@ var recordHtmlBeforeV18=recordHtml;
 recordHtml=function recordHtmlV18(exam){var html=recordHtmlBeforeV18(exam),summary=moduleSummaryV18(exam);return summary?html.replace('<div class="record-actions record-actions-v10">',summary+'<div class="record-actions record-actions-v10">'):html;};
 
 function studyPlannerCardV18(){
-  return `<a class="study-tool-v18" id="studyPlannerToolV18" href="${STUDY_PLANNER_URL_V18}" target="_blank" rel="noopener noreferrer"><div class="study-tool-copy-v18"><span class="study-tool-kicker-v18">另一个学习工具</span><h3>Study Planner · 自动学习规划</h3><p>把目标、任务和可用时间交给它，自动排进日历。适合和成绩轨迹一起用：这里看结果，那里安排下一步。</p><span class="study-tool-open-v18">打开学习规划器 ↗</span></div><div class="study-tool-thumb-v18"><img src="${STUDY_PLANNER_PROMO_V18}" alt="Study Planner 月视图"></div></a>`;
+  return `<a class="study-tool-v18" id="studyPlannerToolV18" href="${STUDY_PLANNER_URL_V18}" target="_blank" rel="noopener noreferrer"><div class="study-tool-copy-v18"><span class="study-tool-kicker-v18">另一个学习工具</span><h3>Study Planner · 自动学习规划</h3><p>把目标、任务和可用时间交给它，自动排进日历。适合和成绩轨迹一起用：这里看结果，那里安排下一步。</p><span class="study-tool-open-v18">打开学习规划器 ↗</span></div><div class="study-tool-thumb-v18"><img ${window.__scoreTrackerAssets?window.__scoreTrackerAssets.attributes(STUDY_PLANNER_PROMO_V18):`src="${STUDY_PLANNER_PROMO_V18}"`} alt="Study Planner 月视图"></div></a>`;
 }
 var homeHtmlBeforeV18=homeHtml;
 homeHtml=function homeHtmlV18(){

@@ -294,11 +294,3 @@ Score Tracker 仍在持续迭代。当前重点已经从“把成绩画成折线
 - 在保持手机端低摩擦录入的同时，让长期历史数据更有价值。
 
 欢迎通过仓库 Issues 或应用内反馈继续提出问题和建议。
-
----
-
-## License / 开源许可证
-
-This project is licensed under the [MIT License](LICENSE).
-
-本项目采用 [MIT 许可证](LICENSE)。Copyright (c) 2026 yhwlwl.

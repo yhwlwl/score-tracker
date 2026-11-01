@@ -49,7 +49,7 @@
   function close(reason) {
     if(!modal)return;var old=modal;modal=null;
     track(old.kind==='release'?'update_prompt_dismissed':'announcement_dismissed',{target_version:old.id,source:old.source,reason:reason,duration_ms:Date.now()-old.started,needs_update:old.outdated});
-    old.back.remove();document.body.style.overflow=old.overflow;
+    (old.back.replyObservers||[]).forEach(function(observer){observer.disconnect();});old.back.remove();document.body.style.overflow=old.overflow;
     if(lastFocus&&lastFocus.isConnected)lastFocus.focus();lastFocus=null;queuePump();
   }
   function mountSupport(back,item) {
@@ -80,13 +80,13 @@
     mark(item.user,item.kind,item.id);
     if(item.manual&&item.user.id!=='guest')call('notice_claim',{kind:item.kind,notice_id:item.id},item.user).catch(function(e){track('notice_claim_failed',{kind:item.kind,notice_id:item.id,status:e.status||0});});
     track(item.kind==='release'?'update_prompt_shown':'announcement_shown',{target_version:item.id,source:item.source,manual:item.manual,needs_update:outdated});
-    var button=back.querySelector('.rn-actions > .rn-action'),panel=back.querySelector('.rn-modal');panel.setAttribute('tabindex','-1');panel.focus({preventScroll:true});panel.scrollTop=0;back.querySelector('.rn-close').onclick=function(){close('close_button');};back.onclick=function(e){if(e.target===back)close('backdrop');};
+    var button=back.querySelector('.rn-actions > .rn-action'),panel=back.querySelector('.rn-modal');panel.setAttribute('tabindex','-1');panel.focus({preventScroll:true});panel.scrollTop=0;back.querySelector('.rn-close').onclick=function(){close('close_button');};
     back.onkeydown=function(e){if(e.key==='Escape'){e.preventDefault();close('escape');}if(e.key==='Tab'){var buttons=back.querySelectorAll('button:not([disabled]):not([hidden]),textarea,input,select'),first=buttons[0],last=buttons[buttons.length-1];if(e.shiftKey&&(document.activeElement===first||document.activeElement===panel)){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}};
     button.onclick=async function(){if(!outdated){track(item.kind==='release'?'update_acknowledged':'announcement_acknowledged',{target_version:item.id,source:item.source});close('acknowledged');return;}button.disabled=true;button.textContent='正在更新…';try{sessionStorage.setItem('st_notice_update_pending',JSON.stringify({user_id:item.user.id,from:CURRENT,to:item.id}));}catch(_){}await Promise.race([Promise.resolve(track('update_apply',{from:CURRENT,to:item.id,source:item.source})),new Promise(function(resolve){setTimeout(resolve,500);})]);var url=new URL(location.href);url.searchParams.set('__update',Date.now());location.replace(url.href);};
     mountSupport(back,modal);
   }
   function mountComments(item,back) {
-    if(item.kind!=='announcement'||!item.commentsEnabled)return;
+    if(item.kind!=='announcement'||(!item.commentsEnabled&&!item.focusedComment))return;
     var section=document.createElement('section');section.className='rn-comments';
     section.innerHTML='<h3>'+esc(item.commentTitle||'想听听大家的意见')+'</h3>'+(item.commentsPublic===false?'<div class="rn-comments-hint">这里只显示你自己的评论，其他用户的评论对你不可见。</div>':'')+'<div class="rn-comment-list"></div><button type="button" class="rn-more" hidden>查看更多评论</button><form class="rn-comment-form"><label for="rnComment">你的想法</label><textarea id="rnComment" maxlength="1000" rows="3" placeholder="说说你的想法吧" required></textarea><div class="rn-comment-bottom"><span role="status" class="rn-comment-status"></span><button type="submit" class="rn-action">发表评论</button></div></form>';
     back.querySelector('.rn-actions').before(section);
@@ -94,10 +94,42 @@
     function archiveComments(){item.commentsReadOnly=true;form.hidden=true;section.insertBefore(status,form);if(!section.querySelector('.rn-comment-archive')){var archived=document.createElement('p');archived.className='rn-comments-hint rn-comment-archive';archived.textContent='这条公告已归档，可查看当时的评论。';section.querySelector('h3').after(archived);}}
     if(item.commentsReadOnly)archiveComments();
     function current(){var u=user();return back.isConnected&&u&&u.id===item.user.id&&u.token===item.user.token;}
-    async function load(append){if(loading)return;loading=true;more.disabled=true;status.textContent='正在加载评论…';try{var data=await call('announcement_comments',{notice_id:item.id,before:append?next:null},item.user);if(!current())return;if(data.read_only===true)archiveComments();if(!append)list.innerHTML='';(data.rows||[]).forEach(function(row){var article=document.createElement('article');article.className='rn-comment';article.innerHTML='<div class="rn-comment-meta"><b>'+esc(anonymousName(row.author))+'</b><time>'+esc(new Date(row.created_at).toLocaleString())+'</time>'+(row.can_delete&&!item.commentsReadOnly?'<button type="button">删除</button>':'')+'</div><div class="rn-comment-text">'+esc(row.content)+'</div>'+(row.reply?'<div class="rn-admin-reply"><b>作者回复</b><time>'+esc(new Date(row.reply.created_at).toLocaleString())+'</time><div>'+esc(row.reply.content)+'</div></div>':'');var del=article.querySelector('button');if(del)del.onclick=async function(){del.disabled=true;try{await call('announcement_comment_delete',{notice_id:item.id,id:row.id},item.user);if(current())await load(false);}catch(e){status.textContent=e.message;}finally{del.disabled=false;}};list.appendChild(article);});if(!list.children.length)list.textContent=item.commentsReadOnly?'这条公告还没有评论。':'还没有评论，欢迎说说你的想法。';next=data.next;more.hidden=!next;status.textContent='';}catch(e){if(current())status.textContent=e.message;}finally{loading=false;more.disabled=false;}}
+    function appendRow(row){var article=document.createElement('article');article.className='rn-comment';article.innerHTML='<div class="rn-comment-meta"><b>'+esc(anonymousName(row.author))+'</b><time>'+esc(new Date(row.created_at).toLocaleString())+'</time>'+(row.can_delete&&!item.commentsReadOnly?'<button type="button">删除</button>':'')+'</div><div class="rn-comment-text">'+esc(row.content)+'</div>'+(row.reply?'<div class="rn-admin-reply"><b>作者回复</b><time>'+esc(new Date(row.reply.created_at).toLocaleString())+'</time><div>'+esc(row.reply.content)+'</div></div>':'');var del=article.querySelector('button');if(del)del.onclick=async function(){del.disabled=true;try{await call('announcement_comment_delete',{notice_id:item.id,id:row.id},item.user);if(current())await load(false);}catch(e){status.textContent=e.message;}finally{del.disabled=false;}};list.appendChild(article);watchReply(row,article,item,back);}
+    async function load(append){if(loading)return;loading=true;more.disabled=true;status.textContent='正在加载评论…';try{var data=await call('announcement_comments',{notice_id:item.id,before:append?next:null},item.user);if(!current())return;if(data.read_only===true)archiveComments();if(!append)list.innerHTML='';(data.rows||[]).forEach(function(row){appendRow(row);});if(!list.children.length)list.textContent=item.commentsReadOnly?'这条公告还没有评论。':'还没有评论，欢迎说说你的想法。';next=data.next;more.hidden=!next;status.textContent='';}catch(e){if(current())status.textContent=e.message;}finally{loading=false;more.disabled=false;}}
     more.onclick=function(){load(true);};
     form.onsubmit=async function(e){e.preventDefault();if(!current()||item.commentsReadOnly)return;var content=input.value.trim();if(!content){status.textContent='写点内容再发送吧';return;}submit.disabled=true;status.textContent='正在发送…';try{await call('announcement_comment_add',{notice_id:item.id,content:content},item.user);if(!current())return;input.value='';await load(false);if(!status.textContent)status.textContent='评论已发送';}catch(e){if(current())status.textContent=e.message;}finally{submit.disabled=false;}};
-    if(item.user.id==='guest'){form.hidden=true;list.textContent=item.commentsReadOnly?'登录后可以查看当时的评论':'登录后可以查看和发表评论';return;}load(false);
+    if(item.user.id==='guest'){form.hidden=true;list.textContent=item.commentsReadOnly?'登录后可以查看当时的评论':'登录后可以查看和发表评论';return;}if(item.focusedComment){form.hidden=true;section.querySelector('h3').textContent='我的评论与作者回复';appendRow(item.focusedComment);requestAnimationFrame(function(){if(!current())return;var reply=list.querySelector('.rn-admin-reply');if(reply&&reply.scrollIntoView)reply.scrollIntoView({block:'center'});});return;}load(false);
+  }
+  function watchReply(row,article,item,back) {
+    if(!row.is_mine||!row.reply_unread||!row.reply||!Number.isSafeInteger(row.reply_revision))return;
+    var target=article.querySelector('.rn-admin-reply'),panel=back.querySelector('.rn-modal'),reading=false,observer;
+    function current(){var u=user();return back.isConnected&&u&&u.id===item.user.id&&u.token===item.user.token;}
+    async function read(){
+      if(reading||!current()||document.visibilityState!=='visible')return;reading=true;
+      try{var result=await call('announcement_reply_read',{id:row.id,revision:row.reply_revision,replied_at:row.reply.created_at},item.user);var u=user();if(!u||u.id!==item.user.id||u.token!==item.user.token)return;if(result.read){row.reply_unread=false;if(observer)observer.disconnect();}window.dispatchEvent(new Event('announcement-replies-changed'));try{localStorage.setItem('st_announcement_reply_read:'+u.id,String(Date.now()));}catch(_){};}
+      catch(_){/* Keep the unread reminder if acknowledging the reply fails. */}
+      finally{reading=false;}
+    }
+    var checkVisible=function(){var r=target.getBoundingClientRect(),p=panel.getBoundingClientRect();if(r.height>0&&r.bottom>p.top&&r.top<p.bottom)read();};
+    if(typeof IntersectionObserver==='function'){
+      observer=new IntersectionObserver(function(entries){entries.forEach(function(entry){if(entry.isIntersecting)read();});},{root:panel,threshold:0});observer.observe(target);
+    }else{
+      panel.addEventListener('scroll',checkVisible);requestAnimationFrame(checkVisible);
+      observer={disconnect:function(){panel.removeEventListener('scroll',checkVisible);}};
+    }
+    document.addEventListener('visibilitychange',checkVisible);var disconnect=observer.disconnect.bind(observer);observer.disconnect=function(){document.removeEventListener('visibilitychange',checkVisible);disconnect();};
+    (back.replyObservers||(back.replyObservers=[])).push(observer);
+  }
+  async function openAnnouncementReply(id){
+    var u=user();if(!u)throw Error('请先登录再查看回复');
+    var result=await call('announcement_reply_detail',{id:id},u),now=user();
+    if(!now||now.id!==u.id||now.token!==u.token)return;
+    if(modal)close('open_reply');
+    var notice=result.notice;
+    pending.unshift({user:u,kind:'announcement',id:notice.id,title:notice.title,content:notice.content,
+      commentsEnabled:true,commentsReadOnly:result.read_only,commentsPublic:notice.comments_public!==false,
+      focusedComment:result.comment,source:'reply_notification',manual:true});pump();
+    track('announcement_reply_opened',{comment_id:id,notice_id:notice.id});
   }
   function showTip(item) {
     var existing=document.getElementById('releaseTip');if(existing)existing.remove();var b=document.createElement('div');b.className='rn-banner';b.id='releaseTip';b.innerHTML='<span>'+esc(item.content)+'</span><button class="rn-close" type="button" aria-label="关闭提示">×</button>';document.body.appendChild(b);mark(item.user,item.kind,item.id);track('tip_shown',{notice_id:item.id,source:item.source});b.querySelector('button').onclick=function(){b.remove();track('tip_dismissed',{notice_id:item.id,reason:'close_button'});};
@@ -173,6 +205,6 @@
   window.addEventListener('online',function(){if(Date.now()-lastCheck>=PERIOD)check('online',false);});
   window.addEventListener('storage',function(e){if(e.key==='st_token'&&user()&&e.newValue!==user().token){pending=[];if(modal)close('account_changed');}});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',sync,{once:true});else sync();
-  window.__releaseNotices={check:check,compareVersions:compare,currentVersion:function(){return CURRENT;},refreshSupport:function(){if(modal)mountSupport(modal.back,modal);},openAnnouncement:function(){track('announcement_manual_opened',{source:'settings'});return check('manual_announcement',true,'announcement');}};
+  window.__releaseNotices={check:check,compareVersions:compare,currentVersion:function(){return CURRENT;},refreshSupport:function(){if(modal)mountSupport(modal.back,modal);},openAnnouncementReply:openAnnouncementReply,openAnnouncement:function(){track('announcement_manual_opened',{source:'settings'});return check('manual_announcement',true,'announcement');}};
   var replyStyle=document.createElement('style');replyStyle.textContent='.rn-admin-reply{margin-top:12px;padding:12px 14px;border-left:3px solid var(--accent,#315efb);background:var(--accent-soft,#f3f6ff);border-radius:8px;font-size:13px;line-height:1.8;overflow-wrap:anywhere}.rn-admin-reply time{display:block;font-size:11px;color:var(--muted,#68758b)}.rn-admin-reply>div{white-space:pre-wrap;margin-top:4px}';document.head.appendChild(replyStyle);
 })();

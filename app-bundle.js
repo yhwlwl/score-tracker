@@ -1,5 +1,78 @@
 /*! app-bundle.js · 自动生成,勿手改 —— 改源码后运行: node design/build-bundles.js
-   来源顺序: compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js, score-worth-model.js, score-worth.js, release-notices.js, account-recovery.js, trajectory-forecast.js, similar-trajectories.js, school-settings.js, announcement-settings.js, author-support.js, community.js, participant-defaults.js, exam-averages.js, exam-changes.js, exam-reflection.js, exam-detail.js */
+   来源顺序: public-assets.js, compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js, score-worth-model.js, score-worth.js, release-notices.js, account-recovery.js, trajectory-forecast.js, similar-trajectories.js, school-settings.js, announcement-settings.js, announcement-replies.js, author-support.js, community.js, participant-defaults.js, exam-averages.js, exam-changes.js, exam-reflection.js, exam-detail.js */
+/* ===== public-assets.js ===== */
+/* Public artwork only. Private uploads and application requests never use this host. */
+(function () {
+  'use strict';
+  var HOST = 'https://assets.tantantan.tech';
+  var FILES = {"/assets/announcements/beta-appearance.svg":{"remote":"/v1/6d9533821e7edbee/beta-appearance.svg","sha256":"6d9533821e7edbee96131b0b1c3b01fffe7d015bde484ca3beb41aab9bc610aa","bytes":107752},"/assets/announcements/beta-paper-review.svg":{"remote":"/v1/142515b99068c618/beta-paper-review.svg","sha256":"142515b99068c618998f74e159bc6917494178949269a2d20d6fa6d52acbd9dd","bytes":94188},"/assets/announcements/beta-question-entry.svg":{"remote":"/v1/0b08e0a3b9ef2892/beta-question-entry.svg","sha256":"0b08e0a3b9ef2892ae842c021bd5d69a103075dc41bcec302264f09a493d1f2d","bytes":62144},"/assets/announcements/beta-question-analysis.svg":{"remote":"/v1/7919a14a4f85f14c/beta-question-analysis.svg","sha256":"7919a14a4f85f14ce552ecb43ad4bfca5a2fc6554e02ba94e7d423625224f6e6","bytes":114256},"/study-planner-promo.webp":{"remote":"/v1/c09ce61ea3a7d657/study-planner-promo.webp","sha256":"c09ce61ea3a7d65747f8842bf4ae3d6356896255aa972e6f460604cf255f182a","bytes":4792},"/community-qr-20261024.jpg":{"remote":"/v1/0c59b644f7faa666/community-qr-20261024.jpg","sha256":"0c59b644f7faa66655b9696d54d584c1de456dc118ae60c0df5974bbe5a1a8c6","bytes":268370},"/pwa-icon-192.png":{"remote":"/v1/1b9292f5b4e0b254/pwa-icon-192.png","sha256":"1b9292f5b4e0b2541f12d6783d6ba2bea2fa7694bbe39b517848e3a0f572c315","bytes":974},"/pwa-icon-512.png":{"remote":"/v1/612a7cedd99d598b/pwa-icon-512.png","sha256":"612a7cedd99d598b28349388677c6ca7e8015366ca4949bb8b6feba2efa4d83e","bytes":2974},"/assets/community/community-qr-662a653885569ef4.jpg":{"remote":"/v1/662a653885569ef4/community-qr-662a653885569ef4.jpg","sha256":"662a653885569ef4087170b58a6f98dc18885c5387f7ca18f1c79b09aa1f3f85","bytes":296379},"/assets/community/support-qr-8f3b6b302c8e6cf8.jpg":{"remote":"/v1/8f3b6b302c8e6cf8/support-qr-8f3b6b302c8e6cf8.jpg","sha256":"8f3b6b302c8e6cf87b0a7cf77334abe19821600f00e7885092b7edf25252cdd2","bytes":103619}};
+  var timers = new WeakMap();
+  function local(value) {
+    try {
+      var url = new URL(value, location.href);
+      return url.origin === location.origin && !url.search && !url.hash && Object.prototype.hasOwnProperty.call(FILES, url.pathname) ? url.pathname : '';
+    } catch (_) { return ''; }
+  }
+  function url(value) { var key = local(value); return key ? HOST + FILES[key].remote : value; }
+  function escape(value) { return String(value).replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function attributes(value) {
+    var key = local(value);
+    return key ? 'src="' + escape(url(key)) + '" data-st-asset-local="' + escape(key) + '" crossorigin="anonymous" referrerpolicy="no-referrer"' : 'src="' + escape(value) + '"';
+  }
+  function clear(image) { clearTimeout(timers.get(image)); timers.delete(image); }
+  function fallback(image) {
+    var key = image.getAttribute('data-st-asset-local');
+    if (!FILES[key] || image.getAttribute('data-st-asset-retried') || image.getAttribute('src') !== url(key)) return false;
+    clear(image);
+    image.setAttribute('data-st-asset-retried', '1');
+    image.removeAttribute('crossorigin');
+    image.src = key;
+    return true;
+  }
+  // Capture before a feature's error handler so it sees an error only if both sources fail.
+  window.addEventListener('error', function (event) {
+    var image = event.target;
+    if (image && image.tagName === 'IMG' && fallback(image)) event.stopImmediatePropagation();
+  }, true);
+  window.addEventListener('load', function (event) { if (event.target && event.target.tagName === 'IMG') clear(event.target); }, true);
+  function watch(root) {
+    var images = root.querySelectorAll ? Array.from(root.querySelectorAll('img[data-st-asset-local]')) : [];
+    if (root.matches && root.matches('img[data-st-asset-local]')) images.push(root);
+    images.forEach(function (image) {
+      if (timers.has(image) || image.hasAttribute('data-st-asset-retried') || image.complete && image.naturalWidth) return;
+      // Lazy gallery shots should retain native lazy loading; use their error fallback.
+      if (image.loading === 'lazy') return;
+      timers.set(image, setTimeout(function () { clear(image); if (image.isConnected && !image.naturalWidth) fallback(image); }, 4000));
+    });
+  }
+  new MutationObserver(function (records) { records.forEach(function (record) { record.addedNodes.forEach(watch); }); }).observe(document.documentElement, {childList:true, subtree:true});
+  watch(document);
+  function clickDownload(href, filename) {
+    var link = document.createElement('a'); link.href = href; link.download = filename;
+    document.body.appendChild(link); link.click(); link.remove();
+  }
+  async function fetchImage(target, external) {
+    var controller = new AbortController(), timer = setTimeout(function () { controller.abort(); }, 5000);
+    try {
+      var response = await fetch(target, {credentials:external ? 'omit' : 'same-origin', mode:external ? 'cors' : 'same-origin', referrerPolicy:'no-referrer', signal:controller.signal});
+      if (!response.ok || !/^image\/(?:png|jpeg|webp)(?:;|$)/i.test(response.headers.get('content-type') || '')) throw new Error('image unavailable');
+      var blob = await response.blob();
+      if (!blob.size || blob.size > 500000) throw new Error('invalid image size');
+      return blob;
+    } finally { clearTimeout(timer); }
+  }
+  async function save(value, filename) {
+    var key = local(value);
+    if (!key) { clickDownload(value, filename); return; }
+    var blob;
+    try { blob = await fetchImage(url(key), true); } catch (_) { blob = await fetchImage(key, false); }
+    var objectUrl = URL.createObjectURL(blob);
+    clickDownload(objectUrl, filename);
+    setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 60000);
+  }
+  window.__scoreTrackerAssets = {url:url, attributes:attributes, save:save};
+})();
+
 /* ===== compat.js ===== */
 // Compatibility helpers for older iOS Safari/WebViews.
 // Keep this file tiny and load it before the application scripts.
@@ -3592,7 +3665,7 @@ var recordHtmlBeforeV18=recordHtml;
 recordHtml=function recordHtmlV18(exam){var html=recordHtmlBeforeV18(exam),summary=moduleSummaryV18(exam);return summary?html.replace('<div class="record-actions record-actions-v10">',summary+'<div class="record-actions record-actions-v10">'):html;};
 
 function studyPlannerCardV18(){
-  return `<a class="study-tool-v18" id="studyPlannerToolV18" href="${STUDY_PLANNER_URL_V18}" target="_blank" rel="noopener noreferrer"><div class="study-tool-copy-v18"><span class="study-tool-kicker-v18">另一个学习工具</span><h3>Study Planner · 自动学习规划</h3><p>把目标、任务和可用时间交给它，自动排进日历。适合和成绩轨迹一起用：这里看结果，那里安排下一步。</p><span class="study-tool-open-v18">打开学习规划器 ↗</span></div><div class="study-tool-thumb-v18"><img src="${STUDY_PLANNER_PROMO_V18}" alt="Study Planner 月视图"></div></a>`;
+  return `<a class="study-tool-v18" id="studyPlannerToolV18" href="${STUDY_PLANNER_URL_V18}" target="_blank" rel="noopener noreferrer"><div class="study-tool-copy-v18"><span class="study-tool-kicker-v18">另一个学习工具</span><h3>Study Planner · 自动学习规划</h3><p>把目标、任务和可用时间交给它，自动排进日历。适合和成绩轨迹一起用：这里看结果，那里安排下一步。</p><span class="study-tool-open-v18">打开学习规划器 ↗</span></div><div class="study-tool-thumb-v18"><img ${window.__scoreTrackerAssets?window.__scoreTrackerAssets.attributes(STUDY_PLANNER_PROMO_V18):`src="${STUDY_PLANNER_PROMO_V18}"`} alt="Study Planner 月视图"></div></a>`;
 }
 var homeHtmlBeforeV18=homeHtml;
 homeHtml=function homeHtmlV18(){
@@ -12834,7 +12907,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   function close(reason) {
     if(!modal)return;var old=modal;modal=null;
     track(old.kind==='release'?'update_prompt_dismissed':'announcement_dismissed',{target_version:old.id,source:old.source,reason:reason,duration_ms:Date.now()-old.started,needs_update:old.outdated});
-    old.back.remove();document.body.style.overflow=old.overflow;
+    (old.back.replyObservers||[]).forEach(function(observer){observer.disconnect();});old.back.remove();document.body.style.overflow=old.overflow;
     if(lastFocus&&lastFocus.isConnected)lastFocus.focus();lastFocus=null;queuePump();
   }
   function mountSupport(back,item) {
@@ -12865,13 +12938,13 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     mark(item.user,item.kind,item.id);
     if(item.manual&&item.user.id!=='guest')call('notice_claim',{kind:item.kind,notice_id:item.id},item.user).catch(function(e){track('notice_claim_failed',{kind:item.kind,notice_id:item.id,status:e.status||0});});
     track(item.kind==='release'?'update_prompt_shown':'announcement_shown',{target_version:item.id,source:item.source,manual:item.manual,needs_update:outdated});
-    var button=back.querySelector('.rn-actions > .rn-action'),panel=back.querySelector('.rn-modal');panel.setAttribute('tabindex','-1');panel.focus({preventScroll:true});panel.scrollTop=0;back.querySelector('.rn-close').onclick=function(){close('close_button');};back.onclick=function(e){if(e.target===back)close('backdrop');};
+    var button=back.querySelector('.rn-actions > .rn-action'),panel=back.querySelector('.rn-modal');panel.setAttribute('tabindex','-1');panel.focus({preventScroll:true});panel.scrollTop=0;back.querySelector('.rn-close').onclick=function(){close('close_button');};
     back.onkeydown=function(e){if(e.key==='Escape'){e.preventDefault();close('escape');}if(e.key==='Tab'){var buttons=back.querySelectorAll('button:not([disabled]):not([hidden]),textarea,input,select'),first=buttons[0],last=buttons[buttons.length-1];if(e.shiftKey&&(document.activeElement===first||document.activeElement===panel)){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}};
     button.onclick=async function(){if(!outdated){track(item.kind==='release'?'update_acknowledged':'announcement_acknowledged',{target_version:item.id,source:item.source});close('acknowledged');return;}button.disabled=true;button.textContent='正在更新…';try{sessionStorage.setItem('st_notice_update_pending',JSON.stringify({user_id:item.user.id,from:CURRENT,to:item.id}));}catch(_){}await Promise.race([Promise.resolve(track('update_apply',{from:CURRENT,to:item.id,source:item.source})),new Promise(function(resolve){setTimeout(resolve,500);})]);var url=new URL(location.href);url.searchParams.set('__update',Date.now());location.replace(url.href);};
     mountSupport(back,modal);
   }
   function mountComments(item,back) {
-    if(item.kind!=='announcement'||!item.commentsEnabled)return;
+    if(item.kind!=='announcement'||(!item.commentsEnabled&&!item.focusedComment))return;
     var section=document.createElement('section');section.className='rn-comments';
     section.innerHTML='<h3>'+esc(item.commentTitle||'想听听大家的意见')+'</h3>'+(item.commentsPublic===false?'<div class="rn-comments-hint">这里只显示你自己的评论，其他用户的评论对你不可见。</div>':'')+'<div class="rn-comment-list"></div><button type="button" class="rn-more" hidden>查看更多评论</button><form class="rn-comment-form"><label for="rnComment">你的想法</label><textarea id="rnComment" maxlength="1000" rows="3" placeholder="说说你的想法吧" required></textarea><div class="rn-comment-bottom"><span role="status" class="rn-comment-status"></span><button type="submit" class="rn-action">发表评论</button></div></form>';
     back.querySelector('.rn-actions').before(section);
@@ -12879,10 +12952,42 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     function archiveComments(){item.commentsReadOnly=true;form.hidden=true;section.insertBefore(status,form);if(!section.querySelector('.rn-comment-archive')){var archived=document.createElement('p');archived.className='rn-comments-hint rn-comment-archive';archived.textContent='这条公告已归档，可查看当时的评论。';section.querySelector('h3').after(archived);}}
     if(item.commentsReadOnly)archiveComments();
     function current(){var u=user();return back.isConnected&&u&&u.id===item.user.id&&u.token===item.user.token;}
-    async function load(append){if(loading)return;loading=true;more.disabled=true;status.textContent='正在加载评论…';try{var data=await call('announcement_comments',{notice_id:item.id,before:append?next:null},item.user);if(!current())return;if(data.read_only===true)archiveComments();if(!append)list.innerHTML='';(data.rows||[]).forEach(function(row){var article=document.createElement('article');article.className='rn-comment';article.innerHTML='<div class="rn-comment-meta"><b>'+esc(anonymousName(row.author))+'</b><time>'+esc(new Date(row.created_at).toLocaleString())+'</time>'+(row.can_delete&&!item.commentsReadOnly?'<button type="button">删除</button>':'')+'</div><div class="rn-comment-text">'+esc(row.content)+'</div>'+(row.reply?'<div class="rn-admin-reply"><b>作者回复</b><time>'+esc(new Date(row.reply.created_at).toLocaleString())+'</time><div>'+esc(row.reply.content)+'</div></div>':'');var del=article.querySelector('button');if(del)del.onclick=async function(){del.disabled=true;try{await call('announcement_comment_delete',{notice_id:item.id,id:row.id},item.user);if(current())await load(false);}catch(e){status.textContent=e.message;}finally{del.disabled=false;}};list.appendChild(article);});if(!list.children.length)list.textContent=item.commentsReadOnly?'这条公告还没有评论。':'还没有评论，欢迎说说你的想法。';next=data.next;more.hidden=!next;status.textContent='';}catch(e){if(current())status.textContent=e.message;}finally{loading=false;more.disabled=false;}}
+    function appendRow(row){var article=document.createElement('article');article.className='rn-comment';article.innerHTML='<div class="rn-comment-meta"><b>'+esc(anonymousName(row.author))+'</b><time>'+esc(new Date(row.created_at).toLocaleString())+'</time>'+(row.can_delete&&!item.commentsReadOnly?'<button type="button">删除</button>':'')+'</div><div class="rn-comment-text">'+esc(row.content)+'</div>'+(row.reply?'<div class="rn-admin-reply"><b>作者回复</b><time>'+esc(new Date(row.reply.created_at).toLocaleString())+'</time><div>'+esc(row.reply.content)+'</div></div>':'');var del=article.querySelector('button');if(del)del.onclick=async function(){del.disabled=true;try{await call('announcement_comment_delete',{notice_id:item.id,id:row.id},item.user);if(current())await load(false);}catch(e){status.textContent=e.message;}finally{del.disabled=false;}};list.appendChild(article);watchReply(row,article,item,back);}
+    async function load(append){if(loading)return;loading=true;more.disabled=true;status.textContent='正在加载评论…';try{var data=await call('announcement_comments',{notice_id:item.id,before:append?next:null},item.user);if(!current())return;if(data.read_only===true)archiveComments();if(!append)list.innerHTML='';(data.rows||[]).forEach(function(row){appendRow(row);});if(!list.children.length)list.textContent=item.commentsReadOnly?'这条公告还没有评论。':'还没有评论，欢迎说说你的想法。';next=data.next;more.hidden=!next;status.textContent='';}catch(e){if(current())status.textContent=e.message;}finally{loading=false;more.disabled=false;}}
     more.onclick=function(){load(true);};
     form.onsubmit=async function(e){e.preventDefault();if(!current()||item.commentsReadOnly)return;var content=input.value.trim();if(!content){status.textContent='写点内容再发送吧';return;}submit.disabled=true;status.textContent='正在发送…';try{await call('announcement_comment_add',{notice_id:item.id,content:content},item.user);if(!current())return;input.value='';await load(false);if(!status.textContent)status.textContent='评论已发送';}catch(e){if(current())status.textContent=e.message;}finally{submit.disabled=false;}};
-    if(item.user.id==='guest'){form.hidden=true;list.textContent=item.commentsReadOnly?'登录后可以查看当时的评论':'登录后可以查看和发表评论';return;}load(false);
+    if(item.user.id==='guest'){form.hidden=true;list.textContent=item.commentsReadOnly?'登录后可以查看当时的评论':'登录后可以查看和发表评论';return;}if(item.focusedComment){form.hidden=true;section.querySelector('h3').textContent='我的评论与作者回复';appendRow(item.focusedComment);requestAnimationFrame(function(){if(!current())return;var reply=list.querySelector('.rn-admin-reply');if(reply&&reply.scrollIntoView)reply.scrollIntoView({block:'center'});});return;}load(false);
+  }
+  function watchReply(row,article,item,back) {
+    if(!row.is_mine||!row.reply_unread||!row.reply||!Number.isSafeInteger(row.reply_revision))return;
+    var target=article.querySelector('.rn-admin-reply'),panel=back.querySelector('.rn-modal'),reading=false,observer;
+    function current(){var u=user();return back.isConnected&&u&&u.id===item.user.id&&u.token===item.user.token;}
+    async function read(){
+      if(reading||!current()||document.visibilityState!=='visible')return;reading=true;
+      try{var result=await call('announcement_reply_read',{id:row.id,revision:row.reply_revision,replied_at:row.reply.created_at},item.user);var u=user();if(!u||u.id!==item.user.id||u.token!==item.user.token)return;if(result.read){row.reply_unread=false;if(observer)observer.disconnect();}window.dispatchEvent(new Event('announcement-replies-changed'));try{localStorage.setItem('st_announcement_reply_read:'+u.id,String(Date.now()));}catch(_){};}
+      catch(_){/* Keep the unread reminder if acknowledging the reply fails. */}
+      finally{reading=false;}
+    }
+    var checkVisible=function(){var r=target.getBoundingClientRect(),p=panel.getBoundingClientRect();if(r.height>0&&r.bottom>p.top&&r.top<p.bottom)read();};
+    if(typeof IntersectionObserver==='function'){
+      observer=new IntersectionObserver(function(entries){entries.forEach(function(entry){if(entry.isIntersecting)read();});},{root:panel,threshold:0});observer.observe(target);
+    }else{
+      panel.addEventListener('scroll',checkVisible);requestAnimationFrame(checkVisible);
+      observer={disconnect:function(){panel.removeEventListener('scroll',checkVisible);}};
+    }
+    document.addEventListener('visibilitychange',checkVisible);var disconnect=observer.disconnect.bind(observer);observer.disconnect=function(){document.removeEventListener('visibilitychange',checkVisible);disconnect();};
+    (back.replyObservers||(back.replyObservers=[])).push(observer);
+  }
+  async function openAnnouncementReply(id){
+    var u=user();if(!u)throw Error('请先登录再查看回复');
+    var result=await call('announcement_reply_detail',{id:id},u),now=user();
+    if(!now||now.id!==u.id||now.token!==u.token)return;
+    if(modal)close('open_reply');
+    var notice=result.notice;
+    pending.unshift({user:u,kind:'announcement',id:notice.id,title:notice.title,content:notice.content,
+      commentsEnabled:true,commentsReadOnly:result.read_only,commentsPublic:notice.comments_public!==false,
+      focusedComment:result.comment,source:'reply_notification',manual:true});pump();
+    track('announcement_reply_opened',{comment_id:id,notice_id:notice.id});
   }
   function showTip(item) {
     var existing=document.getElementById('releaseTip');if(existing)existing.remove();var b=document.createElement('div');b.className='rn-banner';b.id='releaseTip';b.innerHTML='<span>'+esc(item.content)+'</span><button class="rn-close" type="button" aria-label="关闭提示">×</button>';document.body.appendChild(b);mark(item.user,item.kind,item.id);track('tip_shown',{notice_id:item.id,source:item.source});b.querySelector('button').onclick=function(){b.remove();track('tip_dismissed',{notice_id:item.id,reason:'close_button'});};
@@ -12958,7 +13063,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   window.addEventListener('online',function(){if(Date.now()-lastCheck>=PERIOD)check('online',false);});
   window.addEventListener('storage',function(e){if(e.key==='st_token'&&user()&&e.newValue!==user().token){pending=[];if(modal)close('account_changed');}});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',sync,{once:true});else sync();
-  window.__releaseNotices={check:check,compareVersions:compare,currentVersion:function(){return CURRENT;},refreshSupport:function(){if(modal)mountSupport(modal.back,modal);},openAnnouncement:function(){track('announcement_manual_opened',{source:'settings'});return check('manual_announcement',true,'announcement');}};
+  window.__releaseNotices={check:check,compareVersions:compare,currentVersion:function(){return CURRENT;},refreshSupport:function(){if(modal)mountSupport(modal.back,modal);},openAnnouncementReply:openAnnouncementReply,openAnnouncement:function(){track('announcement_manual_opened',{source:'settings'});return check('manual_announcement',true,'announcement');}};
   var replyStyle=document.createElement('style');replyStyle.textContent='.rn-admin-reply{margin-top:12px;padding:12px 14px;border-left:3px solid var(--accent,#315efb);background:var(--accent-soft,#f3f6ff);border-radius:8px;font-size:13px;line-height:1.8;overflow-wrap:anywhere}.rn-admin-reply time{display:block;font-size:11px;color:var(--muted,#68758b)}.rn-admin-reply>div{white-space:pre-wrap;margin-top:4px}';document.head.appendChild(replyStyle);
 })();
 
@@ -13590,6 +13695,79 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   };
 })();
 
+/* ===== announcement-replies.js ===== */
+/* Account navigation reminder for unread replies to the user's own comments. */
+(function(){
+  'use strict';
+  var identity='',generation=0,pending=null,lastPoll=0,count=0,rows=[],expanded=false;
+  function user(){try{return state.user&&state.token?{id:String(state.user.id),token:state.token}:null;}catch(_){return null;}}
+  function same(u){var current=user();return current&&u&&current.id===u.id&&current.token===u.token;}
+  function esc(value){return String(value==null?'':value).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  var style=document.createElement('style');style.id='announcement-replies-style';style.textContent=
+    '.bottom-nav [data-page="account"],.desktop-nav [data-page="account"]{position:relative}'+
+    '.announcement-reply-dot{position:absolute;top:8px;left:calc(50% + 9px);width:7px;height:7px;border-radius:50%;background:#e34f61;box-shadow:0 0 0 2px var(--panel-solid,#fff);pointer-events:none}'+
+    '.desktop-nav .announcement-reply-dot{left:auto;right:5px;top:6px}'+
+    '.announcement-replies-guide{margin:18px 0;border-color:var(--accent,#5473de)}'+
+    '.announcement-replies-guide .card-sub{line-height:1.7}.announcement-reply-list{display:grid;gap:9px;margin-top:15px}'+
+    '.announcement-reply-entry{display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;text-align:left;padding:13px 14px;border:1px solid var(--line,#e4e9f0);border-radius:12px;background:var(--panel-solid,#fff);color:var(--text,#18212f);font:inherit;cursor:pointer}'+
+    '.announcement-reply-entry span{min-width:0;overflow-wrap:anywhere}.announcement-reply-entry small{display:block;margin-bottom:5px;font-size:11px;color:var(--muted,#68758b)}'+
+    '.announcement-reply-entry b{flex-shrink:0;color:var(--accent,#315efb);font-size:12px}.announcement-reply-entry:disabled{opacity:.6;cursor:wait}'+
+    '.announcement-reply-entry:focus-visible{outline:2px solid var(--accent,#315efb);outline-offset:3px}.announcement-replies-status{font-size:12px;color:var(--muted,#68758b);margin:10px 0 0}.announcement-replies-status:empty{display:none}';
+  document.head.appendChild(style);
+
+  function paint(){
+    document.querySelectorAll('.bottom-nav [data-page="account"],.desktop-nav [data-page="account"]').forEach(function(button){
+      var dot=button.querySelector('.announcement-reply-dot');
+      if(count>0){
+        if(!dot){dot=document.createElement('span');dot.className='announcement-reply-dot';dot.setAttribute('aria-hidden','true');button.appendChild(dot);button.dataset.replyOriginalLabel=button.getAttribute('aria-label')||'';}
+        button.setAttribute('aria-label','账号，有 '+count+' 条公告回复未读');
+      }else if(dot){dot.remove();var original=button.dataset.replyOriginalLabel;if(original)button.setAttribute('aria-label',original);else button.removeAttribute('aria-label');delete button.dataset.replyOriginalLabel;}
+    });
+    var anchor=document.getElementById('announcementSettingsCard'),guide=document.getElementById('announcementReplyGuide');
+    if(!anchor||!count){if(guide)guide.remove();return;}
+    if(!guide){guide=document.createElement('section');guide.id='announcementReplyGuide';guide.className='card account-card announcement-replies-guide';var content=document.getElementById('content'),heading=content&&content.querySelector('.page-head');if(content&&content.contains(anchor)){if(heading&&heading.parentElement===content)heading.after(guide);else content.prepend(guide);}else anchor.before(guide);}
+    // Do not replace the focused button during an unrelated background repaint.
+    var signature=JSON.stringify([count,expanded,rows]);if(guide.dataset.signature===signature)return;
+    guide.dataset.signature=signature;
+    guide.innerHTML='<h3 class="card-title">公告有新回复</h3><p class="card-sub">你收到了作者的 '+count+' 条回复，点开可直接查看对应公告里的评论与回复。</p><div class="announcement-reply-list">'+rows.slice(0,expanded?20:3).map(function(row){return '<button type="button" class="announcement-reply-entry" data-announcement-reply="'+esc(row.id)+'"><span><small>关于你的评论</small>'+esc(row.comment_preview)+'</span><b>查看回复 →</b></button>';}).join('')+'</div>'+(rows.length>3?'<button class="secondary" type="button" id="expandAnnouncementReplies" style="margin-top:12px">'+(expanded?'收起':'查看更多回复')+'</button>':'')+'<p class="announcement-replies-status" role="status"></p>';
+    guide.querySelectorAll('[data-announcement-reply]').forEach(function(button){button.onclick=async function(){
+      var status=guide.querySelector('[role="status"]');button.disabled=true;status.textContent='正在打开回复…';
+      try{if(!window.__releaseNotices?.openAnnouncementReply)throw Error('请刷新页面后再查看回复');await window.__releaseNotices.openAnnouncementReply(button.dataset.announcementReply);if(status.isConnected)status.textContent='';}
+      catch(e){if(status.isConnected)status.textContent=e.message||'暂时无法读取回复，请稍后重试';}
+      finally{if(button.isConnected)button.disabled=false;}
+    };});
+    var more=guide.querySelector('#expandAnnouncementReplies');if(more)more.onclick=function(){expanded=!expanded;paint();};
+  }
+  function sync(){
+    var u=user(),key=u?u.id+':'+u.token:'';
+    if(identity!==key){identity=key;++generation;pending=null;lastPoll=0;count=0;rows=[];expanded=false;}
+    paint();if(u&&document.visibilityState==='visible'&&navigator.onLine!==false&&Date.now()-lastPoll>=60000)refresh();
+  }
+  async function refresh(){
+    var u=user();if(!u||document.visibilityState!=='visible'||navigator.onLine===false)return;
+    if(pending)return pending;
+    var currentGeneration=generation,controller=new AbortController(),timer=setTimeout(function(){controller.abort();},10000);
+    lastPoll=Date.now();
+    var job=Promise.resolve().then(async function(){
+      try{
+        var response=await fetch('/api/score-tracker-notices',{method:'POST',cache:'no-store',signal:controller.signal,headers:{'content-type':'application/json'},body:JSON.stringify({action:'announcement_reply_inbox',token:u.token})});
+        if(!response.ok)return;var data=await response.json();
+        if(!same(u)||generation!==currentGeneration)return;
+        count=Math.max(0,Number(data.count)||0);rows=Array.isArray(data.rows)?data.rows:[];paint();
+      }catch(_){/* Preserve existing reminders during a temporary network failure. */}
+      finally{clearTimeout(timer);if(pending===job)pending=null;}
+    });pending=job;return job;
+  }
+  function afterRead(){++generation;pending=null;lastPoll=0;sync();}
+  ['render','renderLogin','bindPage'].forEach(function(name){var previous=window[name];if(typeof previous==='function')window[name]=function(){var result=previous.apply(this,arguments);sync();return result;};});
+  window.addEventListener('announcement-replies-changed',afterRead);
+  document.addEventListener('visibilitychange',sync);window.addEventListener('online',sync);
+  window.addEventListener('storage',function(event){var u=user();if(u&&event.key==='st_announcement_reply_read:'+u.id)afterRead();else if(event.key==='st_token')sync();});
+  setInterval(sync,60000);
+  window.__announcementReplies={refresh:function(){lastPoll=0;sync();}};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',sync,{once:true});else sync();
+})();
+
 /* ===== author-support.js ===== */
 /* Optional, voluntary appreciation. No payment confirmation or paid entitlements. */
 (() => {
@@ -13774,7 +13952,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     if (!available || !signedIn() || modal || blocked() || state.onboarding) return false;
     const back = document.createElement('div'); back.className = 'support-back modal-backdrop';
     const phone = mobile.matches;
-    back.innerHTML = '<section class="support-panel" role="dialog" aria-modal="true" aria-labelledby="supportTitle" aria-describedby="supportIntro supportNote"><div class="support-drag" aria-hidden="true"></div><header class="support-head">' + heart + '<h2 id="supportTitle">' + text('title') + '</h2><button class="support-close" type="button" aria-label="关闭赞赏面板">×</button></header><p class="support-intro" id="supportIntro">' + text('intro') + '</p><p class="support-thanks">' + text('thanks') + '</p><div class="support-qr"><img src="' + esc(qrImage) + '" alt="作者的微信赞赏码"></div><p class="support-qr-label">' + text('qr_label') + '</p><p class="support-help">' + text(phone ? 'phone_help' : 'desktop_help') + '</p><button type="button" class="support-save">' + text('save_label') + '</button><p class="support-status" role="status"></p><p class="support-note" id="supportNote">' + text('note') + '</p></section>';
+    back.innerHTML = '<section class="support-panel" role="dialog" aria-modal="true" aria-labelledby="supportTitle" aria-describedby="supportIntro supportNote"><div class="support-drag" aria-hidden="true"></div><header class="support-head">' + heart + '<h2 id="supportTitle">' + text('title') + '</h2><button class="support-close" type="button" aria-label="关闭赞赏面板">×</button></header><p class="support-intro" id="supportIntro">' + text('intro') + '</p><p class="support-thanks">' + text('thanks') + '</p><div class="support-qr"><img ' + (window.__scoreTrackerAssets ? window.__scoreTrackerAssets.attributes(qrImage) : 'src="' + esc(qrImage) + '"') + ' alt="作者的微信赞赏码"></div><p class="support-qr-label">' + text('qr_label') + '</p><p class="support-help">' + text(phone ? 'phone_help' : 'desktop_help') + '</p><button type="button" class="support-save">' + text('save_label') + '</button><p class="support-status" role="status"></p><p class="support-note" id="supportNote">' + text('note') + '</p></section>';
     const controller = new AbortController(), options = {signal:controller.signal};
     modal = {back, controller, source, focus:document.activeElement, overflow:document.body.style.overflow, background:[]};
     document.body.appendChild(back); document.body.style.overflow = 'hidden';
@@ -13799,13 +13977,17 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       if (mobile.matches && dy > 65 && dy > Math.abs(dx) * 1.3) close('swipe');
     }, options);
     handle.addEventListener('pointercancel', () => { drag = null; }, options);
-    back.querySelector('.support-save').addEventListener('click', () => {
-      const link = document.createElement('a'); link.href = qrImage;
-      const format = qrImage.startsWith('data:') ? /^data:image\/(png|jpeg|webp)/.exec(qrImage)[1] : new URL(qrImage).pathname.split('.').pop().toLowerCase();
-      link.download = '成绩轨迹-赞赏码.' + (format === 'jpeg' ? 'jpg' : format);
-      document.body.appendChild(link); link.click(); link.remove();
-      back.querySelector('.support-status').textContent = '已发起图片下载。如果没有保存，可长按图片保存。';
+    back.querySelector('.support-save').addEventListener('click', async () => {
+      const button = back.querySelector('.support-save'); button.disabled = true;
       track('support_qr_download_requested', {source});
+      try {
+        const format = qrImage.startsWith('data:') ? /^data:image\/(png|jpeg|webp)/.exec(qrImage)[1] : new URL(qrImage).pathname.split('.').pop().toLowerCase();
+        const filename = '成绩轨迹-赞赏码.' + (format === 'jpeg' ? 'jpg' : format);
+        if (window.__scoreTrackerAssets) await window.__scoreTrackerAssets.save(qrImage, filename);
+        else { const link = document.createElement('a'); link.href = qrImage; link.download = filename; document.body.appendChild(link); link.click(); link.remove(); }
+        back.querySelector('.support-status').textContent = '已发起图片下载。如果没有保存，可长按图片保存。';
+      } catch (_) { back.querySelector('.support-status').textContent = '保存失败，可以长按图片保存，或稍后重试。'; }
+      finally { button.disabled = false; }
     }, options);
     back.querySelector('.support-qr img').addEventListener('error', () => {
       back.querySelector('.support-qr').innerHTML = '<div class="support-qr-error">赞赏码暂时加载不出来，请稍后再试。</div>';
@@ -13956,7 +14138,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     track('community_opened',{source:source});
     var c=config,back=document.createElement('div');back.className='community-back modal-backdrop';
     var url=safeLink(c.join_url);
-    back.innerHTML='<section class="community-panel" role="dialog" aria-modal="true" aria-labelledby="communityTitle"><header><h2 id="communityTitle">'+esc(c.title)+'</h2><button type="button" data-community-close aria-label="关闭交流群面板">×</button></header><p>'+esc(c.intro)+'</p><button type="button" class="community-qr" aria-label="放大微信群二维码" aria-pressed="false"><img src="'+esc(c.qr_image)+'" alt="微信群入群二维码"></button><p class="community-help">电脑上可用微信扫一扫；手机上可保存图片，再从微信扫一扫的相册中识别。点击二维码可放大，也可长按保存。</p>'+(c.expires_at?'<p class="community-help">二维码有效至 '+esc(new Date(c.expires_at).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'}))+'（北京时间）</p>':'')+'<button type="button" class="community-button" data-community-save>保存群二维码</button>'+(url?'<a class="community-button" data-community-join href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">前往微信加群</a>':'')+'<p class="community-status" role="status" aria-live="polite"></p><p class="community-help">加群完全自愿，不影响任何功能。群满或二维码失效时，仍可使用原有反馈入口联系我。</p></section>';
+    back.innerHTML='<section class="community-panel" role="dialog" aria-modal="true" aria-labelledby="communityTitle"><header><h2 id="communityTitle">'+esc(c.title)+'</h2><button type="button" data-community-close aria-label="关闭交流群面板">×</button></header><p>'+esc(c.intro)+'</p><button type="button" class="community-qr" aria-label="放大微信群二维码" aria-pressed="false"><img '+(window.__scoreTrackerAssets?window.__scoreTrackerAssets.attributes(c.qr_image):'src="'+esc(c.qr_image)+'"')+' alt="微信群入群二维码"></button><p class="community-help">电脑上可用微信扫一扫；手机上可保存图片，再从微信扫一扫的相册中识别。点击二维码可放大，也可长按保存。</p>'+(c.expires_at?'<p class="community-help">二维码有效至 '+esc(new Date(c.expires_at).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'}))+'（北京时间）</p>':'')+'<button type="button" class="community-button" data-community-save>保存群二维码</button>'+(url?'<a class="community-button" data-community-join href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">前往微信加群</a>':'')+'<p class="community-status" role="status" aria-live="polite"></p><p class="community-help">加群完全自愿，不影响任何功能。群满或二维码失效时，仍可使用原有反馈入口联系我。</p></section>';
     modal={back:back,focus:document.activeElement,overflow:document.body.style.overflow,background:[]};
     document.body.appendChild(back);document.body.style.overflow='hidden';
     Array.from(document.body.children).filter(function(n){return n!==back&&!/^(SCRIPT|STYLE)$/.test(n.tagName);}).forEach(function(n){modal.background.push([n,n.hasAttribute('inert')]);n.setAttribute('inert','');});
@@ -13969,7 +14151,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     var image=back.querySelector('img'),zoom=back.querySelector('.community-qr'),save=back.querySelector('[data-community-save]');
     zoom.onclick=function(){var expanded=zoom.getAttribute('aria-pressed')!=='true';zoom.setAttribute('aria-pressed',String(expanded));zoom.setAttribute('aria-label',expanded?'缩小微信群二维码':'放大微信群二维码');zoom.classList.toggle('is-large',expanded);track('community_qr_zoomed',{expanded:expanded?1:0});};
     image.onerror=function(){track('community_qr_load_failed');save.disabled=true;zoom.hidden=true;back.querySelector('.community-status').textContent='二维码暂时加载不出来，请稍后重试。';};
-    save.onclick=function(){if(!available()){close('unavailable');return;}track('community_qr_save_requested');var a=document.createElement('a');a.href=c.qr_image;a.download='成绩轨迹-微信群二维码.'+(c.qr_image.startsWith('data:')?c.qr_image.slice(11).split(';')[0]:c.qr_image.split('.').pop());document.body.appendChild(a);a.click();a.remove();back.querySelector('.community-status').textContent='已发起保存。如果没有保存成功，可以长按二维码保存。';};
+    save.onclick=async function(){if(!available()){close('unavailable');return;}track('community_qr_save_requested');save.disabled=true;try{var name='成绩轨迹-微信群二维码.'+(c.qr_image.startsWith('data:')?c.qr_image.slice(11).split(';')[0]:c.qr_image.split('.').pop());if(window.__scoreTrackerAssets)await window.__scoreTrackerAssets.save(c.qr_image,name);else{var a=document.createElement('a');a.href=c.qr_image;a.download=name;document.body.appendChild(a);a.click();a.remove();}back.querySelector('.community-status').textContent='已发起保存。如果没有保存成功，可以长按二维码保存。';}catch(_){back.querySelector('.community-status').textContent='保存失败，可以长按二维码保存，或稍后重试。';}finally{save.disabled=false;}};
     var join=back.querySelector('[data-community-join]');if(join)join.onclick=function(){track('community_join_link_clicked');};
     back.querySelector('[data-community-close]').focus();return true;
   }

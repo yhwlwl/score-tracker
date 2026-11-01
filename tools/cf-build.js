@@ -20,6 +20,10 @@ const FILES = [
   "pwa-icon-192.png",
   "pwa-icon-512.png",
   "app-bundle.js",
+  "public-assets.js",
+  "notice-media.js",
+  "notice-embed.js",
+  "community-qr-20261024.jpg",
   "vision-image-prep.js",
   "natural-entry.js",
   "feature-vote.js",
@@ -44,10 +48,10 @@ fs.mkdirSync(path.join(OUT, "functions"), { recursive: true });
 fs.mkdirSync(path.join(OUT, "api"), { recursive: true });
 
 for (const f of FILES) fs.copyFileSync(path.join(ROOT, f), path.join(OUT, f));
-// Keep optional typography assets and the synthetic visual review page in preview builds.
-for (const dir of ["assets/fonts", "assets/themes", "appearance-qa"]) {
-  if (fs.existsSync(path.join(ROOT, dir))) fs.cpSync(path.join(ROOT, dir), path.join(OUT, dir), { recursive: true });
-}
+if (fs.existsSync(path.join(ROOT, 'assets'))) fs.cpSync(path.join(ROOT, 'assets'), path.join(OUT, 'assets'), { recursive: true });
+if (fs.existsSync(path.join(ROOT, 'appearance-qa'))) fs.cpSync(path.join(ROOT, 'appearance-qa'), path.join(OUT, 'appearance-qa'), { recursive: true });
+fs.cpSync(path.join(ROOT, 'design/community-invite-qa'), path.join(OUT, 'design/community-invite-qa'), { recursive: true });
+for (const f of ['notice-media.js', 'release-notices.js', 'community.js']) fs.copyFileSync(path.join(ROOT, f), path.join(OUT, f));
 fs.copyFileSync(path.join(ROOT, "functions/mg.js"), path.join(OUT, "functions/mg.js"));
 fs.copyFileSync(path.join(ROOT, "api/mg.js"), path.join(OUT, "api/mg.js"));
 fs.copyFileSync(path.join(ROOT, "api/mg-ui.js"), path.join(OUT, "api/mg-ui.js"));
