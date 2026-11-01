@@ -1,5 +1,5 @@
 /*! app-bundle.js · 自动生成,勿手改 —— 改源码后运行: node design/build-bundles.js
-   来源顺序: public-assets.js, compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js, score-worth-model.js, score-worth.js, release-notices.js, account-recovery.js, trajectory-forecast.js, similar-trajectories.js, school-settings.js, announcement-settings.js, author-support.js, community.js, participant-defaults.js, exam-averages.js, exam-changes.js, exam-reflection.js, exam-detail.js */
+   来源顺序: public-assets.js, compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js, score-worth-model.js, score-worth.js, release-notices.js, account-recovery.js, trajectory-forecast.js, similar-trajectories.js, school-settings.js, announcement-settings.js, announcement-replies.js, author-support.js, community.js, participant-defaults.js, exam-averages.js, exam-changes.js, exam-reflection.js, exam-detail.js */
 /* ===== public-assets.js ===== */
 /* Public artwork only. Private uploads and application requests never use this host. */
 (function () {
@@ -12848,7 +12848,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   function close(reason) {
     if(!modal)return;var old=modal;modal=null;
     track(old.kind==='release'?'update_prompt_dismissed':'announcement_dismissed',{target_version:old.id,source:old.source,reason:reason,duration_ms:Date.now()-old.started,needs_update:old.outdated});
-    old.back.remove();document.body.style.overflow=old.overflow;
+    (old.back.replyObservers||[]).forEach(function(observer){observer.disconnect();});old.back.remove();document.body.style.overflow=old.overflow;
     if(lastFocus&&lastFocus.isConnected)lastFocus.focus();lastFocus=null;queuePump();
   }
   function mountSupport(back,item) {
@@ -12885,7 +12885,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     mountSupport(back,modal);
   }
   function mountComments(item,back) {
-    if(item.kind!=='announcement'||!item.commentsEnabled)return;
+    if(item.kind!=='announcement'||(!item.commentsEnabled&&!item.focusedComment))return;
     var section=document.createElement('section');section.className='rn-comments';
     section.innerHTML='<h3>'+esc(item.commentTitle||'想听听大家的意见')+'</h3>'+(item.commentsPublic===false?'<div class="rn-comments-hint">这里只显示你自己的评论，其他用户的评论对你不可见。</div>':'')+'<div class="rn-comment-list"></div><button type="button" class="rn-more" hidden>查看更多评论</button><form class="rn-comment-form"><label for="rnComment">你的想法</label><textarea id="rnComment" maxlength="1000" rows="3" placeholder="说说你的想法吧" required></textarea><div class="rn-comment-bottom"><span role="status" class="rn-comment-status"></span><button type="submit" class="rn-action">发表评论</button></div></form>';
     back.querySelector('.rn-actions').before(section);
@@ -12893,10 +12893,42 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     function archiveComments(){item.commentsReadOnly=true;form.hidden=true;section.insertBefore(status,form);if(!section.querySelector('.rn-comment-archive')){var archived=document.createElement('p');archived.className='rn-comments-hint rn-comment-archive';archived.textContent='这条公告已归档，可查看当时的评论。';section.querySelector('h3').after(archived);}}
     if(item.commentsReadOnly)archiveComments();
     function current(){var u=user();return back.isConnected&&u&&u.id===item.user.id&&u.token===item.user.token;}
-    async function load(append){if(loading)return;loading=true;more.disabled=true;status.textContent='正在加载评论…';try{var data=await call('announcement_comments',{notice_id:item.id,before:append?next:null},item.user);if(!current())return;if(data.read_only===true)archiveComments();if(!append)list.innerHTML='';(data.rows||[]).forEach(function(row){var article=document.createElement('article');article.className='rn-comment';article.innerHTML='<div class="rn-comment-meta"><b>'+esc(anonymousName(row.author))+'</b><time>'+esc(new Date(row.created_at).toLocaleString())+'</time>'+(row.can_delete&&!item.commentsReadOnly?'<button type="button">删除</button>':'')+'</div><div class="rn-comment-text">'+esc(row.content)+'</div>'+(row.reply?'<div class="rn-admin-reply"><b>作者回复</b><time>'+esc(new Date(row.reply.created_at).toLocaleString())+'</time><div>'+esc(row.reply.content)+'</div></div>':'');var del=article.querySelector('button');if(del)del.onclick=async function(){del.disabled=true;try{await call('announcement_comment_delete',{notice_id:item.id,id:row.id},item.user);if(current())await load(false);}catch(e){status.textContent=e.message;}finally{del.disabled=false;}};list.appendChild(article);});if(!list.children.length)list.textContent=item.commentsReadOnly?'这条公告还没有评论。':'还没有评论，欢迎说说你的想法。';next=data.next;more.hidden=!next;status.textContent='';}catch(e){if(current())status.textContent=e.message;}finally{loading=false;more.disabled=false;}}
+    function appendRow(row){var article=document.createElement('article');article.className='rn-comment';article.innerHTML='<div class="rn-comment-meta"><b>'+esc(anonymousName(row.author))+'</b><time>'+esc(new Date(row.created_at).toLocaleString())+'</time>'+(row.can_delete&&!item.commentsReadOnly?'<button type="button">删除</button>':'')+'</div><div class="rn-comment-text">'+esc(row.content)+'</div>'+(row.reply?'<div class="rn-admin-reply"><b>作者回复</b><time>'+esc(new Date(row.reply.created_at).toLocaleString())+'</time><div>'+esc(row.reply.content)+'</div></div>':'');var del=article.querySelector('button');if(del)del.onclick=async function(){del.disabled=true;try{await call('announcement_comment_delete',{notice_id:item.id,id:row.id},item.user);if(current())await load(false);}catch(e){status.textContent=e.message;}finally{del.disabled=false;}};list.appendChild(article);watchReply(row,article,item,back);}
+    async function load(append){if(loading)return;loading=true;more.disabled=true;status.textContent='正在加载评论…';try{var data=await call('announcement_comments',{notice_id:item.id,before:append?next:null},item.user);if(!current())return;if(data.read_only===true)archiveComments();if(!append)list.innerHTML='';(data.rows||[]).forEach(function(row){appendRow(row);});if(!list.children.length)list.textContent=item.commentsReadOnly?'这条公告还没有评论。':'还没有评论，欢迎说说你的想法。';next=data.next;more.hidden=!next;status.textContent='';}catch(e){if(current())status.textContent=e.message;}finally{loading=false;more.disabled=false;}}
     more.onclick=function(){load(true);};
     form.onsubmit=async function(e){e.preventDefault();if(!current()||item.commentsReadOnly)return;var content=input.value.trim();if(!content){status.textContent='写点内容再发送吧';return;}submit.disabled=true;status.textContent='正在发送…';try{await call('announcement_comment_add',{notice_id:item.id,content:content},item.user);if(!current())return;input.value='';await load(false);if(!status.textContent)status.textContent='评论已发送';}catch(e){if(current())status.textContent=e.message;}finally{submit.disabled=false;}};
-    if(item.user.id==='guest'){form.hidden=true;list.textContent=item.commentsReadOnly?'登录后可以查看当时的评论':'登录后可以查看和发表评论';return;}load(false);
+    if(item.user.id==='guest'){form.hidden=true;list.textContent=item.commentsReadOnly?'登录后可以查看当时的评论':'登录后可以查看和发表评论';return;}if(item.focusedComment){form.hidden=true;section.querySelector('h3').textContent='我的评论与作者回复';appendRow(item.focusedComment);requestAnimationFrame(function(){if(!current())return;var reply=list.querySelector('.rn-admin-reply');if(reply&&reply.scrollIntoView)reply.scrollIntoView({block:'center'});});return;}load(false);
+  }
+  function watchReply(row,article,item,back) {
+    if(!row.is_mine||!row.reply_unread||!row.reply||!Number.isSafeInteger(row.reply_revision))return;
+    var target=article.querySelector('.rn-admin-reply'),panel=back.querySelector('.rn-modal'),reading=false,observer;
+    function current(){var u=user();return back.isConnected&&u&&u.id===item.user.id&&u.token===item.user.token;}
+    async function read(){
+      if(reading||!current()||document.visibilityState!=='visible')return;reading=true;
+      try{var result=await call('announcement_reply_read',{id:row.id,revision:row.reply_revision,replied_at:row.reply.created_at},item.user);var u=user();if(!u||u.id!==item.user.id||u.token!==item.user.token)return;if(result.read){row.reply_unread=false;if(observer)observer.disconnect();}window.dispatchEvent(new Event('announcement-replies-changed'));try{localStorage.setItem('st_announcement_reply_read:'+u.id,String(Date.now()));}catch(_){};}
+      catch(_){/* Keep the unread reminder if acknowledging the reply fails. */}
+      finally{reading=false;}
+    }
+    var checkVisible=function(){var r=target.getBoundingClientRect(),p=panel.getBoundingClientRect();if(r.height>0&&r.bottom>p.top&&r.top<p.bottom)read();};
+    if(typeof IntersectionObserver==='function'){
+      observer=new IntersectionObserver(function(entries){entries.forEach(function(entry){if(entry.isIntersecting)read();});},{root:panel,threshold:0});observer.observe(target);
+    }else{
+      panel.addEventListener('scroll',checkVisible);requestAnimationFrame(checkVisible);
+      observer={disconnect:function(){panel.removeEventListener('scroll',checkVisible);}};
+    }
+    document.addEventListener('visibilitychange',checkVisible);var disconnect=observer.disconnect.bind(observer);observer.disconnect=function(){document.removeEventListener('visibilitychange',checkVisible);disconnect();};
+    (back.replyObservers||(back.replyObservers=[])).push(observer);
+  }
+  async function openAnnouncementReply(id){
+    var u=user();if(!u)throw Error('请先登录再查看回复');
+    var result=await call('announcement_reply_detail',{id:id},u),now=user();
+    if(!now||now.id!==u.id||now.token!==u.token)return;
+    if(modal)close('open_reply');
+    var notice=result.notice;
+    pending.unshift({user:u,kind:'announcement',id:notice.id,title:notice.title,content:notice.content,
+      commentsEnabled:true,commentsReadOnly:result.read_only,commentsPublic:notice.comments_public!==false,
+      focusedComment:result.comment,source:'reply_notification',manual:true});pump();
+    track('announcement_reply_opened',{comment_id:id,notice_id:notice.id});
   }
   function showTip(item) {
     var existing=document.getElementById('releaseTip');if(existing)existing.remove();var b=document.createElement('div');b.className='rn-banner';b.id='releaseTip';b.innerHTML='<span>'+esc(item.content)+'</span><button class="rn-close" type="button" aria-label="关闭提示">×</button>';document.body.appendChild(b);mark(item.user,item.kind,item.id);track('tip_shown',{notice_id:item.id,source:item.source});b.querySelector('button').onclick=function(){b.remove();track('tip_dismissed',{notice_id:item.id,reason:'close_button'});};
@@ -12972,7 +13004,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   window.addEventListener('online',function(){if(Date.now()-lastCheck>=PERIOD)check('online',false);});
   window.addEventListener('storage',function(e){if(e.key==='st_token'&&user()&&e.newValue!==user().token){pending=[];if(modal)close('account_changed');}});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',sync,{once:true});else sync();
-  window.__releaseNotices={check:check,compareVersions:compare,currentVersion:function(){return CURRENT;},refreshSupport:function(){if(modal)mountSupport(modal.back,modal);},openAnnouncement:function(){track('announcement_manual_opened',{source:'settings'});return check('manual_announcement',true,'announcement');}};
+  window.__releaseNotices={check:check,compareVersions:compare,currentVersion:function(){return CURRENT;},refreshSupport:function(){if(modal)mountSupport(modal.back,modal);},openAnnouncementReply:openAnnouncementReply,openAnnouncement:function(){track('announcement_manual_opened',{source:'settings'});return check('manual_announcement',true,'announcement');}};
   var replyStyle=document.createElement('style');replyStyle.textContent='.rn-admin-reply{margin-top:12px;padding:12px 14px;border-left:3px solid var(--accent,#315efb);background:var(--accent-soft,#f3f6ff);border-radius:8px;font-size:13px;line-height:1.8;overflow-wrap:anywhere}.rn-admin-reply time{display:block;font-size:11px;color:var(--muted,#68758b)}.rn-admin-reply>div{white-space:pre-wrap;margin-top:4px}';document.head.appendChild(replyStyle);
 })();
 
@@ -13602,6 +13634,79 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       finally{if(button.isConnected){button.disabled=false;button.textContent='打开公告';}}
     };
   };
+})();
+
+/* ===== announcement-replies.js ===== */
+/* Account navigation reminder for unread replies to the user's own comments. */
+(function(){
+  'use strict';
+  var identity='',generation=0,pending=null,lastPoll=0,count=0,rows=[],expanded=false;
+  function user(){try{return state.user&&state.token?{id:String(state.user.id),token:state.token}:null;}catch(_){return null;}}
+  function same(u){var current=user();return current&&u&&current.id===u.id&&current.token===u.token;}
+  function esc(value){return String(value==null?'':value).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  var style=document.createElement('style');style.id='announcement-replies-style';style.textContent=
+    '.bottom-nav [data-page="account"],.desktop-nav [data-page="account"]{position:relative}'+
+    '.announcement-reply-dot{position:absolute;top:8px;left:calc(50% + 9px);width:7px;height:7px;border-radius:50%;background:#e34f61;box-shadow:0 0 0 2px var(--panel-solid,#fff);pointer-events:none}'+
+    '.desktop-nav .announcement-reply-dot{left:auto;right:5px;top:6px}'+
+    '.announcement-replies-guide{margin:18px 0;border-color:var(--accent,#5473de)}'+
+    '.announcement-replies-guide .card-sub{line-height:1.7}.announcement-reply-list{display:grid;gap:9px;margin-top:15px}'+
+    '.announcement-reply-entry{display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;text-align:left;padding:13px 14px;border:1px solid var(--line,#e4e9f0);border-radius:12px;background:var(--panel-solid,#fff);color:var(--text,#18212f);font:inherit;cursor:pointer}'+
+    '.announcement-reply-entry span{min-width:0;overflow-wrap:anywhere}.announcement-reply-entry small{display:block;margin-bottom:5px;font-size:11px;color:var(--muted,#68758b)}'+
+    '.announcement-reply-entry b{flex-shrink:0;color:var(--accent,#315efb);font-size:12px}.announcement-reply-entry:disabled{opacity:.6;cursor:wait}'+
+    '.announcement-reply-entry:focus-visible{outline:2px solid var(--accent,#315efb);outline-offset:3px}.announcement-replies-status{font-size:12px;color:var(--muted,#68758b);margin:10px 0 0}.announcement-replies-status:empty{display:none}';
+  document.head.appendChild(style);
+
+  function paint(){
+    document.querySelectorAll('.bottom-nav [data-page="account"],.desktop-nav [data-page="account"]').forEach(function(button){
+      var dot=button.querySelector('.announcement-reply-dot');
+      if(count>0){
+        if(!dot){dot=document.createElement('span');dot.className='announcement-reply-dot';dot.setAttribute('aria-hidden','true');button.appendChild(dot);button.dataset.replyOriginalLabel=button.getAttribute('aria-label')||'';}
+        button.setAttribute('aria-label','账号，有 '+count+' 条公告回复未读');
+      }else if(dot){dot.remove();var original=button.dataset.replyOriginalLabel;if(original)button.setAttribute('aria-label',original);else button.removeAttribute('aria-label');delete button.dataset.replyOriginalLabel;}
+    });
+    var anchor=document.getElementById('announcementSettingsCard'),guide=document.getElementById('announcementReplyGuide');
+    if(!anchor||!count){if(guide)guide.remove();return;}
+    if(!guide){guide=document.createElement('section');guide.id='announcementReplyGuide';guide.className='card account-card announcement-replies-guide';var content=document.getElementById('content'),heading=content&&content.querySelector('.page-head');if(content&&content.contains(anchor)){if(heading&&heading.parentElement===content)heading.after(guide);else content.prepend(guide);}else anchor.before(guide);}
+    // Do not replace the focused button during an unrelated background repaint.
+    var signature=JSON.stringify([count,expanded,rows]);if(guide.dataset.signature===signature)return;
+    guide.dataset.signature=signature;
+    guide.innerHTML='<h3 class="card-title">公告有新回复</h3><p class="card-sub">你收到了作者的 '+count+' 条回复，点开可直接查看对应公告里的评论与回复。</p><div class="announcement-reply-list">'+rows.slice(0,expanded?20:3).map(function(row){return '<button type="button" class="announcement-reply-entry" data-announcement-reply="'+esc(row.id)+'"><span><small>关于你的评论</small>'+esc(row.comment_preview)+'</span><b>查看回复 →</b></button>';}).join('')+'</div>'+(rows.length>3?'<button class="secondary" type="button" id="expandAnnouncementReplies" style="margin-top:12px">'+(expanded?'收起':'查看更多回复')+'</button>':'')+'<p class="announcement-replies-status" role="status"></p>';
+    guide.querySelectorAll('[data-announcement-reply]').forEach(function(button){button.onclick=async function(){
+      var status=guide.querySelector('[role="status"]');button.disabled=true;status.textContent='正在打开回复…';
+      try{if(!window.__releaseNotices?.openAnnouncementReply)throw Error('请刷新页面后再查看回复');await window.__releaseNotices.openAnnouncementReply(button.dataset.announcementReply);if(status.isConnected)status.textContent='';}
+      catch(e){if(status.isConnected)status.textContent=e.message||'暂时无法读取回复，请稍后重试';}
+      finally{if(button.isConnected)button.disabled=false;}
+    };});
+    var more=guide.querySelector('#expandAnnouncementReplies');if(more)more.onclick=function(){expanded=!expanded;paint();};
+  }
+  function sync(){
+    var u=user(),key=u?u.id+':'+u.token:'';
+    if(identity!==key){identity=key;++generation;pending=null;lastPoll=0;count=0;rows=[];expanded=false;}
+    paint();if(u&&document.visibilityState==='visible'&&navigator.onLine!==false&&Date.now()-lastPoll>=60000)refresh();
+  }
+  async function refresh(){
+    var u=user();if(!u||document.visibilityState!=='visible'||navigator.onLine===false)return;
+    if(pending)return pending;
+    var currentGeneration=generation,controller=new AbortController(),timer=setTimeout(function(){controller.abort();},10000);
+    lastPoll=Date.now();
+    var job=Promise.resolve().then(async function(){
+      try{
+        var response=await fetch('/api/score-tracker-notices',{method:'POST',cache:'no-store',signal:controller.signal,headers:{'content-type':'application/json'},body:JSON.stringify({action:'announcement_reply_inbox',token:u.token})});
+        if(!response.ok)return;var data=await response.json();
+        if(!same(u)||generation!==currentGeneration)return;
+        count=Math.max(0,Number(data.count)||0);rows=Array.isArray(data.rows)?data.rows:[];paint();
+      }catch(_){/* Preserve existing reminders during a temporary network failure. */}
+      finally{clearTimeout(timer);if(pending===job)pending=null;}
+    });pending=job;return job;
+  }
+  function afterRead(){++generation;pending=null;lastPoll=0;sync();}
+  ['render','renderLogin','bindPage'].forEach(function(name){var previous=window[name];if(typeof previous==='function')window[name]=function(){var result=previous.apply(this,arguments);sync();return result;};});
+  window.addEventListener('announcement-replies-changed',afterRead);
+  document.addEventListener('visibilitychange',sync);window.addEventListener('online',sync);
+  window.addEventListener('storage',function(event){var u=user();if(u&&event.key==='st_announcement_reply_read:'+u.id)afterRead();else if(event.key==='st_token')sync();});
+  setInterval(sync,60000);
+  window.__announcementReplies={refresh:function(){lastPoll=0;sync();}};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',sync,{once:true});else sync();
 })();
 
 /* ===== author-support.js ===== */

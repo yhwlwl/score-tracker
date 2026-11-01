@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { readSupport, saveSupport } from './support.ts';
 import { readCommunity, saveCommunity } from './community.ts';
+import { announcementReplies } from './replies.ts';
 
 const db = createClient(Deno.env.get('SUPABASE_URL') || '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '', {auth:{persistSession:false,autoRefreshToken:false}});
 const cors = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type, x-score-token','Access-Control-Allow-Methods':'GET, POST, OPTIONS'};
@@ -58,6 +59,10 @@ Deno.serve(async req => {
     if(action==='notice_history'&&req.method==='POST'){const c=await config(true),releases=releaseHistory(c,c),announcements=announcementHistory(c);delete c.release_history;delete c.announcement_history;return json({config:c,releases,announcements});}
     user=await auth(req.headers.get('x-score-token')||String(body.token||''));if(!user)return json({error:'登录已失效，请重新登录'},401);
     if((action.startsWith('notification_')||['feature_completion_admin','feature_option_complete','feature_option_active'].includes(action))&&!user.is_admin)return json({error:'只有管理员可以修改这些内容'},403);
+    if(['announcement_reply_inbox','announcement_reply_detail','announcement_reply_read'].includes(action)&&req.method==='POST'){
+      const result=await announcementReplies(db,user,action,body,async()=>{const c=await config(true);return {notices:announcementHistory(c),current:c.announcement_id,commentsEnabled:c.announcement_enabled&&c.announcement_comments_enabled};});
+      const {status,...data}=result;return json(data,status||200);
+    }
     if(action==='community_public'&&req.method==='POST')return json({config:await readCommunity(db,true)});
     if(action==='notification_community_config'&&req.method==='GET') {
       try{return json({config:await readCommunity(db)});}catch(e){return json({error:e.message},e.status||503);}
@@ -158,11 +163,11 @@ Deno.serve(async req => {
         return json({ok:true});
       }
       const cursor=String(body.before||'');if(cursor&&!/^\d{1,18}$/.test(cursor))return json({error:'无效的分页'},400);
-      let q=db.from('score_tracker_announcement_comments').select('id,sequence,user_id,content,created_at,admin_reply,admin_replied_at,reply_revision,author:score_tracker_users(username)').eq('notice_id',notice.id).order('sequence',{ascending:false}).limit(31);
+      let q=db.from('score_tracker_announcement_comments').select('id,sequence,user_id,content,created_at,admin_reply,admin_replied_at,reply_revision,admin_reply_read_at,author:score_tracker_users(username)').eq('notice_id',notice.id).order('sequence',{ascending:false}).limit(31);
       if(!user.is_admin&&notice.comments_public===false)q=q.eq('user_id',user.id);
       if(cursor)q=q.lt('sequence',cursor);
       const r=await q;if(r.error)throw r.error;
-      const rows=(r.data||[]).slice(0,30).map(x=>({id:String(x.id),reply:x.admin_reply?{content:x.admin_reply,created_at:x.admin_replied_at}:null,content:x.content,sequence:String(x.sequence),created_at:x.created_at,author:x.author?.username||'用户',can_delete:isCurrent&&(user.is_admin||x.user_id===user.id)}));
+      const rows=(r.data||[]).slice(0,30).map(x=>({id:String(x.id),reply:x.admin_reply?{content:x.admin_reply,created_at:x.admin_replied_at}:null,is_mine:x.user_id===user.id,reply_unread:x.user_id===user.id&&!!x.admin_reply&&!x.admin_reply_read_at,reply_revision:x.user_id===user.id?x.reply_revision:undefined,content:x.content,sequence:String(x.sequence),created_at:x.created_at,author:x.author?.username||'用户',can_delete:isCurrent&&(user.is_admin||x.user_id===user.id)}));
       return json({rows,next:r.data?.length>30?rows.at(-1).sequence:null,read_only:!isCurrent});
     }
     if(action==='notice_check'&&req.method==='POST'){
