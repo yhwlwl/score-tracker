@@ -79,7 +79,7 @@ export const MG_HTML = String.raw`<!doctype html>
   }
   function cacheKey(action,params){return action+'|'+JSON.stringify(params||{})}
   var cacheTimes={},pendingReads={},cacheVersions={},viewRequest=0,viewSearch={},viewScroll={},aiConfigRequest=0;
-  function cacheTtl(action){return action==='realtime'?15000:action==='overview'||action==='logs'?60000:120000}
+  function cacheTtl(action){return action==='feature_votes'?600000:action==='realtime'?15000:action==='overview'||action==='logs'?60000:120000}
   function hasCache(action,params){return Object.prototype.hasOwnProperty.call(S.cache,cacheKey(action,params))}
   function cacheFresh(action,params){return hasCache(action,params)&&Date.now()-(cacheTimes[cacheKey(action,params)]||0)<cacheTtl(action)}
   async function cached(action,params,force){

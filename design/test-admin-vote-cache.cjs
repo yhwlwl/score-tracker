@@ -55,6 +55,7 @@ const fixture = () => ({
     search.dispatchEvent(new w.Event('input'));
   };
   const initialReads = reads();
+  clock += 180000; // Revisiting after three minutes still uses the vote cache.
   nav('feedback'); await until(() => d.getElementById('refreshFeedback'));
   nav('featurevotes'); assert(d.querySelector('[data-fv-dismiss="s0"]'));
   assert.equal(reads(), initialReads, 'fresh tab revisit must not fetch');
@@ -135,7 +136,7 @@ const fixture = () => ({
   assert(row(5).textContent.includes('已处理')); assert.equal(reads(), beforeReturn);
 
   // Expired cache refreshes in the background and keeps old data if the refresh fails.
-  clock += 121000; fail = 'feature_votes';
+  clock += 601000; fail = 'feature_votes';
   nav('feedback'); nav('featurevotes');
   assert(row(5).textContent.includes('已处理')); await tick(); await tick();
   assert.equal(reads(), beforeReturn + 1); assert(row(5).textContent.includes('已处理')); fail = '';
