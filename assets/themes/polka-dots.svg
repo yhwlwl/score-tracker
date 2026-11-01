@@ -1,0 +1,3 @@
+<!-- Polka Dots by Steve Schoger / Hero Patterns, CC BY 4.0.
+     https://heropatterns.com/ | Changed dot radius, color and opacity. -->
+<svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><g fill="#8f7252" opacity=".24" fill-rule="evenodd"><circle cx="3" cy="3" r=".7"/><circle cx="13" cy="13" r=".7"/></g></svg>

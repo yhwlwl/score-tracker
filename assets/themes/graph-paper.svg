@@ -1,0 +1,8 @@
+<!-- Adapted from Graph Paper by Steve Schoger / Hero Patterns, CC BY 4.0.
+     https://heropatterns.com/ | Changed color, opacity and grid spacing. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+  <g fill="none" stroke="#628395" stroke-width=".7" opacity=".23">
+    <path d="M0 0H100V100H0Z"/>
+    <path opacity=".5" d="M25 0V100M50 0V100M75 0V100M0 25H100M0 50H100M0 75H100"/>
+  </g>
+</svg>

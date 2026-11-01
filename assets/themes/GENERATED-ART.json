@@ -1,0 +1,293 @@
+{
+  "tool": "built-in image_gen",
+  "date": "2026-10-29",
+  "assets": [
+    {
+      "id": "sakura-atelier",
+      "transparent": false,
+      "prompt": "Use case: illustration-story. Asset type: high-end full-screen wallpaper for a Chinese student's personal theme, portrait 2:3 composition, finished production illustration. A breathtaking cozy sunlit glass conservatory reading room beside an enormous arched window, flowering cherry branches outside and climbing wisteria, tiny wooden writing desk with open blank book, porcelain tea, soft linen curtains, potted fern, a cream kitten sleeping on the window bench. Luminous spring sky, distant emerald hills, a few drifting pink petals. Painterly anime background art, sophisticated soft brushwork, intricate natural material textures and tiny environmental details, elegant pastel sage, blush, ivory and sky blue. Warm luminous sunlight, atmospheric perspective, convincing depth. Large softly lit quiet central area for UI cards; architectural detail and blossoms framing upper and side edges, interesting lower landscape still visible around cards. Beautiful coherent scene, commercially polished wallpaper craftsmanship, not a flat vector illustration, not a collage of icons. No UI, lettering, watermark, logo or text. No existing fictional characters."
+    },
+    {
+      "id": "starlit-tide",
+      "transparent": false,
+      "prompt": "Use case: illustration-story. Asset type: refined full-screen portrait 2:3 fantasy anime wallpaper for a student's personal theme. An exquisite dreamlike ocean of luminous clouds under a lavender-blue evening sky, a huge opalescent crescent high in the sky, a tiny warmly lit glass observatory on a floating island near the bottom, winding moonlit waterway, hydrangeas and translucent crystal flowers at lower side edges, tiny faraway white cloud whales, gold constellations and very restrained fairy lights. High-end hand-painted Japanese fantasy illustration, watercolor and gouache softness with delicately rendered environmental details, dreamy layered depth, rich but gentle blue-lilac-peach tones, pearly highlights, subtle starlight. Large central quiet sky/water area with low visual contrast to hold opaque UI cards. Concentrate storybook detail around sides and lower scene, no large foreground face. A complete atmospheric landscape, not a flat gradient or icon pattern. No text, logos, UI, watermark, copyrighted characters."
+    },
+    {
+      "id": "reading-kitten",
+      "transparent": true,
+      "prompt": "Use case: stylized-concept. Asset type: premium illustrated app ornament, one independent transparent PNG cutout with true alpha. A very cute fluffy cream kitten with large warm amber eyes and tiny rosy cheeks, wearing a sage satin bow with a small brass bell, leaning over a miniature open storybook whose pages have no readable text. Beside it a tiny stack of blue clothbound books, pale peach flowers, delicate ivy and a small hovering blue butterfly; an elegant trailing satin ribbon ties the composition together. Refined 2.5D hand-painted anime chibi collectible artwork, soft dimensional shading, individual fine fur and fabric details, luminous highlights, warm pastel colors. Complex unified character-and-props scene as a premium social-app decorative charm. Recognizable adorable face and balanced silhouette at small scale. Square composition, entire group within central 84 percent with transparent padding, nothing cut off. No background, no ground plane, no rectangular card, no badge, no solid drop-shadow plate, no thick sticker border. Not an emoji, not a vector icon, not generic 3D clipart. No letters, logos or watermark. Original character."
+    },
+    {
+      "id": "moon-fox",
+      "transparent": true,
+      "prompt": "Use case: stylized-concept. Asset type: premium social app ornamental cutout, one independent transparent image with true alpha. An adorable little arctic fox with soft ivory fur, big periwinkle eyes, blushing cheeks and a silky lavender ribbon, curled inside a delicate iridescent glass crescent moon. The fox holds a tiny luminous gold star, fluffy tail spilling across moon, a cluster of small blue hydrangeas at the base, tiny pearl chains and constellation charms, two petite floating stars and flowing ribbon that stay close to the group. Polished 2.5D hand-painted anime chibi collectible illustration with subtle watercolor softness, careful fur, glass refraction, satin folds, soft luminous shading and intricate details. Gentle lilac, pale blue, ivory, champagne gold. Unified balanced scene and adorable character, not an icon or emoji. Square framing, full silhouette contained with 8 percent transparent padding. No rectangle, badge, frame box, solid background, ground, text, logo, watermark, heavy outline or existing fictional character."
+    },
+    {
+      "id": "garden-bear",
+      "transparent": true,
+      "prompt": "Use case: stylized-concept. Asset type: exquisitely illustrated cute app charm cutout with true transparent alpha. A tiny caramel teddy bear with sweet glossy eyes, rosy cheeks and a miniature woven straw bonnet with pale blue silk ribbon, nestled inside a porcelain teacup decorated with subtle painted blossoms. The bear holds a small bouquet of daisies; mushrooms, strawberries, delicate lily-of-the-valley sprigs and an embroidered handkerchief surround the cup in a compact elegant arrangement. High-end 2.5D hand-painted anime chibi collectible illustration, soft painterly dimensional light, fine plush fur, ceramic glaze and satin material detail, cohesive ivory/sage/peach/powder-blue palette, no garish flat colors. Clear friendly face and balanced detailed silhouette readable at app-card size. Square composition full silhouette in central 84 percent with generous transparency. No solid background or floor, no square card, no icon, emoji, thick white sticker outline, text, logo, watermark or copyrighted character."
+    },
+    {
+      "id": "cloud-whale",
+      "transparent": true,
+      "prompt": "Use case: stylized-concept. Asset type: refined premium illustrated social app ornament with true transparent alpha. A small exceptionally adorable pearly pale-blue whale with rounded soft shape, friendly large luminous eyes and rosy cheek, gently floating through a compact fluffy cloud cradle. It carries a tiny glass bottle containing a golden star, suspended with a flowing blush silk ribbon. Miniature seashells, pearls, translucent blue crystal flowers and a few tiny close glowing stars create a complete delicate composition around it. Sophisticated 2.5D hand-painted anime collectible artwork, subtle dimensional shading, pearlescent surface, satin ribbon detail, soft painted cloud textures, harmonious lavender pale blue ivory and champagne gold. Elaborate but visually balanced ornament rather than a standalone emoji. Square composition, whole group contained with 8 percent transparent padding. No background, no ground plane, rectangle, badge, heavy outline, typography, watermark, logo or existing fictional character."
+    },
+    {
+      "id": "exam-pony",
+      "transparent": true,
+      "prompt": "Use case: style-transfer. Asset type: a small transparent website card decoration. The attached reference is the exact design to reproduce as a clean high-quality sticker. Recreate the same cute chubby lilac-pink pony galloping toward the left, short rounded legs, pale pink mane, tiny smiling muzzle, dark round eyes, a yellow graduation cap resting on its back. Match its cheerful flat pastel silhouette and loose composition. Preserve the four black handwritten Chinese characters EXACTLY \"马上上岸\", naturally arranged at upper-right in two short staggered lines, easily legible. Include only the few tiny yellow crown/star and blue motion marks shown in the reference. This must look like the reference: simple, funny, lovable flat cartoon, smooth shapes and clean contours, no fur rendering, no realistic detail, no complex borders, no extra flowers, no jewels, no gradients, no cast shadow, no surrounding card. Horizontal composition around 3:2, leave transparent breathing room. Truly transparent background, no white rectangle, no watermark.",
+      "reference": [
+        "IMG_5518.jpeg"
+      ],
+      "file": "assets/themes/charms/exam-pony.webp",
+      "size": [
+        768,
+        512
+      ],
+      "revision": "quiet-character-stickers"
+    },
+    {
+      "id": "hello-puppy",
+      "transparent": true,
+      "prompt": "Use case: style-transfer. Asset type: transparent website card decoration. Faithfully recreate the attached white puppy sticker, with the same very simple rounded sitting puppy, big floppy ears, small black shiny dot eyes, tiny tiny mouth, short rounded paws, light gray hand-drawn outlines with subtly irregular pencil line. To its left is the small speech bubble with the word \"Hi\" in gray; one simple gray heart upper right, a simple four-point sparkle on the far right, one little bone lower left and small ball lower right. Exactly this simple quiet cute doodle style, same compact layout, predominantly white, limited soft gray outline/shading, just a hint of cheek blush permitted. Keep the body clear white so it stays visible over colored backgrounds. No extra items, no fur detail, no flowers, no gems, no ribbons, no ornamented frame, no surrounding card, no heavy shadow, no realistic rendering. Wide composition about 4:3. Genuine alpha transparency outside the illustrated shapes. No background color or white rectangle, no watermark.",
+      "reference": [
+        "IMG_5519.jpeg"
+      ],
+      "file": "assets/themes/charms/hello-puppy.webp",
+      "size": [
+        768,
+        576
+      ],
+      "revision": "quiet-character-stickers"
+    },
+    {
+      "id": "quiet-kitten",
+      "transparent": true,
+      "prompt": "Use case: illustration-story. Asset type: a transparent small website decoration in the same visual simplicity as the attached puppy sticker, which is a STYLE reference only. Create one charming round cream kitten lying with two little front paws on ONE small closed sage-green book. Simple floppy rounded contour, tiny dark dot eyes and tiny smiling mouth, peach-pink ears, one small orange patch above one eye. One small outlined heart upper right and two short gray motion marks only. Smooth slightly hand-drawn warm gray outlines, mostly flat white/cream plus muted pastel sage and peach. Few broad shapes, easy to recognize at 90 pixels; feels like a QQ cute doodle sticker, not an app icon. No lettering, no fur texture, no realistic lighting, no flowers, no jewelry, no complex props, no border or badge, no drop shadow. Compact wide composition with generous transparent breathing room. True transparent background.",
+      "reference": [
+        "IMG_5519.jpeg"
+      ],
+      "refinement_prompt": "Edit target: attached transparent sticker. Change ONLY rendering and the outer edge treatment: remove every bit of the broad soft glow, haze, aura, colored fog and shadow OUTSIDE the drawn shape. Output a clean flat 2D sticker with crisp antialiased silhouette and FULLY TRANSPARENT empty space immediately outside its contours. Preserve the subject, all its little features, pose, colors, composition, and all lettering exactly; do not add objects or a background. Remove dimensional gradients within the subject too; use broad solid pastel fills and the same soft gray outline (the pony can remain outline-free). No cast shadow, no bloom, no glows, no white matte or border. It must look like a simple cute hand-drawn sticker, not luminous. True alpha background.",
+      "file": "assets/themes/charms/quiet-kitten.webp",
+      "size": [
+        768,
+        512
+      ],
+      "revision": "quiet-character-stickers"
+    },
+    {
+      "id": "quiet-fox",
+      "transparent": true,
+      "prompt": "Use case: illustration-story. Asset type: a transparent small website decoration, use attached puppy sticker ONLY as style reference for rounded simplicity and soft hand-drawn outline. Create one adorable small white fox curled up sleeping in ONE pale butter-yellow crescent moon. Chubby rounded head, oversized softly pointed ears, fluffy tail shown as one simple sweeping shape, tiny curved closed eyes and tiny nose, just faint peach inside ears. One small four-point star nearby, one tiny outlined heart only. White/cream fox, pale yellow moon, soft gray outlines, 3 or 4 flat muted colors. Clean simple lovable QQ doodle sticker aesthetic. No fur rendering, no gems, no pearls, no chains, no ribbons, no crystals, no flowers, no ornate frame, no background square, no word, no shadow. Compact wide composition, instantly readable at 90 pixels, true alpha transparency.",
+      "reference": [
+        "IMG_5519.jpeg"
+      ],
+      "refinement_prompt": "Edit target: attached transparent sticker. Change ONLY rendering and the outer edge treatment: remove every bit of the broad soft glow, haze, aura, colored fog and shadow OUTSIDE the drawn shape. Output a clean flat 2D sticker with crisp antialiased silhouette and FULLY TRANSPARENT empty space immediately outside its contours. Preserve the subject, all its little features, pose, colors, composition, and all lettering exactly; do not add objects or a background. Remove dimensional gradients within the subject too; use broad solid pastel fills and the same soft gray outline (the pony can remain outline-free). No cast shadow, no bloom, no glows, no white matte or border. It must look like a simple cute hand-drawn sticker, not luminous. True alpha background.",
+      "file": "assets/themes/charms/quiet-fox.webp",
+      "size": [
+        768,
+        512
+      ],
+      "revision": "quiet-character-stickers"
+    },
+    {
+      "id": "sakura-atelier-v2",
+      "transparent": false,
+      "prompt": "Use case: illustration-story. Asset type: tall mobile website wallpaper, 2:3 portrait. A beautiful very calm pastel anime spring view through a simple large open window. IMPORTANT: visual simplicity and lots of quiet negative space. Pale ivory window edge only at far left, one single slim cherry blossom branch with about twelve broad simple blossoms gently enters from upper left; most of the canvas (at least 75%) is luminous very pale powder-blue sky fading toward warm ivory. Below the bottom quarter, soft broad sage-green hills, a quiet blue lake and a simple sunlit cream windowsill. One small green book on the lower-left sill only. Elegant simplified 2D anime background painting, broad clean forms with soft edge shading, restrained peach-pink, sky blue, sage and warm cream, pleasant color harmony, low contrast, airy daylight. Looks intentionally designed and lovely, not a generic texture. Center and right remain spacious and quiet for website cards. Avoid elaborate architecture, gardens, flower clusters, petals raining, many objects, cats, distant villages, microdetails, dense foliage, grain, sparkles, vignette, typography, logos and watermarks.",
+      "file": "assets/themes/art/sakura-atelier-v2.webp",
+      "size": [
+        1024,
+        1536
+      ],
+      "revision": "quiet-character-stickers"
+    },
+    {
+      "id": "starlit-tide-v2",
+      "transparent": false,
+      "prompt": "Use case: illustration-story. Asset type: tall mobile website wallpaper, portrait 2:3. A serene beautiful simplified anime twilight sky above a distant cloud sea. At least 75% of the image is smooth very pale periwinkle and misty powder-blue open sky, softly fading to cream at the horizon. One simple large warm ivory crescent moon sits high toward upper right. Three or four broad rounded fluffy cloud shapes frame only the bottom quarter and left edge, a quiet barely visible blue horizon beneath. Include exactly three tiny simple stars near the upper edge, with plenty of space between. Delicate but minimal high-quality 2D anime art, clean broad shapes, soft restrained cel shading, low contrast, dreamy and restful. Bright enough to work behind a white-card study dashboard, not a dark fantasy scene. No whale, no islands, no buildings, no crystal flowers, no hydrangea, no detailed waves, no hanging decorations, no busy glitter field, no petals, no ornate frame, no text, no watermark. Center remains open and visually quiet.",
+      "file": "assets/themes/art/starlit-tide-v2.webp",
+      "size": [
+        1024,
+        1536
+      ],
+      "revision": "quiet-character-stickers"
+    },
+    {
+      "id": "study-shore",
+      "prompt": "Use case: illustration-story. Asset type: polished portrait 2:3 wallpaper for a real student exam-score dashboard, a coordinated theme titled \"马上上岸\" (heading is NOT to appear in the image). Primary request: an exceptionally lovely, calm, enduring lakeshore morning illustration that subtly evokes reaching a hopeful shore. Quiet pale celadon-blue lake, a broad smooth curving grassy bank entering from bottom right, a narrow warm ivory footpath following that bank toward the far light, two softly layered sage-green hills in the distance. A small warm pale-gold sun low near the horizon, a faint peach blush on the far shore. The top 60 percent is expansive luminous very pale powder-blue sky, just one broad soft ivory cloud high toward the left. Keep the horizon in the lower third and the grass/path detail concentrated at the bottom and right margin. No foreground objects. Style: refined simplified Japanese-animation background painting, clean elegant large shapes, very subtle soft brush shading, harmonious delicate pastel colors, gentle natural light, restrained fine finish without tiny texture. Color palette: airy pale blue, soft sage, warm ivory, a whisper of peach; these should quietly accompany an existing pink/lilac cartoon pony sticker with yellow graduation cap, but DO NOT draw the pony, a cap or any sticker here. Mood: peaceful, optimistic, fresh, spacious and premium, no visual fatigue. 75 percent of the composition should remain low-contrast open sky/water with no objects, suitable behind readable white cards. Beautifully composed whole landscape, not generic flat gradient wallpaper. No buildings, no flowers, no scattered petals, no trees around all edges, no glitter, no flags, no birds, no sailboat, no books, no stars, no cute animal, no ornate decoration, no vignetting, no grain, no lettering, no logos or watermark. No UI.",
+      "date": "2026-10-30",
+      "transparent": false,
+      "file": "assets/themes/art/study-shore.webp",
+      "size": [
+        1024,
+        1536
+      ],
+      "revision": "study-shore-collection"
+    },
+    {
+      "id": "study-shore-wide",
+      "prompt": "Use case: precise-object-edit. Edit target: attached lakeshore morning wallpaper. Produce its LANDSCAPE desktop companion, aspect ratio 16:10, by widening the same world to the left and right, not adding any new subjects. Preserve exactly its pale sky blue / sage grass / ivory path / peach sunrise palette, calm lake, low distant hills, sun just above the horizon slightly left of center, and path along the green right-hand shore. The broad serene sky should occupy the top half, lake fills middle and bottom left, green bank and winding ivory path at bottom right. Slightly simplify the tiny grass blades into broad soft shapes. Same refined gentle Japanese animation background painting, softly shaded but not busy, airy low contrast, quiet and enduring as wallpaper behind white dashboard panels. No text, no new props, no animal, no pony, no books, no buildings, no flowers, no decorative elements, no UI, no watermark. Full-bleed LANDSCAPE 16:10 composition.",
+      "reference": "study-shore",
+      "date": "2026-10-30",
+      "transparent": false,
+      "file": "assets/themes/art/study-shore-wide.webp",
+      "size": [
+        1586,
+        992
+      ],
+      "revision": "study-shore-collection"
+    },
+    {
+      "id": "woolly-meadow",
+      "date": "2026-10-30",
+      "transparent": false,
+      "prompt": "Use case: illustration-story. Asset type: one finished cute wallpaper for a student dashboard. Portrait 2:3 composition, full bleed. Use the attached reference ONLY for the gentle QQ-decoration-like pastel storybook aesthetic, not its UI or text. Clean large shapes, softly brushed flat pastel shading, delicate controlled outlines, adorable but visually simple. The center should be quiet and low contrast enough to sit behind opaque reading cards, with accents around the top and lower side edges. Polished, pleasing color harmony. No realistic rendering, no fur texture, no microdetails, no busy glitter field, no text, no captions, no logos, no membership badge, no border, no app UI. SCENE: a dreamy spring meadow below two enormous rounded buttercream clouds, their broad soft edges lit pale gold, pale powder-blue sky with expansive quiet space. Soft rolling pistachio and sage grass fills the lower third; a tiny curving pale blue stream enters from lower left. Exactly three small fluffy white sheep with dark gray round faces and tiny legs graze far apart near the lower side edges, one at lower right, one lower left and one farther back. Sheep bodies are simple rounded cotton shapes, not detailed wool. A couple tiny daisies only. A cheerful gentle children's picture-book world, slightly hand painted, not a photorealistic anime landscape. Muted greens, ivory, butter yellow and baby blue. Avoid dense grass texture and scenery objects.",
+      "references": [
+        "IMG_5522.jpeg"
+      ],
+      "file": "assets/themes/art/woolly-meadow.webp",
+      "size": [
+        1024,
+        1536
+      ],
+      "revision": "pastel-storybook-collections"
+    },
+    {
+      "id": "summer-float",
+      "date": "2026-10-30",
+      "transparent": false,
+      "prompt": "Use case: illustration-story. Asset type: one finished cute wallpaper for a student dashboard. Portrait 2:3 composition, full bleed. Use the attached reference ONLY for the gentle QQ-decoration-like pastel storybook aesthetic, not its UI or text. Clean large shapes, softly brushed flat pastel shading, delicate controlled outlines, adorable but visually simple. The center should be quiet and low contrast enough to sit behind opaque reading cards, with accents around the top and lower side edges. Polished, pleasing color harmony. No realistic rendering, no fur texture, no microdetails, no busy glitter field, no text, no captions, no logos, no membership badge, no border, no app UI. SCENE: top-down view of a clear very pale turquoise summer pool, the water rendered as a smooth airy aqua field with only a few broad loose white ripple curves. Exactly two original chubby white animal friends, one bunny and one round-eared bear, floating in simple pastel swim rings: bunny in a pale blue ring near upper right, bear in a pale butter-yellow ring near lower left. Keep each friend fairly small and close to the side edges, leaving a large calm open center. One small watermelon wedge near bottom right and two tiny white daisies floating near edges, one little yellow star-shaped float high on left. Minimal pastel picture-book shapes, friendly faces, simple proportions. Clean refreshing summery color harmony, no full-screen repeated pattern, no dense caustic textures. No famous characters.",
+      "references": [
+        "IMG_5523.jpeg"
+      ],
+      "file": "assets/themes/art/summer-float.webp",
+      "size": [
+        1024,
+        1536
+      ],
+      "revision": "pastel-storybook-collections"
+    },
+    {
+      "id": "butter-daisy",
+      "date": "2026-10-30",
+      "transparent": false,
+      "prompt": "Use case: illustration-story. Asset type: one finished cute wallpaper for a student dashboard. Portrait 2:3 composition, full bleed. Use the attached reference ONLY for the gentle QQ-decoration-like pastel storybook aesthetic, not its UI or text. Clean large shapes, softly brushed flat pastel shading, delicate controlled outlines, adorable but visually simple. The center should be quiet and low contrast enough to sit behind opaque reading cards, with accents around the top and lower side edges. Polished, pleasing color harmony. No realistic rendering, no fur texture, no microdetails, no busy glitter field, no text, no captions, no logos, no membership badge, no border, no app UI. SCENE: an airy butter-yellow and warm cream sky above a gentle pale peach and sage meadow. Two enormous softly rounded warm white clouds frame upper side edges, expansive pale creamy central sky. A loose handful of large simple white daisies with butter-yellow centers and broad sage leaves grows only along the bottom corners; no dense flower garden. One small round cream teddy bear sits at the lower-right edge holding one daisy, a tiny white butterfly near upper left. Gentle picture-book landscape, very soft warm yellow and apricot pastels, clean simplified flower and character shapes, not overly babyish. Beautiful calm substantial negative space, no grain or busy scattered petals.",
+      "references": [
+        "IMG_5522.jpeg",
+        "IMG_5523.jpeg"
+      ],
+      "file": "assets/themes/art/butter-daisy.webp",
+      "size": [
+        1024,
+        1536
+      ],
+      "revision": "pastel-storybook-collections"
+    },
+    {
+      "id": "lotus-pond",
+      "date": "2026-10-30",
+      "transparent": false,
+      "prompt": "Use case: illustration-story. Asset type: one finished cute wallpaper for a student dashboard. Portrait 2:3 composition, full bleed. Use the attached reference ONLY for the gentle QQ-decoration-like pastel storybook aesthetic, not its UI or text. Clean large shapes, softly brushed flat pastel shading, delicate controlled outlines, adorable but visually simple. The center should be quiet and low contrast enough to sit behind opaque reading cards, with accents around the top and lower side edges. Polished, pleasing color harmony. No realistic rendering, no fur texture, no microdetails, no busy glitter field, no text, no captions, no logos, no membership badge, no border, no app UI. SCENE: an original serene top-down pale mint-green pond, broad quiet water area in the middle. A few large simple rounded lily pads frame only the lower corners and upper-left edge; one soft blush-pink lotus blossom at the lower-right corner. Exactly two small chubby white ducklings with yellow beaks, one nestled by a lily pad near upper right and one floating near lower left. Just three or four loose ripple curves around them. Soft pale mint, sage, ivory, blush pink and butter yellow; cute polished children's picture-book art, simple shapes and delicate outlines, restrained soft shading. The water remains open and calm, with no dense reeds, fish, patterned texture or background clutter.",
+      "references": [
+        "IMG_5523.jpeg"
+      ],
+      "file": "assets/themes/art/lotus-pond.webp",
+      "size": [
+        1024,
+        1536
+      ],
+      "revision": "pastel-storybook-collections"
+    },
+    {
+      "id": "little-lamb",
+      "date": "2026-10-30",
+      "transparent": true,
+      "prompt": "Use case: illustration-story. Asset type: ONE transparent website card charm, wide 3:2 composition, whole silhouette contained with a small clear margin. Use the attached picture as a STYLE reference for soft, simple, cute characters. A professionally finished simple pastel cartoon sticker with a clear rounded silhouette, tiny dot eyes and a tiny mouth, soft but readable gray-brown outlines, a few broad solid pastel fills, very gentle cheek blush. Only ONE character with ONE simple prop, and at most two tiny accent marks close to it. Readable at 112px wide. True alpha transparency immediately outside the shapes. No glow, haze, shadow, backdrop, floor, badge, frame, text, letters, fur rendering, jewelry, many flowers, crystals, realistic 3D or elaborate detail. SUBJECT: one very cute tiny lamb with a round fluffy white cotton-cloud body, a small soft charcoal-gray face, little dark floppy ears and tiny dark hooves. Sitting slightly tilted, holding ONE small sage-green clover leaf in its mouth. One tiny butter-yellow four-point sparkle nearby. Extremely simple rounded cotton bumps, no individual wool strands. Gentle gray outline, white/ivory body, gray face and muted green leaf. Compact wide playful pose, looks like a QQ cute sticker, not an emoji.",
+      "references": [
+        "IMG_5522.jpeg"
+      ],
+      "file": "assets/themes/charms/little-lamb.webp",
+      "size": [
+        768,
+        512
+      ],
+      "revision": "pastel-storybook-collections"
+    },
+    {
+      "id": "float-bunny",
+      "date": "2026-10-30",
+      "transparent": true,
+      "prompt": "Use case: illustration-story. Asset type: ONE transparent website card charm, wide 3:2 composition, whole silhouette contained with a small clear margin. Use the attached picture as a STYLE reference for soft, simple, cute characters. A professionally finished simple pastel cartoon sticker with a clear rounded silhouette, tiny dot eyes and a tiny mouth, soft but readable gray-brown outlines, a few broad solid pastel fills, very gentle cheek blush. Only ONE character with ONE simple prop, and at most two tiny accent marks close to it. Readable at 112px wide. True alpha transparency immediately outside the shapes. No glow, haze, shadow, backdrop, floor, badge, frame, text, letters, fur rendering, jewelry, many flowers, crystals, realistic 3D or elaborate detail. SUBJECT: one adorable chubby white bunny with two short rounded upright ears and tiny pink inner ears, relaxed in ONE pale sky-blue inflatable swim ring, two little paws draped over its front. One small watermelon wedge close beside the ring and two short aqua water-motion curves. Simple friendly dot eyes, tiny smile. White, very pale blue, peach blush, a small watermelon red/green accent. Compact slightly tilted composition and cheerful vacation feeling, no extra character and no elaborate objects.",
+      "references": [
+        "IMG_5523.jpeg"
+      ],
+      "file": "assets/themes/charms/float-bunny.webp",
+      "size": [
+        768,
+        512
+      ],
+      "revision": "pastel-storybook-collections"
+    },
+    {
+      "id": "daisy-bear",
+      "date": "2026-10-30",
+      "transparent": true,
+      "prompt": "Use case: illustration-story. Asset type: ONE transparent website card charm, wide 3:2 composition, whole silhouette contained with a small clear margin. Use the attached picture as a STYLE reference for soft, simple, cute characters. A professionally finished simple pastel cartoon sticker with a clear rounded silhouette, tiny dot eyes and a tiny mouth, soft but readable gray-brown outlines, a few broad solid pastel fills, very gentle cheek blush. Only ONE character with ONE simple prop, and at most two tiny accent marks close to it. Readable at 112px wide. True alpha transparency immediately outside the shapes. No glow, haze, shadow, backdrop, floor, badge, frame, text, letters, fur rendering, jewelry, many flowers, crystals, realistic 3D or elaborate detail. SUBJECT: one tiny round cream teddy bear with small circular ears, butter-yellow paw pads, dot eyes and a sweet small smile, seated hugging ONE large simple white daisy with a pale yellow center and sage stem. One tiny outlined peach heart near the bear's head. Just broad simple cream shapes and delicate warm gray outlines. Very charming soft stationery-sticker style, no fur strands, ribbons, clothes, hats or other props.",
+      "references": [
+        "IMG_5522.jpeg",
+        "IMG_5523.jpeg"
+      ],
+      "file": "assets/themes/charms/daisy-bear.webp",
+      "size": [
+        768,
+        512
+      ],
+      "revision": "pastel-storybook-collections"
+    },
+    {
+      "id": "pond-duck",
+      "date": "2026-10-30",
+      "transparent": true,
+      "prompt": "Use case: illustration-story. Asset type: ONE transparent website card charm, wide 3:2 composition, whole silhouette contained with a small clear margin. Use the attached picture as a STYLE reference for soft, simple, cute characters. A professionally finished simple pastel cartoon sticker with a clear rounded silhouette, tiny dot eyes and a tiny mouth, soft but readable gray-brown outlines, a few broad solid pastel fills, very gentle cheek blush. Only ONE character with ONE simple prop, and at most two tiny accent marks close to it. Readable at 112px wide. True alpha transparency immediately outside the shapes. No glow, haze, shadow, backdrop, floor, badge, frame, text, letters, fur rendering, jewelry, many flowers, crystals, realistic 3D or elaborate detail. SUBJECT: one adorable round white duckling with a soft butter-yellow beak and tiny black dot eyes, sitting on ONE simple broad sage-green lily pad tilted slightly, its tiny wings held in front. One very small blush-pink lotus bud tucked against the edge of the pad and two short pale aqua ripple marks. Compact cozy pose, mostly ivory/sage/butter yellow with a tiny pink accent. Very simple cute shapes and controlled gray outlines, no detailed feathers, no costume, no additional animal.",
+      "references": [
+        "IMG_5523.jpeg"
+      ],
+      "file": "assets/themes/charms/pond-duck.webp",
+      "size": [
+        768,
+        512
+      ],
+      "revision": "pastel-storybook-collections"
+    },
+    {
+      "id": "exam-good-luck",
+      "date": "2026-10-30",
+      "transparent": false,
+      "prompt": "Use case: precise-object-edit. Edit target: the attached cute exam-good-luck wallpaper. Create the SAME design adapted to a much taller mobile phone screen, exact aspect ratio 4:9 (target 1024 x 2304 pixels). Extend the blank softly colored sky vertically, keep all decorative motifs in the four outside corners, and preserve their natural proportions. Keep the original gentle powder blue to blush pink gradient, ivory clouds and tiny butter-yellow sparkles. Upper left retains exact legible Chinese text \"高分来\", upper right retains one envelope with pink heart seal and red check. Bottom left retains the ivory exam paper with clear coral-red \"100\", one red check and pale blue pencil; bottom right retains the soft yellow graduation cap. Make the three characters and the number 100 fully inside the canvas with a 7 percent horizontal safe margin, never touching the side edge. The central 70 percent is calm clear open sky for white data cards. Preserve this simple refined kawaii illustration style and all visual identities; do not add new subjects or labels. No pony, no extra characters, no watermarks, no UI. Very tall portrait 4:9 composition, NOT 2:3.",
+      "concept_prompt": "Use case: illustration-story. Asset type: one polished portrait 2:3 mobile wallpaper for a student's exam-score tracker, coordinated with the existing \"马上上岸\" pony ornament. The attached pony sticker is a COLOR AND SIMPLICITY reference only: keep its pastel pink/lilac, powder blue and butter-yellow friendliness, but DO NOT repeat the pony in the wallpaper.\nPrimary request: a cute, auspicious EXAM GOOD-LUCK wallpaper, with the feeling \"good marks are on their way\", not a literal lakeshore or nature landscape. A very airy powder-blue sky softly fading into pale blush pink near the bottom, rounded ivory cotton clouds only framing a few outer edges. Exactly THREE small decorative stationery groups close to the margins: (1) lower left, one gently tilted ivory exam answer sheet with a large neat coral-red handwritten \"100\" and ONE red check mark, a pale blue pencil beside it; (2) bottom right, one soft yellow graduation cap partly nestled on a little ivory cloud; (3) upper right near the edge, one tiny ivory folded envelope with a blush-pink seal and one small coral-red check mark, representing good-result mail. A couple of tiny warm-yellow four-point sparkles kept close to those groups only.\nText: the exact three Chinese characters \"高分来\" in small friendly rounded muted-blue hand lettering near the UPPER LEFT side, as a discreet illustrated good-luck accent rather than a large headline. Spell correctly, no other Chinese text or English text. The center 70 percent of the wallpaper is broad clear softly colored sky with no drawing or text, for opaque data cards.\nStyle: beautiful premium QQ-style pastel illustrated theme wallpaper, refined but SIMPLE rounded flat shapes, gentle soft shading, clean delicate readable outlines, a hint of soft watercolor edge only. Very low visual clutter. A few large shapes, cohesive visual rhythm, generous breathing room. Cute stationery and celebration, not a school worksheet or flat app-icon collage. No students, animals, duplicate pony, face characters, bookshelves, classroom, desk, lake, meadow, dense flowers, vines, confetti field, hanging chains, jewels, realistic rendering, 3D, heavy outlines, grain, logos, watermark, UI or framing card. Portrait composition, full bleed.",
+      "reference": "Existing exam-pony charm for color and simplicity, then the generated exam-good-luck concept for composition.",
+      "file": "assets/themes/art/exam-good-luck.webp",
+      "size": [
+        836,
+        1881
+      ],
+      "revision": "exam-good-luck-theme",
+      "layout_prompt": "Edit the attached 4:9 portrait wallpaper. Keep the 4:9 aspect ratio, background colors, all clouds, bottom exam paper with 100 and blue pencil, and bottom graduation cap exactly the same. Change ONLY the two upper corner motifs to clear space for a website header: remove the existing upper-left lettering and upper-right envelope from their original positions. Place a SMALLER, compact version of exact Chinese text \"高分来\" in one gently rounded horizontal line entirely inside x=8%..34%, y=11%..15% of the canvas. Put a small envelope with pink heart seal and red check entirely inside x=76%..94%, y=11%..16%. Text height must be no more than 4% of the full canvas height, around 18-25px when viewed on a phone. All space above 10% height contains only the original pale sky and cloud edges, with no letters, symbols or envelope. This precisely positions the good-luck motifs BELOW a header and ABOVE the first card in the actual app. Keep small nearby yellow sparkles very restrained. Do not alter bottom corner motifs or the large calm center. Same soft illustration style, no new labels or objects. Genuine tall portrait aspect 4:9."
+    },
+    {
+      "id": "exam-good-luck-wide",
+      "date": "2026-10-30",
+      "transparent": false,
+      "prompt": "Use case: precise-object-edit. Edit target: attached cute exam-good-luck wallpaper. Create its matching desktop LANDSCAPE companion in 16:10 aspect ratio (target 1536 x 960 pixels), keeping exactly the same soft powder-blue to blush-pink palette, rounded ivory clouds, clean gentle flat illustration style and cute stationery motifs. Arrange the original EXACT legible Chinese text \"高分来\" tucked into the upper-left clouds, the ivory envelope with pink heart seal and red check at upper right, the ivory exam paper with coral-red \"100\", one red check and blue pencil at lower left, and the butter-yellow graduation cap at lower right. All motifs fully contained, positioned toward outer margins with generous safe padding, tiny yellow sparkles only close to objects. The wide CENTER 70 percent is quiet empty softly colored sky so large white dashboard cards can overlay it. Maintain the original motif designs and natural proportions; do not add buildings, landscape, animals, more props, text, UI or watermarks. Full-bleed LANDSCAPE 16:10 composition.",
+      "concept_prompt": "Use case: illustration-story. Asset type: one polished portrait 2:3 mobile wallpaper for a student's exam-score tracker, coordinated with the existing \"马上上岸\" pony ornament. The attached pony sticker is a COLOR AND SIMPLICITY reference only: keep its pastel pink/lilac, powder blue and butter-yellow friendliness, but DO NOT repeat the pony in the wallpaper.\nPrimary request: a cute, auspicious EXAM GOOD-LUCK wallpaper, with the feeling \"good marks are on their way\", not a literal lakeshore or nature landscape. A very airy powder-blue sky softly fading into pale blush pink near the bottom, rounded ivory cotton clouds only framing a few outer edges. Exactly THREE small decorative stationery groups close to the margins: (1) lower left, one gently tilted ivory exam answer sheet with a large neat coral-red handwritten \"100\" and ONE red check mark, a pale blue pencil beside it; (2) bottom right, one soft yellow graduation cap partly nestled on a little ivory cloud; (3) upper right near the edge, one tiny ivory folded envelope with a blush-pink seal and one small coral-red check mark, representing good-result mail. A couple of tiny warm-yellow four-point sparkles kept close to those groups only.\nText: the exact three Chinese characters \"高分来\" in small friendly rounded muted-blue hand lettering near the UPPER LEFT side, as a discreet illustrated good-luck accent rather than a large headline. Spell correctly, no other Chinese text or English text. The center 70 percent of the wallpaper is broad clear softly colored sky with no drawing or text, for opaque data cards.\nStyle: beautiful premium QQ-style pastel illustrated theme wallpaper, refined but SIMPLE rounded flat shapes, gentle soft shading, clean delicate readable outlines, a hint of soft watercolor edge only. Very low visual clutter. A few large shapes, cohesive visual rhythm, generous breathing room. Cute stationery and celebration, not a school worksheet or flat app-icon collage. No students, animals, duplicate pony, face characters, bookshelves, classroom, desk, lake, meadow, dense flowers, vines, confetti field, hanging chains, jewels, realistic rendering, 3D, heavy outlines, grain, logos, watermark, UI or framing card. Portrait composition, full bleed.",
+      "reference": "Existing exam-pony charm for color and simplicity, then the generated exam-good-luck concept for composition.",
+      "file": "assets/themes/art/exam-good-luck-wide.webp",
+      "size": [
+        1585,
+        992
+      ],
+      "revision": "exam-good-luck-theme",
+      "layout_prompt": "Edit the attached 16:10 landscape wallpaper. Preserve aspect ratio, pastel blue/blush colors, clouds, lower-left 100-marked exam paper and pencil, and lower-right graduation cap exactly. Change ONLY the upper lettering and envelope positions/scale so they fit BELOW a desktop website header. Remove their originals near the top edge. Place compact exact Chinese lettering \"高分来\" in one horizontal line inside x=12%..26%, y=16%..22% of canvas; maximum text height 6% of image height. Place a small envelope with pink heart seal and red check inside x=81%..93%, y=16%..24%. The top 14% must be quiet sky and original clouds only, no lettering or envelope. Keep the central 70% quiet and empty, retain all lower motifs, do not add subjects or labels. Same simple soft pastel illustration style. Full landscape16:10."
+    }
+  ]
+}

@@ -34,7 +34,7 @@ export const MG_HTML = String.raw`<!doctype html>
     }
     .admin-record{padding:16px;border:1px solid var(--line);border-radius:12px;min-width:0}.admin-record+.admin-record{margin-top:12px}.admin-record-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;font-size:13px}.admin-record-text{white-space:pre-wrap;overflow-wrap:anywhere;margin:10px 0;line-height:1.75;font-size:13px}.admin-record-json{white-space:pre-wrap;overflow-wrap:anywhere;max-height:400px;overflow:auto;font-size:12px}.admin-record .btn{margin:6px 4px 0 0}.drawer .detail-hero{flex-wrap:wrap}.drawer .tabs{padding:0;flex-wrap:wrap}.drawer .detail-hero>div{min-width:0;overflow-wrap:anywhere}.drawer .pagination{flex-wrap:wrap}.vision-settings .toolbar>.input{min-width:min(220px,100%)!important}.vision-settings .muted{overflow-wrap:anywhere}.drawer .tab{padding-left:9px;padding-right:9px}
   </style>
-  <link rel="stylesheet" href="/typography.css?v=a63f319b2c">
+  <link rel="stylesheet" href="/typography.css?v=f3c4053b02">
 </head>
 <body class="st-admin-ui"><div id="root"></div><div id="drawer"></div><div class="toast-wrap" id="toasts"></div>
 <script>
