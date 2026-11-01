@@ -395,6 +395,30 @@
   function active() {
     return draft ? draft.prefs : prefs;
   }
+  let trackingSession = null;
+  const trackedExposure = new Set();
+  function appearanceSummary() {
+    const p = active(), reading = engine.reading();
+    return {theme:p.theme || "custom", background:p.background, card:p.card,
+      decoration:p.deco, decoration_kind:decorKind(p.deco), decoration_mode:p.decorMode,
+      position:p.position, scale:p.scale, intensity:p.intensity, title_font:p.title,
+      palette:engine.currentTheme(), font:reading.font, font_size:reading.size,
+      override_count:Object.keys(p.overrides || {}).length};
+  }
+  function emit(action, metadata = {}) {
+    try {
+      const result = window.__scoreTrackerTrack?.("appearance_studio_" + action, {
+        ...appearanceSummary(), section:tab, scope:target ? "card" : "global",
+        ...(trackingSession ? {studio_session_id:trackingSession.id, source:trackingSession.source} : {}),
+        ...metadata,
+      });
+      Promise.resolve(result).catch(() => {});
+    } catch (_) { /* Telemetry must never interrupt appearance controls. */ }
+  }
+  function selected(field, value) {
+    if (trackingSession) trackingSession.selections++;
+    emit("option_selected", {field, value});
+  }
   function setPalette(id) {
     engine.applyTheme(id, true, false);
   }
@@ -502,8 +526,10 @@
           if (pagePreview) {
             target = key;
             tab = "decor";
+            trackingSession?.tabs.add(tab);
+            emit("card_selected");
             resumePreview();
-          } else open("decor", key);
+          } else open("decor", key, "card_editor");
         });
         el.appendChild(b);
       }
@@ -805,6 +831,7 @@
     if (el) el.textContent = msg;
   }
   function inspectPage(pick = false) {
+    emit("page_preview_started", {pick_card:pick});
     pagePreview = true;
     previousEdit = edit;
     edit = pick;
@@ -814,13 +841,14 @@
     bar.className = "st-edit-bar st-inspect-bar";
     bar.innerHTML = '<span>' + (pick ? '选择一张卡片设置挂件' : '正在预览 · 尚未保存') + '</span><button type="button" data-return>返回设置</button><button type="button" data-save>保存</button><button type="button" data-cancel>取消</button>';
     bar.querySelector("[data-return]").onclick = resumePreview;
-    bar.querySelector("[data-save]").onclick = () => { resumePreview(); close(true); };
-    bar.querySelector("[data-cancel]").onclick = () => { resumePreview(); close(false); };
+    bar.querySelector("[data-save]").onclick = () => { resumePreview(); close(true, "page_preview_save"); };
+    bar.querySelector("[data-cancel]").onclick = () => { resumePreview(); close(false, "page_preview_cancel"); };
     document.body.appendChild(bar);
     decorate();
     bar.querySelector("[data-return]").focus();
   }
   function resumePreview() {
+    emit("page_preview_returned", {picked_card:!!target});
     document.querySelector(".st-inspect-bar")?.remove();
     edit = previousEdit;
     pagePreview = false;
@@ -830,7 +858,7 @@
     dialog.showModal();
     dialog.querySelector(".st-close").focus();
   }
-  function open(section = "themes", key = null) {
+  function open(section = "themes", key = null, source = "api") {
     if (dialog) return;
     target = key;
     tab = section;
@@ -839,6 +867,9 @@
     decorationFilter = key ? decorKind(active().overrides[key]?.deco || "none") : "charm";
     returnFocus = document.activeElement;
     draft = { ...snapshot() };
+    trackingSession = {id:window.crypto?.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2), source,
+      started:Date.now(), selections:0, tabs:new Set([section]), initial:JSON.stringify(snapshot())};
+    emit("opened");
     undo = [];
     dialog = document.createElement("dialog");
     dialog.className = "st-studio";
@@ -847,7 +878,7 @@
     draw();
     dialog.addEventListener("cancel", (e) => {
       e.preventDefault();
-      close(false);
+      close(false, "escape");
     });
     dialog.addEventListener("click", onClick);
     dialog.addEventListener("change", onChange);
@@ -872,15 +903,18 @@
       const name = dialog.querySelector("#stLookName").value.trim();
       if (!name) return;
       if (saved.length >= 8) {
+        emit("favorite_failed", {operation:"add", reason:"limit"});
         status("已收藏 8 套，请先删除一套再保存。");
         return;
       }
       const next = [...saved, { name, ...snapshot() }];
       if (!write(SAVED, next)) {
+        emit("favorite_failed", {operation:"add", reason:"storage"});
         status("设备暂时无法保存，请检查浏览器存储设置。");
         return;
       }
       saved = next;
+      emit("favorite_added", {favorite_count:saved.length});
       draw();
       status("已收藏「" + name + "」");
     });
@@ -888,13 +922,14 @@
     dialog.showModal();
     dialog.querySelector(".st-close").focus();
   }
-  function close(commit) {
+  function close(commit, reason = commit ? "save_button" : "close_button") {
     if (!dialog) return;
     if (commit) {
       const next = normalize(draft.prefs);
       next.palette = engine.currentTheme();
       next.reading = engine.reading();
       if (!write(KEY, next)) {
+        emit("save_failed", {reason:"storage"});
         status("保存失败，当前仍为预览。请检查浏览器存储设置，或取消退出。");
         return;
       }
@@ -902,9 +937,16 @@
       engine.applyTheme(engine.currentTheme(), true);
       engine.applyReading(engine.reading().font, engine.reading().size);
     } else {
+      // Capture the abandoned preview before restoring the committed settings.
+      emit("cancelled", {reason, duration_ms:Date.now() - trackingSession.started,
+        selection_count:trackingSession.selections, visited_sections:[...trackingSession.tabs]});
       setPalette(draft.palette, true);
       setReading(draft.reading.font, draft.reading.size);
     }
+    if (commit) emit("applied", {reason, duration_ms:Date.now() - trackingSession.started,
+      selection_count:trackingSession.selections, visited_sections:[...trackingSession.tabs],
+      changed:trackingSession.initial !== JSON.stringify(snapshot())});
+    trackingSession = null;
     dialog.close();
     dialog.remove();
     document.body.classList.remove("st-studio-open");
@@ -943,10 +985,12 @@
       setVisual(draft.prefs);
       draw();
     } else change(() => updateRange(key, +e.target.value));
+    selected(key, +e.target.value);
   }
   function viewArtwork() {
     const t = backgrounds.find(t => t.id === active().background);
     if (!t?.wallpaper) return;
+    emit("artwork_opened", {background:t.id});
     const viewer = document.createElement("dialog");
     viewer.className = "st-art-viewer"; viewer.setAttribute("aria-label", t.name + "完整背景");
     const painting = '<img src="./assets/themes/art/' + t.wallpaper + '.webp" alt="' + t.name + '完整背景原画">';
@@ -964,12 +1008,14 @@
     if (b.hasAttribute("data-apply")) return close(true);
     if (b.hasAttribute("data-page-preview")) return inspectPage();
     if (b.hasAttribute("data-pick-card")) return inspectPage(true);
-    if (b.hasAttribute("data-toggle-preview")) { showPreview = !showPreview; draw(); return; }
-    if (b.dataset.decorationFilter) { decorationFilter = b.dataset.decorationFilter; draw(); return; }
-    if (b.dataset.backgroundFilter) { backgroundFilter = b.dataset.backgroundFilter; draw(); return; }
+    if (b.hasAttribute("data-toggle-preview")) { showPreview = !showPreview; emit("preview_toggled", {expanded:showPreview}); draw(); return; }
+    if (b.dataset.decorationFilter) { decorationFilter = b.dataset.decorationFilter; emit("filter_changed", {filter:"decoration", value:decorationFilter}); draw(); return; }
+    if (b.dataset.backgroundFilter) { backgroundFilter = b.dataset.backgroundFilter; emit("filter_changed", {filter:"background", value:backgroundFilter}); draw(); return; }
     if (b.dataset.tab) {
       tab = b.dataset.tab;
       target = null;
+      trackingSession?.tabs.add(tab);
+      emit("section_viewed");
       draw();
       dialog.querySelector(".st-workspace").scrollTop = 0;
       dialog.querySelector(".st-controls").scrollTop = 0;
@@ -983,6 +1029,7 @@
         setReading(s.reading.font, s.reading.size);
         setVisual(draft.prefs);
         draw();
+        emit("undone");
       }
       return;
     }
@@ -991,8 +1038,9 @@
         next = saved.filter((_, j) => j !== i);
       if (write(SAVED, next)) {
         saved = next;
+        emit("favorite_deleted", {favorite_count:saved.length});
         draw();
-      } else status("删除失败，请检查浏览器存储设置。");
+      } else { emit("favorite_failed", {operation:"delete", reason:"storage"}); status("删除失败，请检查浏览器存储设置。"); }
       return;
     }
     change(() => {
@@ -1062,9 +1110,22 @@
         }
       }
     });
+    const field = ["preset","bg","decorMode","card","title","font","size","palette","deco","position"].find(key => b.dataset[key]);
+    if (field) selected(field, b.dataset[field]);
+    else if (b.hasAttribute("data-reset")) emit("reset");
+    else if (b.hasAttribute("data-inherit")) emit("card_override_cleared");
+    else if (b.hasAttribute("data-load")) emit("favorite_loaded", {favorite_count:saved.length});
   }
   function mount() {
     const card = document.getElementById("appearanceCardV29");
+    const account = typeof state !== "undefined" ? state.user : null;
+    const identity = String(account?.id || "guest");
+    if (account && !trackedExposure.has("active:" + identity)) {
+      trackedExposure.add("active:" + identity);emit("loaded", {source:"page_load"});
+    }
+    if (card && !trackedExposure.has("entry:" + identity)) {
+      trackedExposure.add("entry:" + identity);emit("entry_shown", {source:"account"});
+    }
     if (card && !card.querySelector("[data-st-open]")) {
       const el = document.createElement("div");
       el.className = "st-entry";
@@ -1078,7 +1139,7 @@
         .filter((x) => x !== el)
         .forEach((x) => old.appendChild(x));
       card.appendChild(old);
-      el.querySelector("button").onclick = () => open();
+      el.querySelector("button").onclick = () => open("themes", null, "account");
     }
     if (edit && !pagePreview && !document.querySelector(".st-edit-bar")) {
       const b = document.createElement("div");
@@ -1086,6 +1147,7 @@
       b.innerHTML =
         '<span>选择卡片设置挂件</span><button type="button">完成</button>';
       b.querySelector("button").onclick = () => {
+        emit("card_edit_finished", {source:"account"});
         edit = false;
         b.remove();
         decorate();
@@ -1098,6 +1160,7 @@
       b.dataset.stEdit = "";
       b.textContent = "单独设置卡片挂件";
       b.onclick = () => {
+        emit("card_edit_started", {source:"account"});
         edit = true;
         mount();
       };

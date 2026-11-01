@@ -17,7 +17,7 @@ const exam = {
   },
 };
 async function harness(storage = {}) {
-  const errors = [],
+  const requests = [], errors = [],
     vc = new VirtualConsole();
   vc.on("jsdomError", (e) => {
     if (!e.message.includes("CSS")) errors.push(e.message);
@@ -50,8 +50,9 @@ async function harness(storage = {}) {
   w.scrollTo = () => {};
   w.setInterval = () => 1;
   w.AbortController = AbortController;
-  w.fetch = async () =>
-    new Response(
+  w.fetch = async (url, options = {}) => {
+    requests.push(JSON.parse(options.body || '{}'));
+    return new Response(
       JSON.stringify({
         ok: true,
         enabled: false,
@@ -64,6 +65,7 @@ async function harness(storage = {}) {
         config: { enabled: false },
       }),
     );
+  };
   w.eval(read("app-bundle.js") + "\nwindow.state=state;");
   for (const f of [
     "feature-vote.js",
@@ -99,9 +101,10 @@ async function harness(storage = {}) {
         return [k, w.localStorage.getItem(k)];
       }),
     );
-  return { w, d, errors, click, saved, close: () => w.close() };
+  return { w, d, errors, requests, click, saved, close: () => w.close() };
 }
-(async () => {
+module.exports = {harness};
+if (require.main === module) (async () => {
   let h = await harness();
   try {
     const { w, d, click } = h,
