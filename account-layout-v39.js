@@ -27,7 +27,7 @@
       '.account-secure-v39 .password-grid-v15{grid-template-columns:1fr!important;margin-top:2px}',
       '.account-secure-v39 .password-grid-v15 button{width:100%}',
       '.account-secure-v39 .password-note-v15{margin-bottom:6px}',
-      '.account-logout-v39{width:100%;margin-top:14px;border-top:1px solid var(--line,#e8ebf0);border-radius:0;padding:14px 0 0;justify-content:flex-start;background:transparent}',
+      '.account-logout-v39{display:flex;align-items:center;justify-content:center;width:100%;margin-top:14px;border:0;border-top:1px solid var(--line,#e8ebf0);border-radius:0;padding:15px 0 3px;background:transparent;text-align:center}',
       '.account-note-v39{margin:10px 0 0;font-size:11.5px;line-height:1.7;color:var(--muted,#788392)}'
     ].join('');
     document.head.appendChild(style);
