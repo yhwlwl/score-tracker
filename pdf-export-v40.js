@@ -120,6 +120,24 @@
     });
   }
 
+  // 把测量好的块装进 A4 页面：块不拆开，超出就换页；单块超过一页时独占一页
+  function paginateBlocks(measured, limit) {
+    var pages = [];
+    var current = [];
+    var currentHeight = 0;
+    measured.forEach(function (item) {
+      if (current.length && currentHeight + item.height > limit) {
+        pages.push(current);
+        current = [];
+        currentHeight = 0;
+      }
+      current.push(item);
+      currentHeight += item.height;
+    });
+    if (current.length) pages.push(current);
+    return pages;
+  }
+
   /* ---------- 分页 + 逐页截图 ---------- */
   function buildPageImages(html, onProgress) {
     return mountReport(html).then(function (frame) {
@@ -157,19 +175,7 @@
           return { group: group, height: Math.max(0, bottom - top) + margin };
         });
 
-        var pages = [];
-        var current = [];
-        var currentHeight = 0;
-        measured.forEach(function (item) {
-          if (current.length && currentHeight + item.height > limit) {
-            pages.push(current);
-            current = [];
-            currentHeight = 0;
-          }
-          current.push(item);
-          currentHeight += item.height;
-        });
-        if (current.length) pages.push(current);
+        var pages = paginateBlocks(measured, limit);
 
         if (!pages.length) pages.push([]);
 
@@ -391,4 +397,7 @@
       pdfFormat.who = '推荐 · 正式材料';
     }
   } catch (error) {}
+
+  // 便于排查导出问题
+  window.__pdfExportV40 = { paginate: paginateBlocks, needsPdf: needsPdf, isIOS: isIOS, isStandalone: isStandalone };
 })();
