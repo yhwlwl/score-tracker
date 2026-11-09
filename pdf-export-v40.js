@@ -406,7 +406,31 @@
     exportPdf(html, label, exams.length);
   }
 
-  // 捕获阶段先于面板自己的点击处理，拦下 PDF 这一条
+  var lastStart = 0;
+  function claimStart() {
+    var now = Date.now();
+    if (now - lastStart < 1500) return false;
+    lastStart = now;
+    return true;
+  }
+
+  // 面板里的「导出」按钮：点自己这一层就能拦下，不依赖事件捕获顺序
+  function bindSheet(ov) {
+    patchSheet(ov);
+    var go = ov.querySelector('.export-go-v30');
+    if (!go || go.dataset.pv40Bound) return;
+    go.dataset.pv40Bound = '1';
+    go.addEventListener('click', function (event) {
+      if (!needsPdf() || selectedFormat(ov) !== 'pdf') return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (!claimStart()) return;
+      startExport(ov);
+    });
+    ov.addEventListener('click', function () { setTimeout(function () { patchSheet(ov); }, 0); });
+  }
+
+  // 兜底 1：捕获阶段先于面板自己的点击处理
   document.addEventListener('click', function (event) {
     var target = event.target;
     if (!target || !target.closest) return;
@@ -414,24 +438,55 @@
     if (!go || !needsPdf()) return;
     var ov = document.getElementById('exportOverlayV30');
     if (!ov || selectedFormat(ov) !== 'pdf') return;
+    if (!claimStart()) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     startExport(ov);
   }, true);
 
-  // 面板打开后把文案改成 iOS 下真实会发生的事
-  var MO = window.MutationObserver || window.WebKitMutationObserver;
-  if (MO) new MO(function () {
-    var ov = document.getElementById('exportOverlayV30');
-    if (!ov) return;
-    patchSheet(ov);
-    if (!ov.dataset.pv40Bound) {
-      ov.dataset.pv40Bound = '1';
-      ov.addEventListener('click', function () { setTimeout(function () { patchSheet(ov); }, 0); });
+  // 兜底 2：老逻辑一定会创建一个带 srcdoc 的打印 iframe，直接接住它
+  function isReportFrame(frame) {
+    try {
+      var html = frame.getAttribute('srcdoc') || '';
+      return html.indexOf('成绩报告') >= 0;
+    } catch (error) {
+      return false;
     }
-  }).observe(document.body, { childList: true, subtree: false });
+  }
+  function takeOverPrintFrame(frame) {
+    if (frame.dataset.pv40Taken) return;
+    frame.dataset.pv40Taken = '1';
+    var html = frame.getAttribute('srcdoc') || '';
+    if (frame.parentNode) frame.parentNode.removeChild(frame);
+    var ov = document.getElementById('exportOverlayV30');
+    var label = ov ? selectedLabel(ov) : '全部';
+    if (ov) {
+      try { exporter.closeSheet(); } catch (error) { if (ov.parentNode) ov.parentNode.removeChild(ov); }
+    }
+    if (!claimStart()) return;
+    track('export_start', { format: 'pdf', mode: 'pdf-file-frame', scope: label });
+    exportPdf(html, label, 0);
+  }
 
-  if (document.getElementById('exportOverlayV30')) patchSheet(document.getElementById('exportOverlayV30'));
+  var MO = window.MutationObserver || window.WebKitMutationObserver;
+  if (MO) {
+    new MO(function (records) {
+      for (var i = 0; i < records.length; i++) {
+        var added = records[i].addedNodes;
+        for (var j = 0; j < added.length; j++) {
+          var node = added[j];
+          if (!node || node.nodeType !== 1) continue;
+          if (node.tagName === 'IFRAME' && isReportFrame(node)) takeOverPrintFrame(node);
+          else if (node.id === 'exportOverlayV30') bindSheet(node);
+        }
+      }
+    }).observe(document.body, { childList: true });
+  }
+
+  var openedSheet = document.getElementById('exportOverlayV30');
+  if (openedSheet) bindSheet(openedSheet);
+
+  track('export_pdf_ready', { mode: needsPdf() ? 'pdf-file' : 'print' });
 
   // 便于排查导出问题
   window.__pdfExportV40 = { needsPdf: needsPdf, isIOS: isIOS, isStandalone: isStandalone, paginate: paginateBlocks };

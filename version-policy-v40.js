@@ -8,13 +8,25 @@
   var footerObserver = MO ? new MO(function () { paint(); }) : null;
   var bodyObserver = MO ? new MO(function () { attach(); }) : null;
 
-  function shortVersion() {
+  function sourceVersion() {
+    // 版本号以云端发布配置为准；拿不到时才退回 index.html 的 meta
+    try {
+      var current = window.__releaseNotices && window.__releaseNotices.currentVersion;
+      if (typeof current === 'function') {
+        var value = String(current() || '').trim();
+        if (value) return value;
+      }
+    } catch (error) {}
     var meta = document.querySelector('meta[name="application-version"]');
-    var raw = String((meta && meta.getAttribute('content')) || '').trim().replace(/^v/i, '');
-    var parts = raw.split('.').filter(function (part) { return part !== ''; });
-    if (!parts.length) return 'v9.0';
-    if (parts.length < 2) parts.push('0');
-    return 'v' + parts[0] + '.' + parts[1];
+    return String((meta && meta.getAttribute('content')) || '').trim();
+  }
+
+  function shortVersion() {
+    var raw = sourceVersion().replace(/^v/i, '');
+    if (!raw) return '';
+    var parts = raw.split('.');
+    if (parts.length >= 2) return 'v' + parts[0] + '.' + parts[1];
+    return 'v' + parts[0];
   }
 
   function ensureFooter() {
