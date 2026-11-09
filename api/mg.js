@@ -56,6 +56,7 @@ function overviewFromMetrics(metrics) {
     features: metrics.features || [],
     business: metrics.business || {},
     quality: metrics.quality || {},
+    appearance: metrics.appearance || null,
     audience: { ...(metrics.audience || {}), ...(metrics.period_activity || {}) },
     period_activity: metrics.period_activity || {},
     active_days_distribution: metrics.active_days_distribution || [],
