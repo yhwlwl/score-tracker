@@ -27,6 +27,18 @@
     return raw ? 'v' + raw : '';
   }
 
+  // 换成插画/照片背景后，页脚直接压在风景上看不清，这里给它一个半透明底
+  function injectStyle() {
+    if (document.getElementById('version-policy-v40-style')) return;
+    var style = document.createElement('style');
+    style.id = 'version-policy-v40-style';
+    style.textContent = [
+      'html[data-st-art="illustrated"] #app-version-v17{width:max-content;margin-left:auto;margin-right:auto;padding:6px 14px;border-radius:999px;background:rgba(255,255,255,.86);background:color-mix(in srgb,var(--panel-solid,#fff) 88%,transparent);color:var(--text,#26303f);font-weight:600;box-shadow:0 2px 10px rgba(27,37,58,.08);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}',
+      '@media(max-width:880px){html[data-st-art="illustrated"] #app-version-v17{margin-bottom:calc(88px + env(safe-area-inset-bottom))}}'
+    ].join('');
+    document.head.appendChild(style);
+  }
+
   function ensureFooter() {
     var footer = document.getElementById(FOOTER_ID);
     if (!footer) {
@@ -57,6 +69,7 @@
   }
 
   function boot() {
+    injectStyle();
     attach();
     if (bodyObserver) {
       try { bodyObserver.observe(document.body, { childList: true }); } catch (error) {}
