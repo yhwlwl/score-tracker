@@ -12871,7 +12871,8 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   function noticeMarkup(v) { return esc(v).replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g,'<strong>$2</strong>').replace(/\[([^\]\n]{1,80})\]\(#author-support\)/g,'<button type="button" class="rn-support-link" data-notice-support hidden>$1</button>').replace(/\[([^\]\n]{1,80})\]\(#community\)/g,'<button type="button" class="rn-support-link" data-notice-community hidden>$1</button>'); }
   function anonymousName(v) { var s=String(v||'用户').trim()||'用户'; return s.length<=1?s:s[0]+'*'+s[s.length-1]; }
   function version(v) { var parts=String(v || '').trim().replace(/^v/i,'').split('.').map(Number);while(parts.length>2&&parts[parts.length-1]===0)parts.pop();if(parts.length===1)parts.push(0);return 'v'+parts.join('.'); }
-  function compare(a,b) { var x=version(a).slice(1).split('.').map(Number), y=version(b).slice(1).split('.').map(Number); for(var i=0;i<Math.max(x.length,y.length);i++){var d=(x[i]||0)-(y[i]||0);if(d)return d;}return 0; }
+  // 补丁位（第三位）只作构建号：不参与版本比较，避免 9.0.1 触发“有新版本”提示和公告。
+  function compare(a,b) { var x=version(a).slice(1).split('.').map(Number), y=version(b).slice(1).split('.').map(Number); for(var i=0;i<2;i++){var d=(x[i]||0)-(y[i]||0);if(d)return d;}return 0; }
   function track(type,data) { try { return (window.__scoreTrackerTrack || window.__stTrack || function(){})(type,Object.assign({current_version:CURRENT},data||{})); } catch (_) {} }
   function user() { try { return state.user && state.token ? {id:String(state.user.id),token:state.token} : null; } catch (_) { return null; } }
   function key(u,kind,id) { return 'st_notice_seen:'+u.id+':'+kind+':'+id; }
