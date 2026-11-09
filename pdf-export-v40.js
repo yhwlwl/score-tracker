@@ -94,6 +94,8 @@
       var iframe = document.createElement('iframe');
       iframe.setAttribute('aria-hidden', 'true');
       iframe.setAttribute('tabindex', '-1');
+      // 打标记：下面的 iframe 监听会跳过它，否则会把自己正在渲染的报告吃掉
+      iframe.setAttribute('data-pv40-report', '1');
       iframe.style.cssText = 'position:fixed;left:-20000px;top:0;width:' + PAGE_W + 'px;height:' + PAGE_H + 'px;border:0;pointer-events:none;';
       var settled = false;
       function done() {
@@ -454,16 +456,20 @@
     }
   }
   function takeOverPrintFrame(frame) {
+    if (frame.hasAttribute('data-pv40-report')) return;
     if (frame.dataset.pv40Taken) return;
     frame.dataset.pv40Taken = '1';
     var html = frame.getAttribute('srcdoc') || '';
+    if (!claimStart()) {
+      if (frame.parentNode) frame.parentNode.removeChild(frame);
+      return;
+    }
     if (frame.parentNode) frame.parentNode.removeChild(frame);
     var ov = document.getElementById('exportOverlayV30');
     var label = ov ? selectedLabel(ov) : '全部';
     if (ov) {
       try { exporter.closeSheet(); } catch (error) { if (ov.parentNode) ov.parentNode.removeChild(ov); }
     }
-    if (!claimStart()) return;
     track('export_start', { format: 'pdf', mode: 'pdf-file-frame', scope: label });
     exportPdf(html, label, 0);
   }
