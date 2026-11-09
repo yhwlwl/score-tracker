@@ -30,8 +30,8 @@
       return false;
     }
   }
-  // 桌面保留原来的矢量打印；iOS 与主屏幕 Web App 一律走 PDF 文件
-  function needsPdf() { return isIOS() || isStandalone(); }
+  // 只有「添加到主屏幕」的 Web App 走 PDF 文件；普通网页保留原来的打印（更快）
+  function needsPdf() { return isStandalone(); }
 
   function track(event, payload) {
     try {
@@ -116,11 +116,9 @@
     });
   }
 
-  function settle(view) {
-    return new Promise(function (resolve) {
-      if (!view || !view.requestAnimationFrame) return setTimeout(resolve, 30);
-      view.requestAnimationFrame(function () { view.requestAnimationFrame(function () { setTimeout(resolve, 20); }); });
-    });
+  // 离屏 iframe 里的 rAF 在 iOS 上会被暂停，不能用它等待，直接延时即可
+  function settle() {
+    return new Promise(function (resolve) { setTimeout(resolve, 60); });
   }
 
   // 把测量好的块装进 A4 页面：块不拆开，超出就换页；单块超过一页时独占一页
@@ -153,7 +151,7 @@
       body.style.margin = '0';
       body.style.background = '#fff';
 
-      return settle(view).then(function () {
+      return settle().then(function () {
         var nodes = [];
         for (var i = 0; i < body.children.length; i++) {
           var el = body.children[i];
@@ -197,15 +195,15 @@
             item.group.forEach(function (el) { page.appendChild(el); });
           });
           body.appendChild(page);
-          return settle(view).then(function () {
-            return h2c(page, {
+          return settle().then(function () {
+            return withTimeout(h2c(page, {
               scale: 2,
               backgroundColor: '#ffffff',
               width: PAGE_W,
               windowWidth: PAGE_W,
               logging: false,
               useCORS: true
-            });
+            }), 20000, '第 ' + (index + 1) + ' 页渲染超时');
           }).then(function (canvas) {
             shots.push({ data: canvas.toDataURL('image/jpeg', 0.92), width: canvas.width, height: canvas.height });
             // 及时释放画布，避免 iPhone 上内存堆积
@@ -274,50 +272,25 @@
     });
   }
 
-  function resultUi(blob, filename) {
-    var file = new File([blob], filename, { type: 'application/pdf' });
-    var canShare = false;
-    try { canShare = !!(navigator.canShare && navigator.canShare({ files: [file] })); } catch (error) { canShare = false; }
-    var ui = overlay(
-      '<h3>PDF 已生成</h3>' +
-      '<p>' + escapeHtmlV40(filename) + ' · ' + sizeText(blob.size) + '</p>' +
-      '<div class="pv40-actions">' +
-      (canShare ? '<button type="button" class="primary" data-pv40-share>保存到「文件」/ 分享</button>' : '<button type="button" class="primary" data-pv40-save>保存 PDF</button>') +
-      '<button type="button" class="secondary" data-pv40-close>关闭</button>' +
-      '</div>' +
-      '<p class="pv40-hint">' + (canShare ? '在弹出的分享面板里选择「存储到“文件”」，也可以直接打印或发到微信。' : '如果没有保存成功，可以关闭后用「分享」菜单把这页发到电脑。') + '</p>'
-    );
-    function close() { ui.close(); }
-    var shareButton = ui.root.querySelector('[data-pv40-share]');
-    var saveButton = ui.root.querySelector('[data-pv40-save]');
-    if (shareButton) shareButton.onclick = function () {
-      shareButton.disabled = true;
-      navigator.share({ files: [file], title: '成绩轨迹 · 成绩报告' }).then(function () {
-        track('export_pdf_shared', {});
-        close();
-      }).catch(function (error) {
-        shareButton.disabled = false;
-        if (error && error.name === 'AbortError') return;
-        var card = ui.root.querySelector('.pv40-card');
-        if (card) card.insertAdjacentHTML('beforeend', '<p class="pv40-hint pv40-error">分享没有成功：' + escapeHtmlV40(error && error.message || '未知错误') + '</p>');
-      });
-    };
-    if (saveButton) saveButton.onclick = function () {
-      var url = URL.createObjectURL(blob);
-      var link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      link.rel = 'noopener';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(function () { URL.revokeObjectURL(url); }, 20000);
-      track('export_pdf_downloaded', {});
-      close();
-    };
-    var closeButton = ui.root.querySelector('[data-pv40-close]');
-    if (closeButton) closeButton.onclick = close;
-    ui.root.addEventListener('click', function (event) { if (event.target === ui.root) close(); });
+  // 和 CSV / TXT / JSON 三种导出一样：直接下载文件
+  function finishPdf(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
+    if (typeof toast === 'function') toast('PDF 已生成，正在保存…');
+  }
+
+  function withTimeout(promise, ms, message) {
+    return new Promise(function (resolve, reject) {
+      var timer = setTimeout(function () { reject(new Error(message || '生成超时，请重试')); }, ms);
+      promise.then(function (value) { clearTimeout(timer); resolve(value); }, function (error) { clearTimeout(timer); reject(error); });
+    });
   }
 
   function errorUi(error, retry) {
@@ -348,13 +321,13 @@
     if (busy) return;
     busy = true;
     var ui = progressUi();
-    ensureLibs().then(function (libs) {
+    withTimeout(ensureLibs(), 20000, 'PDF 组件加载超时，请检查网络后重试').then(function (libs) {
       return buildPageImages(html, function (done, total) { ui.set(done, total); }).then(function (images) {
         var pdf = imagesToPdf(images, libs.jsPDF);
         var blob = pdf.output('blob');
         ui.close();
         track('export_pdf_generated', { pages: images.length, bytes: blob.size, exams: examCount });
-        resultUi(blob, fileNameFor(label));
+        finishPdf(blob, fileNameFor(label));
       });
     }).catch(function (error) {
       ui.close();

@@ -21,12 +21,10 @@
     return String((meta && meta.getAttribute('content')) || '').trim();
   }
 
-  function shortVersion() {
+  function displayVersion() {
+    // 直接使用云端发布的版本号，不做裁剪、不写死
     var raw = sourceVersion().replace(/^v/i, '');
-    if (!raw) return '';
-    var parts = raw.split('.');
-    if (parts.length >= 2) return 'v' + parts[0] + '.' + parts[1];
-    return 'v' + parts[0];
+    return raw ? 'v' + raw : '';
   }
 
   function ensureFooter() {
@@ -42,7 +40,9 @@
   function paint() {
     if (!document.body) return null;
     var footer = ensureFooter();
-    var text = 'Score Tracker · ' + shortVersion();
+    var version = displayVersion();
+    if (!version) return footer; // 拿不到版本就保持原样，不写成空
+    var text = 'Score Tracker · ' + version;
     if (footer.textContent !== text) footer.textContent = text;
     return footer;
   }
@@ -66,5 +66,5 @@
   if (document.body) boot();
   else document.addEventListener('DOMContentLoaded', boot, { once: true });
 
-  window.__versionPolicyV40 = { display: shortVersion };
+  window.__versionPolicyV40 = { display: displayVersion };
 })();
