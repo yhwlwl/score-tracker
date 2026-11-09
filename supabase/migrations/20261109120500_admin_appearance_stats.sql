@@ -158,6 +158,11 @@ select jsonb_build_object(
 $$;
 
 grant execute on function public.score_tracker_admin_appearance(integer) to service_role;
+-- 外观事件只占全部访问日志的很小一部分，单独建部分索引，避免整表扫描。
+create index if not exists score_tracker_visit_logs_appearance_idx
+  on public.score_tracker_visit_logs (occurred_at desc)
+  where event_type like 'appearance_studio%';
+
 -- 把外观统计并入管理面板既有的 dashboard_more，避免再改一次 Edge Function。
 do $$
 begin
@@ -168,13 +173,19 @@ end $$;
 
 create or replace function public.score_tracker_admin_dashboard_more(p_days integer)
 returns jsonb
-language sql
+language plpgsql
 stable
 security definer
 set search_path = public
 as $$
-  select coalesce(public.score_tracker_admin_dashboard_more_base(p_days), '{}'::jsonb)
-      || jsonb_build_object('appearance', public.score_tracker_admin_appearance(p_days));
-$$;
+declare base jsonb; app jsonb := '{}'::jsonb;
+begin
+  base := public.score_tracker_admin_dashboard_more_base(p_days);
+  begin
+    app := public.score_tracker_admin_appearance(p_days);
+  exception when others then app := '{}'::jsonb;
+  end;
+  return coalesce(base, '{}'::jsonb) || jsonb_build_object('appearance', app);
+end $$;
 
 grant execute on function public.score_tracker_admin_dashboard_more(integer) to service_role;
