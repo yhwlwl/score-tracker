@@ -210,7 +210,8 @@ export const MG_HTML = String.raw`<!doctype html>
       try{
         var payload=await imagePayload(file);
         if(!payload)throw new Error('图片读取失败');
-        var result=await api('notice_upload',{},'POST',{data:payload});
+        var dataUrl=(payload&&payload.data&&payload.data.indexOf('data:')===0)?payload.data:('data:'+((payload&&payload.mime_type)||'image/jpeg')+';base64,'+((payload&&payload.data)||''));
+        var result=await api('notice_upload',{},'POST',{data:dataUrl});
         if(!result||!result.url)throw new Error((result&&result.error)||'上传失败');
         insertNoticeMarkdown(el,result.url,(file.name||'').replace(/\.[a-z0-9]+$/i,''));
         toast('图片已插入公告内容');
