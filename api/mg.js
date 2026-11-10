@@ -3,6 +3,7 @@ import { MG_HTML } from './mg-ui.js';
 const ADMIN_UPSTREAM = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-admin';
 const NOTICES_UPSTREAM = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-notices';
 const METRICS_UPSTREAM = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-admin-metrics';
+const NOTICE_UPLOAD_UPSTREAM = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-notice-upload';
 const RECOVERY_UPSTREAM = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-recovery';
 const REPLY_UPSTREAM = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-admin-reply';
 
@@ -119,7 +120,7 @@ export default async function handler(req, res) {
       return res.send(JSON.stringify(upstream.ok ? overviewFromMetrics(data) : data));
     }
 
-    const target = action.startsWith('recovery_admin_') ? RECOVERY_UPSTREAM + query : ['notification_config','notification_config_save','notification_event','notification_announcement_activity','notification_comment_reply','notification_support_config','notification_support_save','notification_community_config','notification_community_save','feature_option_complete','feature_option_active','feature_completion_admin'].includes(action) ? NOTICES_UPSTREAM + query : action === 'feedback_reply' && req.method === 'POST' ? REPLY_UPSTREAM : ADMIN_UPSTREAM + query;
+    const target = action === 'notice_upload' ? NOTICE_UPLOAD_UPSTREAM : action.startsWith('recovery_admin_') ? RECOVERY_UPSTREAM + query : ['notification_config','notification_config_save','notification_event','notification_announcement_activity','notification_comment_reply','notification_support_config','notification_support_save','notification_community_config','notification_community_save','feature_option_complete','feature_option_active','feature_completion_admin'].includes(action) ? NOTICES_UPSTREAM + query : action === 'feedback_reply' && req.method === 'POST' ? REPLY_UPSTREAM : ADMIN_UPSTREAM + query;
     const upstream = await fetch(target, {
       method: req.method,
       headers,
