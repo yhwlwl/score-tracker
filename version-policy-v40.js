@@ -33,7 +33,7 @@
     var style = document.createElement('style');
     style.id = 'version-policy-v40-style';
     style.textContent = [
-      'html[data-st-art="illustrated"] #app-version-v17{width:max-content;margin-left:auto;margin-right:auto;padding:6px 14px;border-radius:999px;background:rgba(255,255,255,.86);background:color-mix(in srgb,var(--panel-solid,#fff) 88%,transparent);color:var(--text,#26303f);font-weight:600;box-shadow:0 2px 10px rgba(27,37,58,.08);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}',
+      'html[data-st-art="illustrated"] #app-version-v17{width:max-content;margin-left:auto;margin-right:auto;padding:7px 16px!important;margin-top:16px;margin-bottom:0;border-radius:999px;text-decoration:none;background:rgba(255,255,255,.86);background:color-mix(in srgb,var(--panel-solid,#fff) 88%,transparent);color:var(--text,#26303f);font-weight:600;box-shadow:0 2px 10px rgba(27,37,58,.08);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}',
       '@media(max-width:880px){html[data-st-art="illustrated"] #app-version-v17{margin-bottom:calc(88px + env(safe-area-inset-bottom))}}'
     ].join('');
     document.head.appendChild(style);
