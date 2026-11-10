@@ -100,6 +100,19 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
   if(action==='login'&&req.method==='POST'){const b=await req.json(),x=await login(b.username,b.password);return x?json(x):json({error:'管理员用户名或密码不正确'},401)}
   const admin=await auth(req.headers.get('x-score-token')||'');if(!admin)return json({error:'unauthorized'},401);if(action==='ping')return json({ok:true});
   if(action==='ai_config'&&req.method==='GET')return json(await readAiConfig());
+  if(action==='notice_upload'&&req.method==='POST'){
+    const body=await req.json().catch(()=>null),data=String(body?.data||'');
+    const match=/^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(data);
+    if(!match)return json({error:'bad_image'},400);
+    const bytes=Uint8Array.from(atob(match[2]),c=>c.charCodeAt(0));
+    if(bytes.length>5*1024*1024)return json({error:'too_large'},400);
+    const ext=match[1]==='image/jpeg'?'jpg':match[1].split('/')[1];
+    const name='notice/'+new Date().toISOString().slice(0,10)+'/'+crypto.randomUUID()+'.'+ext;
+    const up=await db.storage.from('notice-media').upload(name,new Blob([bytes],{type:match[1]}),{contentType:match[1],upsert:false});
+    if(up.error)throw up.error;
+    const pub=db.storage.from('notice-media').getPublicUrl(name);
+    return json({ok:true,url:pub.data.publicUrl,path:name});
+  }
   if(action==='user_records'&&req.method==='GET')return json(await userRecords(db,q.searchParams));
   if(action==='vision_requests'&&req.method==='GET')return json(await visionRecords(db,q.searchParams));
   if(action==='vision_request_detail'&&req.method==='GET'){const record=await visionRecordDetail(db,q.searchParams.get('id')||'');return record?json({record}):json({error:'记录不存在'},404)}
