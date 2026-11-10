@@ -198,17 +198,28 @@ export const MG_HTML = String.raw`<!doctype html>
   }
   function uploadNoticeImage(key){
     var el=document.getElementById('notice_'+key);if(!el)return;
-    var input=document.createElement('input');input.type='file';input.accept='image/png,image/jpeg,image/webp,image/gif';
-    input.onchange=async function(){
-      var file=input.files&&input.files[0];if(!file)return;
+    var input=document.createElement('input');
+    input.type='file';input.accept='image/png,image/jpeg,image/webp,image/gif';
+    input.style.cssText='position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0';
+    document.body.appendChild(input);
+    function cleanup(){if(input.parentNode)input.parentNode.removeChild(input)}
+    input.addEventListener('change',async function(){
+      var file=input.files&&input.files[0];
+      if(!file){cleanup();return}
+      toast('正在上传图片…');
       try{
         var payload=await imagePayload(file);
+        if(!payload)throw new Error('图片读取失败');
         var result=await api('notice_upload',{},'POST',{data:payload});
-        if(!result||!result.url)throw new Error('上传失败');
+        if(!result||!result.url)throw new Error((result&&result.error)||'上传失败');
         insertNoticeMarkdown(el,result.url,(file.name||'').replace(/\.[a-z0-9]+$/i,''));
-        toast('图片已上传');
-      }catch(e){toast('上传失败：'+e.message,true)}
-    };
+        toast('图片已插入公告内容');
+        el.scrollTop=el.scrollHeight;
+        el.focus();
+      }catch(e){toast('上传失败：'+((e&&e.message)||'未知错误'),true)}
+      finally{cleanup()}
+    });
+    input.addEventListener('cancel',cleanup);
     input.click();
   }
   function insertNoticeImage(key){
