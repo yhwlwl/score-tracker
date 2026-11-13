@@ -7569,6 +7569,12 @@ function byDate32(a,b){var d=String(a.exam_date||"").localeCompare(String(b.exam
 function visibleExamsV32(includeHidden){
   return allExamsV32().filter(function(e){return includeHidden?!0:!e.is_hidden;}).slice().sort(byDate32);
 }
+function worthHistoryExamsV32(includeHidden){
+  var source=state.allExams;
+  if(!Array.isArray(source)||!source.length)source=state.unfilteredVisibleExamsV13;
+  if(!Array.isArray(source)||!source.length)source=allExamsV32();
+  return source.filter(function(e){return includeHidden||!e.is_hidden;}).slice().sort(byDate32);
+}
 function configuredSubjectsV32(){
   var out=[];try{((typeof state!=="undefined"&&state.subjectConfigs)||[]).forEach(function(c){var nm=c&&(c.name||c);if(nm&&out.indexOf(nm)<0)out.push(nm);});}catch(e){}
   return out;
@@ -8617,7 +8623,7 @@ function compHtmlV32(f,mode){
 function matrixSectionHtmlV32(f,mode){
   var rgb=accentRgbV32();
   var difficultyView=!!(window.__stScoreWorth&&state.sv31&&state.sv31.matrixWorth==="difficulty");
-  var difficultyCells=difficultyView?window.__stScoreWorth.difficultyCells(f.exams,f.subjects):{};
+  var difficultyCells=difficultyView?window.__stScoreWorth.difficultyCells(f.exams,f.subjects,f.worthHistoryExams):{};
   var subs=f.subjects.filter(function(s){
     return f.series[s]&&f.series[s].some(function(x){return difficultyView?x.rate!==null:mode==="rank"?x.pos!==null:x.rate!==null;});
   });
@@ -9101,6 +9107,7 @@ function routeStatsV32(){
   var f=buildFeaturesV32(exams);
   window.__v32AllSubjects=f.subjects.slice(); /* 选择器需要全量学科清单(先于过滤) */
   f=applySubjectModuleV32(f);
+  f.worthHistoryExams=worthHistoryExamsV32(cfg.includeHidden); /* 独立于全局和统计页分类筛选，保留隐藏记录设置。 */
   /* 数据形态自适应:没有任何位比时,默认落在分数模式(用户手动切换后记忆选择) */
   if(!cfg.modeChosen&&f.posCount===0&&f.rateCount>0)cfg.mode="score";
   try{document.body.classList.toggle("mode-score",cfg.mode==="score");}catch(e){}
@@ -9304,9 +9311,23 @@ function latestScore(name){
     if(ex[i].is_hidden)continue;
     var sc=(ex[i].scores&&ex[i].scores[name])||(ex[i].subjects&&ex[i].subjects[name]);
     var v=scoreOf(sc);
-    if(v!=null)return {v:v,max:maxOf(sc,0),exam:ex[i]};
+    if(v!=null&&Number.isFinite(v))return {v:v,max:maxOf(sc,0),exam:ex[i]};
   }
   return null;
+}
+/* 实际成绩与长期目标分别计算得分率，差值的单位为百分点。 */
+function goalRate(score,max){
+  if(score==null||!Number.isFinite(Number(score))||!Number.isFinite(Number(max))||Number(max)<=0)return null;
+  return Number(score)/Number(max)*100;
+}
+function goalNumber(v){return Math.round(v*100)/100}
+function goalDiff(v,goal){return v==null||goal==null?null:goalNumber(v-Number(goal))}
+function goalPercent(v){return v==null?"—":goalNumber(v)+"%"}
+function goalGapText(diff,asScore){return diff==null?"—":diff===0?"已达标":(diff>0?"已超 ":"还差 ")+Math.abs(diff)+(asScore?" 分":" 个百分点")}
+function goalComparison(value,target,asScore){
+  function text(v){return v==null?"—":asScore?String(goalNumber(v)):goalPercent(v)}
+  var diff=goalDiff(value,target);
+  return {diff:diff,valueText:text(value),targetText:text(target),gap:goalGapText(diff,asScore)};
 }
 function totalGoalValue(){
   if(!G.data)return null;
@@ -9435,14 +9456,17 @@ function daysLeft(){
 function chipHtml(s){
   var g=goalSubjects(),sc=latestScore(s.name);
   var goal=g[s.name];
-  var v=sc?sc.v:null,diff=(goal!=null&&v!=null)?v-goal:null;
+  var v=sc?goalRate(sc.v,sc.max):null,target=goalRate(goal,s.max);
+  var asScore=v!=null&&Number(sc.max)===Number(s.max);
+  var comparison=goalComparison(asScore?sc.v:v,asScore?goal:target,asScore),diff=comparison.diff;
   var cls,tail;
   if(goal==null){cls="na";tail="未设目标"}
-  else if(diff==null){cls="na";tail="待考试"}
-  else{cls=diff>=0?"ok":"no";tail=diff>=0?"已超 "+diff:"还差 "+(-diff)}
-  if(goal!=null&&v==null&&!examSource().length)tail="成绩读取中…";
-  return '<span class="gh-chip '+cls+'" data-subject="'+esc(s.name)+'" title="查看统计分析">'
-    +"<small>"+esc(s.name)+" · "+(goal==null?"—":"目标 "+goal)+"</small><b>"+(v==null?"—":v)+"</b><em>"+tail+"</em></span>";
+  else if(diff==null){cls="na";tail=sc?"待补满分":"待考试"}
+  else{cls=diff>=0?"ok":"no";tail=comparison.gap}
+  if(goal!=null&&!sc&&!examSource().length)tail="成绩读取中…";
+  var detail=sc?'实际 '+sc.v+'/'+sc.max+(goal==null?'':'；目标 '+goal+'/'+s.max)+(asScore?'；满分相同，按分数比较':'；满分不同，按得分率比较'):'查看统计分析';
+  return '<span class="gh-chip '+cls+'" data-subject="'+esc(s.name)+'" title="'+esc(detail)+'">'
+    +"<small>"+esc(s.name)+" · "+(goal==null?"—":"目标 "+comparison.targetText)+"</small><b>"+comparison.valueText+"</b><em>"+tail+"</em></span>";
 }
 function renderHomeCard(mount){
   var hero=heroAnchor();if(!hero)return;
@@ -9461,8 +9485,6 @@ function renderHomeCard(mount){
   var subs=activeSubjects();
   var chips=subs.map(chipHtml).join("");
   var recent=SUB_TOTALS();
-  var tg=totalGoalValue();
-  var tDiff=(tg!=null&&recent.has)?recent.sum-tg:null;
   var side="";
   var dl=daysLeft();
   if(dl!=null){
@@ -9476,8 +9498,8 @@ function renderHomeCard(mount){
   card.innerHTML='<div class="gh-main-v33"><div class="gh-title-row"><span class="gh-title">我的目标 · '+esc(G.data.name||"本学期")
     +'</span><span class="gh-hint">点击编辑</span></div>'
     +'<div class="gh-chips">'+chips+'</div>'
-    +'<div class="gh-total"><b>'+(tDiff==null||!recent.has?"—":(tDiff>=0?"超 ":"差 ")+Math.abs(tDiff)+" 分")+"</b><span>"
-    +(recent.has?("最近总分 "+recent.sum+(tg!=null?" / 目标 "+tg:"")+" · 取各科最近成绩合计（缺考科目不计）"):"尚未有出分记录")+"</span></div></div>"
+    +'<div class="gh-total"><b>'+recent.comparison.gap+"</b><span>"
+    +(recent.has?(recent.comparable?(recent.asScore?"最近总分 ":"最近综合得分率 ")+recent.comparison.valueText+(totalGoalValue()!=null?" / 目标 "+recent.comparison.targetText:"")+" · "+(recent.asScore?"各科最近成绩合计，满分与目标一致":"各科最近得分率按科目设置满分加权"):"部分科目缺少成绩或有效满分，暂无法比较总目标"):"尚未有出分记录")+"</span></div></div>"
     +(side?'<div class="gh-side">'+side+"</div>":"");
   hero.insertAdjacentElement("afterend",card);
   try{
@@ -9524,9 +9546,18 @@ function renderHomeCard(mount){
   }
 }
 function SUB_TOTALS(){
-  var subs=activeSubjects(),sum=0,has=false;
-  subs.forEach(function(s){var r=latestScore(s.name);if(r){sum+=r.v;has=true}});
-  return {sum:sum,has:has};
+  var subs=activeSubjects(),weighted=0,totalMax=0,sum=0,has=false,comparable=true,sameScale=true;
+  subs.forEach(function(s){
+    var max=Number(s.max),r=latestScore(s.name),rate=r?goalRate(r.v,r.max):null;
+    if(r){has=true;sum+=r.v;if(Number(r.max)!==max)sameScale=false;}
+    if(!Number.isFinite(max)||max<=0){comparable=false;return;}
+    totalMax+=max;
+    if(rate==null)comparable=false;else weighted+=rate*max;
+  });
+  comparable=has&&comparable&&totalMax>0;
+  var rate=comparable?weighted/totalMax:null,targetRate=goalRate(totalGoalValue(),totalMax),asScore=comparable&&sameScale;
+  return {sum:goalNumber(sum),rate:rate,targetRate:targetRate,has:has,comparable:comparable,asScore:asScore,
+    comparison:goalComparison(asScore?sum:rate,asScore?totalGoalValue():targetRate,asScore)};
 }
 
 /* ================= 编辑弹窗 ================= */
@@ -9544,7 +9575,7 @@ function openEditor(via){
   var d=G.data=G.data||{subjects:{},totalGoal:null,school:"",date:"",dateName:""};
   var grid=activeSubjects().map(function(s){
     var g=d.subjects[s.name];var best=bestOf(s.name);
-    return '<div class="gm-sf"><label>'+esc(s.name)+(s.max?" · 满分 "+s.max:"")+" · 最佳 "+(best==null?"—":best)
+    return '<div class="gm-sf"><label>'+esc(s.name)+(s.max?" · 满分 "+s.max:"")+" · 最佳得分率 "+goalPercent(best)
       +'</label><input inputmode="decimal" data-gsubject="'+esc(s.name)+'" value="'+(g==null?"":g)+'"/></div>';
   }).join("");
   if(!grid)grid='<p class="gm-hint" style="color:var(--muted,#788392)">还没有科目数据——先去添加一次考试,或检查科目设置。</p>';
@@ -9552,7 +9583,7 @@ function openEditor(via){
     return '<option'+((o===d.dateName)||(o==="自定义…"&&!d.dateName)?' selected':"")+">"+o+"</option>";
   }).join("");
   $(".gm-body",bk).innerHTML=
-    '<div class="gm-label">① 各科目标分数 <span>按正式（最终 / 赋分）成绩填写 · 留空表示暂不定</span></div>'
+    '<div class="gm-label">① 各科目标分数 <span>按科目设置的满分填写；满分相同时显示分数与分差，不同时显示得分率与百分点差距 · 留空表示暂不定</span></div>'
     +'<div class="gm-grid">'+grid+'</div>'
     +'<div class="gm-label">② 总分与理想学校</div>'
     +'<div class="gm-total"><span style="font-size:12px;color:var(--muted,#788392)">总分目标</span><b id="gv33Total">—</b><span class="an" id="gv33ModeTxt"></span></div>'
@@ -9585,8 +9616,8 @@ function openEditor(via){
 function bestOf(name){
   var best=null;
   examSource().forEach(function(e){
-    if(e.is_hidden)return;var sc=e.scores&&e.scores[name];
-    if(sc&&sc.actual!=null){var v=Number(sc.actual);if(best==null||v>best)best=v;}
+    if(e.is_hidden)return;var sc=(e.scores&&e.scores[name])||(e.subjects&&e.subjects[name]),v=scoreOf(sc);
+    if(v!=null&&Number.isFinite(v)){v=goalRate(v,maxOf(sc,0));if(v!=null&&(best==null||v>best))best=v;}
   });
   return best;
 }
@@ -9705,22 +9736,22 @@ function injectStatsLinkage(){
   if(hall)$all(".tag-ok-v33",hall).forEach(function(x){x.remove()});
   var sumEl=$("#v33HallSum");if(sumEl)sumEl.remove();
   if(hall&&hasGoal()){
-    var g=goalSubjects(),hit=0,tried=0;
+    var g=goalSubjects(),subs=activeSubjects(),hit=0,tried=0;
     $all("tbody tr",hall).forEach(function(tr){
       var tds=$("td",tr)?tr.children:null;if(!tds||!tds.length)return;
       var name=(tds[0].textContent||"").trim();
       if(!(name in g))return;
       tried++;
-      var m=(tds[2]?(tds[2].textContent||""):"").match(/(\d+(?:\.\d+)?)/);
-      var best=m?parseFloat(m[1]):null;
-      if(best!=null&&best>=g[name]){
+      var best=bestOf(name);
+      var subject=subs.find(function(s){return s.name===name}),target=subject?goalRate(g[name],subject.max):null;
+      if(goalDiff(best,target)!=null&&goalDiff(best,target)>=0){
         hit++;var pill=document.createElement("span");pill.className="tag-ok-v33";pill.textContent="最佳已达标";
         tds[tds.length-1].appendChild(pill);
       }
     });
     if(tried){
       var sm=document.createElement("p");sm.id="v33HallSum";sm.className="card-sub";sm.style.margin="8px 2px 0";
-      sm.innerHTML="长期目标进度：最佳成绩已有 <b>"+hit+" / "+tried+"</b> 科达到目标。「最佳已达标」只陈述峰值触达。";
+      sm.innerHTML="长期目标进度：按最佳得分率比较，已有 <b>"+hit+" / "+tried+"</b> 科达到目标。「最佳已达标」只陈述峰值触达。";
       hall.appendChild(sm);
     }
   }
@@ -9735,12 +9766,12 @@ function injectStatsLinkage(){
 }
 function fillCalib(row){
   if(!hasGoal()){row.innerHTML="";return;}
-  var rec=SUB_TOTALS(),tg=totalGoalValue();
-  if(tg==null){row.innerHTML="";return;}
-  var diff=rec.has?rec.sum-tg:null;
-  row.innerHTML='<div style="color:var(--muted,#788392)">长期目标进度（口径：最近一次合计）</div>'
-    +"中位参考见首页 · 最近总分 <b>"+(rec.has?rec.sum:"—")+"</b> / 目标 "+tg
-    +" · "+(diff==null?"等待出分":(diff>=0?'<b style="color:var(--green,#32a77a)">已超 '+diff+"</b> 分":'还差 <b style="color:var(--danger,#d9534f)">'+(-diff)+"</b> 分"))
+  var rec=SUB_TOTALS();
+  if(totalGoalValue()==null){row.innerHTML="";return;}
+  var diff=rec.comparison.diff;
+  row.innerHTML='<div style="color:var(--muted,#788392)">长期目标进度（'+(rec.asScore?'各科最近成绩合计，满分与目标一致':'各科最近得分率按科目设置满分加权')+'）</div>'
+    +(rec.asScore?"最近总分 <b>":"最近综合得分率 <b>")+rec.comparison.valueText+"</b> / 目标 "+rec.comparison.targetText
+    +" · "+(diff==null?(rec.has?"待补成绩或有效满分":"等待出分"):'<b style="color:'+(diff>=0?'var(--green,#32a77a)':'var(--danger,#d9534f)')+'">'+rec.comparison.gap+'</b>')
     +'　<button type="button" style="color:var(--accent,#5d72e8);background:none;border:0;padding:0;font-size:12px;cursor:pointer" onclick="__v33.editFromStats()">回首页看逐科差距</button>';
 }
 
@@ -12586,26 +12617,28 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   }
   function hardness(p, model, slope) { var b = slope == null ? model.b : slope; return b * (p.z - model.meanZ) - (p.y - model.meanY); }
   function difficultyIndex(h) { return 100 * sigmoid(h); }
-  function context(exams, subject) {
+  function context(exams, subject, allHistory) {
     var observations = exams.map(function (e, i) { return observation(e, subject, i); });
     var signature = JSON.stringify(observations.map(function (o) { return [key(o.e), o.day, o.e.grade_level || '', o.score, o.max, o.pos, o.N]; }));
     var perSubject = cache.get(exams); if (!perSubject) { perSubject = Object.create(null); cache.set(exams, perSubject); }
-    if (perSubject[subject] && perSubject[subject].signature === signature) return perSubject[subject];
+    var cacheKey = JSON.stringify([subject, !!allHistory]);
+    if (perSubject[cacheKey] && perSubject[cacheKey].signature === signature) return perSubject[cacheKey];
     var seen = Object.create(null), unique = [];
     // Duplicate IDs are one exam; keep the final supplied record.
     observations.slice().reverse().forEach(function (o) { var k = key(o.e); if (!seen[k]) { seen[k] = true; if (o.valid) unique.push(o); } });
     unique.sort(function (a, b) { return a.day - b.day || key(a.e).localeCompare(key(b.e)); });
     var categories = Object.create(null), groups = [], byIndex = Object.create(null);
     unique.forEach(function (o) {
-      var category = String(o.e.grade_level || ''), group = categories[category];
-      if (!group || Math.abs(o.N - median(group.points.map(function (p) { return p.N; }))) / Math.max(o.N, median(group.points.map(function (p) { return p.N; }))) >= 0.3) {
+      var category = allHistory ? '__history__' : String(o.e.grade_level || ''), group = categories[category];
+      var medianN = group && !allHistory ? median(group.points.map(function (p) { return p.N; })) : null;
+      if (!group || (!allHistory && Math.abs(o.N - medianN) / Math.max(o.N, medianN) >= 0.3)) {
         group = { points: [], category: category }; groups.push(group); categories[category] = group;
       }
       group.points.push(o); o.group = group; byIndex[o.index] = o;
     });
     groups.forEach(function (group) { if (group.points.length >= 3) group.model = fit(group.points); });
     var result = { signature: signature, observations: observations, groups: groups, byIndex: byIndex };
-    perSubject[subject] = result; return result;
+    perSubject[cacheKey] = result; return result;
   }
   function scoreOnScale(cur, delta, max) {
     if (Math.abs(delta) < 1e-10) return cur.score / cur.max * max;
@@ -12625,10 +12658,10 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     }
     if (!cur.rankValid) { out.reason = '还需要这科的年级排名（或排名位置）和参考人数。少于 30 人时，暂不估计难度。'; return out; }
     if (cur.day === null) { out.reason = '补齐有效的考试日期，就能建立参考尺子。'; return out; }
-    var ctx = context(exams, subject), point = ctx.byIndex[index];
+    var ctx = context(exams, subject, out.referenceMode === 'history'), point = ctx.byIndex[index];
     if (!point) { out.reason = '这场考试有重复记录，已避免重复计入参考尺子。'; return out; }
     var group = point.group, model = group.model; out.modelN = group.points.length;
-    if (!model) { out.reason = '这组可比较的记录还不足 3 场。补齐成绩、满分和年级排名后，就能估计相对难度。'; return out; }
+    if (!model) { out.reason = (out.referenceMode === 'history' ? '这科全部历史中的有效记录还不足 3 场。' : '这组可比较的记录还不足 3 场。') + '补齐成绩、满分和年级排名后，就能估计相对难度。'; return out; }
     var refs = group.points, max = cur.max, label = '历史平均';
     if (out.referenceMode === 'period') {
       var start = day({ exam_date: options.start }), end = day({ exam_date: options.end });
@@ -12669,10 +12702,10 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     out.quality = reasons.length ? 'limited' : 'supported'; out.warnings = reasons; out.model = model;
     return out;
   }
-  function cells(exams, subjects) {
+  function cells(exams, subjects, allHistory) {
     var result = Object.create(null);
     subjects.forEach(function (subject) {
-      var ctx = context(exams, subject);
+      var ctx = context(exams, subject, allHistory);
       Object.keys(ctx.byIndex).forEach(function (i) {
         var p = ctx.byIndex[i], m = p.group.model;
         if (m) result[i + '|' + subject] = { index: difficultyIndex(hardness(p, m)), n: p.group.points.length,
@@ -12761,7 +12794,12 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     }
     return s;
   }
-  function result(f, s) { return M.compare(f.exams, s.subject, s.index, { mode: s.mode, exam: s.refIndex, start: s.start, end: s.end }); }
+  function historyExams(f) { return Array.isArray(f.worthHistoryExams) ? f.worthHistoryExams : f.exams; }
+  function result(f, s) {
+    var exams = s.mode === 'history' ? historyExams(f) : f.exams;
+    var selected = f.exams[s.index], index = exams === f.exams ? s.index : exams.findIndex(function (e) { return selected && M.key(e) === M.key(selected); });
+    return M.compare(exams, s.subject, index, { mode: s.mode, exam: s.refIndex, start: s.start, end: s.end });
+  }
   function examOptions(exams, index, indices) {
     return exams.map(function (e, i) {
       if (indices && indices.indexOf(i) < 0) return '';
@@ -12786,15 +12824,19 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       body += '<p class="worth-message">' + (r.kind === 'identity' ? '参照就是本次考试，成绩不变。' : '按' + (s.mode === 'history' ? '历史平均难度' : s.mode === 'period' ? '这段时间的平均难度' : '这场考试的难度') + '，约相当于 <b>' + fmt(r.value) + ' 分</b>。') + '</p>';
       if (r.kind !== 'identity' && r.quality === 'limited') body += '<div class="worth-stability"><p>' + esc(briefWarning(r)) + '</p></div>';
       var rows = r.references.slice().sort(function (a, b) { return b.day - a.day; });
-      var model = p && p.group.model, difficultyCells = model ? M.cells(f.exams, [s.subject]) : {};
+      var history = s.mode === 'history', evidenceExams = history ? historyExams(f) : f.exams;
+      var difficultyCells = M.cells(evidenceExams, [s.subject], history), localContext = M.context(f.exams, s.subject);
       body += '<details class="worth-evidence worth-records"><summary>参考考试 · ' + rows.length + ' 场</summary>';
       body += '<div class="worth-table-scroll" tabindex="0" role="region" aria-label="参照考试依据"><table class="worth-table"><thead><tr><th>考试</th><th>实际成绩</th><th>年级排名</th><th>难度参考</th><th></th></tr></thead><tbody>' + rows.map(function (o) {
         var cell = difficultyCells[o.index + '|' + s.subject];
-        return '<tr><td>' + esc(o.e.name || '未命名考试') + '<small>' + esc(o.e.exam_date || '') + '</small></td><td>' + fmt(o.score) + ' / ' + fmt(o.max) + '</td><td>' + (o.rankValid ? '前 ' + fmt(o.pos) + '%<small>' + o.N + ' 人</small>' : '—') + '</td><td>' + (cell ? fmt(cell.index) : '—') + '</td><td><button type="button" class="worth-link" data-worth-reference="' + o.index + '">用作参照</button></td></tr>';
+        var localIndex = evidenceExams === f.exams ? o.index : f.exams.findIndex(function (e) { return M.key(e) === M.key(o.e); });
+        var localPoint = localContext.byIndex[localIndex];
+        var referenceAction = localPoint && p && localPoint.group === p.group ? '<button type="button" class="worth-link" data-worth-reference="' + localIndex + '">用作参照</button>' : '<span class="worth-note">历史参考</span>';
+        return '<tr><td>' + esc(o.e.name || '未命名考试') + '<small>' + esc(o.e.exam_date || '') + '</small></td><td>' + fmt(o.score) + ' / ' + fmt(o.max) + '</td><td>' + (o.rankValid ? '前 ' + fmt(o.pos) + '%<small>' + o.N + ' 人</small>' : '—') + '</td><td>' + (cell ? fmt(cell.index) : '—') + '</td><td>' + referenceAction + '</td></tr>';
       }).join('') + '</tbody></table></div></details>';
       body += '<details class="worth-evidence worth-method"><summary>怎么算的？</summary>';
       if (r.difficulty != null) body += '<div class="worth-difficulty"><div><span>本次难度参考</span><b>' + fmt(r.difficulty) + '</b></div><div><span>参照难度参考</span><b>' + fmt(r.referenceDifficulty) + '</b></div><div><span>参考记录</span><b>' + rows.length + '<small> 场</small></b></div></div><p class="worth-note">50 为这组考试的平均难度，数字越大，估计相对越难；不是难度概率。</p>';
-      body += '<p class="worth-note">用 ' + (r.modelN || 1) + ' 场可比较的分数与年级排名估算难度，再换到你选择的参照难度。分类不同或人数明显变化时分开计算。</p><p class="worth-note">历史平均和时间段平均包含范围内的本次考试。回看旧考试也会用到后来录入的记录，不是当时的预测。指定考试按它的满分换算，其他参照按本次满分。</p>';
+      body += '<p class="worth-note">用 ' + (r.modelN || 1) + ' 场可比较的分数与年级排名估算难度，再换到你选择的参照难度。' + (history ? '历史平均使用这科全部分类的有效历史，不要求同组，也不受页面分类筛选限制。' : '时间段和指定考试仍在同一分类、同一参考人群阶段内比较。') + '</p><p class="worth-note">历史平均和时间段平均包含范围内的本次考试。回看旧考试也会用到后来录入的记录，不是当时的预测。指定考试按它的满分换算，其他参照按本次满分。</p>';
       if (r.kind !== 'identity') {
         body += plainWarnings(r).map(function (warning) { return '<p class="worth-note">' + esc(warning) + '</p>'; }).join('');
         body += '<p class="worth-note worth-sensitivity">每次少用一场记录重算，结果为 ' + fmt(r.low) + '–' + fmt(r.high) + ' 分。结果相近不说明分数一定准确；不是预测区间或置信区间，也不是下次考试的分数范围。</p>';
@@ -12842,6 +12884,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       var i = Number(button.dataset.worthMatrix), subject = button.dataset.worthSubject;
       if (!f.exams[i] || f.subjects.indexOf(subject) < 0) return;
       var s = selection(f); s.subject = subject; s.exam = M.key(f.exams[i]);
+      if (state.sv31 && state.sv31.matrixWorth === 'difficulty') s.mode = 'history';
       track('score_worth_matrix_open', { version: 2 }); replace('matrix'); card.setAttribute('tabindex', '-1'); card.focus({ preventScroll: true });
       if (card.scrollIntoView) card.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     });
@@ -12852,7 +12895,19 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   style.textContent += '.worth-matrix-card{min-width:0}.worth-matrix-scroll{width:100%;max-width:100%;overflow:auto;max-height:480px;border:1px solid var(--line);border-radius:12px;-webkit-overflow-scrolling:touch}.worth-matrix-scroll:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.worth-matrix-table{table-layout:fixed;border-collapse:separate;border-spacing:0;width:100%;font-size:13px;font-variant-numeric:tabular-nums}.worth-matrix-table th,.worth-matrix-table td{box-sizing:border-box;padding:8px 6px;height:62px;border:0;border-bottom:1px solid var(--line);border-right:1px solid var(--line);text-align:center;vertical-align:middle;white-space:normal;word-break:normal;overflow-wrap:normal}.worth-matrix-table thead th{position:sticky;top:0;z-index:2;height:42px;background:var(--panel-solid);color:var(--muted);font-weight:600}.worth-matrix-table tr>:first-child{position:sticky;left:0;z-index:1;background:var(--panel-solid);color:var(--text);text-align:left;padding:10px 12px;box-shadow:2px 0 0 var(--line)}.worth-matrix-table thead tr>:first-child{z-index:3;color:var(--muted)}.worth-exam-name{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;line-height:1.4;max-height:2.8em;font-weight:600;overflow-wrap:anywhere}.worth-exam-date{display:block;font-size:10px;line-height:1.4;font-weight:400;color:var(--muted);margin-top:4px;white-space:nowrap}.worth-matrix-table .worth-matrix-button{min-height:44px;padding:6px 0;position:relative;white-space:nowrap;font-weight:600;font-size:14px;border-radius:4px}.worth-heat-limited{display:inline-block;font-size:11px;margin-left:3px;vertical-align:super;line-height:1}.worth-heat-legend{max-width:320px;margin:0 0 12px;color:var(--muted);font-size:11px}.worth-heat-ramp{height:10px;border-radius:5px;position:relative;overflow:hidden}.worth-heat-ramp:after{content:"";position:absolute;left:50%;top:0;bottom:0;border-left:2px solid var(--panel-solid)}.worth-heat-labels{display:flex;justify-content:space-between;margin-top:5px;gap:8px}.worth-matrix-hint{font-size:11px;color:var(--muted);line-height:1.7;margin:8px 0 12px}@media(max-width:480px){.worth-matrix-scroll{max-height:420px}.worth-matrix-table th,.worth-matrix-table td{height:60px}.worth-matrix-card .card-title-row{flex-wrap:wrap;gap:8px}.worth-matrix-card .legend{flex-wrap:wrap;gap:8px}}';
   // A single theme watcher reads the current DOM, so page switches retain no old cards.
   if (typeof MutationObserver === 'function') new MutationObserver(paintHeatmap).observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'data-theme'] });
-  window.__stScoreWorth = { html: html, bind: bind, compare: M.compare, observation: M.observation, difficultyCells: M.cells, heatStyle: heatStyle, heatRamp: heatRamp, heatColor: heatColor };
+  function historyCells(exams, subjects, source) {
+    source = Array.isArray(source) ? source : exams;
+    var cells = M.cells(source, subjects, true);
+    if (source === exams) return cells;
+    var sourceIndices = Object.create(null), mapped = Object.create(null);
+    source.forEach(function (e, i) { sourceIndices[M.key(e)] = i; });
+    exams.forEach(function (e, i) { subjects.forEach(function (subject) {
+      var cell = cells[sourceIndices[M.key(e)] + '|' + subject];
+      if (cell) mapped[i + '|' + subject] = cell;
+    }); });
+    return mapped;
+  }
+  window.__stScoreWorth = { html: html, bind: bind, compare: M.compare, observation: M.observation, difficultyCells: historyCells, heatStyle: heatStyle, heatRamp: heatRamp, heatColor: heatColor };
 })();
 
 /* ===== release-notices.js ===== */

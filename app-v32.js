@@ -21,6 +21,12 @@ function byDate32(a,b){var d=String(a.exam_date||"").localeCompare(String(b.exam
 function visibleExamsV32(includeHidden){
   return allExamsV32().filter(function(e){return includeHidden?!0:!e.is_hidden;}).slice().sort(byDate32);
 }
+function worthHistoryExamsV32(includeHidden){
+  var source=state.allExams;
+  if(!Array.isArray(source)||!source.length)source=state.unfilteredVisibleExamsV13;
+  if(!Array.isArray(source)||!source.length)source=allExamsV32();
+  return source.filter(function(e){return includeHidden||!e.is_hidden;}).slice().sort(byDate32);
+}
 function configuredSubjectsV32(){
   var out=[];try{((typeof state!=="undefined"&&state.subjectConfigs)||[]).forEach(function(c){var nm=c&&(c.name||c);if(nm&&out.indexOf(nm)<0)out.push(nm);});}catch(e){}
   return out;
@@ -1069,7 +1075,7 @@ function compHtmlV32(f,mode){
 function matrixSectionHtmlV32(f,mode){
   var rgb=accentRgbV32();
   var difficultyView=!!(window.__stScoreWorth&&state.sv31&&state.sv31.matrixWorth==="difficulty");
-  var difficultyCells=difficultyView?window.__stScoreWorth.difficultyCells(f.exams,f.subjects):{};
+  var difficultyCells=difficultyView?window.__stScoreWorth.difficultyCells(f.exams,f.subjects,f.worthHistoryExams):{};
   var subs=f.subjects.filter(function(s){
     return f.series[s]&&f.series[s].some(function(x){return difficultyView?x.rate!==null:mode==="rank"?x.pos!==null:x.rate!==null;});
   });
@@ -1553,6 +1559,7 @@ function routeStatsV32(){
   var f=buildFeaturesV32(exams);
   window.__v32AllSubjects=f.subjects.slice(); /* 选择器需要全量学科清单(先于过滤) */
   f=applySubjectModuleV32(f);
+  f.worthHistoryExams=worthHistoryExamsV32(cfg.includeHidden); /* 独立于全局和统计页分类筛选，保留隐藏记录设置。 */
   /* 数据形态自适应:没有任何位比时,默认落在分数模式(用户手动切换后记忆选择) */
   if(!cfg.modeChosen&&f.posCount===0&&f.rateCount>0)cfg.mode="score";
   try{document.body.classList.toggle("mode-score",cfg.mode==="score");}catch(e){}

@@ -69,10 +69,10 @@ async function run() {
     const weak = [exam(0, 90, 80), exam(1, 80, 60), exam(2, 70, 40), exam(3, 60, 20)]; const r = c(weak, '物理', 3);
     assert.equal(r.quality, 'limited'); assert.equal(r.model.b, 0); assert(r.warnings.some(x => x.includes('关系较弱')));
   });
-  check('categories and a clear cohort break get separate rulers and cannot serve as cross-group references', () => {
+  check('history includes all groups, while explicit exam references retain their existing group limits', () => {
     const a = [exam(0), exam(1), exam(2), exam(3), exam(4), exam(5)]; for (let i = 3; i < 6; i++) a[i].scores.物理.participants = 500;
-    assert.equal(c(a, '物理', 5).modelN, 3); assert.equal(c(a, '物理', 5, { mode: 'exam', exam: 0 }).kind, 'empty');
-    a[2].grade_level = '高一'; assert.equal(c(a, '物理', 0).kind, 'empty');
+    assert.equal(c(a, '物理', 5).modelN, 6); assert.equal(c(a, '物理', 5).references.length, 6); assert.equal(c(a, '物理', 5, { mode: 'exam', exam: 0 }).kind, 'empty');
+    a[2].grade_level = '高一'; assert.equal(c(a, '物理', 0).kind, 'estimate');
   });
   check('invalid input is not clamped, total rank is not used as a subject rank; missing population can fall back', () => {
     for (const fields of [{ actual: null }, { actual: false }, { actual: ' ' }, { actual: -1 }, { actual: 101 }, { max: 0 }, { participants: 'bad' }, { participants: true }, { participants: 1e20 }, { participants: 0 }, { participants: 29 }, { participants: 1000.5 }, { yearPositionPercent: 'bad', rank: 50 }, { yearPositionPercent: 0 }, { yearPositionPercent: -1 }, { yearPositionPercent: 101 }]) {
@@ -93,7 +93,7 @@ async function run() {
   });
   check('large histories use bounded sensitivity work, with all records still in the fitted scale', () => {
     const a = balanced(14), start = Date.now(), r = c(a, '物理', 100); assert.equal(r.modelN, 210); assert.equal(r.references.length, 210); assert.equal(r.sensitivityRuns, 80);
-    assert(Number.isFinite(r.value)); assert.equal(h.model.context(a, '物理').byIndex[100].group.slopes.length, 80); console.log('  210-exam scale + sensitivity: ' + (Date.now() - start) + 'ms');
+    assert(Number.isFinite(r.value)); assert.equal(h.model.context(a, '物理', true).byIndex[100].group.slopes.length, 80); console.log('  210-exam scale + sensitivity: ' + (Date.now() - start) + 'ms');
   });
   h.close();
 
