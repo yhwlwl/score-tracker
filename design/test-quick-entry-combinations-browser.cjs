@@ -20,7 +20,7 @@ if(b.action==='save_modules'){if(qaFailSave)return new Response(JSON.stringify({
 if(b.action==='beta_status')result={enabled:true,beta_only:false};
 if(b.action==='quota')result={enabled:true,eligible:true,quota:{limit:20,used:0,remaining:20,global_remaining:100,service_enabled:true,retry_after_seconds:0}};
 if(b.action==='readiness')result={ok:true,check:'service_readiness'};
-if(b.action==='recognize')result={exam:{},subjects:[{name:'语数外物',yearRank:17,yearParticipants:620},{name:'数学',finalScore:133}],warnings:[]};
+if(b.action==='recognize')result={exam:{},subjects:[{name:'语数英物',components:['语文','数学','英语','物理'],yearRank:17,yearParticipants:620},{name:'数学',finalScore:133},{name:'任意组合标题',components:['英语','数学','语文'],yearRank:22},{name:'学科组合总分',components:['语文','数学','英语','物理','化学','生物'],yearRank:31}],warnings:[]};
 if(b.action==='save_exam')result={ok:true,id:'saved',created:false};
 return result?new Response(JSON.stringify(result)):oldFetch(url,options);};
 </script>`;

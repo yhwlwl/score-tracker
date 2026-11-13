@@ -84,6 +84,9 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (fn()) return; awa
     await until(() => !$('.nl-entry-vision-submit').disabled); $('.nl-entry-vision-submit').click(); await until(() => !$('.nl-entry-vision-output').hidden);
     $('.nl-entry-vision-submit').click(); await confirm('supplement');
     assert.equal(values().math, '128'); assert.equal(values().combos.find(c => c.id === 'four').rank, '17'); assert.equal(w.qaCalls.filter(b => b.action === 'recognize').length, 1);
+    assert.equal(values().combos.find(c => c.id === 'core').rank, '22');
+    const sixModule = w.qaModules.find(m => m.subjects.length === 6);
+    assert(sixModule); assert.equal(values().combos.find(c => c.id === sixModule.id).rank, '31');
     console.log('PASS: image recognition uses the same supplement flow without a second recognition request');
     assert.deepEqual(errors, []);
   } catch (error) { console.error(error, $('.nl-entry-error')?.textContent, w.qaCalls.slice(-4)); throw error;

@@ -64,9 +64,23 @@ function latestScore(name){
     if(ex[i].is_hidden)continue;
     var sc=(ex[i].scores&&ex[i].scores[name])||(ex[i].subjects&&ex[i].subjects[name]);
     var v=scoreOf(sc);
-    if(v!=null)return {v:v,max:maxOf(sc,0),exam:ex[i]};
+    if(v!=null&&Number.isFinite(v))return {v:v,max:maxOf(sc,0),exam:ex[i]};
   }
   return null;
+}
+/* 实际成绩与长期目标分别计算得分率，差值的单位为百分点。 */
+function goalRate(score,max){
+  if(score==null||!Number.isFinite(Number(score))||!Number.isFinite(Number(max))||Number(max)<=0)return null;
+  return Number(score)/Number(max)*100;
+}
+function goalNumber(v){return Math.round(v*100)/100}
+function goalDiff(v,goal){return v==null||goal==null?null:goalNumber(v-Number(goal))}
+function goalPercent(v){return v==null?"—":goalNumber(v)+"%"}
+function goalGapText(diff,asScore){return diff==null?"—":diff===0?"已达标":(diff>0?"已超 ":"还差 ")+Math.abs(diff)+(asScore?" 分":" 个百分点")}
+function goalComparison(value,target,asScore){
+  function text(v){return v==null?"—":asScore?String(goalNumber(v)):goalPercent(v)}
+  var diff=goalDiff(value,target);
+  return {diff:diff,valueText:text(value),targetText:text(target),gap:goalGapText(diff,asScore)};
 }
 function totalGoalValue(){
   if(!G.data)return null;
@@ -195,14 +209,17 @@ function daysLeft(){
 function chipHtml(s){
   var g=goalSubjects(),sc=latestScore(s.name);
   var goal=g[s.name];
-  var v=sc?sc.v:null,diff=(goal!=null&&v!=null)?v-goal:null;
+  var v=sc?goalRate(sc.v,sc.max):null,target=goalRate(goal,s.max);
+  var asScore=v!=null&&Number(sc.max)===Number(s.max);
+  var comparison=goalComparison(asScore?sc.v:v,asScore?goal:target,asScore),diff=comparison.diff;
   var cls,tail;
   if(goal==null){cls="na";tail="未设目标"}
-  else if(diff==null){cls="na";tail="待考试"}
-  else{cls=diff>=0?"ok":"no";tail=diff>=0?"已超 "+diff:"还差 "+(-diff)}
-  if(goal!=null&&v==null&&!examSource().length)tail="成绩读取中…";
-  return '<span class="gh-chip '+cls+'" data-subject="'+esc(s.name)+'" title="查看统计分析">'
-    +"<small>"+esc(s.name)+" · "+(goal==null?"—":"目标 "+goal)+"</small><b>"+(v==null?"—":v)+"</b><em>"+tail+"</em></span>";
+  else if(diff==null){cls="na";tail=sc?"待补满分":"待考试"}
+  else{cls=diff>=0?"ok":"no";tail=comparison.gap}
+  if(goal!=null&&!sc&&!examSource().length)tail="成绩读取中…";
+  var detail=sc?'实际 '+sc.v+'/'+sc.max+(goal==null?'':'；目标 '+goal+'/'+s.max)+(asScore?'；满分相同，按分数比较':'；满分不同，按得分率比较'):'查看统计分析';
+  return '<span class="gh-chip '+cls+'" data-subject="'+esc(s.name)+'" title="'+esc(detail)+'">'
+    +"<small>"+esc(s.name)+" · "+(goal==null?"—":"目标 "+comparison.targetText)+"</small><b>"+comparison.valueText+"</b><em>"+tail+"</em></span>";
 }
 function renderHomeCard(mount){
   var hero=heroAnchor();if(!hero)return;
@@ -221,8 +238,6 @@ function renderHomeCard(mount){
   var subs=activeSubjects();
   var chips=subs.map(chipHtml).join("");
   var recent=SUB_TOTALS();
-  var tg=totalGoalValue();
-  var tDiff=(tg!=null&&recent.has)?recent.sum-tg:null;
   var side="";
   var dl=daysLeft();
   if(dl!=null){
@@ -236,8 +251,8 @@ function renderHomeCard(mount){
   card.innerHTML='<div class="gh-main-v33"><div class="gh-title-row"><span class="gh-title">我的目标 · '+esc(G.data.name||"本学期")
     +'</span><span class="gh-hint">点击编辑</span></div>'
     +'<div class="gh-chips">'+chips+'</div>'
-    +'<div class="gh-total"><b>'+(tDiff==null||!recent.has?"—":(tDiff>=0?"超 ":"差 ")+Math.abs(tDiff)+" 分")+"</b><span>"
-    +(recent.has?("最近总分 "+recent.sum+(tg!=null?" / 目标 "+tg:"")+" · 取各科最近成绩合计（缺考科目不计）"):"尚未有出分记录")+"</span></div></div>"
+    +'<div class="gh-total"><b>'+recent.comparison.gap+"</b><span>"
+    +(recent.has?(recent.comparable?(recent.asScore?"最近总分 ":"最近综合得分率 ")+recent.comparison.valueText+(totalGoalValue()!=null?" / 目标 "+recent.comparison.targetText:"")+" · "+(recent.asScore?"各科最近成绩合计，满分与目标一致":"各科最近得分率按科目设置满分加权"):"部分科目缺少成绩或有效满分，暂无法比较总目标"):"尚未有出分记录")+"</span></div></div>"
     +(side?'<div class="gh-side">'+side+"</div>":"");
   hero.insertAdjacentElement("afterend",card);
   try{
@@ -284,9 +299,18 @@ function renderHomeCard(mount){
   }
 }
 function SUB_TOTALS(){
-  var subs=activeSubjects(),sum=0,has=false;
-  subs.forEach(function(s){var r=latestScore(s.name);if(r){sum+=r.v;has=true}});
-  return {sum:sum,has:has};
+  var subs=activeSubjects(),weighted=0,totalMax=0,sum=0,has=false,comparable=true,sameScale=true;
+  subs.forEach(function(s){
+    var max=Number(s.max),r=latestScore(s.name),rate=r?goalRate(r.v,r.max):null;
+    if(r){has=true;sum+=r.v;if(Number(r.max)!==max)sameScale=false;}
+    if(!Number.isFinite(max)||max<=0){comparable=false;return;}
+    totalMax+=max;
+    if(rate==null)comparable=false;else weighted+=rate*max;
+  });
+  comparable=has&&comparable&&totalMax>0;
+  var rate=comparable?weighted/totalMax:null,targetRate=goalRate(totalGoalValue(),totalMax),asScore=comparable&&sameScale;
+  return {sum:goalNumber(sum),rate:rate,targetRate:targetRate,has:has,comparable:comparable,asScore:asScore,
+    comparison:goalComparison(asScore?sum:rate,asScore?totalGoalValue():targetRate,asScore)};
 }
 
 /* ================= 编辑弹窗 ================= */
@@ -304,7 +328,7 @@ function openEditor(via){
   var d=G.data=G.data||{subjects:{},totalGoal:null,school:"",date:"",dateName:""};
   var grid=activeSubjects().map(function(s){
     var g=d.subjects[s.name];var best=bestOf(s.name);
-    return '<div class="gm-sf"><label>'+esc(s.name)+(s.max?" · 满分 "+s.max:"")+" · 最佳 "+(best==null?"—":best)
+    return '<div class="gm-sf"><label>'+esc(s.name)+(s.max?" · 满分 "+s.max:"")+" · 最佳得分率 "+goalPercent(best)
       +'</label><input inputmode="decimal" data-gsubject="'+esc(s.name)+'" value="'+(g==null?"":g)+'"/></div>';
   }).join("");
   if(!grid)grid='<p class="gm-hint" style="color:var(--muted,#788392)">还没有科目数据——先去添加一次考试,或检查科目设置。</p>';
@@ -312,7 +336,7 @@ function openEditor(via){
     return '<option'+((o===d.dateName)||(o==="自定义…"&&!d.dateName)?' selected':"")+">"+o+"</option>";
   }).join("");
   $(".gm-body",bk).innerHTML=
-    '<div class="gm-label">① 各科目标分数 <span>按正式（最终 / 赋分）成绩填写 · 留空表示暂不定</span></div>'
+    '<div class="gm-label">① 各科目标分数 <span>按科目设置的满分填写；满分相同时显示分数与分差，不同时显示得分率与百分点差距 · 留空表示暂不定</span></div>'
     +'<div class="gm-grid">'+grid+'</div>'
     +'<div class="gm-label">② 总分与理想学校</div>'
     +'<div class="gm-total"><span style="font-size:12px;color:var(--muted,#788392)">总分目标</span><b id="gv33Total">—</b><span class="an" id="gv33ModeTxt"></span></div>'
@@ -345,8 +369,8 @@ function openEditor(via){
 function bestOf(name){
   var best=null;
   examSource().forEach(function(e){
-    if(e.is_hidden)return;var sc=e.scores&&e.scores[name];
-    if(sc&&sc.actual!=null){var v=Number(sc.actual);if(best==null||v>best)best=v;}
+    if(e.is_hidden)return;var sc=(e.scores&&e.scores[name])||(e.subjects&&e.subjects[name]),v=scoreOf(sc);
+    if(v!=null&&Number.isFinite(v)){v=goalRate(v,maxOf(sc,0));if(v!=null&&(best==null||v>best))best=v;}
   });
   return best;
 }
@@ -465,22 +489,22 @@ function injectStatsLinkage(){
   if(hall)$all(".tag-ok-v33",hall).forEach(function(x){x.remove()});
   var sumEl=$("#v33HallSum");if(sumEl)sumEl.remove();
   if(hall&&hasGoal()){
-    var g=goalSubjects(),hit=0,tried=0;
+    var g=goalSubjects(),subs=activeSubjects(),hit=0,tried=0;
     $all("tbody tr",hall).forEach(function(tr){
       var tds=$("td",tr)?tr.children:null;if(!tds||!tds.length)return;
       var name=(tds[0].textContent||"").trim();
       if(!(name in g))return;
       tried++;
-      var m=(tds[2]?(tds[2].textContent||""):"").match(/(\d+(?:\.\d+)?)/);
-      var best=m?parseFloat(m[1]):null;
-      if(best!=null&&best>=g[name]){
+      var best=bestOf(name);
+      var subject=subs.find(function(s){return s.name===name}),target=subject?goalRate(g[name],subject.max):null;
+      if(goalDiff(best,target)!=null&&goalDiff(best,target)>=0){
         hit++;var pill=document.createElement("span");pill.className="tag-ok-v33";pill.textContent="最佳已达标";
         tds[tds.length-1].appendChild(pill);
       }
     });
     if(tried){
       var sm=document.createElement("p");sm.id="v33HallSum";sm.className="card-sub";sm.style.margin="8px 2px 0";
-      sm.innerHTML="长期目标进度：最佳成绩已有 <b>"+hit+" / "+tried+"</b> 科达到目标。「最佳已达标」只陈述峰值触达。";
+      sm.innerHTML="长期目标进度：按最佳得分率比较，已有 <b>"+hit+" / "+tried+"</b> 科达到目标。「最佳已达标」只陈述峰值触达。";
       hall.appendChild(sm);
     }
   }
@@ -495,12 +519,12 @@ function injectStatsLinkage(){
 }
 function fillCalib(row){
   if(!hasGoal()){row.innerHTML="";return;}
-  var rec=SUB_TOTALS(),tg=totalGoalValue();
-  if(tg==null){row.innerHTML="";return;}
-  var diff=rec.has?rec.sum-tg:null;
-  row.innerHTML='<div style="color:var(--muted,#788392)">长期目标进度（口径：最近一次合计）</div>'
-    +"中位参考见首页 · 最近总分 <b>"+(rec.has?rec.sum:"—")+"</b> / 目标 "+tg
-    +" · "+(diff==null?"等待出分":(diff>=0?'<b style="color:var(--green,#32a77a)">已超 '+diff+"</b> 分":'还差 <b style="color:var(--danger,#d9534f)">'+(-diff)+"</b> 分"))
+  var rec=SUB_TOTALS();
+  if(totalGoalValue()==null){row.innerHTML="";return;}
+  var diff=rec.comparison.diff;
+  row.innerHTML='<div style="color:var(--muted,#788392)">长期目标进度（'+(rec.asScore?'各科最近成绩合计，满分与目标一致':'各科最近得分率按科目设置满分加权')+'）</div>'
+    +(rec.asScore?"最近总分 <b>":"最近综合得分率 <b>")+rec.comparison.valueText+"</b> / 目标 "+rec.comparison.targetText
+    +" · "+(diff==null?(rec.has?"待补成绩或有效满分":"等待出分"):'<b style="color:'+(diff>=0?'var(--green,#32a77a)':'var(--danger,#d9534f)')+'">'+rec.comparison.gap+'</b>')
     +'　<button type="button" style="color:var(--accent,#5d72e8);background:none;border:0;padding:0;font-size:12px;cursor:pointer" onclick="__v33.editFromStats()">回首页看逐科差距</button>';
 }
 

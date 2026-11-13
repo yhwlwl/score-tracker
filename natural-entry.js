@@ -1200,7 +1200,7 @@
       var classificationOptions = grade
         ? Array.prototype.map.call(grade.options || [], function (option) { return option.textContent.trim(); }).filter(Boolean)
         : [];
-      return { classificationOptions: classificationOptions, subjectNames: unique(modalSubjectNames(modal).concat(modalModuleNames(modal).map(function (module) { return module.name; }), ['语数外', '语数外物', '语数外史'])) };
+      return { classificationOptions: classificationOptions, subjectNames: modalSubjectNames(modal), combinations: modalModuleNames(modal).filter(function (module) { return module.subjects && module.subjects.length >= 2; }).map(function (module) { return { name: module.name, subjects: module.subjects }; }) };
     }
     async function callVision(prepared, onResponse, connectivityTest) {
       var token = localStorage.getItem('st_token') || '';
@@ -1310,7 +1310,7 @@
           finalScore = subject.ambiguousScore;
         }
         lines.push(
-          displayValue(subject.name) + '：目标：' + displayValue(subject.target) +
+          displayValue(Array.isArray(subject.components) && subject.components.length >= 2 ? subject.components.join('、') : subject.name) + '：目标：' + displayValue(subject.target) +
           '，原始分：' + displayPair(subject.rawScore, subject.rawMax) +
           '，最终分（赋分后）：' + displayPair(finalScore, subject.finalMax) +
           '，年排：' + displayPair(subject.yearRank, subject.yearParticipants) +
