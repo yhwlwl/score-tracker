@@ -160,6 +160,7 @@ function buildJsonV30(exams,scopeLabel){
   try{account=(state.user&&state.user.username)||'';original=state.originalUsernameV19||account;}catch(e){}
   var payload={
     app:'score-tracker',
+    backupVersion:2,
     version:appVersionV30(),
     exportedAt:new Date().toISOString(),
     account:account,
@@ -169,6 +170,8 @@ function buildJsonV30(exams,scopeLabel){
     subjectConfigs:(typeof state!=='undefined'&&state.subjectConfigs)||[],
     category:(function(){try{return {label:categoryLabelV14(),options:categoryOptionsV14()};}catch(e){return null;}})(),
     modules:modulesV30(),
+    goal:(function(){try{return window.__v33&&window.__v33.state().data||null;}catch(e){return null;}})(),
+    participantDefaults:(function(){try{return window.ScoreParticipantDefaults&&window.ScoreParticipantDefaults.snapshot()||{};}catch(e){return {};}})(),
     exams:exams
   };
   return JSON.stringify(payload,null,2);
@@ -530,7 +533,7 @@ var FORMATS_V30=[
   {id:'pdf', icon:'🖨️', name:'打印报告 PDF', sub:'A4 排版报告，浏览器打印对话框里存 PDF', who:'推荐 · 正式材料', ext:'pdf', mime:'', rec:true},
   {id:'csv', icon:'📄', name:'Excel 可开的表格', sub:'CSV 成绩宽表，双击即开不乱码', who:'表格', ext:'csv', mime:'text/csv;charset=utf-8'},
   {id:'txt', icon:'📃', name:'纯文本成绩单', sub:'逐考试分块，能直接粘贴进微信', who:'万能打开', ext:'txt', mime:'text/plain;charset=utf-8'},
-  {id:'json',icon:'💾', name:'完整备份', sub:'全量保真，换机/存档，将来可导入恢复', who:'技术', ext:'json', mime:'application/json;charset=utf-8'}
+  {id:'json',icon:'💾', name:'完整备份', sub:'保留成绩、组合和目标，可导入恢复', who:'备份恢复', ext:'json', mime:'application/json;charset=utf-8'}
 ];
 var sheetStateV30={scope:'__all__',format:'pdf',el:null};
 
@@ -631,7 +634,7 @@ function injectDataCardV30(){
   card.innerHTML='<h3 class="card-title">数据</h3><p class="card-sub">选择要保存的成绩、图表和分析。</p>'
     +'<div class="data-actions-v30">'
     +'<button type="button" class="secondary" id="exportDataV30">⬇︎ 导出数据</button>'
-    +'<button type="button" class="secondary" id="importDataV30" disabled title="即将支持">⬆︎ 导入恢复<span class="soon-v30">即将支持</span></button>'
+    +'<button type="button" class="secondary" id="importDataV30">⬆︎ 导入恢复</button>'
     +'</div>';
   grid.appendChild(card);
   card.addEventListener('click',function(e){

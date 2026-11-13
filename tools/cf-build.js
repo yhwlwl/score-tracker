@@ -51,6 +51,7 @@ for (const f of FILES) fs.copyFileSync(path.join(ROOT, f), path.join(OUT, f));
 if (fs.existsSync(path.join(ROOT, 'assets'))) fs.cpSync(path.join(ROOT, 'assets'), path.join(OUT, 'assets'), { recursive: true });
 if (fs.existsSync(path.join(ROOT, 'appearance-qa'))) fs.cpSync(path.join(ROOT, 'appearance-qa'), path.join(OUT, 'appearance-qa'), { recursive: true });
 fs.cpSync(path.join(ROOT, 'design/community-invite-qa'), path.join(OUT, 'design/community-invite-qa'), { recursive: true });
+if(fs.existsSync(path.join(ROOT,'design/backup-import-qa'))) fs.cpSync(path.join(ROOT,'design/backup-import-qa'),path.join(OUT,'design/backup-import-qa'),{recursive:true});
 for (const f of ['notice-media.js', 'release-notices.js', 'community.js']) fs.copyFileSync(path.join(ROOT, f), path.join(OUT, f));
 fs.copyFileSync(path.join(ROOT, "functions/mg.js"), path.join(OUT, "functions/mg.js"));
 fs.copyFileSync(path.join(ROOT, "api/mg.js"), path.join(OUT, "api/mg.js"));

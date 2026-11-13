@@ -6,6 +6,7 @@ export const API_ENDPOINTS = Object.freeze([
   'score-tracker-username-api',
   'score-tracker-notices',
   'score-tracker-recovery',
+  'score-tracker-import',
   'score-tracker-trajectories',
   'score-tracker-setup',
   'score-tracker-vision-preview',
@@ -78,7 +79,7 @@ export async function proxyApi(request, options = {}) {
   const abort = () => controller.abort();
   if (request.signal.aborted) abort();
   else request.signal.addEventListener('abort', abort, { once: true });
-  const timeoutMs = options.timeoutMs ?? (endpoint === 'score-tracker-vision-preview' ? 115000 : 25000);
+  const timeoutMs = options.timeoutMs ?? (endpoint === 'score-tracker-vision-preview' ? 115000 : endpoint === 'score-tracker-import' ? 55000 : 25000);
   let timedOut = false;
   const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
   const upstreamHeaders = new Headers({
