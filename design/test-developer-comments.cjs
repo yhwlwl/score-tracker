@@ -25,7 +25,7 @@ async function until(fn){for(let i=0;i<150;i++){if(fn())return;await pause(20)}t
 
   // PostgREST-shaped adapter executes every mutation and visibility filter against PostgreSQL.
   const ident=x=>{assert(/^[a-z_]+$/.test(x));return '"'+x+'"'};
-  const db={from(table){let fields='*',kind='select',patch={},filters=[],orders=[],values=[],max=null;const param=v=>{values.push(v);return '$'+values.length};
+  const db={from(table){let fields='*',kind='select',patch={},filters=[],orders=[],values=[],max=null;const param=v=>{values.push(v&&typeof v==='object'?JSON.stringify(v):v);return '$'+values.length};
    const q={select(s){fields=s;return q},insert(v){kind='insert';patch=v;return q},update(v){kind='update';patch=v;return q},delete(){kind='delete';return q},
     eq(k,v){filters.push(ident(k)+'='+param(v));return q},lt(k,v){filters.push(ident(k)+'<'+param(v));return q},is(k,v){assert.equal(v,null);filters.push(ident(k)+' is null');return q},not(k,op,v){assert.equal(op,'is');assert.equal(v,null);filters.push(ident(k)+' is not null');return q},
     or(s){filters.push('('+s.split(',').map(part=>{const [k,op,v]=part.split('.');assert.equal(op,'eq');return ident(k)+'='+param(v==='true'?true:v)}).join(' or ')+')');return q},order(k,o){orders.push(ident(k)+(o.ascending===false?' desc':' asc'));return q},limit(n){max=n;return q},
@@ -89,5 +89,44 @@ async function until(fn){for(let i=0;i<150;i++){if(fn())return;await pause(20)}t
   const pin=w.document.querySelector('.rn-pinned-list .rn-comment');assert(pin);assert.equal(pin.querySelector('b').textContent,'开发者');assert.equal(pin.querySelector('.rn-comment-pin').textContent,'置顶');assert(pin.textContent.includes('重要补充'));assert(w.document.querySelector('.rn-comment-form').hidden);assert(!w.document.body.textContent.includes('用户乙的私密评论'));assert(!w.document.querySelector('.rn-comment img'));
   if(process.env.DEVELOPER_QA_DIR){fs.mkdirSync(process.env.DEVELOPER_QA_DIR,{recursive:true});let publicHTML=publicDOM.serialize().replace(/<script[\s\S]*?<\/script>/g,'');publicHTML=publicHTML.replace('</head>','<style>'+read('styles.css')+'</style></head>');fs.writeFileSync(path.join(process.env.DEVELOPER_QA_DIR,'user.html'),publicHTML);fs.writeFileSync(path.join(process.env.DEVELOPER_QA_DIR,'admin.html'),adminDOM.serialize().replace(/<script[\s\S]*?<\/script>/g,''));}
   assert.deepEqual(errors,[]);console.log('PASS: actual user HTML shows developer identity and pins even with comments closed, while preserving privacy');
+
+  // Current announcements retain their legacy content hash once identity becomes persistent.
+  await pg.exec(`alter table score_tracker_notification_config
+    add column version text default 'v9.0',add column enabled boolean default true,add column title text default '更新',add column content text default '更新内容',
+    add column tip_enabled boolean default false,add column tip_content text default '',add column announcement_comments_public boolean default true,
+    add column revision integer default 1,add column updated_at timestamptz default now(),add column updated_by uuid,add column release_history jsonb default '[]',add column announcement_history jsonb default '[]';
+    alter table score_tracker_users add column session_token_hash text,add column session_expires_at timestamptz;
+    create table score_tracker_visit_logs(session_id uuid,visitor_id uuid,user_id uuid,app_version text,pathname text,app_page text,user_agent text,account_mode text,event_type text,metadata jsonb);
+    create table score_tracker_notification_receipts(user_id uuid,kind text,notice_id text);`);
+  const legacyTitle='需要编辑的原公告',legacyContent='最初发布的内容',legacy=crypto.createHash('sha256').update(legacyTitle+'\n'+legacyContent).digest('hex').slice(0,24);
+  await pg.query('insert into score_tracker_notification_config(id,announcement_enabled,announcement_title,announcement_content,announcement_comments_enabled) values(1,true,$1,$2,true)',[legacyTitle,legacyContent]);
+  await pg.query('insert into score_tracker_announcement_comments(notice_id,user_id,content,is_developer,pinned_at) values($1,$2,$3,true,now())',[legacy,admin.id,'原公告的置顶说明']);
+  await pg.query('insert into score_tracker_notification_receipts values($1,$2,$3)',[user.id,'announcement',legacy]);
+  const stableMigration=fs.readdirSync(path.join(root,'supabase/migrations')).find(x=>x.endsWith('_stable_announcement_identity.sql'));
+  await pg.exec(read('supabase/migrations/'+stableMigration));
+  assert.equal((await pg.query('select announcement_id from score_tracker_notification_config')).rows[0].announcement_id,legacy);
+  for(const [account,token] of [[admin,'fixture-admin'],[user,'fixture-user']])await pg.query('update score_tracker_users set session_token_hash=$1,session_expires_at=now()+interval \'1 hour\' where id=$2',[crypto.createHash('sha256').update(token).digest('hex'),account.id]);
+  let handler;Object.assign(ctx,{createClient:()=>db,Deno:{env:{get:()=>''},serve:fn=>handler=fn},Response,URL,TextEncoder,crypto:crypto.webcrypto,console});
+  vm.runInContext(read('supabase/functions/score-tracker-notices/index.ts').replace(/^import .*;\n/gm,''),ctx);
+  async function request(body){const response=await handler(new Request('https://fixture.test',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}));return {status:response.status,...await response.json()}}
+  let current=(await request({action:'notice_public'})).config;
+  const save=changes=>request({...current,...changes,action:'notification_config_save',token:'fixture-admin'});
+  let saved=await save({announcement_title:'修正后的标题',announcement_content:'二次编辑内容'});assert.equal(saved.status,200);current=saved.config;
+  assert.equal(current.announcement_id,legacy);assert.equal((await pg.query('select count(*) n from score_tracker_announcement_comments where notice_id=$1 and pinned_at is not null',[legacy])).rows[0].n,1);
+  assert.equal((await pg.query('select count(*) n from score_tracker_notification_receipts where notice_id=$1',[legacy])).rows[0].n,1);
+  await pg.query("update score_tracker_announcement_comments set created_at=now()-interval '1 minute' where user_id=$1",[user.id]);
+  await pg.query('select score_tracker_add_announcement_comment($1,$2,$3)',[user.id,legacy,'编辑后仍能发表评论']);
+  let historyResult=await request({action:'notice_history'});assert.equal(historyResult.announcements.length,1);assert.equal(historyResult.announcements[0].content,'二次编辑内容');
+  saved=await save({announcement_new:true,announcement_title:'另发一条新公告',announcement_content:'全新内容'});assert.equal(saved.status,200);current=saved.config;assert.notEqual(current.announcement_id,legacy);const publishedId=current.announcement_id;
+  historyResult=await request({action:'notice_history'});assert.equal(historyResult.announcements.length,2);assert.equal(historyResult.announcements.find(x=>x.id===legacy).content,'二次编辑内容');
+  assert.equal((await save({revision:1,announcement_new:true})).status,409);assert.equal((await save({announcement_new:'true'})).status,400);
+  saved=await save({announcement_content:'编辑新公告，但不再创建新的一条'});assert.equal(saved.status,200);assert.equal(saved.config.announcement_id,publishedId);
+  console.log('PASS: stable migration preserves legacy identity, pinned comments and receipts; real handler distinguishes edits/new publication, archives correctly and retains RPC/CAS protection');
+
+  const noticeSaves=[],oldFetch=adminDOM.window.fetch;
+  adminDOM.window.fetch=async(url,options={})=>{if(new URL(url,adminDOM.window.location.href).searchParams.get('action')==='notification_config_save'){const body=JSON.parse(options.body);noticeSaves.push(body);Object.assign(config,body,{announcement_id:body.announcement_new?crypto.randomUUID().replace(/-/g,'').slice(0,24):config.announcement_id,revision:config.revision+1});return {ok:true,json:async()=>({config})}}return oldFetch(url,options)};
+  d.querySelector('#notice_announcement_content').value='后台编辑原公告';d.querySelector('#noticeSave').click();await until(()=>noticeSaves.length===1&&d.querySelector('#noticeSave')?.isConnected);assert.equal(noticeSaves[0].announcement_new,false);
+  await until(()=>d.querySelector('#noticePublishNew')&&!d.querySelector('#noticeSave').disabled);d.querySelector('#noticePublishNew').click();await until(()=>noticeSaves.length===2);assert.equal(noticeSaves[1].announcement_new,true);assert.equal(noticeSaves[1].announcement_enabled,true);await until(()=>d.querySelector('#noticePublishNew')&&!d.querySelector('#noticePublishNew').disabled);
+  assert.deepEqual(errors,[]);console.log('PASS: real admin Save changes / Publish new announcement controls send distinct server intents');
  }finally{adminDOM?.window.close();publicDOM?.window.close();await pg.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});

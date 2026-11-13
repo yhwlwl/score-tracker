@@ -14,7 +14,7 @@ function normalizeVersion(v) {const p=String(v).trim().replace(/^v/i,'').split('
 function releaseTitle(c) {return /^v?\d+(\.\d+){0,2} 更新内容$/i.test(c.title)?normalizeVersion(c.version)+' 更新内容':c.title;}
 async function sha(v) { const bits=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v));return [...new Uint8Array(bits)].map(b=>b.toString(16).padStart(2,'0')).join(''); }
 async function auth(token) { if(!token)return null;const r=await db.from('score_tracker_users').select('id,username,is_admin,session_expires_at').eq('session_token_hash',await sha(token)).maybeSingle();if(r.error)throw r.error;return r.data?.session_expires_at&&new Date(r.data.session_expires_at).getTime()>Date.now()?r.data:null; }
-async function config(history=false) { const r=await db.from('score_tracker_notification_config').select('version,enabled,title,content,tip_enabled,tip_content,announcement_enabled,announcement_title,announcement_content,announcement_comments_enabled,announcement_comments_public,announcement_comment_title,revision,updated_at'+(history?',release_history,announcement_history':'')).eq('id',1).single();if(r.error)throw r.error;const c=r.data;c.title=releaseTitle(c);c.announcement_id=(await sha(c.announcement_title+'\n'+c.announcement_content)).slice(0,24);c.tip_id=(await sha(c.tip_content)).slice(0,24);return c; }
+async function config(history=false) { const r=await db.from('score_tracker_notification_config').select('version,enabled,title,content,tip_enabled,tip_content,announcement_enabled,announcement_title,announcement_content,announcement_comments_enabled,announcement_comments_public,announcement_comment_title,announcement_id,revision,updated_at'+(history?',release_history,announcement_history':'')).eq('id',1).single();if(r.error)throw r.error;const c=r.data;c.title=releaseTitle(c);c.announcement_id=c.announcement_id||(await sha(c.announcement_title+'\n'+c.announcement_content)).slice(0,24);c.tip_id=(await sha(c.tip_content)).slice(0,24);return c; }
 function releaseHistory(before,current) {
   const releases=new Map();
   for(const c of [...(Array.isArray(before.release_history)?before.release_history:[]),before,current]){
@@ -140,8 +140,11 @@ Deno.serve(async req => {
     if(action==='notification_config'&&req.method==='GET'){const c=await config();await audit('notification_admin_viewed',user,body,req,{revision:c.revision});return json({config:c});}
     if(action==='notification_config_save'&&req.method==='POST'){
       let c;try{c=validate(body);}catch(e){await audit('notification_config_save_failed',user,body,req,{reason:e.message});return json({error:e.message},400);}
+      if(body.announcement_new!==undefined&&typeof body.announcement_new!=='boolean')return json({error:'请选择编辑原公告或发布新公告'},400);
       const before=await config(true),changed=Object.keys(c).filter(k=>c[k]!==before[k]);
-      const saved=await db.from('score_tracker_notification_config').update({...c,release_history:releaseHistory(before,c),announcement_history:announcementHistory(before),revision:body.revision+1,updated_at:new Date().toISOString(),updated_by:user.id}).eq('id',1).eq('revision',body.revision).select('revision').maybeSingle();
+      const announcementId=body.announcement_new?crypto.randomUUID().replace(/-/g,'').slice(0,24):before.announcement_id;
+      if(body.announcement_new)changed.push('announcement_id');
+      const saved=await db.from('score_tracker_notification_config').update({...c,announcement_id:announcementId,release_history:releaseHistory(before,c),announcement_history:announcementHistory(before),revision:body.revision+1,updated_at:new Date().toISOString(),updated_by:user.id}).eq('id',1).eq('revision',body.revision).select('revision').maybeSingle();
       if(saved.error)throw saved.error;if(!saved.data){await audit('notification_config_save_failed',user,body,req,{reason:'revision_conflict'});return json({error:'内容刚刚有变化，请刷新后再保存'},409);}
       await audit('notification_config_saved',user,body,req,{version:c.version,revision:saved.data.revision,changed_fields:changed});return json({ok:true,config:await config()});
     }
