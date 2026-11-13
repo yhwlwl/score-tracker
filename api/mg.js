@@ -120,7 +120,7 @@ export default async function handler(req, res) {
       return res.send(JSON.stringify(upstream.ok ? overviewFromMetrics(data) : data));
     }
 
-    const target = action === 'notice_upload' ? NOTICE_UPLOAD_UPSTREAM : action.startsWith('recovery_admin_') ? RECOVERY_UPSTREAM + query : ['notification_config','notification_config_save','notification_event','notification_announcement_activity','notification_comment_reply','notification_support_config','notification_support_save','notification_community_config','notification_community_save','feature_option_complete','feature_option_active','feature_completion_admin'].includes(action) ? NOTICES_UPSTREAM + query : action === 'feedback_reply' && req.method === 'POST' ? REPLY_UPSTREAM : ADMIN_UPSTREAM + query;
+    const target = action === 'notice_upload' ? NOTICE_UPLOAD_UPSTREAM : action.startsWith('recovery_admin_') ? RECOVERY_UPSTREAM + query : ['notification_config','notification_config_save','notification_event','notification_announcement_activity','notification_comment_reply','notification_developer_comment_create','notification_developer_comment_update','notification_developer_comment_delete','notification_support_config','notification_support_save','notification_community_config','notification_community_save','feature_option_complete','feature_option_active','feature_completion_admin'].includes(action) ? NOTICES_UPSTREAM + query : action === 'feedback_reply' && req.method === 'POST' ? REPLY_UPSTREAM : ADMIN_UPSTREAM + query;
     const upstream = await fetch(target, {
       method: req.method,
       headers,
