@@ -15907,6 +15907,9 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   'use strict';
   var esc = function (s) { return escapeHtml(String(s == null ? '' : s)); };
   var roles = { paper: '原题', work: '作答', reference: '参考答案' };
+  function validRegion(r,pages){return r&&roles[r.kind]&&pages.some(function(p){return p.page===r.page;})&&Array.isArray(r.box)&&r.box.length===4&&r.box.every(function(n){return typeof n==='number'&&Number.isFinite(n)&&n>=0&&n<=1;})&&r.box[2]>.01&&r.box[3]>.01&&r.box[0]+r.box[2]<=1.001&&r.box[1]+r.box[3]<=1.001;}
+  function layoutCrop(img,box){function layout(){if(!img.naturalWidth||!img.naturalHeight)return;img.parentElement.style.aspectRatio=(box[2]*img.naturalWidth)/(box[3]*img.naturalHeight);img.style.cssText='width:'+(100/box[2])+'%;max-width:none;left:'+(-box[0]/box[2]*100)+'%;top:'+(-box[1]/box[3]*100)+'%';}img.onload=layout;if(img.complete)layout();}
+  function enlarge(region,page,opener){var modal=document.createElement('dialog');modal.className='ps-enlarge';modal.innerHTML='<header><strong>'+roles[region.kind]+'截图 · 第 '+region.page+' 页</strong><button type="button" class="pr-button" data-close-crop>关闭</button></header><div class="ps-crop"><img alt="'+roles[region.kind]+'截图放大"></div><p class="pr-muted">显示的是已保存扫描件的对应区域，未调用 AI。</p>';document.body.appendChild(modal);var image=modal.querySelector('img');image.src=page.url;layoutCrop(image,region.box);modal.querySelector('[data-close-crop]').onclick=function(){modal.close();};modal.onclick=function(e){if(e.target===modal)modal.close();};modal.onclose=function(){modal.remove();if(opener&&opener.isConnected)opener.focus();};modal.showModal();}
   function btn(s, action) { return '<button type="button" class="pr-button" data-scan="' + action + '">' + s + '</button>'; }
   function cropEditor(parent, pages, current, save) {
     var editor = document.createElement('section'); editor.className = 'ps-editor';
@@ -15925,12 +15928,12 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     editor.onclick = async function (e) { var b = e.target.closest('[data-scan]'); if (!b) return; e.stopPropagation();
       if (b.dataset.scan === 'cancel') editor.remove();
       if (b.dataset.scan === 'full') { box = [0,0,1,1]; paint(); }
-      if (b.dataset.scan === 'save') { b.disabled = true; try { if (box[2] <= .01 || box[3] <= .01) throw new Error('请框选更完整的区域'); await save({ page: page.page, kind: kind, box: box }); editor.remove(); } catch (err) { editor.querySelector('.ps-error').textContent = err.message; } finally { b.disabled = false; } }
+      if (b.dataset.scan === 'save') { b.disabled = true; try { box=Array.from(editor.querySelectorAll('[data-coordinate]')).map(function(el){return Number(el.value)/100;});if(box.some(function(n){return !Number.isFinite(n)||n<0||n>1;})||box[0]+box[2]>1.001||box[1]+box[3]>1.001)throw new Error('请在图片范围内框选');if (box[2] <= .01 || box[3] <= .01) throw new Error('请框选更完整的区域'); await save({ page: page.page, kind: kind, box: box.slice() }); editor.remove(); } catch (err) { editor.querySelector('.ps-error').textContent = err.message; } finally { b.disabled = false; } }
     };
     editor.scrollIntoView && editor.scrollIntoView({ block: 'nearest' });
   }
   function regionCard(region, page, index) {
-    return '<figure class="ps-region" data-index="' + index + '"><figcaption>' + roles[region.kind] + ' · 第 ' + region.page + ' 页</figcaption><div class="ps-crop"><img loading="lazy" src="' + esc(page.url) + '" alt="' + roles[region.kind] + '扫描区域"></div><div>' + btn('调整','edit:' + index) + btn('移除区域','remove:' + index) + '</div></figure>';
+    return '<figure class="ps-region" data-index="' + index + '" data-region-kind="'+region.kind+'"><figcaption>' + (region.kind==='paper'?'原题截图':region.kind==='work'?'答题卡 / 作答截图':'参考答案截图') + ' · 第 ' + region.page + ' 页</figcaption><button type="button" class="ps-preview" data-scan="zoom:'+index+'" aria-label="放大'+roles[region.kind]+'截图"><div class="ps-crop"><img loading="lazy" src="' + esc(page.url) + '" alt="' + roles[region.kind] + '扫描区域"></div></button><div>' + btn('放大','zoom:' + index) + btn('调整','edit:' + index) + btn('移除区域','remove:' + index) + '</div></figure>';
   }
   async function decorate(main, r, ctx, hooks) {
     var generation = String(Number(main.dataset.scanGeneration || 0) + 1); main.dataset.scanGeneration = generation;
@@ -15975,26 +15978,29 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       if (!target) return;
       var zone = document.createElement('section'); zone.className = 'ps-question'; target.prepend(zone);
       var current = Object.prototype.hasOwnProperty.call(regions,q.label) ? regions[q.label] : q.source_regions || [];
-      current = current.filter(function (r) { return pages.some(function (p) { return p.page === r.page; }); });
+      current = current.filter(function (r) { return validRegion(r,pages); });
       function render() {
-        zone.innerHTML = '<h4>原题与作答扫描</h4>' + (pages.length ? '<div class="ps-regions">' + current.map(function (r, j) { return regionCard(r,pages.find(function (p) { return p.page === r.page; }),j); }).join('') + '</div>' + btn('＋ 框选扫描区域','add') + (!current.length ? '<p class="pr-muted">从已保存图片中框选本题；可分别添加原题与作答。</p>' : '') : '<p class="pr-muted">在上方“扫描件”中补充图片后，可为本题框选原题和作答。</p>');
-        zone.querySelectorAll('.ps-crop img').forEach(function (img, j) { var b = current[j].box; function layout() { img.parentElement.style.aspectRatio = (b[2]*img.naturalWidth)/(b[3]*img.naturalHeight); img.style.cssText = 'width:' + (100/b[2]) + '%;max-width:none;left:' + (-b[0]/b[2]*100) + '%;top:' + (-b[1]/b[3]*100) + '%'; } img.onload = layout; if (img.complete && img.naturalWidth) layout(); });
+        var kinds=['paper','work','reference'],cards=kinds.map(function(kind){var found=current.map(function(region,index){return {region:region,index:index};}).filter(function(item){return item.region.kind===kind;});if(found.length)return found.map(function(item){return regionCard(item.region,pages.find(function(p){return p.page===item.region.page;}),item.index);}).join('');var ids=kind==='paper'?q.pages||[]:kind==='work'?q.work_pages||[]:q.reference_pages||[],known=pages.filter(function(p){return ids.includes(p.page);});return known.length?'<div class="ps-unlocated"><b>'+roles[kind]+'截图尚未定位</b><p>未猜测截图范围，可打开来源页核对或手动框选。</p>'+known.map(function(p){return '<a href="'+esc(p.url)+'" target="_blank" rel="noopener">查看第 '+p.page+' 页</a>';}).join(' · ')+'</div>':'';}).join('');
+        zone.innerHTML = '<h4>原题与作答截图</h4>' + (pages.length ? '<div class="ps-regions">' + cards + '</div>' + (!source.readonly?btn('＋ 框选扫描区域','add'):'') + (!current.length ? '<p class="pr-muted">没有可靠定位时保留原页；可分别框选原题与作答，也支持跨页。</p>' : '') : '<p class="pr-muted">本题暂无可用扫描件，可在资料区补充原卷或答题卡。</p>');
+        zone.querySelectorAll('.ps-region').forEach(function(card){var region=current[Number(card.dataset.index)];layoutCrop(card.querySelector('.ps-crop img'),region.box);});
+        if(source.readonly)zone.querySelectorAll('[data-scan^="edit:"],[data-scan^="remove:"]').forEach(function(b){b.remove();});
       }
-      async function persist(next) { await api('save_regions', { label: q.label, regions: next }); current = next; render(); }
+      async function persist(next) { await api('save_regions', { label: q.label, regions: next }); current = next;regions[q.label]=next;render();var item=Array.from(main.querySelectorAll('[data-question]')).find(function(n){return n.dataset.question===String(q.id);}),check=item&&item.querySelector('[data-field=verified]');if(check&&check.checked){check.checked=false;check.dispatchEvent(new Event('input',{bubbles:true}));}hooks.note('截图区域已保存，请确认本题对应位置。'); }
       zone.onclick = async function (e) { var b = e.target.closest('[data-scan]'); if (!b || b.closest('.ps-editor')) return; e.preventDefault(); e.stopPropagation();
         var a = b.dataset.scan, index = Number(a.split(':')[1]);
-        try { if (a === 'add' || a.startsWith('edit:')) { var old = zone.querySelector('.ps-editor'); if (old) old.remove(); cropEditor(zone,pages,a === 'add' ? null : current[index],async function (r) { var next = current.slice(); if (a === 'add') next.push(r); else next[index] = r; await persist(next); }); }
-          else if (a.startsWith('remove:')) await persist(current.filter(function (_, j) { return j !== index; }));
+        try { if(a.startsWith('zoom:')){var region=current[index];if(region)enlarge(region,pages.find(function(p){return p.page===region.page;}),b);}
+          else if(!source.readonly&&(a === 'add' || a.startsWith('edit:'))) { var old = zone.querySelector('.ps-editor'); if (old) old.remove(); cropEditor(zone,pages,a === 'add' ? null : current[index],async function (r) { var next = current.slice(); if (a === 'add') next.push(r); else next[index] = r; await persist(next); }); }
+          else if (!source.readonly&&a.startsWith('remove:')) await persist(current.filter(function (_, j) { return j !== index; }));
         } catch (err) { hooks.note(err.message,true); }
       };
       render();
-      if(source.readonly){zone.querySelectorAll('[data-scan]').forEach(function(b){b.remove();});zone.onclick=null;}
     });
   }
   window.ScorePaperScans = { decorate: decorate };
   var style = document.createElement('style'); style.textContent = `.ps-library{padding:16px;border:1px solid var(--line);border-radius:12px;margin-bottom:18px}.ps-library summary{font-weight:700;cursor:pointer}.ps-pages{display:flex;gap:12px;overflow:auto;padding:15px 0}.ps-pages a{flex:none;width:90px;font-size:11px;color:var(--text);text-decoration:none}.ps-pages img{width:90px;height:110px;object-fit:contain;border:1px solid var(--line);border-radius:8px;display:block}.ps-library>label{display:block;margin:12px 0}.ps-library .pr-check{display:flex}.ps-library .pr-file-label{display:inline-block}.ps-library select{display:block}.ps-question{padding:12px 0;border-bottom:1px solid var(--line);margin-bottom:15px}.ps-regions{display:grid;grid-template-columns:1fr 1fr;gap:12px}.ps-region{margin:8px 0;border:1px solid var(--line);border-radius:10px;padding:10px;min-width:0}.ps-region figcaption{font-size:12px;color:var(--muted);margin-bottom:8px}.ps-crop{position:relative;overflow:hidden;background:#fff;aspect-ratio:1;max-height:600px}.ps-crop img{position:absolute;height:auto;display:block}.ps-region .pr-button{font-size:11px;padding:5px 8px;margin:10px 4px 0 0}.ps-editor{margin:15px 0;padding:12px;border:1px solid var(--accent);border-radius:12px}.ps-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ps-controls select{width:100%;padding:8px}.ps-stage{position:relative;touch-action:none;user-select:none;margin:12px auto;max-width:600px;line-height:0}.ps-stage>img{width:100%;height:auto;display:block}.ps-selection{position:absolute;box-sizing:border-box;border:2px solid #5264e8;background:#5264e820;pointer-events:none}.ps-coordinates{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.ps-coordinates input{width:100%}.ps-actions{display:flex;gap:8px;margin-top:12px}.ps-error{color:var(--danger)}.ps-verify{margin-top:20px}.ps-upload-note{font-size:12px;color:var(--muted)}@media(max-width:520px){.ps-regions{grid-template-columns:1fr}.ps-coordinates{grid-template-columns:1fr 1fr}}`;
   style.textContent += '.ps-scope{border:1px solid var(--line);border-radius:12px;padding:16px;margin:24px 0}.ps-scope legend{font-size:16px;font-weight:600}.ps-scope select{display:block;padding:10px;width:100%;margin:8px 0;background:var(--panel-solid);color:var(--text);border:1px solid var(--line);border-radius:8px}.ps-question-picks{display:flex;flex-wrap:wrap;gap:8px 20px}.ps-question-picks[hidden]{display:none}.ps-verify>h3{font-size:22px}';
   document.head.appendChild(style);
+  var cropStyle=document.createElement('style');cropStyle.textContent='.ps-region{margin:0}.ps-preview{display:block;width:100%;padding:0;border:0;background:white;cursor:zoom-in;text-align:left;border-radius:6px;overflow:hidden}.ps-crop{max-height:none}.ps-region figcaption{font-weight:600}.ps-unlocated{padding:14px;border:1px dashed var(--line);border-radius:10px;font-size:12px;color:var(--muted)}.ps-unlocated a{color:var(--accent)}.ps-unlocated p{line-height:1.7}.ps-enlarge{box-sizing:border-box;width:min(960px,94vw);max-height:90vh;overflow:auto;padding:18px;border:1px solid var(--line);border-radius:14px;background:var(--panel-solid,#fff);color:var(--text)}.ps-enlarge::backdrop{background:#17203399}.ps-enlarge header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;position:sticky;top:-18px;padding:10px 0;background:var(--panel-solid,#fff);z-index:1}.ps-enlarge .ps-crop{max-height:none}.ps-enlarge .pr-button{flex:none}@media(max-width:520px){.ps-region{padding:9px}.ps-enlarge{padding:12px}.ps-enlarge header{top:-12px}}';document.head.appendChild(cropStyle);
 })();
 
 /* ===== paper-review-hub.js ===== */
@@ -16208,9 +16214,14 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     if (valueOf(c,q,'teacher_score') == null) reasons.push('缺少得分');
     if (valueOf(c,q,'max_score') == null) reasons.push('缺少满分');
     if (!(valueOf(c,q,'question_type') || '').trim()) reasons.push('未填题型');
+    var score=valueOf(c,q,'teacher_score'),max=valueOf(c,q,'max_score');
+    if(score!=null&&(!Number.isFinite(score)||score<0)||max!=null&&(!Number.isFinite(max)||max<=0)||score!=null&&max!=null&&score>max)reasons.push('分值需检查');
     if (!c.verified && (q.score_verification === 'conflict' || q.review_status === 'teacher_conflict')) reasons.push('批改分有冲突');
     if (!c.verified && q.answer_verification === 'conflict') reasons.push('作答存在歧义');
-    if (!c.verified && (q.confidence === 'low' || q.analysis_mode === 'needs_confirmation')) reasons.push('识别内容待确认');
+    if (!c.verified && (['low','medium'].includes(q.confidence) || q.analysis_mode === 'needs_confirmation' || q.status === 'unclear')) reasons.push('识别内容待确认');
+    if (!c.verified && ['single_read','conflict'].includes(q.max_verification)) reasons.push('满分待复核');
+    if (!c.verified && q.score_verification === 'single_read') reasons.push('批改分待复核');
+    if (!c.verified && (q.uncertainties||[]).some(function(s){return String(s||'').trim();})) reasons.push('有待核对备注');
     return { reasons:reasons, verified:!!c.verified };
   }
   function live(main, row) {
@@ -16241,6 +16252,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       '<div class="pr-footer">'+(linked?'<button type="button" class="pr-button pr-primary" data-sync-types>保存并更新题型得分</button>':'')+'<button type="button" class="pr-button" data-pr="save">只保存试题</button></div><p role="status" data-sync-note></p>';
   }
   function decorate(main,row,ctx,api,note,hooks) {
+    var lastBatch=[];
     var overview=document.createElement('section');overview.className='pr-record-overview';overview.setAttribute('aria-label','核对概览');
     main.querySelector('.pr-result-top').after(overview);
     var panel=document.createElement('section');panel.className='pr-type-sync pr-insight';
@@ -16249,6 +16261,19 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       var items=live(main,row),pending=items.filter(function(i){return questionState(i.q,i.c).reasons.length;}),verified=items.filter(function(i){return i.c.verified;}).length;
       var total=row.result.total||{};
       overview.innerHTML='<div class="pr-check-metrics"><div><b>'+items.length+'</b><span>已识别题目</span></div><div><b>'+pending.length+'</b><span>处需要核对</span></div><div><b>'+verified+' / '+items.length+'</b><span>已对照原卷</span></div>'+(total.score!=null?'<div><b>'+esc(total.score)+(total.max!=null?' / '+esc(total.max):'')+'</b><span>卷面批改总分</span></div>':'')+'</div><p>'+ (pending.length?'先检查下方标出的缺失或冲突，其余题目也可展开查看。':'未发现明显缺失或冲突；仍请对照原卷确认后更新题型得分。')+'</p>';
+      var eligible=items.filter(function(i){return !i.c.verified&&!questionState(i.q,i.c).reasons.length;});
+      overview.insertAdjacentHTML('beforeend','<div class="pr-bulk-actions"><button type="button" class="pr-button pr-primary" data-confirm-clean '+(!eligible.length?'disabled':'')+'>确认全部无异常题（'+eligible.length+'）</button>'+(pending.length?'<button type="button" class="pr-button" data-show-pending>查看需处理的 '+pending.length+' 题</button>':'')+(lastBatch.length?'<button type="button" class="pr-button" data-undo-batch>撤销本次批量确认</button>':'')+'</div><p class="pr-bulk-hint">快速浏览原题与作答截图后，可一次确认无缺失、冲突或识别疑点的题目。异常题仍需单独处理；确认后请保存。</p>');
+      overview.querySelector('[data-confirm-clean]').onclick=function(){
+        var chosen=live(main,row).filter(function(i){return !i.c.verified&&!questionState(i.q,i.c).reasons.length;}),first;
+        lastBatch=chosen.map(function(i){return String(i.q.id);});
+        main.querySelectorAll('[data-question]').forEach(function(n){if(lastBatch.includes(n.dataset.question)){var box=n.querySelector('[data-field=verified]');box.checked=true;first=first||box;}});
+        if(first)first.dispatchEvent(new Event('input',{bubbles:true}));
+        note('已批量确认 '+chosen.length+' 题；异常题保留待处理，确认结果尚未保存。');
+        var filter=main.querySelector('[data-pr="filter:confirm"]');if(pending.length&&filter)filter.click();
+        track('paper_confirm_clean',{count:chosen.length});
+      };
+      var undo=overview.querySelector('[data-undo-batch]');if(undo)undo.onclick=function(){var ids=lastBatch.slice(),first;lastBatch=[];main.querySelectorAll('[data-question]').forEach(function(n){if(ids.includes(n.dataset.question)){var box=n.querySelector('[data-field=verified]');box.checked=false;first=first||box;}});if(first)first.dispatchEvent(new Event('input',{bubbles:true}));note('已撤销本次批量确认，其他题目的核对状态不变。');};
+      var show=overview.querySelector('[data-show-pending]');if(show)show.onclick=function(){var filter=main.querySelector('[data-pr="filter:confirm"]');if(filter){filter.click();filter.scrollIntoView({block:'nearest'});}};
       items.forEach(function(item){var info=questionState(item.q,item.c),node=Array.from(main.querySelectorAll('[data-question]')).find(function(n){return n.dataset.question===String(item.q.id);});if(!node)return;
         node.dataset.needsConfirm=String(info.reasons.length>0);node.dataset.unverified=String(!info.verified);
         var brief=node.querySelector('.pr-record-brief');if(!brief){brief=document.createElement('small');brief.className='pr-record-brief';node.querySelector('summary>span').appendChild(brief);}
@@ -16318,6 +16343,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   var style=document.createElement('style');
   style.textContent='.ph-workspace>.ph-header[hidden]{display:none!important}.pr-record-view .pr-result-top{background:transparent;padding:0;margin:0 0 16px}.pr-record-view .pr-result-top h3{font-size:22px!important;margin:6px 0}.pr-record-view .pr-report-nav{display:none}.pr-record-view .pr-first-action{padding:0;background:none;margin:16px 0}.pr-record-view .pr-first-action p{margin:0}.pr-record-view .pr-reading-section{padding-top:20px!important;margin-top:20px!important}.pr-type-table{overflow-x:auto}.pr-type-table table{width:100%;border-collapse:collapse;font-size:14px}.pr-type-table th,.pr-type-table td{padding:12px 8px;border-bottom:1px solid var(--line);text-align:left}.pr-type-table td:first-child{overflow-wrap:anywhere}.pr-type-sync .pr-footer{flex-wrap:wrap}.pr-record-analysis>label{display:block;margin:18px 0}.pr-record-analysis fieldset{border:1px solid var(--line);border-radius:10px}.pr-record-overview{padding:18px;border:1px solid var(--line);border-radius:14px;margin:18px 0;background:var(--panel-solid)}.pr-check-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.pr-check-metrics>div{display:flex;flex-direction:column;gap:6px}.pr-check-metrics b{font-size:23px}.pr-check-metrics span,.pr-record-overview p,.pr-record-brief{font-size:13px;color:var(--muted);line-height:1.7}.pr-record-brief{display:block;margin-top:3px}.ph-paper-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px}.ph-paper-bar nav{display:flex;gap:8px}.ph-paper-bar [aria-pressed=true]{color:var(--accent);background:var(--accent-soft);border-color:var(--accent)}.ph-list-filters{margin:14px 0 20px}.pr-upload-extra>summary{padding:16px 0;cursor:pointer;font-size:15px;font-weight:600}.ph-list-filters summary{cursor:pointer;font-size:14px;color:var(--muted)}.ph-workspace .pr-inline .pr-head{display:none}.ph-report-list>p{line-height:1.7}.ph-report-list>.ph-list{margin-top:20px}.ph-report-list>.pr-button{margin:8px 0}.ph-tabs{flex-wrap:wrap}.ph-tabs button{white-space:nowrap}.pr-question[data-needs-confirm=true]>summary{border-left:3px solid #ba7c2d}.pr-type-sync .pr-check{margin:16px 0}.pr-record-overview p{margin-bottom:0}.ph-workspace .pr-record-analysis input[type=checkbox],.ph-workspace .pr-record-analysis input[type=radio]{width:16px;height:16px;flex:none}.pr-report-extra>summary{padding:16px;cursor:pointer;font-weight:600;color:var(--accent)}.pr-report-extra{margin:20px 0;border:1px solid var(--line);border-radius:12px}.pr-report-extra>.pr-reading-section{margin:0!important;padding:20px!important;border:0!important}@media(max-width:520px){.pr-check-metrics{grid-template-columns:1fr 1fr}.pr-type-sync .pr-button{width:100%}.ph-paper-bar nav{width:100%}.ph-paper-bar nav .pr-button{flex:1}.ph-tabs button{flex:1 1 auto;padding:9px 8px}}';
   document.head.appendChild(style);
+  var bulkStyle=document.createElement('style');bulkStyle.textContent='.pr-bulk-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.pr-bulk-hint{font-size:12px!important}.pr-bulk-actions .pr-button{white-space:normal}@media(max-width:520px){.pr-bulk-actions .pr-button{flex:1 1 100%}}';document.head.appendChild(bulkStyle);
 })();
 
 /* ===== exam-detail.js ===== */

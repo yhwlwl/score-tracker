@@ -1,7 +1,7 @@
 /* All /api requests stay in this browser. No model calls, tokens, or production writes. */
 (function(){
  'use strict';
- var f=window.__entryPreview,realFetch=window.fetch.bind(window),key='st_entry_public_demo_20261114_v1';
+ var f=window.__entryPreview,realFetch=window.fetch.bind(window),key='st_entry_public_demo_20261115_v2';
  var store={records:JSON.parse(JSON.stringify(f.records)),exams:JSON.parse(JSON.stringify(f.exams)),drafts:{}};
  try{var cached=JSON.parse(localStorage.getItem(key)||'null');if(cached&&cached.records&&cached.exams)store=cached;}catch(_){}
  try{localStorage.setItem('st_known_user','1');localStorage.setItem('st_token','entry-preview-local');localStorage.setItem('st_pwa_install_v1',JSON.stringify({never:true}));}catch(_){}
@@ -28,7 +28,12 @@
    else if(b.action==='get'){if(!r)return response({error:'记录已移除'},404);data={review:r};}
    else if(b.action==='quota')data={quota:{enabled:true,limit:10,remaining:10,global_available:true}};
    else if(b.action==='preferences')data={settings:{}};
-   else if(b.action==='sources')data={pages:[],regions:{},readonly:true};
+   else if(b.action==='sources')data={pages:r&&f.scans[r.subject]||[],regions:store.regions&&store.regions[b.request_id]||{},readonly:false};
+   else if(b.action==='save_regions'){
+    var pages=r&&f.scans[r.subject]||[];if(!r||!r.result.questions.some(function(q){return q.label===b.label;}))return response({error:'题号不存在'},400);
+    if(!Array.isArray(b.regions)||b.regions.some(function(v){return !v||!['paper','work','reference'].includes(v.kind)||!pages.some(function(p){return p.page===v.page;})||!Array.isArray(v.box)||v.box.length!==4||v.box.some(function(n){return typeof n!=='number'||!Number.isFinite(n)||n<0||n>1;})||v.box[2]<=.01||v.box[3]<=.01||v.box[0]+v.box[2]>1.001||v.box[1]+v.box[3]>1.001;}))return response({error:'请在图片范围内框选'},400);
+    store.regions=store.regions||{};store.regions[r.request_id]=store.regions[r.request_id]||{};store.regions[r.request_id][b.label]=b.regions;persist();data={ok:true};
+   }
    else if(b.action==='correct'){
     if(!r)return response({error:'记录不存在'},404);if(b.revision!==r.revision)return response({error:'记录已更新，请重新打开'},409);
     var bad=(b.corrections||[]).some(function(q){return q.teacher_score!=null&&q.max_score!=null&&q.teacher_score>q.max_score;});if(bad)return response({error:'得分不能高于满分'},400);
@@ -42,7 +47,7 @@
     exam.question_type_scores[r.subject]=g.rows;exam.updated_at=new Date().toISOString();persist();data={ok:true,exam_id:exam.id,subject:r.subject,question_type_scores:exam.question_type_scores};
    }
    else if(b.action==='save_materials'){store.drafts[b.request_id]=copy(b);persist();data={ok:true,request_id:b.request_id};}
-   else if(b.action==='upload_page'||b.action==='save_regions'||b.action==='save_score_details')data={ok:true};
+   else if(b.action==='upload_page'||b.action==='save_score_details')data={ok:true};
    else if(b.action==='start'){
     if(store.records.some(function(r){return r.request_id===b.request_id;}))return response({request_id:b.request_id},202);
     var draft=store.drafts[b.request_id]||b;if(!draft.options||draft.options.purpose!=='record')return response({error:'只允许试题录入'},403);

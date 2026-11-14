@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded',function(){
    var tools=document.createElement('div');tools.className='entry-sample-tools';tools.innerHTML='<p>此预览不识别新照片。选择示例样本，体验上传 → 核对 → 保存。</p><button type="button" class="pr-button" data-entry-sample="数学">载入数学示例样本</button><button type="button" class="pr-button" data-entry-sample="物理">载入物理示例样本</button>';intro.appendChild(tools);
    tools.querySelectorAll('[data-entry-sample]').forEach(function(b){b.onclick=function(){window.__entryReplay.fillSample(b.dataset.entrySample);};});
   }
-  document.querySelectorAll('.pr-record-view .pr-materials').forEach(function(el){if(!el.querySelector('.entry-source-note')){var p=document.createElement('p');p.className='pr-muted entry-source-note';p.textContent='此处是合成示例，不包含真实原图；仅用于体验核对、保存和题型统计。';el.prepend(p);}});
+  document.querySelectorAll('.pr-record-view .pr-materials').forEach(function(el){if(!el.querySelector('.entry-source-note')){var p=document.createElement('p');p.className='pr-muted entry-source-note';p.textContent='图片为合成模拟扫描，用于体验逐题关联与截图核对，不包含真实原卷。';el.prepend(p);}});
  }finally{busy=false;}}).observe(document.getElementById('app'),{childList:true,subtree:true});
  var record=new URL(location.href).searchParams.get('sample');if(record){var r=store.records.find(function(r){return record==='physics'?r.subject==='物理':r.subject==='数学';});if(r)requestAnimationFrame(function(){ScorePaperHub.open(r.request_id);});}
 });

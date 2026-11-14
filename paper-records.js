@@ -15,9 +15,14 @@
     if (valueOf(c,q,'teacher_score') == null) reasons.push('缺少得分');
     if (valueOf(c,q,'max_score') == null) reasons.push('缺少满分');
     if (!(valueOf(c,q,'question_type') || '').trim()) reasons.push('未填题型');
+    var score=valueOf(c,q,'teacher_score'),max=valueOf(c,q,'max_score');
+    if(score!=null&&(!Number.isFinite(score)||score<0)||max!=null&&(!Number.isFinite(max)||max<=0)||score!=null&&max!=null&&score>max)reasons.push('分值需检查');
     if (!c.verified && (q.score_verification === 'conflict' || q.review_status === 'teacher_conflict')) reasons.push('批改分有冲突');
     if (!c.verified && q.answer_verification === 'conflict') reasons.push('作答存在歧义');
-    if (!c.verified && (q.confidence === 'low' || q.analysis_mode === 'needs_confirmation')) reasons.push('识别内容待确认');
+    if (!c.verified && (['low','medium'].includes(q.confidence) || q.analysis_mode === 'needs_confirmation' || q.status === 'unclear')) reasons.push('识别内容待确认');
+    if (!c.verified && ['single_read','conflict'].includes(q.max_verification)) reasons.push('满分待复核');
+    if (!c.verified && q.score_verification === 'single_read') reasons.push('批改分待复核');
+    if (!c.verified && (q.uncertainties||[]).some(function(s){return String(s||'').trim();})) reasons.push('有待核对备注');
     return { reasons:reasons, verified:!!c.verified };
   }
   function live(main, row) {
@@ -48,6 +53,7 @@
       '<div class="pr-footer">'+(linked?'<button type="button" class="pr-button pr-primary" data-sync-types>保存并更新题型得分</button>':'')+'<button type="button" class="pr-button" data-pr="save">只保存试题</button></div><p role="status" data-sync-note></p>';
   }
   function decorate(main,row,ctx,api,note,hooks) {
+    var lastBatch=[];
     var overview=document.createElement('section');overview.className='pr-record-overview';overview.setAttribute('aria-label','核对概览');
     main.querySelector('.pr-result-top').after(overview);
     var panel=document.createElement('section');panel.className='pr-type-sync pr-insight';
@@ -56,6 +62,19 @@
       var items=live(main,row),pending=items.filter(function(i){return questionState(i.q,i.c).reasons.length;}),verified=items.filter(function(i){return i.c.verified;}).length;
       var total=row.result.total||{};
       overview.innerHTML='<div class="pr-check-metrics"><div><b>'+items.length+'</b><span>已识别题目</span></div><div><b>'+pending.length+'</b><span>处需要核对</span></div><div><b>'+verified+' / '+items.length+'</b><span>已对照原卷</span></div>'+(total.score!=null?'<div><b>'+esc(total.score)+(total.max!=null?' / '+esc(total.max):'')+'</b><span>卷面批改总分</span></div>':'')+'</div><p>'+ (pending.length?'先检查下方标出的缺失或冲突，其余题目也可展开查看。':'未发现明显缺失或冲突；仍请对照原卷确认后更新题型得分。')+'</p>';
+      var eligible=items.filter(function(i){return !i.c.verified&&!questionState(i.q,i.c).reasons.length;});
+      overview.insertAdjacentHTML('beforeend','<div class="pr-bulk-actions"><button type="button" class="pr-button pr-primary" data-confirm-clean '+(!eligible.length?'disabled':'')+'>确认全部无异常题（'+eligible.length+'）</button>'+(pending.length?'<button type="button" class="pr-button" data-show-pending>查看需处理的 '+pending.length+' 题</button>':'')+(lastBatch.length?'<button type="button" class="pr-button" data-undo-batch>撤销本次批量确认</button>':'')+'</div><p class="pr-bulk-hint">快速浏览原题与作答截图后，可一次确认无缺失、冲突或识别疑点的题目。异常题仍需单独处理；确认后请保存。</p>');
+      overview.querySelector('[data-confirm-clean]').onclick=function(){
+        var chosen=live(main,row).filter(function(i){return !i.c.verified&&!questionState(i.q,i.c).reasons.length;}),first;
+        lastBatch=chosen.map(function(i){return String(i.q.id);});
+        main.querySelectorAll('[data-question]').forEach(function(n){if(lastBatch.includes(n.dataset.question)){var box=n.querySelector('[data-field=verified]');box.checked=true;first=first||box;}});
+        if(first)first.dispatchEvent(new Event('input',{bubbles:true}));
+        note('已批量确认 '+chosen.length+' 题；异常题保留待处理，确认结果尚未保存。');
+        var filter=main.querySelector('[data-pr="filter:confirm"]');if(pending.length&&filter)filter.click();
+        track('paper_confirm_clean',{count:chosen.length});
+      };
+      var undo=overview.querySelector('[data-undo-batch]');if(undo)undo.onclick=function(){var ids=lastBatch.slice(),first;lastBatch=[];main.querySelectorAll('[data-question]').forEach(function(n){if(ids.includes(n.dataset.question)){var box=n.querySelector('[data-field=verified]');box.checked=false;first=first||box;}});if(first)first.dispatchEvent(new Event('input',{bubbles:true}));note('已撤销本次批量确认，其他题目的核对状态不变。');};
+      var show=overview.querySelector('[data-show-pending]');if(show)show.onclick=function(){var filter=main.querySelector('[data-pr="filter:confirm"]');if(filter){filter.click();filter.scrollIntoView({block:'nearest'});}};
       items.forEach(function(item){var info=questionState(item.q,item.c),node=Array.from(main.querySelectorAll('[data-question]')).find(function(n){return n.dataset.question===String(item.q.id);});if(!node)return;
         node.dataset.needsConfirm=String(info.reasons.length>0);node.dataset.unverified=String(!info.verified);
         var brief=node.querySelector('.pr-record-brief');if(!brief){brief=document.createElement('small');brief.className='pr-record-brief';node.querySelector('summary>span').appendChild(brief);}
@@ -125,4 +144,5 @@
   var style=document.createElement('style');
   style.textContent='.ph-workspace>.ph-header[hidden]{display:none!important}.pr-record-view .pr-result-top{background:transparent;padding:0;margin:0 0 16px}.pr-record-view .pr-result-top h3{font-size:22px!important;margin:6px 0}.pr-record-view .pr-report-nav{display:none}.pr-record-view .pr-first-action{padding:0;background:none;margin:16px 0}.pr-record-view .pr-first-action p{margin:0}.pr-record-view .pr-reading-section{padding-top:20px!important;margin-top:20px!important}.pr-type-table{overflow-x:auto}.pr-type-table table{width:100%;border-collapse:collapse;font-size:14px}.pr-type-table th,.pr-type-table td{padding:12px 8px;border-bottom:1px solid var(--line);text-align:left}.pr-type-table td:first-child{overflow-wrap:anywhere}.pr-type-sync .pr-footer{flex-wrap:wrap}.pr-record-analysis>label{display:block;margin:18px 0}.pr-record-analysis fieldset{border:1px solid var(--line);border-radius:10px}.pr-record-overview{padding:18px;border:1px solid var(--line);border-radius:14px;margin:18px 0;background:var(--panel-solid)}.pr-check-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.pr-check-metrics>div{display:flex;flex-direction:column;gap:6px}.pr-check-metrics b{font-size:23px}.pr-check-metrics span,.pr-record-overview p,.pr-record-brief{font-size:13px;color:var(--muted);line-height:1.7}.pr-record-brief{display:block;margin-top:3px}.ph-paper-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px}.ph-paper-bar nav{display:flex;gap:8px}.ph-paper-bar [aria-pressed=true]{color:var(--accent);background:var(--accent-soft);border-color:var(--accent)}.ph-list-filters{margin:14px 0 20px}.pr-upload-extra>summary{padding:16px 0;cursor:pointer;font-size:15px;font-weight:600}.ph-list-filters summary{cursor:pointer;font-size:14px;color:var(--muted)}.ph-workspace .pr-inline .pr-head{display:none}.ph-report-list>p{line-height:1.7}.ph-report-list>.ph-list{margin-top:20px}.ph-report-list>.pr-button{margin:8px 0}.ph-tabs{flex-wrap:wrap}.ph-tabs button{white-space:nowrap}.pr-question[data-needs-confirm=true]>summary{border-left:3px solid #ba7c2d}.pr-type-sync .pr-check{margin:16px 0}.pr-record-overview p{margin-bottom:0}.ph-workspace .pr-record-analysis input[type=checkbox],.ph-workspace .pr-record-analysis input[type=radio]{width:16px;height:16px;flex:none}.pr-report-extra>summary{padding:16px;cursor:pointer;font-weight:600;color:var(--accent)}.pr-report-extra{margin:20px 0;border:1px solid var(--line);border-radius:12px}.pr-report-extra>.pr-reading-section{margin:0!important;padding:20px!important;border:0!important}@media(max-width:520px){.pr-check-metrics{grid-template-columns:1fr 1fr}.pr-type-sync .pr-button{width:100%}.ph-paper-bar nav{width:100%}.ph-paper-bar nav .pr-button{flex:1}.ph-tabs button{flex:1 1 auto;padding:9px 8px}}';
   document.head.appendChild(style);
+  var bulkStyle=document.createElement('style');bulkStyle.textContent='.pr-bulk-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.pr-bulk-hint{font-size:12px!important}.pr-bulk-actions .pr-button{white-space:normal}@media(max-width:520px){.pr-bulk-actions .pr-button{flex:1 1 100%}}';document.head.appendChild(bulkStyle);
 })();

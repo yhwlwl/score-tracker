@@ -8,6 +8,20 @@ const prior = fs.readFileSync(path.join(__dirname, 'paper-record-flow-qa/index.h
 const template = JSON.parse(prior.match(/window.__paperFlowDemo=(.*?);<\/script>/s)[1]).record;
 const user = '00000000-0000-4000-8000-000000001001';
 const clone = value => JSON.parse(JSON.stringify(value));
+const scans = {};
+const xml = value => String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
+function wrap(value){return String(value||'（此处未读清，保留待核对）').split('\n').flatMap(line=>Array.from({length:Math.max(1,Math.ceil(Array.from(line).length/36))},(_,i)=>Array.from(line).slice(i*36,(i+1)*36).join('')));}
+function buildScans(row){
+  const pages=[],folder=path.join(out,'scans');fs.mkdirSync(folder,{recursive:true});
+  for(const kind of ['paper','work'])for(let start=0;start<row.result.questions.length;start+=4){
+    const chunk=row.result.questions.slice(start,start+4),blocks=chunk.map(q=>({q,lines:wrap(kind==='paper'?q.stem:q.answer)}));
+    const height=160+blocks.reduce((n,b)=>n+Math.max(170,b.lines.length*32+104),0),page=pages.length+1,file=(row.subject==='数学'?'math':'physics')+'-'+kind+'-'+(start/4+1)+'.svg';let top=120;
+    let svg='<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="'+height+'" viewBox="0 0 1000 '+height+'"><rect width="1000" height="'+height+'" fill="white"/><text x="40" y="48" font-size="28" fill="#26334c" font-family="sans-serif">'+xml(row.subject+' · '+(kind==='paper'?'模拟原题扫描页':'模拟答题卡作答页'))+'</text><text x="40" y="86" font-size="18" fill="#7b879a" font-family="sans-serif">合成演示资料，无真实姓名、考号或成绩</text>';
+    blocks.forEach(({q,lines})=>{const h=Math.max(170,lines.length*32+104);svg+='<rect x="30" y="'+top+'" width="940" height="'+(h-10)+'" rx="6" fill="white" stroke="#d7dfeb"/><text x="48" y="'+(top+34)+'" fill="#24324a" font-size="24" font-family="sans-serif">第 '+xml(q.label)+' 题 · '+xml(q.question_type)+'</text>'+(kind==='work'?'<text x="940" y="'+(top+34)+'" text-anchor="end" fill="#be4545" font-size="23" font-family="sans-serif">'+xml(q.teacher_score==null?'批改分待确认':q.teacher_score+' / '+q.max_score+' 分')+'</text>':'');lines.forEach((line,i)=>{svg+='<text x="48" y="'+(top+76+i*32)+'" fill="'+(kind==='paper'?'#24324a':'#294b94')+'" font-size="22" font-family="sans-serif">'+xml(line)+'</text>';});q.source_regions.push({kind,page,box:[.03,Math.round(top/height*10000)/10000,.94,Math.round((h-10)/height*10000)/10000]});q[kind==='paper'?'pages':'work_pages']=[page];top+=h;});
+    svg+='</svg>';fs.writeFileSync(path.join(folder,file),svg);pages.push({page,role:kind,url:'./scans/'+file});
+  }
+  scans[row.subject]=pages;row.result.source_pages=pages.map(({page,role})=>({page,role}));
+}
 const records = samples.map((sample, i) => {
   const row = clone(template);
   const suffix = String(i + 1).padStart(3, '0');
@@ -31,11 +45,11 @@ const records = samples.map((sample, i) => {
       q.analysis_mode='record';q.review_status='unresolved';q.evidence_verified=false;
       return q;
     }) });
-  return row;
+  buildScans(row);return row;
 });
 const exams=records.map(r=>({id:r.exam_id,name:r.subject+' · 示例考试',exam_date:r.created_at.slice(0,10),updated_at:r.created_at,
   scores:{[r.subject]:{actual:r.result.total.score,max:r.result.total.max,raw:r.result.total.score,rawMax:r.result.total.max}},question_type_scores:{}}));
-const data={user,records,exams};
+const data={user,records,exams,scans};
 const pre='<meta name="robots" content="noindex,nofollow,noarchive"><script>window.ScorePaperEntryOnly=true;window.__entryPreview='+JSON.stringify(data).replaceAll('<','\\u003c')+';</script><script src="./preview.js"></script><link rel="stylesheet" href="./preview.css">';
 let html=fs.readFileSync(path.join(root,'index.html'),'utf8').replace(/(src|href)="\.\//g,'$1="../../').replace('<head>','<head>'+pre);
 html=html.replace(/<title>[^<]*<\/title>/,'<title>试题录入预览 · 成绩轨迹</title>').replace('</body>','<script src="./boot.js"></script></body>');
