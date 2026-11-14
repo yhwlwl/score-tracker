@@ -26,7 +26,7 @@
   });
   function analyzeRecord(row) {
     if (!leaveEditor()) return;
-    state.analysisTab='papers'; selection=null; shell();
+    state.analysisTab='papers'; selection=null; shell();root.querySelector('.ph-header').hidden=true;
     body().innerHTML = paperNavigation('reports') + '<div class="ph-analysis-setup"></div>';
     window.ScorePaperRecords.configure(body().querySelector('.ph-analysis-setup'), row, { api:api,
       user:ctx.user, open:async function(id){await open(id);},
@@ -76,7 +76,7 @@
     root.querySelector('.ph-more').innerHTML=more?button('加载更多试卷','more'):'';
   }
   async function list(append) {
-    selection = null; seed = null; paper = null; var version=++requestVersion;
+    selection = null; seed = null; paper = null; root.querySelector('.ph-header').hidden=false;var version=++requestVersion;
     if (!append) {
       body().innerHTML = '<details class="ph-list-filters"><summary>筛选试卷</summary><div class="ph-filters"><label>科目<select data-filter="subject"><option value="">全部科目</option>' + subjects().map(function (s) { return '<option ' + (filters.subject === s ? 'selected' : '') + '>' + esc(s) + '</option>'; }).join('') + '</select></label><label>考试<select data-filter="exam_id">' + examOptions(filters.exam_id).replace('暂不关联考试','全部考试') + '</select></label><label>状态<select data-filter="status"><option value="">全部状态</option>' + Object.keys(labels).filter(function (k) { return k !== 'draft'; }).map(function (k) { return '<option value="' + k + '" ' + (filters.status === k ? 'selected' : '') + '>' + labels[k] + '</option>'; }).join('') + '</select></label><label>搜索已加载记录<input data-search value="' + esc(filters.search) + '" placeholder="试卷名称、科目或考试"></label>' + button('刷新', 'list') + '</div></details><div class="ph-list" aria-live="polite">正在读取试卷…</div><div class="ph-more"></div>';
       body().querySelectorAll('[data-filter]').forEach(function (el) { el.onchange = function () { filters[el.dataset.filter] = el.value; list().catch(function (e) { note(e.message); }); }; });
@@ -92,6 +92,7 @@
   }
   function step(n, title, description) { return '<div class="ph-step"><span>' + n + '</span><div><h3>' + title + '</h3><p>' + description + '</p></div></div>'; }
   async function create(draft) {
+    root.querySelector('.ph-header').hidden=true;
     var gen=generation, data=draft || seed || {}, opts=Object.assign({},data.options || {}), selectedSubject=data.subject || '';
     selection=null;
     body().innerHTML='<div class="ph-create"><div class="ph-section-title"><div><h2>'+(draft?'继续试题录入':'上传试卷')+'</h2><p>先上传并识别，核对后可保存题型得分，也可以生成 AI 分析。</p></div>'+button('返回试卷列表','list')+'</div><form class="ph-basics">'+step('01','录入哪张试卷','可以先录入，之后再关联考试。')+'<div class="ph-form-grid"><label>科目<input name="subject" list="ph-subjects" maxlength="40" required placeholder="请选择或输入科目" value="'+esc(selectedSubject)+'"><datalist id="ph-subjects">'+subjects().map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist></label><label>关联考试<select name="exam_id">'+examOptions(data.exam_id || '',selectedSubject)+'</select></label></div><details class="ph-name"><summary>试卷名称 <span data-title-preview></span></summary><label>自定义名称<input name="title" maxlength="100" value="'+esc(data.title || '')+'" placeholder="按考试和科目自动命名"></label></details>'+(data.originDraft?'<p class="ph-hint">保存正在编辑的考试后，试题会自动关联。</p>':'')+'</form><div class="ph-editor ph-create-editor"></div></div>';
@@ -117,6 +118,7 @@
     activeEditor=c;update();note('');window.ScorePaperReview.mount(c,selectedSubject,null);
   }
   function mount(data, reportId) {
+    root.querySelector('.ph-header').hidden=true;
     selection = { data: data, reportId: reportId }; seed = null; note('');
     body().innerHTML = paperNavigation(data.options && data.options.purpose==='record'?'record':'reports') + '<div class="ph-editor-toolbar"><span>' + esc(data.title || data.subject + '试卷') + ' · ' + esc(examName(data.exam_id)) + '</span>' + (reportId ? button('关联考试 / 名称', 'link') : '<span class="pr-muted">每轮 ' + data.options.time_budget_minutes + ' 分钟 · ' + (data.options.purpose === 'record' ? '只录入' : data.options.modules.length + ' 项分析')) + '</div><div class="ph-editor"></div>';
     var host = body().querySelector('.ph-editor'), exam = exams().find(function (e) { return e.id === data.exam_id; });

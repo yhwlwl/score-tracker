@@ -1,5 +1,6 @@
 /* Offline interaction preview. No service calls or real account changes. */
 (function(){
+ try{localStorage.setItem('st_pwa_install_v1',JSON.stringify({never:true}));}catch(_){}
  var f=window.__paperFlowDemo,record=f.record,reports=[record,f.analysis],exam=f.exam;
  if(navigator.serviceWorker)navigator.serviceWorker.register=function(){return Promise.resolve({});};
  window.fetch=async function(url,options){
