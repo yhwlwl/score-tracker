@@ -13,7 +13,7 @@ import { runReviewStage, initialState, progressFor, revisionInput, revisionState
 const WORKER_STARTED_AT = Date.now();
 const db = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "", { auth: { persistSession: false, autoRefreshToken: false } });
 const TABLE = "score_tracker_paper_reviews";
-const PUBLIC_FIELDS = "request_id,draft_id,exam_id,subject,status,created_at,completed_at,result,corrections,revision,error_message,error_code,error_stage,duration_ms,progress,title,options,pause_requested";
+const PUBLIC_FIELDS = "request_id,draft_id,exam_id,subject,status,created_at,completed_at,result,corrections,revision,error_message,error_code,error_stage,duration_ms,progress,title,options,pause_requested,source_record:analysis_state->source_record";
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "content-type,authorization,apikey,x-score-request-id", "Access-Control-Allow-Methods": "POST,OPTIONS" };
 function out(data: any, status = 200) { return new Response(JSON.stringify(data), { status, headers: { ...cors, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "private, no-store" } }); }
 class Failure extends Error { status: number; constructor(message: string, status = 400) { super(message); this.status = status; } }

@@ -186,7 +186,46 @@
     if (picker) Array.prototype.forEach.call(picker.options, function (option) {
       if (option.value) names.push({ name: option.textContent.trim(), id: option.value });
     });
+    try {
+      (state.modulesV18 || []).forEach(function (module) {
+        var item = names.find(function (entry) { return entry.id === String(module.id); });
+        if (!item) { item = { name: module.name, id: String(module.id) }; names.push(item); }
+        item.subjects = (module.subjects || []).slice();
+      });
+    } catch (e) {}
     return names.sort(function (a, b) { return b.name.length - a.name.length; });
+  }
+
+  var SUBJECT_ALIASES = { '语文': ['语'], '数学': ['数'], '英语': ['英', '外', '外语'], '物理': ['物'], '化学': ['化'], '生物': ['生'], '历史': ['史'], '地理': ['地'], '政治': ['政', '思想政治', '道德与法治'] };
+
+  function sameSubjects(a, b) {
+    return a.length === b.length && a.every(function (name) { return b.indexOf(name) >= 0; });
+  }
+
+  // Match by composition: the built-in four-subject title deliberately includes both 物理/历史.
+  function entrySegments(source, modal) {
+    var subjects = modalSubjectNames(modal), modules = modalModuleNames(modal), aliases = {}, names = subjects.slice();
+    subjects.forEach(function (name) { aliases[name] = name; });
+    Object.keys(SUBJECT_ALIASES).forEach(function (name) {
+      [name].concat(SUBJECT_ALIASES[name]).forEach(function (alias) { aliases[alias] = name; });
+    });
+    var token = Object.keys(aliases).sort(function (a, b) { return b.length - a.length; }).map(escapeRegExp).join('|');
+    var comboPattern = new RegExp('(?:' + token + ')(?:[ +、/与和]*(?:' + token + '))+', 'g');
+    var definitions = {};
+    modules.forEach(function (module) { names.push(module.name); definitions[module.name] = module; });
+    var match;
+    while ((match = comboPattern.exec(source))) {
+      var parts = unique((match[0].match(new RegExp(token, 'g')) || []).map(function (alias) { return aliases[alias]; }));
+      if (parts.length < 2) continue;
+      var existing = modules.find(function (module) { return sameSubjects(parts, module.subjects || []); }) || Object.values(definitions).find(function (module) { return sameSubjects(parts, module.subjects || []); });
+      var proposedName = match[0];
+      if (!existing && modules.some(function (module) { return module.name === proposedName; })) proposedName += '（' + parts.map(function (name) { return (SUBJECT_ALIASES[name] || [name])[0]; }).join('') + '）';
+      definitions[match[0]] = existing || { name: proposedName, subjects: parts, id: '' };
+      names.push(match[0]);
+    }
+    var segments = occurrencesFor(source, unique(names));
+    segments.forEach(function (item) { item.module = definitions[item.name] || null; });
+    return segments;
   }
 
   function occurrencesFor(source, names) {
@@ -199,7 +238,7 @@
         var before = position ? source.charAt(position - 1) : '';
         var after = source.slice(position + name.length, position + name.length + 36);
         var likelyBoundary = !before || /[\s,;|]/.test(before);
-        var likelyValue = /[:\d]|目标|原始|最终|真实|成绩|年排|班排|位比|排名|满分/.test(after);
+        var likelyValue = /[:\d]|目标|原始|最终|真实|成绩|年排|班排|校次|班次|校排|位比|排名|满分/.test(after);
         if (likelyBoundary && likelyValue) found.push({ name: name, position: position });
         start = position + name.length;
       }
@@ -220,23 +259,13 @@
     return result.map(function (item, index) {
       return {
         name: item.name,
+        position: item.position,
+        end: index + 1 < result.length ? result[index + 1].position : source.length,
         body: source.slice(item.position + item.name.length, index + 1 < result.length ? result[index + 1].position : source.length)
           .replace(/^[\s:：]+/, '')
           .trim()
       };
     });
-  }
-
-  function globalOnlySource(source, subjectNames) {
-    var names = subjectNames || [];
-    return String(source || '').split(/[\n;|。]/).filter(function (chunk) {
-      var value = chunk.trim();
-      if (!value) return false;
-      return !names.some(function (name) {
-        var pattern = '^' + escapeRegExp(name) + '(?:\\s|:|目标|原始|最终|真实|成绩|年排|班排|位比|排名|\\d)';
-        return new RegExp(pattern).test(value);
-      });
-    }).join('\n');
   }
 
   function mergeSubject(result, name, next) {
@@ -248,7 +277,7 @@
 
   function subjectBodyOnly(body) {
     var source = String(body || '');
-    var boundary = source.search(/(?:^|[\n;,])\s*(?:总分|全科|年级总|总年级|班级总|总班级|市级|区级|市排名|区排名)/);
+    var boundary = source.search(/(?:^|[\n;,])\s*(?:总分|全科|年级总|总年级|班级总|总班级|最终总分|原始总分|真实总分|实际总分|赋分总分|市级|区级|市排名|区排名)/);
     return boundary > 0 ? source.slice(0, boundary).trim() : source;
   }
 
@@ -281,7 +310,7 @@
     if (rawMax) data.rawMax = rawMax;
     if (finalMax) data.max = finalMax;
 
-    var scoreBody = String(body).split(/年排|班排|年级位比|年位比|班级位比|班位比|排名/)[0];
+    var scoreBody = String(body).split(/年排|班排|校次|班次|校排|学校名次|年级位比|年位比|班级位比|班位比|排名/)[0];
     var genericPair = scoreBody.match(/(\d+(?:\.\d+)?)\s*[/／]\s*(\d+(?:\.\d+)?)/);
     if (!data.target && !data.raw && !data.actual && genericPair) {
       data.actual = genericPair[1];
@@ -297,7 +326,7 @@
     }
 
     if (!data.actual && !data.raw && !data.target) {
-      var scoreOnlyBody = String(body).split(/年排|班排|年级位比|年位比|班级位比|班位比|排名/)[0];
+      var scoreOnlyBody = scoreBody;
       var fallback = firstNumber(scoreOnlyBody);
       if (fallback) data.actual = fallback;
     }
@@ -349,6 +378,7 @@
       city: {},
       subjects: Object.create(null),
       modules: {},
+      moduleDefinitions: {},
       rankMode: '',
       warnings: [],
       errors: [],
@@ -386,24 +416,31 @@
       if (firstLine && firstLine.length <= 60 && !/:/.test(firstLine)) result.name = firstLine;
     }
 
-    var subjectNames = modalSubjectNames(modal);
-    var globalSource = globalOnlySource(source, subjectNames);
-    var totalYear = pairFor(source, ['年级总排名', '总分年级排名', '总年排', '总分年排']);
+    var segments = entrySegments(source, modal);
+    if (result.name && !valueOrEmpty(readChunk(source, LABELS.name)) && segments.some(function (item) { return source.slice(item.position, item.end).trim() === result.name; })) result.name = '';
+    // Remove subject/combination spans before reading totals, including when entries share a line.
+    var globalSource = source;
+    segments.slice().reverse().forEach(function (item) {
+      var body = source.slice(item.position, item.end);
+      var boundary = body.search(/(?:[\n;,]|^)\s*(?:总分|全科|年级总|总年级|班级总|总班级|最终总分|原始总分|真实总分|实际总分|赋分总分|市级|区级|市排名|区排名)/);
+      globalSource = globalSource.slice(0, item.position) + '\n' + (boundary >= 0 ? body.slice(boundary) : '') + globalSource.slice(item.end);
+    });
+    var totalYear = pairFor(globalSource, ['年级总排名', '总分年级排名', '总年排', '总分年排']);
     if (!totalYear.first) totalYear = pairFor(globalSource, ['年级排名', '年排']);
-    var totalClass = pairFor(source, ['班级总排名', '总分班级排名', '总班排', '总分班排']);
+    var totalClass = pairFor(globalSource, ['班级总排名', '总分班级排名', '总班排', '总分班排']);
     if (!totalClass.first) totalClass = pairFor(globalSource, ['班级排名', '班排']);
-    var yearPeople = numberFor(source, ['年级总人数', '总年级人数', '全年级人数', '参考人数']);
+    var yearPeople = numberFor(globalSource, ['年级总人数', '总年级人数', '全年级人数', '参考人数']);
     if (!yearPeople) yearPeople = numberFor(globalSource, ['年级人数']);
-    var classPeople = numberFor(source, ['班级总人数', '总班级人数', '全班人数']);
+    var classPeople = numberFor(globalSource, ['班级总人数', '总班级人数', '全班人数']);
     if (!classPeople) classPeople = numberFor(globalSource, ['班级人数']);
     result.total.yearRank = totalYear.first || numberFor(globalSource, ['年级排名', '年排']);
     result.total.yearParticipants = totalYear.second || yearPeople;
     result.total.classRank = totalClass.first || numberFor(globalSource, ['班级排名', '班排']);
     result.total.classParticipants = totalClass.second || classPeople;
-    result.total.yearPositionPercent = percentFor(source, ['年级总位比', '总分年位比', '总分年级前']) || percentFor(globalSource, ['年级位比', '年级前']);
-    result.total.classPositionPercent = percentFor(source, ['班级总位比', '总分班位比', '总分班级前']) || percentFor(globalSource, ['班级位比', '班级前']);
-    result.total.actualScore = numberFor(source, LABELS.finalTotal);
-    result.total.rawScore = numberFor(source, LABELS.rawTotal);
+    result.total.yearPositionPercent = percentFor(globalSource, ['年级总位比', '总分年位比', '总分年级前']) || percentFor(globalSource, ['年级位比', '年级前']);
+    result.total.classPositionPercent = percentFor(globalSource, ['班级总位比', '总分班位比', '总分班级前']) || percentFor(globalSource, ['班级位比', '班级前']);
+    result.total.actualScore = numberFor(globalSource, LABELS.finalTotal);
+    result.total.rawScore = numberFor(globalSource, LABELS.rawTotal);
     result.city.cityRank = pairFor(source, LABELS.cityRank).first || numberFor(source, LABELS.cityRank);
     result.city.cityParticipants = pairFor(source, LABELS.cityRank).second || numberFor(source, LABELS.cityPeople);
     result.city.districtRank = pairFor(source, LABELS.districtRank).first || numberFor(source, LABELS.districtRank);
@@ -438,8 +475,7 @@
       try { if (result.subjects[name].questionTypes) result.subjects[name].questionTypes = window.ScoreQuestionTypeModel.clean(result.subjects[name].questionTypes,name); }
       catch (e) { result.errors.push(e.message); }
     });
-    var subjects = occurrencesFor(source, subjectNames);
-    subjects.forEach(function (item) {
+    segments.filter(function (item) { return !item.module; }).forEach(function (item) {
       var parsed = parseSubjectBody(item.body);
       if (Object.keys(parsed).length) mergeSubject(result, item.name, parsed);
     });
@@ -447,15 +483,18 @@
       Object.keys(result.subjects[name]).forEach(function (key) { addFieldCount(result, result.subjects[name][key]); });
     });
 
-    var modules = occurrencesFor(source, modalModuleNames(modal).map(function (item) { return item.name; }));
-    modules.forEach(function (item) {
-      var parsed = parseModuleBody(item.body);
-      result.modules[item.name] = parsed;
+    segments.filter(function (item) { return item.module; }).forEach(function (item) {
+      var parsed = parseModuleBody(subjectBodyOnly(item.body));
+      var name = item.module.name;
+      addFieldCount(result, name);
+      result.modules[name] = Object.assign(result.modules[name] || {}, Object.fromEntries(Object.entries(parsed).filter(function (entry) { return entry[1] !== ''; })));
+      result.moduleDefinitions[name] = item.module;
       Object.keys(parsed).forEach(function (key) { addFieldCount(result, parsed[key]); });
+      if (parseSubjectBody(item.body).actual) result.warnings.push('组合「' + name + '」的分数按各科自动汇总，本次回填组合排名，不拆分组合分数。');
     });
 
     var hasRank = ['yearRank', 'yearParticipants', 'classRank', 'classParticipants'].some(function (key) {
-      return result.total[key] || Object.keys(result.subjects).some(function (name) { return result.subjects[name][key === 'yearRank' ? 'rank' : key === 'classRank' ? 'classRank' : key === 'yearParticipants' ? 'participants' : 'classParticipants']; });
+      return result.total[key] || Object.keys(result.modules).some(function (name) { return result.modules[name][key]; }) || Object.keys(result.subjects).some(function (name) { return result.subjects[name][key === 'yearRank' ? 'rank' : key === 'classRank' ? 'classRank' : key === 'yearParticipants' ? 'participants' : 'classParticipants']; });
     });
     var hasPercent = ['yearPositionPercent', 'classPositionPercent'].some(function (key) {
       return result.total[key] || Object.keys(result.subjects).some(function (name) { return result.subjects[name][key]; });
@@ -471,20 +510,27 @@
     return new Promise(function (resolve) { setTimeout(resolve, ms); });
   }
 
-  function mark(element, value) {
+  function keepValue(element, mode) {
+    return mode === 'supplement' && element && String(element.value || '').trim() !== '' && element.dataset.nlDefault !== element.value;
+  }
+
+  function mark(element, value, mode) {
     if (!element || value === undefined || value === null || value === '') return 0;
+    if (keepValue(element, mode)) return 0;
     var next = String(value);
     if (element.value !== next) {
       element.value = next;
       element.dispatchEvent(new Event('input', { bubbles: true }));
       element.dispatchEvent(new Event('change', { bubbles: true }));
     }
+    delete element.dataset.nlDefault;
     element.classList.add('nl-entry-filled');
     return 1;
   }
 
-  function markChecked(element, checked) {
+  function markChecked(element, checked, mode) {
     if (!element || checked === null || checked === undefined) return 0;
+    if (mode === 'supplement') return 0;
     var next = !!checked;
     if (element.checked !== next) {
       element.checked = next;
@@ -517,7 +563,10 @@
         for (var i = 0; i < 5; i += 1) {
           await delay(24);
           current = findSubjectCard(modal, name);
-          if (current) return current;
+          if (current) {
+            rememberDefaults(current, '.max-v16,.rawmax-v16');
+            return current;
+          }
         }
       }
     }
@@ -564,10 +613,11 @@
     return null;
   }
 
-  function setSelect(modal, selector, value) {
+  function setSelect(modal, selector, value, mode) {
     if (!value) return 0;
     var select = modal.querySelector(selector);
     if (!select) return 0;
+    if (keepValue(select, mode)) return 0;
     var option = Array.prototype.find.call(select.options, function (item) {
       return item.value === String(value) || item.textContent.trim() === String(value).trim();
     });
@@ -590,7 +640,52 @@
       result.warnings.push('原表中没有找到字段：' + selector);
       return 0;
     }
-    return mark(element, value);
+    return mark(element, value, result.fillMode);
+  }
+
+  var EXISTING_DATA = '.target-v16,.raw-v16,.actual-v16,.year-rank-v16,.class-rank-v16,.year-position-v17,.class-position-v17,.combo-yr-v25,.combo-cr-v25,#totalRankV16,#totalClassRankV16,.total-year-position-v17,.total-class-position-v17,.total-actual-override-v24,.total-raw-override-v24,#v33CityR,#v33DistR';
+
+  function hasExistingData(modal) {
+    return Array.prototype.some.call(modal.querySelectorAll(EXISTING_DATA + ',#examName,#examDate,#gradeLevelV14,.max-v16,.rawmax-v16'), function (input) { return input.value.trim() !== '' && input.dataset.nlDefault !== input.value; });
+  }
+
+  function rememberDefaults(root, selector) {
+    root.querySelectorAll(selector).forEach(function (input) {
+      input.dataset.nlDefault = input.value;
+      input.addEventListener('input', function () { delete input.dataset.nlDefault; }, { once: true });
+    });
+  }
+
+  function missingModules(modal, result) {
+    var existing = modalModuleNames(modal);
+    return Object.keys(result.modules).filter(function (name) {
+      return !existing.some(function (module) { return module.name === name; });
+    }).map(function (name) { return result.moduleDefinitions[name]; }).filter(Boolean);
+  }
+
+  async function createModules(modal, definitions) {
+    if (!definitions.length) return;
+    if (typeof modulesApiV18 !== 'function') throw new Error('组合设置尚未准备好，请刷新后重试。');
+    // Use the same authenticated settings endpoint and retain every existing definition and ID.
+    var data = await modulesApiV18('list_modules');
+    var modules = (data.modules || []).slice();
+    definitions.forEach(function (definition) {
+      if (modules.some(function (module) { return module.name === definition.name; })) return;
+      if (modules.length >= 12) throw new Error('最多支持 12 个组合，请先在账号设置中整理组合。');
+      modules.push({ id: null, name: definition.name, subjects: definition.subjects, isBuiltin: false });
+    });
+    data = await modulesApiV18('save_modules', { modules: modules });
+    if (!data || !Array.isArray(data.modules)) throw new Error('组合创建未成功，请重试。');
+    state.modulesV18 = data.modules;
+    var picker = modal.querySelector('#comboPickerV21');
+    data.modules.forEach(function (module) {
+      if (picker && !Array.prototype.some.call(picker.options, function (option) { return option.value === String(module.id); })) {
+        var option = document.createElement('option'); option.value = module.id; option.textContent = module.name; picker.appendChild(option);
+      }
+    });
+    definitions.forEach(function (definition) {
+      if (!data.modules.some(function (module) { return module.name === definition.name; })) throw new Error('未能创建组合「' + definition.name + '」。');
+    });
   }
 
   async function applyResult(modal, result) {
@@ -598,8 +693,16 @@
     count += applyField(modal, '#examName', result.name, result);
     count += applyField(modal, '#examDate', result.date, result);
     count += applyField(modal, '#examEndDateV25', result.endDate, result);
-    count += setSelect(modal, '#gradeLevelV14', result.gradeLevel);
+    count += setSelect(modal, '#gradeLevelV14', result.gradeLevel, result.fillMode);
 
+    var currentMode = modal.dataset.rankEntryModeV17 || 'rank';
+    var hasRanks = Array.prototype.some.call(modal.querySelectorAll('.year-rank-v16,.class-rank-v16,.year-position-v17,.class-position-v17,#totalRankV16,#totalClassRankV16,.total-year-position-v17,.total-class-position-v17'), function (input) { return input.value.trim() !== ''; });
+    if (result.rankMode && currentMode !== result.rankMode && hasRanks) {
+      result.warnings.push('原表使用' + (currentMode === 'rank' ? '名次' : '位比') + '录入；为保留已有排名，本次跳过另一种排名格式，请转换后再录入。');
+      result.rankMode = currentMode;
+      var ignored = currentMode === 'rank' ? ['yearPositionPercent', 'classPositionPercent'] : ['yearRank', 'yearParticipants', 'classRank', 'classParticipants'];
+      ignored.forEach(function (key) { delete result.total[key]; });
+    }
     if (result.rankMode) setRankMode(modal, result.rankMode);
     count += applyField(modal, '#totalRankV16', result.total.yearRank, result);
     count += applyField(modal, '#totalParticipantsV16', result.total.yearParticipants, result);
@@ -620,7 +723,7 @@
     if (Object.keys(result.city).some(function (key) { return result.city[key]; })) {
       count += markChecked(modal.querySelector('#v33ApplyCity'), true);
     }
-    if (result.hidden !== null) {
+    if (result.hidden !== null && result.fillMode !== 'supplement') {
       var hidden = modal.querySelector('#examHiddenV16');
       var currentHidden = hidden && hidden.value === '1';
       if (hidden && currentHidden !== result.hidden) {
@@ -641,6 +744,9 @@
       }
       var data = result.subjects[name];
       if (data.questionTypes && data.questionTypes.length && window.ScoreQuestionTypes) count += window.ScoreQuestionTypes.apply(modal, card, data.questionTypes);
+      if (Array.prototype.some.call(card.querySelectorAll('.target-v16,.raw-v16,.actual-v16'), function (input) { return input.value.trim() !== ''; })) {
+        card.querySelectorAll('.max-v16,.rawmax-v16').forEach(function (input) { delete input.dataset.nlDefault; });
+      }
       count += applyField(card, '.target-v16', data.target, result);
       count += applyField(card, '.raw-v16', data.raw, result);
       count += applyField(card, '.actual-v16', data.actual, result);
@@ -656,7 +762,7 @@
         count += applyField(card, '.class-position-v17', data.classPositionPercent, result);
       }
       if (data.excludeFromTotal !== undefined) {
-        count += markChecked(card.querySelector('.exclude-total-check-v17'), data.excludeFromTotal);
+        count += markChecked(card.querySelector('.exclude-total-check-v17'), data.excludeFromTotal, result.fillMode);
       }
     }
 
@@ -701,6 +807,7 @@
       '4. 如果原文只有一个成绩或一组“成绩/满分”，默认填写在“最终分（赋分后）”；只有明确出现原始分时才填写原始分。\n' +
       '5. 排名不要机械依赖固定字段名，也不要要求标签必须和“年排/班排”完全一致：请结合成绩单表头、分组、相邻行和同一科目的语义判断。校次/校排/校排名/学校名次按年排整理；年排/年级排名也按年排整理；班次/班排/班级排名按班排整理；联考名次/联考排名属于多个学校或联考范围，目前不参考，统一填“-”，不要把它当成年排或班排。总分排名必须单独放在“总分...”行，不能复制某一科的排名。\n' +
       '6. 只输出整理后的纯文本，不要输出 Markdown、代码块或解释。\n\n' +
+      '7. 语数外、语数外物等是组合，名称和排名请单独列一行；不要拆成单科，也不要当作总分。组合名称保留原文，缺失排名写“-”。\n\n' +
       '输出格式：\n' +
       '考试名称：-\n' +
       '考试日期：-\n' +
@@ -766,7 +873,7 @@
       '</section>' +
       '<section class="nl-entry-pane nl-entry-text-pane" data-entry-pane="text" hidden>' +
       '<textarea class="nl-entry-text" aria-label="快速录入内容" spellcheck="false" placeholder="例如：\n考试名称：高一上学期期中考试\n考试日期：2026-09-20\n年级：高一\n语文：目标120，原始112/150，最终112/150，年排36/620，班排8/45\n数学：目标135，真实128/150\n总分年排：36/620，班排：8/45"></textarea>' +
-      '<p class="nl-entry-help">支持考试名称、日期、年级、结束日期、各科目标 / 原始分 / 最终分（赋分后） / 满分 / 年排 / 班排 / 位比、市区排名、总分和图表显示状态。只有一个成绩时默认填入最终分。<br><strong>你也可以复制下面的提示词，并将它和成绩单截图一起发给豆包等 AI，整理后再粘贴回来。</strong></p>' +
+      '<p class="nl-entry-help">支持考试信息、各科成绩、年排 / 班排 / 位比、市区排名和总分，也支持“语数外”“语数外物”等组合排名。缺少组合时可确认创建；原表已有数据时可选择补录或覆盖。只有一个成绩时默认填入最终分。<br><strong>你也可以复制下面的提示词，并将它和成绩单截图一起发给豆包等 AI，整理后再粘贴回来。</strong></p>' +
       '<details class="nl-entry-prompt"><summary>给 AI 的识别提示词（可复制） <span>点击展开并复制</span></summary><div class="nl-entry-prompt-box"><pre class="nl-entry-prompt-text"></pre><button class="secondary nl-entry-copy" type="button">复制提示词</button></div></details>' +
       '<div class="modal-actions"><button class="primary nl-entry-submit" type="button">识别并填入</button></div>' +
       '</section>' +
@@ -800,6 +907,45 @@
     var promptBox = backdrop.querySelector('.nl-entry-prompt-text');
     var copyButton = backdrop.querySelector('.nl-entry-copy');
     var selectedFiles = [];
+    var cancelReview = null;
+
+    async function confirmResult(result) {
+      var missing = missingModules(modal, result), existing = hasExistingData(modal);
+      if (!missing.length && !existing) { result.fillMode = 'overwrite'; return true; }
+      var decision = await new Promise(function (resolve) {
+        var review = document.createElement('div');
+        review.className = 'modal-backdrop nl-entry-backdrop nl-entry-review';
+        review.innerHTML = '<div class="modal nl-entry-modal" role="dialog" aria-modal="true" aria-labelledby="nl-review-title"><div class="modal-head"><h3 id="nl-review-title">确认回填方式</h3><button type="button" class="close-btn" aria-label="取消回填">×</button></div><div class="modal-body">' +
+          (existing ? '<p>这份录入表已有数据，请选择本次识别结果的填入方式。</p><div class="nl-entry-mode-options"><label><input type="radio" name="nl-fill-mode" value="supplement" checked><span><b>补录</b><small>只补空白字段，保留已有成绩和排名。</small></span></label><label><input type="radio" name="nl-fill-mode" value="overwrite"><span><b>覆盖</b><small>更新本次识别出的字段；未识别到的内容保留。</small></span></label></div>' : '') +
+          (missing.length ? '<h4>发现尚未创建的组合</h4><p class="nl-entry-help">勾选后将在账号中创建，并添加到本次考试。取消勾选可跳过该组合。</p><div class="nl-entry-new-modules">' + missing.map(function (definition, index) {
+            return '<label><input type="checkbox" data-new-module="' + index + '" checked><span><b>' + esc(definition.name) + '</b><small>' + definition.subjects.map(esc).join(' + ') + '</small></span></label>';
+          }).join('') + '</div>' : '') +
+          '<p class="nl-entry-help">回填后仍可检查修改，点击原表的“保存”才会保存考试成绩。</p><div class="modal-actions"><button type="button" class="secondary nl-review-cancel">返回修改</button><button type="button" class="primary nl-review-confirm">确认并填入</button></div></div></div>';
+        function finish(value) { cancelReview = null; review.remove(); resolve(value); }
+        cancelReview = function () { finish(null); };
+        review.querySelector('.close-btn').onclick = cancelReview;
+        review.querySelector('.nl-review-cancel').onclick = cancelReview;
+        review.onkeydown = function (event) { if (event.key === 'Escape') { event.stopPropagation(); finish(null); } };
+        review.querySelector('.nl-review-confirm').onclick = function () {
+          var mode = review.querySelector('input[name="nl-fill-mode"]:checked');
+          finish({ mode: mode ? mode.value : 'overwrite', create: Array.prototype.map.call(review.querySelectorAll('[data-new-module]:checked'), function (input) { return missing[Number(input.dataset.newModule)]; }) });
+        };
+        backdrop.appendChild(review);
+        review.querySelector('input,button').focus();
+      });
+      if (!decision || !backdrop.isConnected || !modal.isConnected) return false;
+      await createModules(modal, decision.create);
+      if (!backdrop.isConnected || !modal.isConnected) return false;
+      missing.forEach(function (definition) {
+        if (decision.create.indexOf(definition) < 0) {
+          delete result.modules[definition.name];
+          result.warnings.push('已跳过未创建的组合「' + definition.name + '」。');
+        }
+      });
+      result.fillMode = decision.mode;
+      trackUsage('quick_entry_fill_confirmed', { fill_mode: decision.mode, created_module_count: decision.create.length });
+      return true;
+    }
     var visionText = '';
     var visionPayload = null;
     var quotaState = null;
@@ -905,6 +1051,7 @@
     };
 
     function close() {
+      if (cancelReview) cancelReview();
       quotaVersion++;
       if (quotaTimer) clearInterval(quotaTimer);
       if (visionTimer) {
@@ -1075,7 +1222,7 @@
       var classificationOptions = grade
         ? Array.prototype.map.call(grade.options || [], function (option) { return option.textContent.trim(); }).filter(Boolean)
         : [];
-      return { classificationOptions: classificationOptions, subjectNames: modalSubjectNames(modal) };
+      return { classificationOptions: classificationOptions, subjectNames: modalSubjectNames(modal), combinations: modalModuleNames(modal).filter(function (module) { return module.subjects && module.subjects.length >= 2; }).map(function (module) { return { name: module.name, subjects: module.subjects }; }) };
     }
     async function callVision(prepared, onResponse, connectivityTest) {
       var token = localStorage.getItem('st_token') || '';
@@ -1185,7 +1332,7 @@
           finalScore = subject.ambiguousScore;
         }
         lines.push(
-          displayValue(subject.name) + '：目标：' + displayValue(subject.target) +
+          displayValue(Array.isArray(subject.components) && subject.components.length >= 2 ? subject.components.join('、') : subject.name) + '：目标：' + displayValue(subject.target) +
           '，原始分：' + displayPair(subject.rawScore, subject.rawMax) +
           '，最终分（赋分后）：' + displayPair(finalScore, subject.finalMax) +
           '，年排：' + displayPair(subject.yearRank, subject.yearParticipants) +
@@ -1208,10 +1355,15 @@
         error.textContent = parsed.errors.join(' ');
         return;
       }
-      parsed.warnings = (visionPayload && Array.isArray(visionPayload.warnings) ? visionPayload.warnings : []).slice(0, 5);
+      parsed.warnings = parsed.warnings.concat((visionPayload && Array.isArray(visionPayload.warnings) ? visionPayload.warnings : []).slice(0, 5));
       visionSubmitButton.disabled = true;
       visionSubmitButton.textContent = '正在填入…';
       try {
+        if (!await confirmResult(parsed)) {
+          visionSubmitButton.disabled = false;
+          visionSubmitButton.textContent = '确认并填入';
+          return;
+        }
         var count = await applyResult(modal, parsed);
         trackUsage('quick_entry_image_recognition_succeeded', {
           request_id: visionPayload && visionPayload.request_id || visionRequestId,
@@ -1323,6 +1475,11 @@
       submitButton.disabled = true;
       submitButton.textContent = '识别中…';
       try {
+        if (!await confirmResult(parsed)) {
+          submitButton.disabled = false;
+          submitButton.textContent = '识别并填入';
+          return;
+        }
         var count = await applyResult(modal, parsed);
         trackUsage('quick_entry_natural_recognition_succeeded', { field_count: parsed.fieldCount, applied_count: count, rank_mode: parsed.rankMode || 'none' });
         close();
@@ -1352,9 +1509,10 @@
     });
   }
 
-  function decorateModal(modal) {
+  function decorateModal(modal, exam) {
     if (!modal || modal.dataset.nlEntryReady === '1') return;
     modal.dataset.nlEntryReady = '1';
+    if (!exam) rememberDefaults(modal, '#examName,#examDate,#gradeLevelV14,.max-v16,.rawmax-v16');
     var head = modal.querySelector('.modal-head');
     var title = head && head.querySelector('h3');
     var close = head && head.querySelector('.close-btn');
@@ -1380,6 +1538,12 @@
     '.nl-entry-backdrop{z-index:250;background:rgba(22,28,39,.52)}',
     '.nl-entry-modal{width:min(650px,100%);max-height:min(88vh,820px)}',
     '.nl-entry-subtitle{margin:4px 0 0;color:var(--muted,#788392);font-size:11px;line-height:1.5}',
+    '.nl-entry-review{z-index:260}',
+    '.nl-entry-review .modal-body>p{font-size:13px;line-height:1.7}',
+    '.nl-entry-mode-options,.nl-entry-new-modules{display:grid;gap:10px;margin:14px 0}',
+    '.nl-entry-mode-options label,.nl-entry-new-modules label{display:flex;align-items:flex-start;gap:10px;padding:13px;border:1px solid var(--line,#e8ebf0);border-radius:12px;cursor:pointer;background:var(--cell,#f7f9fc)}',
+    '.nl-entry-review input{flex:0 0 auto;width:16px;height:16px;margin:2px 0;accent-color:var(--accent,#5d72e8)}',
+    '.nl-entry-review label span{min-width:0;overflow-wrap:anywhere}.nl-entry-review label b{display:block;font-size:13px}.nl-entry-review label small{display:block;margin-top:4px;color:var(--muted,#788392);font-size:12px;line-height:1.6}',
 
     '.nl-entry-tabs{display:flex;gap:8px;padding:12px 14px 0;border-bottom:1px solid var(--line,#e8ebf0)}',
     '.nl-entry-tab{flex:1;border:1px solid var(--line,#e8ebf0);border-bottom:0;border-radius:12px 12px 0 0;background:var(--cell,#f7f9fc);color:var(--muted,#788392);padding:9px 10px;font-size:12px;font-weight:700;cursor:pointer}',
@@ -1577,7 +1741,7 @@
   var openExamBeforeNaturalEntry = openExam;
   openExam = function openExamWithNaturalEntry() {
     var result = openExamBeforeNaturalEntry.apply(this, arguments);
-    decorateModal(state && state.modal ? state.modal : document.querySelector('.modal-backdrop'));
+    decorateModal(state && state.modal ? state.modal : document.querySelector('.modal-backdrop'), arguments[0]);
     return result;
   };
 

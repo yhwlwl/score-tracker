@@ -62,5 +62,7 @@
   "paper-review-scans.js",
   "paper-review-hub.js",
   "paper-records.js",
-  "exam-detail.js"
+  "exam-detail.js",
+  "supabase/functions/_shared/backup-format.js",
+  "backup-import.js"
 ]

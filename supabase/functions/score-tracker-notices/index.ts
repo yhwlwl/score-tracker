@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { readSupport, saveSupport } from './support.ts';
 import { readCommunity, saveCommunity } from './community.ts';
 import { announcementReplies } from './replies.ts';
+import { developerCommentAdmin, announcementCommentPage } from './developer-comments.ts';
 
 const db = createClient(Deno.env.get('SUPABASE_URL') || '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '', {auth:{persistSession:false,autoRefreshToken:false}});
 const cors = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type, x-score-token','Access-Control-Allow-Methods':'GET, POST, OPTIONS'};
@@ -13,7 +14,7 @@ function normalizeVersion(v) {const p=String(v).trim().replace(/^v/i,'').split('
 function releaseTitle(c) {return /^v?\d+(\.\d+){0,2} 更新内容$/i.test(c.title)?normalizeVersion(c.version)+' 更新内容':c.title;}
 async function sha(v) { const bits=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v));return [...new Uint8Array(bits)].map(b=>b.toString(16).padStart(2,'0')).join(''); }
 async function auth(token) { if(!token)return null;const r=await db.from('score_tracker_users').select('id,username,is_admin,session_expires_at').eq('session_token_hash',await sha(token)).maybeSingle();if(r.error)throw r.error;return r.data?.session_expires_at&&new Date(r.data.session_expires_at).getTime()>Date.now()?r.data:null; }
-async function config(history=false) { const r=await db.from('score_tracker_notification_config').select('version,enabled,title,content,tip_enabled,tip_content,announcement_enabled,announcement_title,announcement_content,announcement_comments_enabled,announcement_comments_public,announcement_comment_title,revision,updated_at'+(history?',release_history,announcement_history':'')).eq('id',1).single();if(r.error)throw r.error;const c=r.data;c.title=releaseTitle(c);c.announcement_id=(await sha(c.announcement_title+'\n'+c.announcement_content)).slice(0,24);c.tip_id=(await sha(c.tip_content)).slice(0,24);return c; }
+async function config(history=false) { const r=await db.from('score_tracker_notification_config').select('version,enabled,title,content,tip_enabled,tip_content,announcement_enabled,announcement_title,announcement_content,announcement_comments_enabled,announcement_comments_public,announcement_comment_title,announcement_id,revision,updated_at'+(history?',release_history,announcement_history':'')).eq('id',1).single();if(r.error)throw r.error;const c=r.data;c.title=releaseTitle(c);c.announcement_id=c.announcement_id||(await sha(c.announcement_title+'\n'+c.announcement_content)).slice(0,24);c.tip_id=(await sha(c.tip_content)).slice(0,24);return c; }
 function releaseHistory(before,current) {
   const releases=new Map();
   for(const c of [...(Array.isArray(before.release_history)?before.release_history:[]),before,current]){
@@ -105,6 +106,12 @@ Deno.serve(async req => {
       if(r.data?.length){try{await audit('feature_completion_seen',user,body,req,{option_id:body.option_id,completed_at:option.data.completed_at});}catch(e){console.error('feature_completion_audit_error',e);}}
       return json({claimed:!!r.data?.length});
     }
+    if(['notification_developer_comment_create','notification_developer_comment_update','notification_developer_comment_delete'].includes(action)&&req.method==='POST'){
+      const result=await developerCommentAdmin(db,user,action,body,async()=>announcementHistory(await config(true)));
+      const {status,event,...data}=result;
+      if(event){try{await audit(event,user,body,req,{comment_id:body.id,notice_id:body.notice_id,pinned:!!result.comment?.pinned_at});}catch(e){console.error('developer_comment_audit_failed',e);}}
+      return json(data,status||200);
+    }
     if(action==='notification_comment_reply'&&req.method==='POST'){
       if(!UUID.test(body.id)||typeof body.content!=='string'||body.content.trim().length>2000||!Number.isSafeInteger(body.revision)||body.revision<0)return json({error:'回复最多 2000 字，请重新读取评论后重试'},400);
       const content=body.content.trim(),now=new Date().toISOString();
@@ -117,8 +124,8 @@ Deno.serve(async req => {
     if(action==='notification_announcement_activity'&&req.method==='GET'){
       const params=new URL(req.url).searchParams,scope=params.get('scope')||'all',cursor=params.get('before')||'';
       if(!['all','current'].includes(scope)||(cursor&&!/^\d{1,18}$/.test(cursor)))return json({error:'无效的评论筛选或分页'},400);
-      const c=await config();
-      let q=db.from('score_tracker_announcement_comments').select('id,sequence,notice_id,content,created_at,admin_reply,admin_replied_at,reply_revision,author:score_tracker_users(username)').order('sequence',{ascending:false}).limit(51);
+      const c=await config(true);
+      let q=db.from('score_tracker_announcement_comments').select('id,sequence,notice_id,content,created_at,is_developer,pinned_at,comment_revision,admin_reply,admin_replied_at,reply_revision,author:score_tracker_users(username)').order('sequence',{ascending:false}).limit(51);
       if(scope==='current')q=q.eq('notice_id',c.announcement_id);
       if(cursor)q=q.lt('sequence',cursor);
       const [seen,current,total,list]=await Promise.all([
@@ -127,14 +134,17 @@ Deno.serve(async req => {
         db.from('score_tracker_announcement_comments').select('id',{count:'exact',head:true}),q
       ]);
       for(const r of [seen,current,total,list])if(r.error)throw r.error;
-      const rows=(list.data||[]).slice(0,50).map(x=>({id:String(x.id),sequence:String(x.sequence),notice_id:x.notice_id,admin_reply:x.admin_reply||'',admin_replied_at:x.admin_replied_at,reply_revision:x.reply_revision||0,content:x.content,created_at:x.created_at,author:x.author?.username||'用户',is_current:x.notice_id===c.announcement_id}));
-      return json({announcement_id:c.announcement_id,viewers:seen.count||0,current_comments:current.count||0,total_comments:total.count||0,rows,next:list.data?.length>50?rows.at(-1).sequence:null});
+      const rows=(list.data||[]).slice(0,50).map(x=>({id:String(x.id),sequence:String(x.sequence),notice_id:x.notice_id,is_developer:x.is_developer===true,pinned_at:x.pinned_at||null,comment_revision:x.comment_revision||0,admin_reply:x.admin_reply||'',admin_replied_at:x.admin_replied_at,reply_revision:x.reply_revision||0,content:x.content,created_at:x.created_at,author:x.is_developer?'开发者':x.author?.username||'用户',is_current:x.notice_id===c.announcement_id}));
+      return json({announcement_id:c.announcement_id,notices:announcementHistory(c).map(n=>({id:n.id,title:n.title})),viewers:seen.count||0,current_comments:current.count||0,total_comments:total.count||0,rows,next:list.data?.length>50?rows.at(-1).sequence:null});
     }
     if(action==='notification_config'&&req.method==='GET'){const c=await config();await audit('notification_admin_viewed',user,body,req,{revision:c.revision});return json({config:c});}
     if(action==='notification_config_save'&&req.method==='POST'){
       let c;try{c=validate(body);}catch(e){await audit('notification_config_save_failed',user,body,req,{reason:e.message});return json({error:e.message},400);}
+      if(body.announcement_new!==undefined&&typeof body.announcement_new!=='boolean')return json({error:'请选择编辑原公告或发布新公告'},400);
       const before=await config(true),changed=Object.keys(c).filter(k=>c[k]!==before[k]);
-      const saved=await db.from('score_tracker_notification_config').update({...c,release_history:releaseHistory(before,c),announcement_history:announcementHistory(before),revision:body.revision+1,updated_at:new Date().toISOString(),updated_by:user.id}).eq('id',1).eq('revision',body.revision).select('revision').maybeSingle();
+      const announcementId=body.announcement_new?crypto.randomUUID().replace(/-/g,'').slice(0,24):before.announcement_id;
+      if(body.announcement_new)changed.push('announcement_id');
+      const saved=await db.from('score_tracker_notification_config').update({...c,announcement_id:announcementId,release_history:releaseHistory(before,c),announcement_history:announcementHistory(before),revision:body.revision+1,updated_at:new Date().toISOString(),updated_by:user.id}).eq('id',1).eq('revision',body.revision).select('revision').maybeSingle();
       if(saved.error)throw saved.error;if(!saved.data){await audit('notification_config_save_failed',user,body,req,{reason:'revision_conflict'});return json({error:'内容刚刚有变化，请刷新后再保存'},409);}
       await audit('notification_config_saved',user,body,req,{version:c.version,revision:saved.data.revision,changed_fields:changed});return json({ok:true,config:await config()});
     }
@@ -150,7 +160,7 @@ Deno.serve(async req => {
       if(action==='announcement_comment_delete'){
         if(!UUID.test(body.id))return json({error:'无效的评论'},400);
         let q=db.from('score_tracker_announcement_comments').delete().eq('id',body.id).eq('notice_id',c.announcement_id);
-        if(!user.is_admin)q=q.eq('user_id',user.id);
+        if(!user.is_admin)q=q.eq('user_id',user.id).eq('is_developer',false);
         const r=await q.select('id');if(r.error)throw r.error;
         if(!r.data?.length)return json({error:'只能删除自己的评论'},403);
         return json({ok:true});
@@ -162,13 +172,8 @@ Deno.serve(async req => {
         if(r.error){if(r.error.message.includes('评论太快'))return json({error:'评论太快了，请稍后再发'},429);if(r.error.message.includes('公告已更新'))return json({error:'公告已更新或关闭评论，请重新打开'},409);throw r.error;}
         return json({ok:true});
       }
-      const cursor=String(body.before||'');if(cursor&&!/^\d{1,18}$/.test(cursor))return json({error:'无效的分页'},400);
-      let q=db.from('score_tracker_announcement_comments').select('id,sequence,user_id,content,created_at,admin_reply,admin_replied_at,reply_revision,admin_reply_read_at,author:score_tracker_users(username)').eq('notice_id',notice.id).order('sequence',{ascending:false}).limit(31);
-      if(!user.is_admin&&notice.comments_public===false)q=q.eq('user_id',user.id);
-      if(cursor)q=q.lt('sequence',cursor);
-      const r=await q;if(r.error)throw r.error;
-      const rows=(r.data||[]).slice(0,30).map(x=>({id:String(x.id),reply:x.admin_reply?{content:x.admin_reply,created_at:x.admin_replied_at}:null,is_mine:x.user_id===user.id,reply_unread:x.user_id===user.id&&!!x.admin_reply&&!x.admin_reply_read_at,reply_revision:x.user_id===user.id?x.reply_revision:undefined,content:x.content,sequence:String(x.sequence),created_at:x.created_at,author:x.author?.username||'用户',can_delete:isCurrent&&(user.is_admin||x.user_id===user.id)}));
-      return json({rows,next:r.data?.length>30?rows.at(-1).sequence:null,read_only:!isCurrent});
+      const {status,...page}=await announcementCommentPage(db,user,notice,isCurrent,body.before);
+      return json(page,status||200);
     }
     if(action==='notice_check'&&req.method==='POST'){
       const [c,r]=await Promise.all([config(),db.from('score_tracker_notification_receipts').select('kind,notice_id').eq('user_id',user.id).order('shown_at',{ascending:false}).limit(200)]);if(r.error)throw r.error;return json({config:c,seen:r.data||[]});

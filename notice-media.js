@@ -2,7 +2,17 @@
 (function () {
   'use strict';
   function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-  function imagePath(v) { return /^\/assets\/announcements\/[A-Za-z0-9_-]+\.(?:png|jpe?g|webp)$/.test(v)||/^\/assets\/announcements\/beta-(?:appearance|paper-review|question-entry|question-analysis)\.svg$/.test(v); }
+  var STORAGE_BASE = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/storage/v1/object/public/notice-media/';
+  function imagePath(v) {
+    if (/^\/assets\/announcements\/[A-Za-z0-9_-]+\.(?:png|jpe?g|webp|gif)$/.test(v)) return true;
+    if (/^\/assets\/announcements\/beta-(?:appearance|paper-review|question-entry|question-analysis)\.svg$/.test(v)) return true;
+    if (String(v).indexOf(STORAGE_BASE) !== 0) return false;
+    return /^[A-Za-z0-9][A-Za-z0-9/_.-]*\.(?:png|jpe?g|webp|gif)$/.test(String(v).slice(STORAGE_BASE.length)) && String(v).indexOf('..') === -1;
+  }
+  function imgAttrs(path) {
+    if (/^https:\/\//.test(path)) return 'src="' + esc(path) + '" referrerpolicy="no-referrer"';
+    return window.__scoreTrackerAssets ? window.__scoreTrackerAssets.attributes(path) : 'src="' + esc(path) + '"';
+  }
   function markup(value, textMarkup) {
     var gallery=[], out=[], text=[], hasMedia=false;
     function flush(){if(gallery.length){out.push('<div class="notice-gallery">'+gallery.join('')+'</div>');gallery=[];}}
@@ -12,7 +22,7 @@
       if(match&&imagePath(match[2])){
         hasMedia=true;
         flushText();
-        gallery.push('<figure class="notice-shot"><button type="button" data-notice-image aria-expanded="false" aria-label="查看大图：'+esc(match[1])+'"><img '+(window.__scoreTrackerAssets?window.__scoreTrackerAssets.attributes(match[2]):'src="'+esc(match[2])+'"')+' alt="'+esc(match[1])+'" loading="lazy" decoding="async"><span>'+esc(match[1])+'</span><small>点击看大图</small></button></figure>');return;
+        gallery.push('<figure class="notice-shot"><button type="button" data-notice-image aria-expanded="false" aria-label="查看大图：'+esc(match[1])+'"><img '+imgAttrs(match[2])+' alt="'+esc(match[1])+'" loading="lazy" decoding="async"><span>'+esc(match[1])+'</span><small>点击看大图</small></button></figure>');return;
       }
       flush();
       if(/^\[[^\]\n]{1,80}\]\(#community-qr\)$/.test(line)){hasMedia=true;flushText();out.push('<section class="notice-community-inline" data-notice-community-inline aria-label="加入微信交流群"><p role="status">正在读取群二维码…</p></section>');}

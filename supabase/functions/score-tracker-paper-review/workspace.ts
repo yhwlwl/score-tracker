@@ -38,15 +38,19 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
   const action = body.action, reviews = 'score_tracker_paper_reviews';
   if (action === 'list_all') {
     const offset = Math.max(0, Math.min(10000, Number.isInteger(body.offset) ? body.offset : 0));
-    let q = db.from(reviews).select('request_id,draft_id,exam_id,subject,title,status,created_at,progress,options').eq('user_id', user);
+    let q = db.from(reviews).select('request_id,draft_id,exam_id,subject,title,status,created_at,progress,options,source_record:result->source_record,active_source:analysis_state->source_record').eq('user_id', user);
+    if (body.source_request_id) {
+      if (!UUID.test(body.source_request_id)) throw new WorkspaceError('试卷编号无效');
+      q = q.or(`result->source_record->>request_id.eq.${body.source_request_id},analysis_state->source_record->>request_id.eq.${body.source_request_id}`);
+    }
     if (body.subject) q = q.eq('subject', text(body.subject, 40));
     if (body.purpose === 'record') q = q.eq('options->>purpose', 'record');
     if (body.purpose === 'analysis') q = q.or('options->>purpose.neq.record,options->>purpose.is.null');
     if (body.exam_id) { await ownedExam(user, body.exam_id); q = q.eq('exam_id', body.exam_id); }
     if (['running','paused','succeeded','failed'].includes(body.status)) q = q.eq('status', body.status);
     const rows = await materialQuery(q.order('created_at', { ascending: false }).range(offset, offset + 49));
-    const drafts = offset === 0 ? await materialQuery(db.from(MATERIALS).select('request_id,draft_id,exam_id,subject,title,options,created_at,submitted').eq('user_id', user).eq('submitted', false).order('created_at', { ascending: false }).limit(20)) : [];
-    return { reviews: rows, drafts: body.purpose === 'analysis' ? [] : drafts, has_more: rows.length === 50 };
+    const drafts = offset === 0 && !body.source_request_id ? await materialQuery(db.from(MATERIALS).select('request_id,draft_id,exam_id,subject,title,options,created_at,submitted').eq('user_id', user).eq('submitted', false).order('created_at', { ascending: false }).limit(20)) : [];
+    return { reviews: rows.map((row: any) => { const { active_source, ...item } = row; return { ...item, source_record: item.source_record || active_source || null }; }), drafts: body.purpose === 'analysis' ? [] : drafts, has_more: rows.length === 50 };
   }
   if (action === 'preferences') {
     if (body.settings) await materialQuery(db.from('score_tracker_paper_preferences').upsert({ user_id: user, settings: preferenceSettings(body.settings) }));

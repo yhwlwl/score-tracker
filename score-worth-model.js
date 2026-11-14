@@ -60,26 +60,28 @@
   }
   function hardness(p, model, slope) { var b = slope == null ? model.b : slope; return b * (p.z - model.meanZ) - (p.y - model.meanY); }
   function difficultyIndex(h) { return 100 * sigmoid(h); }
-  function context(exams, subject) {
+  function context(exams, subject, allHistory) {
     var observations = exams.map(function (e, i) { return observation(e, subject, i); });
     var signature = JSON.stringify(observations.map(function (o) { return [key(o.e), o.day, o.e.grade_level || '', o.score, o.max, o.pos, o.N]; }));
     var perSubject = cache.get(exams); if (!perSubject) { perSubject = Object.create(null); cache.set(exams, perSubject); }
-    if (perSubject[subject] && perSubject[subject].signature === signature) return perSubject[subject];
+    var cacheKey = JSON.stringify([subject, !!allHistory]);
+    if (perSubject[cacheKey] && perSubject[cacheKey].signature === signature) return perSubject[cacheKey];
     var seen = Object.create(null), unique = [];
     // Duplicate IDs are one exam; keep the final supplied record.
     observations.slice().reverse().forEach(function (o) { var k = key(o.e); if (!seen[k]) { seen[k] = true; if (o.valid) unique.push(o); } });
     unique.sort(function (a, b) { return a.day - b.day || key(a.e).localeCompare(key(b.e)); });
     var categories = Object.create(null), groups = [], byIndex = Object.create(null);
     unique.forEach(function (o) {
-      var category = String(o.e.grade_level || ''), group = categories[category];
-      if (!group || Math.abs(o.N - median(group.points.map(function (p) { return p.N; }))) / Math.max(o.N, median(group.points.map(function (p) { return p.N; }))) >= 0.3) {
+      var category = allHistory ? '__history__' : String(o.e.grade_level || ''), group = categories[category];
+      var medianN = group && !allHistory ? median(group.points.map(function (p) { return p.N; })) : null;
+      if (!group || (!allHistory && Math.abs(o.N - medianN) / Math.max(o.N, medianN) >= 0.3)) {
         group = { points: [], category: category }; groups.push(group); categories[category] = group;
       }
       group.points.push(o); o.group = group; byIndex[o.index] = o;
     });
     groups.forEach(function (group) { if (group.points.length >= 3) group.model = fit(group.points); });
     var result = { signature: signature, observations: observations, groups: groups, byIndex: byIndex };
-    perSubject[subject] = result; return result;
+    perSubject[cacheKey] = result; return result;
   }
   function scoreOnScale(cur, delta, max) {
     if (Math.abs(delta) < 1e-10) return cur.score / cur.max * max;
@@ -99,10 +101,10 @@
     }
     if (!cur.rankValid) { out.reason = '还需要这科的年级排名（或排名位置）和参考人数。少于 30 人时，暂不估计难度。'; return out; }
     if (cur.day === null) { out.reason = '补齐有效的考试日期，就能建立参考尺子。'; return out; }
-    var ctx = context(exams, subject), point = ctx.byIndex[index];
+    var ctx = context(exams, subject, out.referenceMode === 'history'), point = ctx.byIndex[index];
     if (!point) { out.reason = '这场考试有重复记录，已避免重复计入参考尺子。'; return out; }
     var group = point.group, model = group.model; out.modelN = group.points.length;
-    if (!model) { out.reason = '这组可比较的记录还不足 3 场。补齐成绩、满分和年级排名后，就能估计相对难度。'; return out; }
+    if (!model) { out.reason = (out.referenceMode === 'history' ? '这科全部历史中的有效记录还不足 3 场。' : '这组可比较的记录还不足 3 场。') + '补齐成绩、满分和年级排名后，就能估计相对难度。'; return out; }
     var refs = group.points, max = cur.max, label = '历史平均';
     if (out.referenceMode === 'period') {
       var start = day({ exam_date: options.start }), end = day({ exam_date: options.end });
@@ -143,10 +145,10 @@
     out.quality = reasons.length ? 'limited' : 'supported'; out.warnings = reasons; out.model = model;
     return out;
   }
-  function cells(exams, subjects) {
+  function cells(exams, subjects, allHistory) {
     var result = Object.create(null);
     subjects.forEach(function (subject) {
-      var ctx = context(exams, subject);
+      var ctx = context(exams, subject, allHistory);
       Object.keys(ctx.byIndex).forEach(function (i) {
         var p = ctx.byIndex[i], m = p.group.model;
         if (m) result[i + '|' + subject] = { index: difficultyIndex(hardness(p, m)), n: p.group.points.length,

@@ -18,10 +18,10 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png'
   await page.goto('http://127.0.0.1:'+server.address().port);await page.waitForFunction(()=>window.ScorePaperRecords);
   await page.evaluate(({uid,examId})=>{state.user={id:uid,username:'链路验收'};state.token='test-token';state.subjectConfigs=[{name:'数学',defaultMax:10}];state.modulesV18=[];state.exams=[{id:examId,name:'期中数学',exam_date:'2026-10-28',scores:{数学:{actual:5,max:10,raw:5,rawMax:10}},question_type_scores:{}}];state.allExams=state.exams;state.page='stats';state.analysisTab='papers';render();},{uid,examId});
   await page.locator('[data-hub="open:'+rid+'"]').click();await page.locator('[data-question="1"]>summary').click();
-  await page.locator('[data-field=question_type]').first().waitFor({state:'visible'});
+  await page.locator('[data-question="1"] .pr-edit>summary').click();await page.locator('[data-field=question_type]').first().waitFor({state:'visible'});
   assert.equal(await page.locator('.ph-tabs').count(),1);
   await page.screenshot({path:path.join(out,device.name+'-record.png'),fullPage:true});
-  await page.locator('[data-pr=preview-types]').click();await page.locator('[data-sync-types]').waitFor();
+  await page.locator('[data-sync-types]').waitFor();
   await page.screenshot({path:path.join(out,device.name+'-sync.png'),fullPage:false});
   await page.locator('[data-sync-types]').click();await page.locator('[data-view-types]').waitFor();await page.locator('[data-view-types]').click();await page.locator('.qta-page').waitFor();
   await page.screenshot({path:path.join(out,device.name+'-types.png'),fullPage:false});
@@ -29,7 +29,7 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png'
   await page.screenshot({path:path.join(out,device.name+'-analysis-setup.png'),fullPage:false});
   await page.locator('[name=consent]').check();await page.locator('.pr-record-analysis [type=submit]').click();await f.h.drain();await page.locator('.pr-result-top').waitFor();
   assert.equal(await page.locator('input[type=file]').count(),0,'derived report only shares source scans, no duplicate uploads');
-  for(const tab of ['stats','types','papers','ai']){await page.locator('[data-analysis-tab='+tab+']').click();await page.waitForTimeout(30);assert.equal(await page.locator('[data-analysis-tab]').count(),4);assert.equal(await page.locator('.ph-tabs').count(),1);}
+  for(const tab of ['stats','types','papers']){await page.locator('[data-analysis-tab='+tab+']').click();await page.waitForTimeout(30);assert.equal(await page.locator('[data-analysis-tab]').count(),3);assert.equal(await page.locator('.ph-tabs').count(),1);}
   await page.locator('[data-analysis-tab=papers]').click();await page.locator('[data-hub=new]').click();await page.locator('.ph-basics').waitFor();
   await page.screenshot({path:path.join(out,device.name+'-new.png'),fullPage:false});
   const overflow=await page.evaluate(()=>({document:document.documentElement.scrollWidth,viewport:innerWidth,offenders:[...document.querySelectorAll('#content *')].filter(n=>{const r=n.getBoundingClientRect();return r.width>0&&r.right>innerWidth+2}).slice(0,5).map(n=>n.className)}));

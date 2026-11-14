@@ -4,6 +4,7 @@
   var esc = function (v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
   function account() { return String(state.user && state.user.id || state.token || ''); }
   function defaults() { if (owner !== account()) { owner = account(); values = {}; } return values; }
+  window.ScoreParticipantDefaults={snapshot:function(){return JSON.parse(JSON.stringify(defaults()));}};
   function receive(data, token) {
     if (token !== state.token || !data || !data.participantDefaults) return;
     owner = String(data.user && data.user.id || account()); values = data.participantDefaults;

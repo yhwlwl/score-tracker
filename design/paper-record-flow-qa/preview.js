@@ -8,8 +8,8 @@
   if(String(url).includes('/api/score-tracker-paper-review')){
    var r=reports.find(function(r){return r.request_id===b.request_id;})||record;
    var rows=function(){var map=new Map();(r.corrections||[]).forEach(function(q){if(!q.question_type)return;var a=map.get(q.question_type)||{name:q.question_type,score:0,max:0,difficulty:q.question_difficulty};a.score=q.teacher_score==null||a.score==null?null:a.score+q.teacher_score;a.max=q.max_score==null||a.max==null?null:a.max+q.max_score;map.set(q.question_type,a);});return Array.from(map.values());};
-   if(b.action==='list_all')data={reviews:reports.filter(function(r){return !b.purpose||r.options.purpose===b.purpose;}),drafts:[],has_more:false};
-   else if(b.action==='get')data={review:r};
+   if(b.action==='list_all')data={reviews:reports.filter(function(r){return (!b.purpose||r.options.purpose===b.purpose)&&(!b.source_request_id||r.result.source_record&&r.result.source_record.request_id===b.source_request_id);}),drafts:[],has_more:false};
+   else if(b.action==='get'){if(!reports.some(function(r){return r.request_id===b.request_id;}))return new Response(JSON.stringify({error:'记录已移除'}),{status:404});data={review:r};}
    else if(b.action==='quota')data={quota:{enabled:true,limit:10,remaining:10,global_available:true}};
    else if(b.action==='preferences')data={settings:{}};
    else if(b.action==='sources')data={pages:[],regions:{},readonly:true};

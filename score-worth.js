@@ -75,7 +75,12 @@
     }
     return s;
   }
-  function result(f, s) { return M.compare(f.exams, s.subject, s.index, { mode: s.mode, exam: s.refIndex, start: s.start, end: s.end }); }
+  function historyExams(f) { return Array.isArray(f.worthHistoryExams) ? f.worthHistoryExams : f.exams; }
+  function result(f, s) {
+    var exams = s.mode === 'history' ? historyExams(f) : f.exams;
+    var selected = f.exams[s.index], index = exams === f.exams ? s.index : exams.findIndex(function (e) { return selected && M.key(e) === M.key(selected); });
+    return M.compare(exams, s.subject, index, { mode: s.mode, exam: s.refIndex, start: s.start, end: s.end });
+  }
   function examOptions(exams, index, indices) {
     return exams.map(function (e, i) {
       if (indices && indices.indexOf(i) < 0) return '';
@@ -100,15 +105,19 @@
       body += '<p class="worth-message">' + (r.kind === 'identity' ? '参照就是本次考试，成绩不变。' : '按' + (s.mode === 'history' ? '历史平均难度' : s.mode === 'period' ? '这段时间的平均难度' : '这场考试的难度') + '，约相当于 <b>' + fmt(r.value) + ' 分</b>。') + '</p>';
       if (r.kind !== 'identity' && r.quality === 'limited') body += '<div class="worth-stability"><p>' + esc(briefWarning(r)) + '</p></div>';
       var rows = r.references.slice().sort(function (a, b) { return b.day - a.day; });
-      var model = p && p.group.model, difficultyCells = model ? M.cells(f.exams, [s.subject]) : {};
+      var history = s.mode === 'history', evidenceExams = history ? historyExams(f) : f.exams;
+      var difficultyCells = M.cells(evidenceExams, [s.subject], history), localContext = M.context(f.exams, s.subject);
       body += '<details class="worth-evidence worth-records"><summary>参考考试 · ' + rows.length + ' 场</summary>';
       body += '<div class="worth-table-scroll" tabindex="0" role="region" aria-label="参照考试依据"><table class="worth-table"><thead><tr><th>考试</th><th>实际成绩</th><th>年级排名</th><th>难度参考</th><th></th></tr></thead><tbody>' + rows.map(function (o) {
         var cell = difficultyCells[o.index + '|' + s.subject];
-        return '<tr><td>' + esc(o.e.name || '未命名考试') + '<small>' + esc(o.e.exam_date || '') + '</small></td><td>' + fmt(o.score) + ' / ' + fmt(o.max) + '</td><td>' + (o.rankValid ? '前 ' + fmt(o.pos) + '%<small>' + o.N + ' 人</small>' : '—') + '</td><td>' + (cell ? fmt(cell.index) : '—') + '</td><td><button type="button" class="worth-link" data-worth-reference="' + o.index + '">用作参照</button></td></tr>';
+        var localIndex = evidenceExams === f.exams ? o.index : f.exams.findIndex(function (e) { return M.key(e) === M.key(o.e); });
+        var localPoint = localContext.byIndex[localIndex];
+        var referenceAction = localPoint && p && localPoint.group === p.group ? '<button type="button" class="worth-link" data-worth-reference="' + localIndex + '">用作参照</button>' : '<span class="worth-note">历史参考</span>';
+        return '<tr><td>' + esc(o.e.name || '未命名考试') + '<small>' + esc(o.e.exam_date || '') + '</small></td><td>' + fmt(o.score) + ' / ' + fmt(o.max) + '</td><td>' + (o.rankValid ? '前 ' + fmt(o.pos) + '%<small>' + o.N + ' 人</small>' : '—') + '</td><td>' + (cell ? fmt(cell.index) : '—') + '</td><td>' + referenceAction + '</td></tr>';
       }).join('') + '</tbody></table></div></details>';
       body += '<details class="worth-evidence worth-method"><summary>怎么算的？</summary>';
       if (r.difficulty != null) body += '<div class="worth-difficulty"><div><span>本次难度参考</span><b>' + fmt(r.difficulty) + '</b></div><div><span>参照难度参考</span><b>' + fmt(r.referenceDifficulty) + '</b></div><div><span>参考记录</span><b>' + rows.length + '<small> 场</small></b></div></div><p class="worth-note">50 为这组考试的平均难度，数字越大，估计相对越难；不是难度概率。</p>';
-      body += '<p class="worth-note">用 ' + (r.modelN || 1) + ' 场可比较的分数与年级排名估算难度，再换到你选择的参照难度。分类不同或人数明显变化时分开计算。</p><p class="worth-note">历史平均和时间段平均包含范围内的本次考试。回看旧考试也会用到后来录入的记录，不是当时的预测。指定考试按它的满分换算，其他参照按本次满分。</p>';
+      body += '<p class="worth-note">用 ' + (r.modelN || 1) + ' 场可比较的分数与年级排名估算难度，再换到你选择的参照难度。' + (history ? '历史平均使用这科全部分类的有效历史，不要求同组，也不受页面分类筛选限制。' : '时间段和指定考试仍在同一分类、同一参考人群阶段内比较。') + '</p><p class="worth-note">历史平均和时间段平均包含范围内的本次考试。回看旧考试也会用到后来录入的记录，不是当时的预测。指定考试按它的满分换算，其他参照按本次满分。</p>';
       if (r.kind !== 'identity') {
         body += plainWarnings(r).map(function (warning) { return '<p class="worth-note">' + esc(warning) + '</p>'; }).join('');
         body += '<p class="worth-note worth-sensitivity">每次少用一场记录重算，结果为 ' + fmt(r.low) + '–' + fmt(r.high) + ' 分。结果相近不说明分数一定准确；不是预测区间或置信区间，也不是下次考试的分数范围。</p>';
@@ -156,6 +165,7 @@
       var i = Number(button.dataset.worthMatrix), subject = button.dataset.worthSubject;
       if (!f.exams[i] || f.subjects.indexOf(subject) < 0) return;
       var s = selection(f); s.subject = subject; s.exam = M.key(f.exams[i]);
+      if (state.sv31 && state.sv31.matrixWorth === 'difficulty') s.mode = 'history';
       track('score_worth_matrix_open', { version: 2 }); replace('matrix'); card.setAttribute('tabindex', '-1'); card.focus({ preventScroll: true });
       if (card.scrollIntoView) card.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     });
@@ -166,5 +176,17 @@
   style.textContent += '.worth-matrix-card{min-width:0}.worth-matrix-scroll{width:100%;max-width:100%;overflow:auto;max-height:480px;border:1px solid var(--line);border-radius:12px;-webkit-overflow-scrolling:touch}.worth-matrix-scroll:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.worth-matrix-table{table-layout:fixed;border-collapse:separate;border-spacing:0;width:100%;font-size:13px;font-variant-numeric:tabular-nums}.worth-matrix-table th,.worth-matrix-table td{box-sizing:border-box;padding:8px 6px;height:62px;border:0;border-bottom:1px solid var(--line);border-right:1px solid var(--line);text-align:center;vertical-align:middle;white-space:normal;word-break:normal;overflow-wrap:normal}.worth-matrix-table thead th{position:sticky;top:0;z-index:2;height:42px;background:var(--panel-solid);color:var(--muted);font-weight:600}.worth-matrix-table tr>:first-child{position:sticky;left:0;z-index:1;background:var(--panel-solid);color:var(--text);text-align:left;padding:10px 12px;box-shadow:2px 0 0 var(--line)}.worth-matrix-table thead tr>:first-child{z-index:3;color:var(--muted)}.worth-exam-name{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;line-height:1.4;max-height:2.8em;font-weight:600;overflow-wrap:anywhere}.worth-exam-date{display:block;font-size:10px;line-height:1.4;font-weight:400;color:var(--muted);margin-top:4px;white-space:nowrap}.worth-matrix-table .worth-matrix-button{min-height:44px;padding:6px 0;position:relative;white-space:nowrap;font-weight:600;font-size:14px;border-radius:4px}.worth-heat-limited{display:inline-block;font-size:11px;margin-left:3px;vertical-align:super;line-height:1}.worth-heat-legend{max-width:320px;margin:0 0 12px;color:var(--muted);font-size:11px}.worth-heat-ramp{height:10px;border-radius:5px;position:relative;overflow:hidden}.worth-heat-ramp:after{content:"";position:absolute;left:50%;top:0;bottom:0;border-left:2px solid var(--panel-solid)}.worth-heat-labels{display:flex;justify-content:space-between;margin-top:5px;gap:8px}.worth-matrix-hint{font-size:11px;color:var(--muted);line-height:1.7;margin:8px 0 12px}@media(max-width:480px){.worth-matrix-scroll{max-height:420px}.worth-matrix-table th,.worth-matrix-table td{height:60px}.worth-matrix-card .card-title-row{flex-wrap:wrap;gap:8px}.worth-matrix-card .legend{flex-wrap:wrap;gap:8px}}';
   // A single theme watcher reads the current DOM, so page switches retain no old cards.
   if (typeof MutationObserver === 'function') new MutationObserver(paintHeatmap).observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'data-theme'] });
-  window.__stScoreWorth = { html: html, bind: bind, compare: M.compare, observation: M.observation, difficultyCells: M.cells, heatStyle: heatStyle, heatRamp: heatRamp, heatColor: heatColor };
+  function historyCells(exams, subjects, source) {
+    source = Array.isArray(source) ? source : exams;
+    var cells = M.cells(source, subjects, true);
+    if (source === exams) return cells;
+    var sourceIndices = Object.create(null), mapped = Object.create(null);
+    source.forEach(function (e, i) { sourceIndices[M.key(e)] = i; });
+    exams.forEach(function (e, i) { subjects.forEach(function (subject) {
+      var cell = cells[sourceIndices[M.key(e)] + '|' + subject];
+      if (cell) mapped[i + '|' + subject] = cell;
+    }); });
+    return mapped;
+  }
+  window.__stScoreWorth = { html: html, bind: bind, compare: M.compare, observation: M.observation, difficultyCells: historyCells, heatStyle: heatStyle, heatRamp: heatRamp, heatColor: heatColor };
 })();

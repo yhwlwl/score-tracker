@@ -38,8 +38,8 @@ function harness() {
   const blobs = new Map();
   const db = { storage: { from() { return { async upload(path,bytes){blobs.set(path,bytes);return {data:{path}}},async download(path){return blobs.has(path)?{data:new Blob([blobs.get(path)])}:{error:'missing'}},async remove(paths){paths.forEach(p=>blobs.delete(p));return {data:[]}},async createSignedUrls(paths){return {data:paths.map(path=>({signedUrl:'https://scan.test/'+path}))}} } } }, from(table) {
     let offset = 0, filters = [], action = 'select', value, single = false, sort, maximum, columns;
-    const q = { range(a,b) {offset=a;maximum=b-a+1;return q;}, insert(v) {action='insert';value=v;return q;}, upsert(v) {action='upsert';value=v;return q;}, select(fields) { columns=fields;return q; }, eq(k,v) { filters.push(r=>k.includes('->>')?r[k.split('->>')[0]]?.[k.split('->>')[1]]===v:r[k]===v); return q; }, is(k,v) { filters.push(r=>(r[k]??null)===v);return q; }, in(k,v) { filters.push(r=>v.includes(r[k]));return q; },
-      or(scope) { filters.push(r=>scope.split(',').some(term=>{const [key,op,...rest]=term.split('.'),value=rest.join('.'),actual=key.includes('->>')?r[key.split('->>')[0]]?.[key.split('->>')[1]]:r[key];return op==='is'&&value==='null'?actual==null:op==='eq'?actual===value:op==='neq'&&actual!=null&&actual!==value;}));return q; }, order(k) { sort=k;return q; }, limit(n) { maximum=n;return q; }, update(v) { action='update';value=v;return q; }, delete() { action='delete';return q; }, single() { single=true;return run(); }, maybeSingle() { single=true;return run(); }, then(a,b) { return run().then(a,b); } };
+    const q = { range(a,b) {offset=a;maximum=b-a+1;return q;}, insert(v) {action='insert';value=v;return q;}, upsert(v) {action='upsert';value=v;return q;}, select(fields) { columns=fields;return q; }, eq(k,v) { filters.push(r=>k.includes('->>')?k.split(/->>?/).reduce((o,p)=>o?.[p],r)===v:r[k]===v); return q; }, is(k,v) { filters.push(r=>(r[k]??null)===v);return q; }, in(k,v) { filters.push(r=>v.includes(r[k]));return q; },
+      or(scope) { filters.push(r=>scope.split(',').some(term=>{const [key,op,...rest]=term.split('.'),value=rest.join('.'),actual=key.includes('->>')?key.split(/->>?/).reduce((o,p)=>o?.[p],r):r[key];return op==='is'&&value==='null'?actual==null:op==='eq'?actual===value:op==='neq'&&actual!=null&&actual!==value;}));return q; }, order(k) { sort=k;return q; }, limit(n) { maximum=n;return q; }, update(v) { action='update';value=v;return q; }, delete() { action='delete';return q; }, single() { single=true;return run(); }, maybeSingle() { single=true;return run(); }, then(a,b) { return run().then(a,b); } };
     async function run() {
       let found = (tables[table] || []).filter(r=>filters.every(f=>f(r)));
       calls.push(table);
@@ -49,7 +49,7 @@ function harness() {
       if(action==='delete')tables[table]=tables[table].filter(r=>!found.includes(r));
       if(sort)found.sort((a,b)=>String(b[sort]).localeCompare(String(a[sort])));
       if(maximum)found=found.slice(offset,offset+maximum);
-      if(columns&&columns!=='*')found=found.map(r=>Object.fromEntries(columns.split(',').filter(k=>k in r).map(k=>[k,r[k]])));
+      if(columns&&columns!=='*')found=found.map(r=>Object.fromEntries(columns.split(',').flatMap(k=>{const [alias,field]=k.includes(':')?k.split(':'):[k,k];const value=field.split(/->>?/).reduce((o,p)=>o?.[p],r);return value===undefined?[]:[[alias,value]];})));
       return { data: structuredClone(single ? found[0] || null : found), error: null };
     } return q;
   }, async rpc(name, p) {
@@ -199,7 +199,7 @@ for(const f of ['app-v36.js','app-v37.js','app-v38.js'])w.eval(read(f));await ti
   const starts=calls.filter(c=>c.action==='start');assert.equal(starts[0].exam_context.score,88,'current draft numeric context is included');assert.equal(starts.length,2);assert.equal(starts[0].request_id,starts[1].request_id,'ambiguous network failure preserves request id and payload');
   dialog.querySelector('[data-pr=history]').click();await tick();dialog.querySelector('[data-pr^="report:"]').click();await tick();
   assert.equal(dialog.querySelectorAll('.pr-question').length,2);assert(dialog.querySelector('.pr-wins'));assert(dialog.querySelector('.pr-wins').compareDocumentPosition(dialog.querySelector('.pr-questions')) & w.Node.DOCUMENT_POSITION_FOLLOWING);assert.equal(dialog.querySelectorAll('[data-question=\"1\"] .pr-solution').length,1,'full-credit optional method remains available');assert(dialog.querySelector('.pr-difficulty-table'));assert(dialog.querySelector('[data-field=cause]'));
-  assert(dialog.querySelector('.pr-first-action').compareDocumentPosition(dialog.querySelector('.pr-questions')) & w.Node.DOCUMENT_POSITION_FOLLOWING,'one priority leads the report');assert(dialog.querySelector('.pr-questions').compareDocumentPosition(dialog.querySelector('.pr-action-plan')) & w.Node.DOCUMENT_POSITION_FOLLOWING,'full plan follows explanations');
+  assert(dialog.querySelector('.pr-next-exam').compareDocumentPosition(dialog.querySelector('.pr-questions')) & w.Node.DOCUMENT_POSITION_FOLLOWING,'one priority leads the report');assert(dialog.querySelector('.pr-questions').compareDocumentPosition(dialog.querySelector('.pr-action-plan')) & w.Node.DOCUMENT_POSITION_FOLLOWING,'full plan follows explanations');
   assert.equal(dialog.querySelector('.pr-solution').open,false,'solution is optional');
   assert.equal(dialog.querySelector('.pr-practice details').open,false,'practice answer stays hidden until requested');
   dialog.querySelector('[data-pr="focus:2"]').click();assert.equal(dialog.querySelector('[data-question="2"]').open,true,'action links open the source diagnosis');

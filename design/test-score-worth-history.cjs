@@ -1,0 +1,66 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const context = { state: { user: { id: 'history-test' } }, document: { createElement: () => ({}), head: { appendChild() {} } } };
+context.window = context;
+vm.createContext(context);
+for (const file of ['score-worth-model.js', 'score-worth.js']) vm.runInContext(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'), context);
+const M = context.__stScoreWorthModel, UI = context.__stScoreWorth;
+function exam(i, grade = '阶段 A', population = 1000) {
+  return { id: 'exam-' + i, name: '历史考试 ' + i, exam_date: '2026-10-' + String(i + 1).padStart(2, '0'), grade_level: grade,
+    scores: { 物理: { actual: 60 + i * 4, max: 100, yearPositionPercent: 70 - i * 8, participants: population } } };
+}
+const exams = [exam(0), exam(1), exam(2), exam(3, '阶段 B', 500), exam(4, '阶段 B', 500), exam(5, '阶段 B', 500)];
+const original = JSON.stringify(exams);
+let r = M.compare(exams, '物理', 5);
+assert.equal(r.kind, 'estimate');
+assert.equal(r.modelN, 6);
+assert.equal(r.references.length, 6);
+assert.equal(r.referenceDifficulty, 50);
+assert.equal(M.context(exams, '物理').groups.length, 2, 'the grouped ruler remains available for other modes');
+assert.equal(M.context(exams, '物理', true).groups.length, 1);
+assert.equal(M.compare(exams, '物理', 5, { mode: 'exam', exam: 0 }).kind, 'empty');
+assert.equal(M.compare(exams, '物理', 5, { mode: 'exam', exam: 4 }).kind, 'estimate');
+assert.equal(M.compare(exams, '物理', 5, { mode: 'period', start: '2026-10-01', end: '2026-10-06' }).references.length, 3);
+const sparse = [exam(0, 'A'), exam(1, 'B'), exam(2, 'C')];
+assert.equal(M.compare(sparse, '物理', 2).kind, 'estimate', 'three valid exams in three separate groups are sufficient for history');
+assert.equal(M.compare(sparse.slice(0, 2), '物理', 1).kind, 'empty');
+const invalid = exam(6, 'C'); invalid.scores.物理.actual = null;
+assert.equal(M.compare(exams.concat(invalid), '物理', 5).references.length, 6);
+const duplicate = exams.concat({ ...exams[5], scores: { 物理: { ...exams[5].scores.物理, actual: 79 } } });
+assert.equal(M.compare(duplicate, '物理', 6).references.length, 6);
+assert.equal(M.compare(duplicate, '物理', 5).kind, 'empty');
+const reversed = exams.slice().reverse();
+assert(Math.abs(M.compare(reversed, '物理', 0).value - r.value) < 1e-10);
+assert.equal(JSON.stringify(exams), original, 'history comparison never changes recorded grades');
+const cached = M.context(exams, '物理', true);
+assert.equal(M.context(exams, '物理', true), cached);
+exams[0].scores.物理.actual = 61;
+assert.notEqual(M.context(exams, '物理', true), cached);
+exams[0].scores.物理.actual = 60;
+
+// A category-filtered page must still use the full, visibility-filtered history supplied by the page.
+const feature = { exams: [exams[5]], subjects: ['物理'], worthHistoryExams: exams };
+const html = UI.html(feature);
+assert(html.includes('data-worth-result="estimate"'));
+assert(html.includes('参考考试 · 6 场'));
+assert(html.includes('历史考试 0'));
+assert(html.includes('历史平均使用这科全部分类的有效历史，不要求同组'));
+assert(html.includes('data-worth-reference="0"'));
+assert(!/data-worth-reference="[1-9]/.test(html), 'global evidence indices cannot accidentally select unrelated local exams');
+const mapped = UI.difficultyCells(feature.exams, feature.subjects, exams);
+r = M.compare(exams, '物理', 5);
+assert(Math.abs(mapped['0|物理'].index - r.difficulty) < 1e-10, 'matrix rows use the same all-history difficulty ruler');
+assert(Math.abs(M.cells(exams, ['物理'], true)['5|物理'].index - r.difficulty) < 1e-10);
+assert(UI.html({ exams: [exams[5]], subjects: ['物理'], worthHistoryExams: sparse.slice(0, 2).concat(exams[5]) }).includes('参考考试 · 3 场'));
+const pageSource = fs.readFileSync(path.join(__dirname, '../app-v32.js'), 'utf8');
+vm.runInContext(pageSource.slice(pageSource.indexOf('function allExamsV32('), pageSource.indexOf('function configuredSubjectsV32(')), context);
+const hidden = { ...exam(7, '隐藏分类'), is_hidden: true };
+context.state.exams = [exams[5]];
+context.state.allExams = exams.concat(hidden);
+context.state.unfilteredVisibleExamsV13 = exams;
+assert.equal(context.visibleExamsV32(false).length, 1, 'ordinary page category selection stays in effect');
+assert.equal(context.worthHistoryExamsV32(false).length, 6, 'history bypasses the global category filter too');
+assert.equal(context.worthHistoryExamsV32(true).length, 7, 'the existing include-hidden switch is respected');
+console.log('PASS: all-history model across groups, sparse groups, unchanged period/exam limits, valid-only evidence, duplicates, cache, order, scoped-page evidence, local index mapping and matrix consistency');
