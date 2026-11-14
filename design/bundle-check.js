@@ -26,6 +26,10 @@ const expectHash = crypto.createHash("md5").update(bundle).digest("hex").slice(0
 const html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
 const m = html.match(/app-bundle\.js\?v=([0-9a-f]+)/);
 let ok = true;
+const sharedModel = path.join(ROOT, 'supabase/functions/_shared/score-worth-model.js');
+if (!fs.existsSync(sharedModel) || fs.readFileSync(sharedModel, 'utf8') !== fs.readFileSync(path.join(ROOT, 'score-worth-model.js'), 'utf8')) {
+  console.error('❌ 成绩页与分析后端的难度模型不一致 —— 先运行 node design/build-bundles.js'); ok = false;
+}
 if (!m) { console.error("❌ index.html 里找不到 app-bundle.js?v= 引用"); ok = false; }
 else if (m[1] !== expectHash) { console.error("❌ index.html ?v=" + m[1] + " 与源码指纹 " + expectHash + " 不一致 —— 先运行 node design/build-bundles.js"); ok = false; }
 try {

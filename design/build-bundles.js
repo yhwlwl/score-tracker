@@ -6,6 +6,10 @@ const crypto = require("crypto");
 
 const ROOT = path.resolve(__dirname, "..");
 const ORDER = require("./bundle-order.json");
+// The Edge report and the scores page use the same difficulty model source.
+const sharedRoot = path.join(ROOT, "supabase/functions/_shared");
+fs.mkdirSync(sharedRoot, { recursive: true });
+fs.copyFileSync(path.join(ROOT, "score-worth-model.js"), path.join(sharedRoot, "score-worth-model.js"));
 
 const missing = ORDER.filter((f) => !fs.existsSync(path.join(ROOT, f)));
 if (missing.length) {
