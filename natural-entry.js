@@ -943,6 +943,7 @@
         }
       });
       result.fillMode = decision.mode;
+      modal.dataset.quickEntryApplied='true';
       trackUsage('quick_entry_fill_confirmed', { fill_mode: decision.mode, created_module_count: decision.create.length });
       return true;
     }
@@ -961,7 +962,7 @@
     var quotaRefresh = backdrop.querySelector('.nl-entry-quota-refresh');
     function quotaBlocked() {
       return !quotaState || !quotaState.enabled || !quotaState.eligible || !quotaState.quota.service_enabled ||
-        quotaState.quota.remaining <= 0 || quotaState.quota.global_remaining <= 0 || Date.now() < quotaRetryAt;
+        quotaState.quota.remaining < (quotaState.quota.unit==='credits'?13:1) || quotaState.quota.global_remaining <= 0 || Date.now() < quotaRetryAt;
     }
     function syncVisionButton() {
       var hasResult = !!visionText || (visionOutput && !visionOutput.hidden);
@@ -970,6 +971,11 @@
     function renderQuota() {
       if (!backdrop.isConnected || !quotaState) return;
       var q = quotaState.quota;
+      if(q.unit==='credits'){
+        quotaCount.textContent='可用 '+Math.floor(q.remaining)+' AI 积分';
+        quotaNote.textContent=(!quotaState.enabled||!q.service_enabled?'识图服务暂未启用。':q.global_remaining<=0?'本月共享 AI 预算暂时不足。':'')+'普通成绩识图约 13 分，提交时最多预留 150 分；成功后按实际用量扣分，失败不扣。查看和确认填入免费；等级与月额度可在设置页查看。';
+        quotaDetails.hidden=true;syncVisionButton();return;
+      }
       var period = q.period || 'day';
       var prefixes = {lifetime:'体验',month:'本月',week:'本周',day:'今日'};
       var units = {lifetime:'次（一次性）',month:'次/月',week:'次/周',day:'次/日'};
@@ -1265,7 +1271,7 @@
         var retryAfter = Number(payload.retry_after_seconds || 0);
         if (!detail && retryAfter > 0) detail = '约 ' + retryAfter + ' 秒后可重试';
         var label = payload.error || '识图服务暂时不可用';
-        var serviceError = new Error(String(label) + (payload.quota_refunded ? '，本次次数已返还。' : ''));
+        var serviceError = new Error(String(label) + (payload.quota_refunded ? '，本次积分预留已释放。' : ''));
         serviceError.requestId = payload.request_id || visionRequestId;
         serviceError.stage = payload.stage || 'recognition';
         serviceError.diagnostics = payload.diagnostics || {};

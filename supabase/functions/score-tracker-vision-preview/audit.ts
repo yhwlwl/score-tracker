@@ -62,7 +62,7 @@ export async function startAudit(db: any, row: Record<string, unknown>) {
 export async function finishAudit(db: any, requestId: string, row: Record<string, unknown>) {
   const result = await readDatabase(() => db.from(AUDIT_TABLE).update({ ...row, completed_at: new Date().toISOString() }).eq("request_id", requestId));
   if (result.error) throw result.error;
-  if (row.status === "failed") {
+  if (row.status === "failed" && !(row.diagnostics as any)?.credit_billing) {
     const refund = await readDatabase(() => db.rpc("score_tracker_vision_refund", { p_request_id: requestId }));
     if (refund.error) throw refund.error;
     return !!refund.data;

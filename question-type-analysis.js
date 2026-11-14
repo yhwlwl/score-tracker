@@ -63,6 +63,7 @@
     var c=settings(), names=subjects();
     if(!names.includes(c.subject)){c.subject=names.find(function(n){return source().some(function(e){return (e.question_type_scores||{})[n]&&e.question_type_scores[n].length;});})||names[0]||'';}
     var r=M.analyze(source(),Object.assign({},c,{targetRate:c.goals[c.subject]}));
+    if(r.exams.length&&typeof trackUsage==='function')trackUsage('question_type_analysis_viewed',{exam_id:r.exams[r.exams.length-1].id});
     if(!c.viewChosen)c.view=r.recommended;
     var ordered=M.ranked(r,c.view), cats=Array.from(new Set(source().map(function(e){return e.grade_level||'';})));
     var showcase=String(state.user&&state.user.username||'').toLowerCase()==='showcase';

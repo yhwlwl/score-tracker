@@ -23,6 +23,12 @@ function backendHarness(){
   }
   const quota=()=>({allowed:true,limit:10,used:0,remaining:10,global_remaining:100,service_enabled:true,tier_name:'初用',retry_after_seconds:0});
   const db={from:name=>new Query(name),async rpc(name,args){quotaCalls++;
+    if(name==='score_tracker_ai_release_ready')return {data:true};
+    if(name==='score_tracker_ai_account')return {data:{enabled:true,budget_status:'available',credits:{available:3000,monthly:1000,welcome:150}}};
+    if(name==='score_tracker_ai_task_start')return {data:{allowed:true,approved:150}};
+    if(name==='score_tracker_ai_task_finish')return {data:{finished:true,charged:args.p_success?13:0}};
+    if(name==='score_tracker_ai_call_reserve')return {data:{allowed:true}};
+    if(name==='score_tracker_ai_call_settle')return {data:{known:!!args.p_usage}};
     if(name==='score_tracker_vision_connectivity_reserve'){
       const previous=connectivityRecords.get(args.p_request_id);
       if(previous)return {data:{allowed:false,reason:previous.user_id===args.p_user_id?'duplicate_request':'request_id_conflict'},error:null};
@@ -38,6 +44,8 @@ function backendHarness(){
   const scope={Deno:{env:{get:()=>''},serve:fn=>handler=fn},EdgeRuntime:{waitUntil:p=>tasks.push(p)},createClient:()=>db,crypto,TextEncoder,URL,Response,AbortController,setTimeout,clearTimeout,atob,btoa,
     console:{log(...args){logs.push(args)},error(...args){logs.push(args)}},fetch:async(url,options)=>{upstream.push({url,body:JSON.parse(options.body)});const item=Array.isArray(reply)?reply.shift():reply;return new Response(JSON.stringify(item),{status:200,headers:{'content-type':'application/json','x-request-id':'upstream-fixture'}})}};
   vm.createContext(scope);
+  vm.runInContext(source('supabase/functions/_shared/ai-release.ts'),scope);
+  vm.runInContext(source('supabase/functions/_shared/ai-credits.ts'),scope);
   for(const p of ['reliability.ts','audit.ts','index.ts'])vm.runInContext(source('supabase/functions/score-tracker-vision-preview/'+p),scope);
   return {scope,upstream,rows,records,connectivityRecords,uploads,tasks,logs,db,set reply(v){reply=v},get quotaCalls(){return quotaCalls},call:body=>handler(new Request('https://vision.test/',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:'fixture-token',...body})})),drain:()=>Promise.all(tasks)};
 }

@@ -368,9 +368,9 @@
     }
     function upload() {
       if (!tab('upload')) return;
-      var quotaText = quota ? (quota.enabled ? '今日剩余 ' + quota.remaining + ' / ' + quota.limit + ' 次 · '+(entryOnly()?'试题识别消耗 1 次，核对和保存不消耗':'识别与生成分析各消耗 1 次') : '试题识别暂未开放') : '正在读取试用额度…';
+      var quotaText = quota ? (quota.enabled ? (quota.unit==='credits'?'可用 '+Math.floor(quota.remaining)+' AI 积分 · 仅题目约 150 分、含作答约 400 分起；最多预留 1000 分，成功按实际用量扣分，失败不扣。核对与保存免费。':'剩余 '+quota.remaining+' 次') : '试题识别暂未开放') : '正在读取 AI 额度…';
       var location = session.workLocation || (session.workOnPaper ? 'paper' : session.pages.some(function(p){return p.role==='work';}) ? 'separate' : 'none');
-      main.innerHTML = (restoredUploads ? '<p class="pr-message">已自动回填上次的图片、顺序和设置。</p>' : '') + '<section class="pr-intro"><h3>添加试卷与作答</h3><p>按页序添加清晰图片，试卷、答题卡与参考答案合计最多 15 张。</p><div class="pr-quota">' + esc(quotaText) + '</div></section><fieldset class="pr-work-location"><legend>作答写在哪里？</legend>' + [['paper','写在试卷上','上传带作答的试卷即可。'],['separate','在答题卡上','分别添加试卷和答题卡。'],['none','仅上传题目','分析题目要求与难度，暂不判断个人表现。']].map(function(x){return '<label><input type="radio" name="pr_location" value="'+x[0]+'" '+(location===x[0]?'checked':'')+'><span><strong>'+x[1]+'</strong><small>'+x[2]+'</small></span></label>';}).join('') + '</fieldset>' +
+      main.innerHTML = (restoredUploads ? '<p class="pr-message">已自动回填上次的图片、顺序和设置。</p>' : '') + '<section class="pr-intro"><h3>添加试卷与作答</h3><p>按页序添加清晰图片，试卷、答题卡与参考答案合计最多 15 张。</p><div class="pr-quota">' + esc(quotaText) + '</div></section><fieldset class="pr-work-location"><legend>作答写在哪里？</legend>' + [['paper','写在试卷上','上传带作答的试卷即可。'],['separate','在答题卡上','分别添加试卷和答题卡。'],['none','仅上传题目','只识别题目与印刷分值，不生成分析。']].map(function(x){return '<label><input type="radio" name="pr_location" value="'+x[0]+'" '+(location===x[0]?'checked':'')+'><span><strong>'+x[1]+'</strong><small>'+x[2]+'</small></span></label>';}).join('') + '</fieldset>' +
         Object.keys(roleNames).map(function (role) {
           var pages = session.pages.filter(function (p) { return p.role === role; });
           return '<section class="pr-upload-group" data-upload-role="' + role + '" ' + (role==='work' && location!=='separate' && !pages.length ? 'hidden' : '') + '><div class="pr-section-head"><h3>' + roleNames[role] + '<small>' + (role === 'paper' ? '必选' : '补充资料') + '</small></h3><label class="pr-button pr-file-label">＋ 添加图片<input type="file" accept="image/jpeg,image/png,image/webp" multiple data-role="' + role + '" ' + (busy ? 'disabled' : '') + '></label></div><p>' + ({ paper: '按题目顺序上传，作答写在试卷上也可以。', work: '作答在单独的答题卡上时，请补充上传。', reference: '补充参考答案或评分细则，可以更准确地核对答案和得分步骤。' })[role] + '</p><div class="pr-pages">' + pages.map(function (p) {
@@ -408,7 +408,7 @@
       };});
       main.querySelector('#pr-work').onchange = function (e) { session.workOnPaper = e.target.checked; persist(); };
       main.querySelector('#pr-consent').onchange = function (e) { session.consent = e.target.checked; persist(); };
-      main.querySelector('[data-pr=start],[data-pr=resume]').disabled = busy || (!session.resumeTarget && (!session.pending && (!quota || !quota.enabled || quota.remaining <= 0 || !quota.global_available)));
+      main.querySelector('[data-pr=start],[data-pr=resume]').disabled = busy || (!session.resumeTarget && (!session.pending && (!quota || !quota.enabled || quota.remaining < (quota.unit==='credits'?(location==='none'?150:400):1) || !quota.global_available)));
       main.querySelectorAll('.pr-page-actions button').forEach(function (b) { b.disabled = busy; });
       if (ctx.host && !session.pending) {
         var footer = main.querySelector('.pr-footer'), draftButton = document.createElement('button');

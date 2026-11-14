@@ -5,6 +5,8 @@ const fs = require("fs");
 const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..");
+// A production wallet UI must not ship against old, unmetered Edge functions.
+if(process.env.CF_PAGES_BRANCH==='main')require('node:child_process').execFileSync(process.execPath,[path.join(ROOT,'tools/check-ai-release-backend.mjs')],{cwd:ROOT,stdio:'inherit'});
 const OUT = path.join(ROOT, "deploy");
 const FILES = [
   "index.html",

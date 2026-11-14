@@ -57,6 +57,7 @@
   "question-type-analysis.js",
   "exam-changes.js",
   "exam-reflection.js",
+  "entry-rollout.js",
   "paper-review-support.js",
   "paper-review.js",
   "paper-review-scans.js",
@@ -64,5 +65,6 @@
   "paper-records.js",
   "exam-detail.js",
   "supabase/functions/_shared/backup-format.js",
-  "backup-import.js"
+  "backup-import.js",
+  "account-growth.js"
 ]

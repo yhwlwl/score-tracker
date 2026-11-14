@@ -1,3 +1,5 @@
+import { startAiTask, finishAiTask, meteredModelFetch, AiBudgetError } from '../_shared/ai-credits.ts';
+import { aiReleaseCapabilities } from '../_shared/ai-release.ts';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { visionRecords, visionRecordDetail, deleteVisionRecord } from "./vision-records.ts";
@@ -98,8 +100,40 @@ async function boot(){if(!T)return login();try{await api('ping');shell();await l
 
 Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('action');if(!action)return new Response(html,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow, noarchive'}});try{
   if(action==='login'&&req.method==='POST'){const b=await req.json(),x=await login(b.username,b.password);return x?json(x):json({error:'管理员用户名或密码不正确'},401)}
+  if(action==='release_capabilities'){const c=await aiReleaseCapabilities(db);return json(c,c.migration_ready?200:503);}
   const admin=await auth(req.headers.get('x-score-token')||'');if(!admin)return json({error:'unauthorized'},401);if(action==='ping')return json({ok:true});
+  if(action==='ai_budget'&&req.method==='GET'){
+    const period=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit'}).format(new Date())+'-01';
+    const [p,b,c]=await Promise.all([db.from('score_tracker_ai_policy').select('*').eq('id',true).single(),db.from('score_tracker_ai_budgets').select('*').eq('period',period).maybeSingle(),db.from('score_tracker_ai_calls').select('id,task_id,period,model,status,reserved_cny,provider_request_id,http_status,created_at').in('status',['unknown','reserved']).order('created_at',{ascending:false}).limit(100)]);
+    if(p.error||b.error||c.error)throw p.error||b.error||c.error;
+    return json({policy:p.data,budget:b.data||{period,spent_cny:0,reserved_cny:0},opening_required:!p.data.activated_at&&(period!==p.data.starts_period||!b.data?.opening_recorded),unresolved:c.data||[]});
+  }
+  if(action==='ai_budget_save'&&req.method==='POST'){
+    const b=await req.json(),warning=Number(b.warning_cny),limit=Number(b.hard_limit_cny),factor=Number(b.cost_multiplier);
+    if(typeof b.enabled!=='boolean'||!Number.isFinite(warning)||!Number.isFinite(limit)||warning<0||limit<=0||limit>20||warning>limit||!Number.isFinite(factor)||factor<1||factor>100)return json({error:'预算必须在 0–20 元内，预警不超过上限；成本倍率为 1–100'},400);
+    const period=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit'}).format(new Date())+'-01';
+    const current=await db.from('score_tracker_ai_policy').select('starts_period,enabled,activated_at').eq('id',true).single();if(current.error)throw current.error;
+    if(!current.data.activated_at){
+      const opening=await db.from('score_tracker_ai_budgets').select('opening_recorded').eq('period',period).maybeSingle();if(opening.error)throw opening.error;
+      if(!opening.data?.opening_recorded){
+        if(b.opening_cny==null||!Number.isFinite(Number(b.opening_cny))||Number(b.opening_cny)<0)return json({error:'首次启用前请核对上游账单，填写本月切换前费用（没有费用请明确填 0）'},409);
+        const seeded=await db.rpc('score_tracker_ai_opening_budget',{p_actor:admin.id,p_amount:Number(b.opening_cny)});if(seeded.error)throw seeded.error;
+      }
+    }
+    const r=await db.from('score_tracker_ai_policy').update({enabled:b.enabled,warning_cny:warning,hard_limit_cny:limit,cost_multiplier:factor,analysis_enabled:false,activated_at:b.enabled?current.data.activated_at||new Date().toISOString():current.data.activated_at}).eq('id',true);if(r.error)throw r.error;return json({ok:true});
+  }
+  if(action==='ai_usage_reconcile'&&req.method==='POST'){
+    const b=await req.json(),call=await db.from('score_tracker_ai_calls').select('task_id').eq('id',String(b.call_id||'')).maybeSingle();if(call.error)throw call.error;if(!call.data)return json({error:'调用记录不存在'},404);
+    const task=await db.from('score_tracker_ai_tasks').select('user_id').eq('id',call.data.task_id).single();if(task.error)throw task.error;
+    // Explicit administrator operation using the provider's request detail; never auto-release an unknown hold.
+    if(!b.usage||!Number.isSafeInteger(b.usage.prompt_tokens)||!Number.isSafeInteger(b.usage.completion_tokens))return json({error:'需要上游原始 usage 明细'},400);
+    const r=await db.rpc('score_tracker_ai_call_settle',{p_user:task.data.user_id,p_call:b.call_id,p_usage:b.usage,p_provider:String(b.provider_request_id||'').slice(0,240),p_status:Number.isInteger(b.http_status)?b.http_status:null});if(r.error)throw r.error;return json({ok:true,settled:r.data});
+  }
   if(action==='ai_config'&&req.method==='GET')return json(await readAiConfig());
+  if(action==='growth_contribution'&&req.method==='POST'){
+    const b=await req.json();if(!/^[0-9a-f-]{36}$/i.test(b.feedback_id||''))return json({error:'反馈编号不正确'},400);
+    const r=await db.rpc('score_tracker_growth_contribution',{p_admin:admin.id,p_issue:b.feedback_id});if(r.error)throw r.error;return json(r.data);
+  }
   if(action==='notice_upload'&&req.method==='POST'){
     const body=await req.json().catch(()=>null),data=String(body?.data||'');
     const match=/^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(data);
@@ -189,13 +223,15 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
       headers['X-Title']='Score Tracker Preview';
       requestBody.provider={data_collection:'deny'};
     }
-    let response;
+    let response;const billingId=crypto.randomUUID();let billed=false;
     try{
-      response=await fetchWithTimeout(baseUrl+'/chat/completions',{method:'POST',headers,body:JSON.stringify(requestBody)},15000);
+      await startAiTask(db,admin.id,billingId,'admin_test',0,0);billed=true;
+      response=await meteredModelFetch(db,admin.id,billingId,billingId+':ping',baseUrl+'/chat/completions',{method:'POST',headers,body:JSON.stringify(requestBody)},fetchWithTimeout);
     }catch(error){
+      if(error instanceof AiBudgetError)return json({ok:false,message:error.message,code:error.code},error.status);
       const timedOut=error instanceof Error&&error.name==='AbortError';
       return json({ok:false,status:0,latency_ms:Date.now()-started,message:timedOut?'请求超时，请检查 Base URL 和网络连接':('无法连接识别服务'+(error instanceof Error&&error.message?'：'+error.message:'')),code:timedOut?'timeout':'network_error'});
-    }
+    }finally{if(billed)await finishAiTask(db,admin.id,billingId,!!response?.ok);}
     const payload=await response.json().catch(()=>({}));
     const detail=upstreamMessage(payload);
     if(response.ok)return json({ok:true,status:response.status,latency_ms:Date.now()-started,message:'连接成功，模型已响应'});

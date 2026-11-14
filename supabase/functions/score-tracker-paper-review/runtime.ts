@@ -1,5 +1,6 @@
 import { modelText, safeMessage } from "../score-tracker-vision-preview/reliability.ts";
 import { STAGE_BUDGET_MS, REVIEW_OUTPUT_TOKENS } from "./analysis.ts";
+import { meteredModelFetch, AiBudgetError } from '../_shared/ai-credits.ts';
 
 export function reviewOptions(model: string, host: string, effort = "high") {
   const options: any = { response_format: { type: "json_object" } };
@@ -10,7 +11,7 @@ export function reviewOptions(model: string, host: string, effort = "high") {
 }
 
 // Isolated from score recognition: never inherit its thinking=disabled or 90s cap.
-export async function reviewModel(options: { config: any; content: any[]; requestId: string; stage: string; effort?: "low" | "high"; repairOutput?: string; validate: (raw: any) => any; mark: (phase: string, extra?: any) => any }) {
+export async function reviewModel(options: { config: any; content: any[]; requestId: string; stage: string; billing: {db:any;user:string;task:string;claim:string}; effort?: "low" | "high"; repairOutput?: string; validate: (raw: any) => any; mark: (phase: string, extra?: any) => any }) {
   const { config } = options, started = Date.now();
   const budget = Math.min(STAGE_BUDGET_MS, typeof config.stage_deadline === "number" ? config.stage_deadline - started - 5000 : STAGE_BUDGET_MS);
   if (budget < 15000) return { ok: false, code: "worker_deadline", stage: options.stage };
@@ -37,7 +38,8 @@ export async function reviewModel(options: { config: any; content: any[]; reques
     const at = Date.now(), controller = new AbortController(), timer = setTimeout(() => controller.abort(), attempt.timeout_ms);
     let retry = false;
     try {
-      const response = await fetch(config.base_url.replace(/\/+$/, "") + "/chat/completions", { method: "POST", headers: { Authorization: "Bearer " + config.api_key, "Content-Type": "application/json", "X-Client-Request-Id": options.requestId + ":" + options.stage }, body: JSON.stringify(body), signal: controller.signal });
+      const b=options.billing;
+      const response = await meteredModelFetch(b.db,b.user,b.task,`${b.task}:${b.claim}:${options.stage}:${i}`,config.base_url.replace(/\/+$/, "") + "/chat/completions", { method: "POST", headers: { Authorization: "Bearer " + config.api_key, "Content-Type": "application/json", "X-Client-Request-Id": options.requestId + ":" + options.stage }, body: JSON.stringify(body), signal: controller.signal });
       attempt.upstream_status = response.status;
       attempt.upstream_request_id = clean(response.headers.get("x-request-id") || response.headers.get("request-id") || response.headers.get("cf-ray"), 240);
       attempt.content_type = response.headers.get("content-type");
@@ -76,6 +78,7 @@ export async function reviewModel(options: { config: any; content: any[]; reques
         }
       }
     } catch (e) {
+      if(e instanceof AiBudgetError) return {ok:false,code:e.code,detail:e.message,stage:options.stage};
       last = { code: controller.signal.aborted ? "upstream_timeout" : "upstream_network_error", stage: options.stage, detail: clean((e as Error).message), upstream_status: attempt.upstream_status || 0 };
       attempt.network_error = last.detail; attempt.network_code = clean((e as any)?.cause?.code || "", 100); retry = true;
     } finally { clearTimeout(timer); }

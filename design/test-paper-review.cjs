@@ -54,9 +54,16 @@ function harness() {
     } return q;
   }, async rpc(name, p) {
     calls.push(name);
+    if(name==='score_tracker_ai_release_ready')return {data:true};
+    if(name==='score_tracker_ai_account')return {data:{enabled:true,budget_status:'available',credits:{available:3000,monthly:1000,welcome:150}}};
+    if(name==='score_tracker_ai_task_start'){tables.score_tracker_ai_tasks||=[];const t=tables.score_tracker_ai_tasks.find(t=>t.id===p.p_task);if(!t)tables.score_tracker_ai_tasks.push({id:p.p_task,user_id:p.p_user,status:'active'});return {data:{allowed:true,duplicate:!!t,approved:1000}};}
+    if(name==='score_tracker_ai_task_finish'){const t=tables.score_tracker_ai_tasks?.find(t=>t.id===p.p_task);if(t)t.status=p.p_success?'succeeded':'failed';return {data:{finished:true,charged:p.p_success?100:0}};}
+    if(name==='score_tracker_ai_call_reserve')return {data:{allowed:true}};
+    if(name==='score_tracker_ai_call_settle')return {data:{known:true,credits:1}};
+    if(name==='score_tracker_growth_touch')return {data:null};
     const quota = { enabled: true, limit: 3, used: tables.score_tracker_paper_reviews.length, remaining: 3-tables.score_tracker_paper_reviews.length, global_available: true };
     if(name==='score_tracker_paper_quota')return {data:quota};
-    assert.equal(name,'score_tracker_paper_reserve');
+    assert.equal(name,'score_tracker_ai_paper_reserve');
     const previous=tables.score_tracker_paper_reviews.find(r=>r.request_id===p.p_request_id);
     if(previous)return {data: previous.user_id===p.p_user_id&&previous.fingerprint===p.p_fingerprint?{allowed:true,created:false,quota}:{allowed:false,reason:'conflict',message:'conflict'}};
     tables.score_tracker_paper_reviews.push({request_id:p.p_request_id,user_id:p.p_user_id,draft_id:p.p_draft_id,exam_id:p.p_exam_id,subject:p.p_subject,fingerprint:p.p_fingerprint,status:'running',created_at:new Date().toISOString(),corrections:[],revision:0});
@@ -66,7 +73,7 @@ function harness() {
     console:{log(...args){logs.push(args)},error(...args){logs.push(args)},warn(...args){logs.push(args)}},
     fetch:async(url,options)=>{if(url.startsWith('https://test.local/functions/'))return handler(new Request(url,options));const request=JSON.parse(options.body);upstream.push(request);return transport?transport(url,options):new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify(stagedReply(modelReply,request))}}]}));} };
   vm.createContext(scope);
-  ['score-worth-model.js','supabase/functions/_shared/question-types.js','supabase/functions/score-tracker-vision-preview/reliability.ts','supabase/functions/score-tracker-paper-review/options.ts','supabase/functions/score-tracker-paper-review/model.ts','supabase/functions/score-tracker-paper-review/learner.ts','supabase/functions/score-tracker-paper-review/account.ts','supabase/functions/score-tracker-paper-review/grading.ts','supabase/functions/score-tracker-paper-review/analysis.ts','supabase/functions/score-tracker-paper-review/reading.ts','supabase/functions/score-tracker-paper-review/runtime.ts','supabase/functions/score-tracker-paper-review/audit.ts','supabase/functions/score-tracker-paper-review/pipeline.ts','supabase/functions/score-tracker-paper-review/workspace.ts','supabase/functions/score-tracker-paper-review/records.ts','supabase/functions/score-tracker-paper-review/index.ts'].forEach(f=>vm.runInContext(code(f),scope));
+  ['supabase/functions/_shared/ai-release.ts','supabase/functions/_shared/ai-credits.ts','score-worth-model.js','supabase/functions/_shared/question-types.js','supabase/functions/score-tracker-vision-preview/reliability.ts','supabase/functions/score-tracker-paper-review/options.ts','supabase/functions/score-tracker-paper-review/model.ts','supabase/functions/score-tracker-paper-review/learner.ts','supabase/functions/score-tracker-paper-review/account.ts','supabase/functions/score-tracker-paper-review/grading.ts','supabase/functions/score-tracker-paper-review/analysis.ts','supabase/functions/score-tracker-paper-review/reading.ts','supabase/functions/score-tracker-paper-review/runtime.ts','supabase/functions/score-tracker-paper-review/audit.ts','supabase/functions/score-tracker-paper-review/pipeline.ts','supabase/functions/score-tracker-paper-review/workspace.ts','supabase/functions/score-tracker-paper-review/records.ts','supabase/functions/score-tracker-paper-review/index.ts'].forEach(f=>vm.runInContext(code(f),scope));
   return { scope, blobs, tables, calls, writes, upstream, background, logs, set transport(v){transport=v},set reply(v){modelReply=v}, set fail(v){failWrites=v}, async init(){tables.score_tracker_users[0].session_token_hash=Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode('test-token'))).toString('hex')},
     call:body=>handler(new Request('https://test.local/api',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:'test-token',...body})})), handler, drain:async()=>{for(let i=0;i<background.length;i++)await background[i]} };
 }

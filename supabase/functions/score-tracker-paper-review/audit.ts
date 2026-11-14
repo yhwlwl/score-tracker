@@ -1,3 +1,4 @@
+import { finishAiTask, AiBudgetError } from '../_shared/ai-credits.ts';
 import { readDatabase, safeMessage } from "../score-tracker-vision-preview/reliability.ts";
 import { STAGE_BUDGET_MS, REVIEW_OUTPUT_TOKENS, REVIEW_VERSION } from "./analysis.ts";
 
@@ -7,6 +8,7 @@ const ATTEMPT_FIELDS = ["stage", "attempt", "started_at", "timeout_ms", "max_tok
   "prompt_tokens", "completion_tokens", "reasoning_tokens", "reasoning_chars", "output_chars", "parse_error", "network_error", "network_code", "deadline_limited"];
 
 export function paperFailure(code: string, status = 0) {
+  if(['site_budget','credits_exhausted','task_credit_cap','billing_unavailable','opening_budget_required','ai_disabled','unpriced_model','task_inactive','duplicate_call'].includes(code))return new AiBudgetError(code).message;
   const messages: Record<string, string> = {
     worker_deadline: "本轮执行已中断，进度已保存，可点击恢复分析继续",
     upstream_timeout: "AI 未能在本阶段时限内完成，已保留排查记录，请稍后重试",
@@ -95,7 +97,10 @@ export function paperAudit(db: any, input: any, user: string, config: any, start
       const saved = await readDatabase(() => db.from(PAPER_AUDIT_TABLE).update(patch).eq("request_id", input.request_id).eq("user_id", user).eq("status", "running").select("request_id").maybeSingle());
       if (saved.error) { writeProblem(saved.error, "finish"); throw saved.error; }
       if (!saved.data) log("completion_not_applied"); // Deleted, stale, or already completed by another handler.
-      else log(status, { error_code: code, error_stage: stage, upstream_status: patch.upstream_status, attempts: attempts.length });
+      else {
+        await finishAiTask(db,user,input.billing_task_id||input.request_id,status==='succeeded');
+        log(status, { error_code: code, error_stage: stage, upstream_status: patch.upstream_status, attempts: attempts.length });
+      }
     } catch (e) { console.error("paper_review_result_write_failed", JSON.stringify({ request_id: input.request_id, code: redact((e as any)?.code || "database_error", 100), stage })); throw e; }
   }
   return { mark, finish, redact };

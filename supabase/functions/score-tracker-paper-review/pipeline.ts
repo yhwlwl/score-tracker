@@ -9,6 +9,7 @@ import { gradingTargets, gradingPrompt, mergeGrading, gradingChecks } from './gr
 
 const REVIEW_TABLE = "score_tracker_paper_reviews";
 export function progressFor(state: any) {
+  if(state.options?.purpose==='record')return {version:3,phase:state.phase,updated_at:new Date().toISOString(),active_ms:state.active_ms||0,steps:['识别试题','匹配作答','核对资料'],completed_steps:state.phase==='extract'?0:state.phase==='read_work'?1:2,message:({extract:'正在识别题目与印刷分值',read_work:'正在匹配作答与批改',verify:'正在核对题号与资料',read_scores:'正在补读批改分数',diagnose:'正在整理录入结果'} as any)[state.phase]||'正在整理资料',detail:'仅识别资料，不解题、不判分、不生成试卷分析。'};
   if (state.phase === 'grade') return { version: 3, phase: 'grade', updated_at: new Date().toISOString(), active_ms: state.active_ms || 0,
     steps: ['核对作答与答案', '独立复核AI判分', '更新报告'], completed_steps: state.grading_round ? 1 : 0,
     message: `核对答案并判分（第${(state.grading_round || 0) + 1}轮）`, detail: '有答案先核对；没有答案独立求解。AI判分与老师批改分分开，不自动改考试成绩。' };
@@ -44,6 +45,9 @@ export function progressFor(state: any) {
 export async function runReviewStage(db: any, input: any, user: string, config: any, row: any, expectedClaim: string, dispatch: (claim: string) => Promise<void>) {
   const original = row.analysis_state || {}, state = structuredClone(original);
   input.options = reviewSettings(input.options || row.options || state.options);
+  // Enforce the rollout in the worker too, including old queued deliveries.
+  if(input.options.purpose!=='record'||!['extract','read_work','verify','read_scores','diagnose'].includes(state.phase))return;
+  input.billing_task_id=state.billing_task_id||input.request_id;
   input.source_record ??= state.source_record;
   input.account_context ??= state.account_context;
   if (state.flow === "score_refresh") {
@@ -65,7 +69,7 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
     if (!claimed.data) return;
     ownsClaim = true;
     const settings = reviewSettings(input.options);
-    const pauseReason = row.pause_requested ? "manual" : state.phase === "diagnose" && (settings.review_before_analysis || (settings as any).analysis_scope === "selected") && !state.input_confirmed ? "review" : (state.active_ms || 0) - (state.budget_start_ms || 0) >= settings.time_budget_minutes * 60000 ? "budget" : null;
+    const pauseReason = row.pause_requested ? "manual" : settings.purpose!=='record' && state.phase === "diagnose" && (settings.review_before_analysis || (settings as any).analysis_scope === "selected") && !state.input_confirmed ? "review" : (state.active_ms || 0) - (state.budget_start_ms || 0) >= settings.time_budget_minutes * 60000 ? "budget" : null;
     if (pauseReason) {
       state.pause_reason = pauseReason;
       await readDatabase(() => db.from(REVIEW_TABLE).update({ status: "paused", pause_requested: false, analysis_state: state, progress: { ...progressFor(state), message: pauseReason === "review" ? "资料已录入，等待核对" : "已保存进度，可随时继续" } }).eq("request_id", input.request_id).eq("user_id", user).eq("status", "running").eq("analysis_state->>claim", state.claim));
@@ -126,7 +130,7 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
       validate = raw => assembleReport(raw, state.evidence, input, state.diagnoses);
     } else throw new Error("unknown_pipeline_stage");
     const effort = state.phase === 'grade' ? state.evidence.questions.filter((q: any) => gradeLabels.includes(q.label)).some((q: any) => !q.provided_reference) ? 'high' : 'low' : batch.length && (batch.every((q: any) => fullCredit(q) || answerCorrect(q)) || batch.length === 1 && state.focused_retries?.includes(batch[0].label)) ? "low" : undefined;
-    outcome = await reviewModel({ config, content: [{ type: "text", text: promptText }, ...(state.phase === 'grade' ? gradeImage ? scoreViewContent(input, state.grading_views[state.grading_view || 0]) : [] : state.phase === 'read_scores' ? scoreViewContent(input, state.score_views[state.score_read_view || 0]) : state.phase === "synthesize" || (state.phase === 'recheck' && state.grading_text_recheck) || (state.flow === "revision" || state.text_recovery) ? [] : imageContent(input, selected))], requestId: input.request_id, stage, effort, repairOutput: state.pending_repair?.stage === stage ? state.pending_repair.text : undefined, validate, mark: audit.mark });
+    outcome = await reviewModel({ config, billing:{db,user,task:input.billing_task_id,claim:state.claim}, content: [{ type: "text", text: promptText }, ...(state.phase === 'grade' ? gradeImage ? scoreViewContent(input, state.grading_views[state.grading_view || 0]) : [] : state.phase === 'read_scores' ? scoreViewContent(input, state.score_views[state.score_read_view || 0]) : state.phase === "synthesize" || (state.phase === 'recheck' && state.grading_text_recheck) || (state.flow === "revision" || state.text_recovery) ? [] : imageContent(input, selected))], requestId: input.request_id, stage, effort, repairOutput: state.pending_repair?.stage === stage ? state.pending_repair.text : undefined, validate, mark: audit.mark });
     if (state.phase === 'grade' && !outcome.ok && /upstream_timeout|model_output_truncated|invalid_model_output/.test(outcome.code)) {
       // A failed answer check must not erase the original report or invent a mark.
       outcome = { ...outcome, ok: true, result: { evidence: state.evidence, readings: state.grading_readings || {}, changed: [] } };
