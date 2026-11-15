@@ -27,7 +27,7 @@ export async function storedPages(db: any, user: string, id: string) {
     return `data:${p.mime};base64,${btoa(binary)}`;
   };
   return Promise.all(m.pages.map(async (p: any) => ({ role: p.role, page: p.page, url: await download(p),
-    ...((p.detail_images || []).length ? { regions: await Promise.all(p.detail_images.map(download)) } : {}) })));
+    ...((p.detail_images || []).length ? { regions: await Promise.all(p.detail_images.map(download)), ...(p.detail_images.every((d: any) => d.box) ? {region_boxes:p.detail_images.map((d: any) => d.box)} : {}) } : {}) })));
 }
 export async function deleteMaterials(db: any, user: string, id: string) {
   const m = await materialFor(db, user, id); if (!m) return;
@@ -89,7 +89,7 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
     if (!m || row?.status === 'running') throw new WorkspaceError('请先保存资料信息，或等待分析完成', 409);
     const n = body.page; if (!Number.isInteger(n) || n < 1 || n > MAX_PAGES || n > m.pages.length + 1) throw new WorkspaceError(`请按页序上传，最多${MAX_PAGES}张`);
     // Apply the same byte/signature checks used by analysis without allowing URLs.
-    let p: any; try { p = validateStart({ request_id: body.request_id, draft_id: m.draft_id, subject: m.subject, consent: true, pages: [{ role: 'paper', url: body.url, regions: body.regions }] }).pages[0]; } catch (e) { throw new WorkspaceError((e as Error).message); }
+    let p: any; try { p = validateStart({ request_id: body.request_id, draft_id: m.draft_id, subject: m.subject, consent: true, pages: [{ role: 'paper', url: body.url, regions: body.regions, region_boxes:body.region_boxes }] }).pages[0]; } catch (e) { throw new WorkspaceError((e as Error).message); }
     if (!['paper','work','reference'].includes(body.role)) throw new WorkspaceError('图片类别无效');
     if (row && m.pages[n - 1]) throw new WorkspaceError('已分析的原图保留原样，请追加扫描页', 409);
     const mime = p.url.slice(5, p.url.indexOf(';')), binary = atob(p.url.split(',')[1]), bytes = Uint8Array.from(binary, (c: string) => c.charCodeAt(0));
@@ -97,7 +97,7 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
     const pages = [...m.pages]; const previous = pages[n - 1];
     pages[n - 1] = { page: n, role: body.role, path, mime, bytes: bytes.length };
     const detailImages = (p.regions || []).map((url: string, i: number) => {
-      const raw = atob(url.split(',')[1]); return { path: `${path}-detail-${i}`, mime: 'image/jpeg', bytes: raw.length, data: Uint8Array.from(raw, (c: string) => c.charCodeAt(0)) };
+      const raw = atob(url.split(',')[1]); return { path: `${path}-detail-${i}`, mime: 'image/jpeg', bytes: raw.length, ...(p.region_boxes ? {box:p.region_boxes[i]} : {}), data: Uint8Array.from(raw, (c: string) => c.charCodeAt(0)) };
     });
     pages[n - 1].detail_images = detailImages.map(({ data, ...meta }: any) => meta);
     if (pages.reduce((sum: number, p: any) => sum + p.bytes + (p.detail_images || []).reduce((n: number, r: any) => n + r.bytes, 0), 0) > MAX_MATERIAL_BYTES) throw new WorkspaceError('本份资料较大，请压缩图片或减少页数');

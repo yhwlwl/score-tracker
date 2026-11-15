@@ -109,7 +109,7 @@ Deno.serve(async (req: Request) => {
   try {
     const body = await readBody(req);
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new Failure("请求格式不正确");
-    if(body.action==='release_capabilities'){const c=await aiReleaseCapabilities(db);return out({...c,entry_mode:'screenshots-v1'},c.migration_ready?200:503);}
+    if(body.action==='release_capabilities'){const c=await aiReleaseCapabilities(db);return out({...c,entry_mode:'screenshots-v2'},c.migration_ready?200:503);}
     if (body.action === "continue") {
       // Internal delivery only. A user's session can never select another owner or advance a task.
       const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");

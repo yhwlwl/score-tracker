@@ -28,8 +28,8 @@
     };
     editor.scrollIntoView && editor.scrollIntoView({ block: 'nearest' });
   }
-  function regionCard(region, page, index) {
-    return '<figure class="ps-region" data-index="' + index + '" data-region-kind="'+region.kind+'"><figcaption>' + (region.kind==='paper'?'原题截图':region.kind==='work'?'答题卡 / 作答截图':'参考答案截图') + ' · 第 ' + region.page + ' 页</figcaption><button type="button" class="ps-preview" data-scan="zoom:'+index+'" aria-label="放大'+roles[region.kind]+'截图"><div class="ps-crop"><img loading="lazy" src="' + esc(page.url) + '" alt="' + roles[region.kind] + '扫描区域"></div></button><div>' + btn('放大','zoom:' + index) + btn('调整','edit:' + index) + btn('移除区域','remove:' + index) + '</div></figure>';
+  function regionCard(region, page, index, shared) {
+    return '<figure class="ps-region" data-index="' + index + '" data-region-kind="'+region.kind+'"><figcaption>' + (region.kind==='paper'?'原题截图':region.kind==='work'?(shared?'作答截图 · 共用填涂区':'答题卡 / 作答截图'):'参考答案截图') + ' · 第 ' + region.page + ' 页</figcaption><button type="button" class="ps-preview" data-scan="zoom:'+index+'" aria-label="放大'+roles[region.kind]+'截图"><div class="ps-crop"><img loading="lazy" src="' + esc(page.url) + '" alt="' + roles[region.kind] + '扫描区域"></div></button><div>' + btn('放大','zoom:' + index) + btn('调整','edit:' + index) + btn('移除区域','remove:' + index) + '</div></figure>';
   }
   async function decorate(main, r, ctx, hooks) {
     var generation = String(Number(main.dataset.scanGeneration || 0) + 1); main.dataset.scanGeneration = generation;
@@ -77,7 +77,7 @@
       current = current.filter(function (r) { return validRegion(r,pages); });
       function render() {
         q.source_regions=current;
-        var kinds=['paper','work','reference'],cards=kinds.map(function(kind){var found=current.map(function(region,index){return {region:region,index:index};}).filter(function(item){return item.region.kind===kind;});if(found.length)return found.map(function(item){return regionCard(item.region,pages.find(function(p){return p.page===item.region.page;}),item.index);}).join('');var ids=kind==='paper'?q.pages||[]:kind==='work'?q.work_pages||[]:q.reference_pages||[],known=pages.filter(function(p){return ids.includes(p.page);});return known.length?'<div class="ps-unlocated"><b>'+roles[kind]+'截图尚未定位</b><p>未猜测截图范围，可打开来源页核对或手动框选。</p>'+known.map(function(p){return '<a href="'+esc(p.url)+'" target="_blank" rel="noopener">查看第 '+p.page+' 页</a>';}).join(' · ')+'</div>':'';}).join('');
+        var kinds=['paper','work','reference'],cards=kinds.map(function(kind){var found=current.map(function(region,index){return {region:region,index:index};}).filter(function(item){return item.region.kind===kind;});if(found.length)return found.map(function(item){return regionCard(item.region,pages.find(function(p){return p.page===item.region.page;}),item.index,q.shared_work);}).join('');var ids=kind==='paper'?q.pages||[]:kind==='work'?q.work_pages||[]:q.reference_pages||[],known=pages.filter(function(p){return ids.includes(p.page);});return known.length?'<div class="ps-unlocated"><b>'+roles[kind]+'截图尚未定位</b><p>未猜测截图范围，可打开来源页核对或手动框选。</p>'+known.map(function(p){return '<a href="'+esc(p.url)+'" target="_blank" rel="noopener">查看第 '+p.page+' 页</a>';}).join(' · ')+'</div>':'';}).join('');
         zone.innerHTML = '<h4>原题与作答截图</h4>' + (pages.length ? '<div class="ps-regions">' + cards + '</div>' + (!source.readonly?btn('＋ 框选扫描区域','add'):'') + (!current.length ? '<p class="pr-muted">没有可靠定位时保留原页；可分别框选原题与作答，也支持跨页。</p>' : '') : '<p class="pr-muted">本题暂无可用扫描件，可在资料区补充原卷或答题卡。</p>');
         zone.querySelectorAll('.ps-region').forEach(function(card){var region=current[Number(card.dataset.index)];layoutCrop(card.querySelector('.ps-crop img'),region.box);});
         if(source.readonly)zone.querySelectorAll('[data-scan^="edit:"],[data-scan^="remove:"]').forEach(function(b){b.remove();});

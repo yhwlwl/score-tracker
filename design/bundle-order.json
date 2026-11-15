@@ -59,6 +59,7 @@
   "exam-reflection.js",
   "entry-rollout.js",
   "paper-review-support.js",
+  "paper-scan-views.js",
   "paper-review.js",
   "paper-review-scans.js",
   "paper-review-hub.js",

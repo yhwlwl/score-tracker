@@ -1,5 +1,5 @@
 /*! app-bundle.js · 自动生成,勿手改 —— 改源码后运行: node design/build-bundles.js
-   来源顺序: public-assets.js, compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js, score-worth-model.js, score-worth.js, release-notices.js, account-recovery.js, trajectory-forecast.js, similar-trajectories.js, school-settings.js, announcement-settings.js, announcement-replies.js, author-support.js, community.js, participant-defaults.js, exam-averages.js, supabase/functions/_shared/question-types.js, question-type-scores.js, question-type-analysis-model.js, question-type-analysis.js, exam-changes.js, exam-reflection.js, entry-rollout.js, paper-review-support.js, paper-review.js, paper-review-scans.js, paper-review-hub.js, paper-records.js, exam-detail.js, supabase/functions/_shared/backup-format.js, backup-import.js, account-growth.js */
+   来源顺序: public-assets.js, compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js, score-worth-model.js, score-worth.js, release-notices.js, account-recovery.js, trajectory-forecast.js, similar-trajectories.js, school-settings.js, announcement-settings.js, announcement-replies.js, author-support.js, community.js, participant-defaults.js, exam-averages.js, supabase/functions/_shared/question-types.js, question-type-scores.js, question-type-analysis-model.js, question-type-analysis.js, exam-changes.js, exam-reflection.js, entry-rollout.js, paper-review-support.js, paper-scan-views.js, paper-review.js, paper-review-scans.js, paper-review-hub.js, paper-records.js, exam-detail.js, supabase/functions/_shared/backup-format.js, backup-import.js, account-growth.js */
 /* ===== public-assets.js ===== */
 /* Public artwork only. Private uploads and application requests never use this host. */
 (function () {
@@ -15248,6 +15248,41 @@ window.ScorePaperEntryOnly = true;
   window.ScorePaperSupport = { uploads: uploads, renderMath: renderMath, legacyFormula: legacyFormula, wins: wins, prose: prose, nextExamTips: nextExamTips };
 })();
 
+/* ===== paper-scan-views.js ===== */
+/* Geometry references for screenshot localization. Originals stay unchanged. */
+(function(root){
+  'use strict';
+  function plan(width,height){
+    var boxes=[[0,0,1,1]],overlap=.055;
+    if(width>height*1.15||height>width*1.15){
+      var horizontal=width>height;
+      for(var i=0;i<3;i++){var start=Math.max(0,i/3-overlap),end=Math.min(1,(i+1)/3+overlap);boxes.push(horizontal?[start,0,end-start,1]:[0,start,1,end-start]);}
+    }else for(var y=0;y<2;y++)for(var x=0;x<2;x++){var left=Math.max(0,x/2-overlap),top=Math.max(0,y/2-overlap),right=Math.min(1,(x+1)/2+overlap),bottom=Math.min(1,(y+1)/2+overlap);boxes.push([left,top,right-left,bottom-top]);}
+    return boxes;
+  }
+  function build(source){
+    var boxes=plan(source.width,source.height),canvas=document.createElement('canvas');
+    var urls=boxes.map(function(box){
+      var sx=Math.round(box[0]*source.width),sy=Math.round(box[1]*source.height),sw=Math.min(source.width-sx,Math.round(box[2]*source.width)),sh=Math.min(source.height-sy,Math.round(box[3]*source.height));
+      // Keep geometry tied to the actual rounded pixel crop.
+      box.splice(0,4,sx/source.width,sy/source.height,sw/source.width,sh/source.height);
+      var scale=Math.min(1,1600/Math.max(sw,sh));canvas.width=Math.round(sw*scale);canvas.height=Math.round(sh*scale);
+      var c=canvas.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,canvas.width,canvas.height);c.drawImage(source,sx,sy,sw,sh,0,0,canvas.width,canvas.height);
+      c.strokeStyle='rgba(30,100,200,.20)';c.lineWidth=1;c.font='bold 13px sans-serif';
+      for(var i=0;i<=10;i++){
+        var px=Math.min(canvas.width-1,canvas.width*i/10),py=Math.min(canvas.height-1,canvas.height*i/10);
+        c.beginPath();c.moveTo(px,0);c.lineTo(px,canvas.height);c.moveTo(0,py);c.lineTo(canvas.width,py);c.stroke();
+        var label=String(i*100),tw=c.measureText(label).width+4;
+        c.fillStyle='rgba(255,255,255,.93)';c.fillRect(Math.min(px,canvas.width-tw),0,tw,17);c.fillRect(0,Math.min(py,canvas.height-17),tw,17);
+        c.fillStyle='#1e64c8';c.fillText(label,Math.min(px+2,canvas.width-tw+2),13);c.fillText(label,2,Math.min(py+13,canvas.height-4));
+      }
+      return canvas.toDataURL('image/jpeg',.86);
+    });canvas.width=canvas.height=1;return {regions:urls,region_boxes:boxes};
+  }
+  root.ScorePaperScanViews={plan:plan,build:build};
+  if(typeof module!=='undefined'&&module.exports)module.exports=root.ScorePaperScanViews;
+})(globalThis);
+
 /* ===== paper-review.js ===== */
 /* Subject-level paper review. Scores and the existing vision quota are untouched. */
 (function () {
@@ -15295,7 +15330,8 @@ window.ScorePaperEntryOnly = true;
           var encoded = canvas.toDataURL('image/jpeg', 0.92);
           if (encoded.length > 2800000) encoded = canvas.toDataURL('image/jpeg', 0.82);
           if (encoded.length > 2800000) throw new Error('图片内容过多，请裁剪成单页后再选');
-          resolve({ url: encoded, name: file.name, regions: detailRegions(image, w, h) });
+          var views=window.ScorePaperScanViews.build(canvas);
+          resolve({ url: encoded, name: file.name, regions: views.regions, region_boxes:views.region_boxes });
         } catch (e) { reject(e); } finally { URL.revokeObjectURL(url); canvas.width = canvas.height = 1; }
       };
       image.src = url;
@@ -15322,7 +15358,7 @@ window.ScorePaperEntryOnly = true;
     await new Promise(function (resolve, reject) { image.onload = resolve; image.onerror = reject; image.src = page.url; });
     var canvas = document.createElement('canvas'); canvas.width = image.height; canvas.height = image.width;
     var c = canvas.getContext('2d'); c.translate(canvas.width, 0); c.rotate(Math.PI / 2); c.drawImage(image, 0, 0);
-    page.url = canvas.toDataURL('image/jpeg', 0.92); page.regions = detailRegions(canvas, canvas.width, canvas.height); canvas.width = canvas.height = 1;
+    page.url = canvas.toDataURL('image/jpeg', 0.92); var views=window.ScorePaperScanViews.build(canvas);page.regions=views.regions;page.region_boxes=views.region_boxes; canvas.width = canvas.height = 1;
   }
   async function restoreScoreDetails(ctx, id, update) {
     var scans = await api(ctx, 'sources', { request_id: id });
@@ -15581,7 +15617,7 @@ window.ScorePaperEntryOnly = true;
       session.cloudDraftId = id;
       for (var pi = 0; pi < session.pages.length; pi++) {
         note('正在保存扫描件 ' + (pi + 1) + ' / ' + session.pages.length);
-        try { await api(ctx, 'upload_page', { request_id: id, page: pi + 1, role: session.pages[pi].role, url: session.pages[pi].url, regions: session.pages[pi].regions || [] }); }
+        try { await api(ctx, 'upload_page', { request_id: id, page: pi + 1, role: session.pages[pi].role, url: session.pages[pi].url, regions: session.pages[pi].regions || [],region_boxes:session.pages[pi].region_boxes }); }
         catch (e) { e.message = '第 ' + (pi + 1) + ' 张扫描件保存失败：' + e.message; throw e; }
       }
       session.cloudReady = true; session.cloudDraftId = id;
@@ -15596,7 +15632,7 @@ window.ScorePaperEntryOnly = true;
       session.pages = saved.pages; session.workOnPaper = saved.workOnPaper; session.workLocation = saved.workLocation; session.consent = saved.consent;
       session.cloudDraftId = saved.cloudDraftId; session.cloudReady = saved.cloudReady;
       session.pending = saved.pending; session.cacheId = saved.id; session.retrySubmission = saved.retrySubmission;
-      session.payload = saved.payload && Object.assign({}, saved.payload, { pages: saved.pages.map(function (p) { return { role: p.role, url: p.url, regions: p.regions || [] }; }) });
+      session.payload = saved.payload && Object.assign({}, saved.payload, { pages: saved.pages.map(function (p) { return { role: p.role, url: p.url, regions: p.regions || [],region_boxes:p.region_boxes }; }) });
       restoredUploads = true; return true;
     }
     async function resume() {
@@ -15611,7 +15647,7 @@ window.ScorePaperEntryOnly = true;
       }
       var data = await api(ctx, 'resume', { request_id: r.request_id,
         mode: ctx.host ? 'saved' : matching && session.pages.length ? 'images' : 'saved',
-        pages: !ctx.host && matching ? session.pages.map(function (p) { return { role: p.role, url: p.url, regions: p.regions || [] }; }) : [],
+        pages: !ctx.host && matching ? session.pages.map(function (p) { return { role: p.role, url: p.url, regions: p.regions || [],region_boxes:p.region_boxes }; }) : [],
         work_on_paper: session.workOnPaper, consent: session.consent });
       session.pending = r.request_id; session.resumeTarget = null;
       if (session.pages.length) await persist();
@@ -15777,7 +15813,7 @@ window.ScorePaperEntryOnly = true;
       try {
         var savedSubject = ctx.exam && ctx.exam.scores && ctx.exam.scores[subject];
         session.payload = session.payload || { request_id: id, draft_id: ctx.draftId, exam_id: savedSubject ? ctx.examId : null,
-          subject: subject, title: ctx.title || '', options: ctx.options, exam_context: ctx.host ? ctx.examContext : formContext(ctx, subject), pages: session.pages.map(function (p) { return { role: p.role, url: p.url, regions: p.regions || [] }; }), work_on_paper: session.workOnPaper, consent: true };
+          subject: subject, title: ctx.title || '', options: ctx.options, exam_context: ctx.host ? ctx.examContext : formContext(ctx, subject), pages: session.pages.map(function (p) { return { role: p.role, url: p.url, regions: p.regions || [],region_boxes:p.region_boxes }; }), work_on_paper: session.workOnPaper, consent: true };
         if (!await persist()) note('本机暂时无法保存图片；完成识别后仍可从保存的作答恢复。');
         await support.uploads('delete', ctx.user, cacheScope);
         if (ctx.host && (!session.cloudReady || ctx.setup)) {
@@ -15963,8 +15999,8 @@ window.ScorePaperEntryOnly = true;
     };
     editor.scrollIntoView && editor.scrollIntoView({ block: 'nearest' });
   }
-  function regionCard(region, page, index) {
-    return '<figure class="ps-region" data-index="' + index + '" data-region-kind="'+region.kind+'"><figcaption>' + (region.kind==='paper'?'原题截图':region.kind==='work'?'答题卡 / 作答截图':'参考答案截图') + ' · 第 ' + region.page + ' 页</figcaption><button type="button" class="ps-preview" data-scan="zoom:'+index+'" aria-label="放大'+roles[region.kind]+'截图"><div class="ps-crop"><img loading="lazy" src="' + esc(page.url) + '" alt="' + roles[region.kind] + '扫描区域"></div></button><div>' + btn('放大','zoom:' + index) + btn('调整','edit:' + index) + btn('移除区域','remove:' + index) + '</div></figure>';
+  function regionCard(region, page, index, shared) {
+    return '<figure class="ps-region" data-index="' + index + '" data-region-kind="'+region.kind+'"><figcaption>' + (region.kind==='paper'?'原题截图':region.kind==='work'?(shared?'作答截图 · 共用填涂区':'答题卡 / 作答截图'):'参考答案截图') + ' · 第 ' + region.page + ' 页</figcaption><button type="button" class="ps-preview" data-scan="zoom:'+index+'" aria-label="放大'+roles[region.kind]+'截图"><div class="ps-crop"><img loading="lazy" src="' + esc(page.url) + '" alt="' + roles[region.kind] + '扫描区域"></div></button><div>' + btn('放大','zoom:' + index) + btn('调整','edit:' + index) + btn('移除区域','remove:' + index) + '</div></figure>';
   }
   async function decorate(main, r, ctx, hooks) {
     var generation = String(Number(main.dataset.scanGeneration || 0) + 1); main.dataset.scanGeneration = generation;
@@ -16012,7 +16048,7 @@ window.ScorePaperEntryOnly = true;
       current = current.filter(function (r) { return validRegion(r,pages); });
       function render() {
         q.source_regions=current;
-        var kinds=['paper','work','reference'],cards=kinds.map(function(kind){var found=current.map(function(region,index){return {region:region,index:index};}).filter(function(item){return item.region.kind===kind;});if(found.length)return found.map(function(item){return regionCard(item.region,pages.find(function(p){return p.page===item.region.page;}),item.index);}).join('');var ids=kind==='paper'?q.pages||[]:kind==='work'?q.work_pages||[]:q.reference_pages||[],known=pages.filter(function(p){return ids.includes(p.page);});return known.length?'<div class="ps-unlocated"><b>'+roles[kind]+'截图尚未定位</b><p>未猜测截图范围，可打开来源页核对或手动框选。</p>'+known.map(function(p){return '<a href="'+esc(p.url)+'" target="_blank" rel="noopener">查看第 '+p.page+' 页</a>';}).join(' · ')+'</div>':'';}).join('');
+        var kinds=['paper','work','reference'],cards=kinds.map(function(kind){var found=current.map(function(region,index){return {region:region,index:index};}).filter(function(item){return item.region.kind===kind;});if(found.length)return found.map(function(item){return regionCard(item.region,pages.find(function(p){return p.page===item.region.page;}),item.index,q.shared_work);}).join('');var ids=kind==='paper'?q.pages||[]:kind==='work'?q.work_pages||[]:q.reference_pages||[],known=pages.filter(function(p){return ids.includes(p.page);});return known.length?'<div class="ps-unlocated"><b>'+roles[kind]+'截图尚未定位</b><p>未猜测截图范围，可打开来源页核对或手动框选。</p>'+known.map(function(p){return '<a href="'+esc(p.url)+'" target="_blank" rel="noopener">查看第 '+p.page+' 页</a>';}).join(' · ')+'</div>':'';}).join('');
         zone.innerHTML = '<h4>原题与作答截图</h4>' + (pages.length ? '<div class="ps-regions">' + cards + '</div>' + (!source.readonly?btn('＋ 框选扫描区域','add'):'') + (!current.length ? '<p class="pr-muted">没有可靠定位时保留原页；可分别框选原题与作答，也支持跨页。</p>' : '') : '<p class="pr-muted">本题暂无可用扫描件，可在资料区补充原卷或答题卡。</p>');
         zone.querySelectorAll('.ps-region').forEach(function(card){var region=current[Number(card.dataset.index)];layoutCrop(card.querySelector('.ps-crop img'),region.box);});
         if(source.readonly)zone.querySelectorAll('[data-scan^="edit:"],[data-scan^="remove:"]').forEach(function(b){b.remove();});

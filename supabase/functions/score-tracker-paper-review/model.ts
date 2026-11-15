@@ -43,9 +43,14 @@ export function validateStart(body: any) {
       : p.url.startsWith("data:image/png;") ? head.startsWith("\x89PNG\r\n\x1a\n") : head.startsWith("RIFF") && head.slice(8, 12) === "WEBP";
     if (!valid) throw new Error("无法读取这张图片，请重新选择");
     const regions = validateImageRegions(p.regions);
+    let regionBoxes: any;
+    if (p.region_boxes !== undefined) {
+      if (!Array.isArray(p.region_boxes) || p.region_boxes.length !== regions.length || !regions.length || p.region_boxes.some((b: any) => !Array.isArray(b) || b.length !== 4 || b.some((n: any) => typeof n !== 'number' || !Number.isFinite(n) || n < 0 || n > 1) || b[2] <= .01 || b[3] <= .01 || b[0] + b[2] > 1.000001 || b[1] + b[3] > 1.000001) || p.region_boxes[0].some((n: number, i: number) => n !== [0,0,1,1][i])) throw new Error('截图定位视图与坐标范围不一致');
+      regionBoxes = p.region_boxes;
+    }
     length += regions.reduce((n: number, r: string) => n + r.length, 0);
     length += p.url.length;
-    return { role: p.role, page: i + 1, url: p.url, ...(regions.length ? { regions } : {}) };
+    return { role: p.role, page: i + 1, url: p.url, ...(regions.length ? { regions } : {}), ...(regionBoxes ? { region_boxes:regionBoxes } : {}) };
   });
   if (length > MAX_IMAGE_DATA) throw new Error("图片总大小过大，请压缩图片后重试");
   if (!pages.some((p: any) => p.role === "paper")) throw new Error("请上传至少一张试卷题目图片");

@@ -6,7 +6,7 @@ import { analysisQueue, fullCredit, answerCorrect, needsConfirmation } from "./l
 import { reviewModel, imageContent } from "./runtime.ts";
 import { inventoryPrompt, normalizeInventory, workPrompt, normalizeWork, scoreTargets, scoreReadViews, scoreViewContent, scoreReadingPrompt, mergeScoreReading } from "./reading.ts";
 import { gradingTargets, gradingPrompt, mergeGrading, gradingChecks } from './grading.ts';
-import { scanQueue, scanProgress, scanPrompt, normalizeScanPage, scanReport } from './scan-entry.ts';
+import { scanQueue, scanProgress, scanPrompt, scanContent, normalizeScanPage, scanReport } from './scan-entry.ts';
 
 const REVIEW_TABLE = "score_tracker_paper_reviews";
 export function progressFor(state: any) {
@@ -90,8 +90,8 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
       await audit.mark(stage + '_started');
       // Only the full current page is sent: crop coordinates must refer to that page.
       const outcome = await reviewModel({ config, billing: { db, user, task: input.billing_task_id, claim: state.claim },
-        content: [{ type: 'text', text: scanPrompt(input, page, state.scan_pages) }, ...imageContent({ pages: [{ ...page, regions: [] }] })],
-        requestId: input.request_id, stage, validate: raw => normalizeScanPage(raw, page, input), mark: audit.mark });
+        content: scanContent(input,page,state.scan_pages),
+        requestId: input.request_id, stage, validate: raw => normalizeScanPage(raw, page, input,state.scan_pages), mark: audit.mark });
       if (!outcome.ok) { await audit.finish('failed', outcome); return; }
       state.scan_pages.push(outcome.result);
       state.claim = crypto.randomUUID(); state.scan_retry = false;
