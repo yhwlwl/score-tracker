@@ -1,0 +1,26 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>管理后台预览</title><style>body{margin:0;font:14px system-ui;background:#f5f7fb}header{padding:12px 20px;background:white;border-bottom:1px solid #ddd}iframe{width:100%;height:calc(100dvh - 48px);border:0}a{margin-right:20px}</style></head><body><header><a href="?view=growth">账号等级</a><a href="?view=vision">识别记录</a>合成数据 · 不写生产</header><iframe sandbox="allow-scripts" title="后台功能预览"></iframe><script>
+(async()=>{
+ const view=new URLSearchParams(location.search).get('view')==='vision'?'vision':'growth';
+ const r=await fetch('/mg');if(!r.ok)throw Error('预览读取失败');let html=await r.text();if(!html.includes('Score Tracker 管理面板'))throw Error('预览页面不正确');
+ const fixture=function(){
+  const store=new Map([['st_admin_token','synthetic-only']]);Object.defineProperty(window,'localStorage',{value:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v),removeItem:k=>store.delete(k)}});Object.defineProperty(window,'sessionStorage',{value:{getItem:()=>null,setItem:()=>{}}});
+  history.replaceState=()=>{};window.scrollTo=()=>{};
+  window.fetch=async(url)=>{
+   const q=new URL(url,'https://fixture.invalid').searchParams,a=q.get('action'),id='00000000-0000-4000-8000-000000000001';
+   const counts=[100,320,250,170,140,90,70,40,12,5,2,1],total=counts.reduce((x,y)=>x+y,0);
+   let data={ok:true,rows:[],total:0,summary:{}};
+   if(a==='ai_config')data={configured:true,model:'deepseek-v4.1-flash',enabled:true,beta_only:false,tier_rules:[]};
+   if(a==='ai_budget')data={policy:{enabled:false,warning_cny:15,hard_limit_cny:20,cost_multiplier:1},budget:{spent_cny:.8,reserved_cny:.2},unresolved:[]};
+   if(a==='account_growth')data={total_users:1800,evaluated_users:total,highest_level:12,median_points:132,distribution:counts.map((n,i)=>({level:i+1,users:n,median_points:i*95+25,max_points:i*110+40,median_age_days:15+i*20,max_age_days:90+i*20,median_active_months:1+Math.floor(i/3),monthly_credits:[0,400,500,650,800,1000,1300,1700,2200,2800,3600,4500][i]})),top_users:[{username:'示例同学',level:12,points:1350,age_days:220,active_months:7}],guide:{completed:86,steps:Array.from({length:9},(_,i)=>({step:i,shown:120-i*3,completed:110-i*3,skipped:i>1?3:0,failures:i===2?2:0,median_ms:2000+i*1500}))}};
+   if(a==='vision_requests'||a==='paper_requests')data={rows:[{request_id:id,username:'示例同学',subject:a==='paper_requests'?'数学':'',status:'succeeded',created_at:'2026-11-14T12:00:00Z',source_image_count:4,duration_ms:42000,model:'deepseek-v4.1-flash'}],total:1,summary:{success_rate:85.7,succeeded:6,failed:1,median_ms:42000,p95_ms:65000,max_ms:70000}};
+   if(a==='paper_request_detail')data={record:{request_id:id,subject:'数学',status:'succeeded',created_at:'2026-11-14T12:00:00Z',images:[],result:{questions:[{label:'1',stem:'解方程 x + 2 = 5',answer:'x = 3',teacher_score:5,max_score:5}]},billing:{charged_credits:326},calls:[{prompt_tokens:20000,completion_tokens:36000,reasoning_tokens:28000,cost_cny:.328}]}};
+   if(a==='vision_request_detail')data={record:{request_id:id,status:'succeeded',images:[],result:{subjects:[{name:'数学',finalScore:128}]},attempts:[]}};
+   return{ok:true,json:async()=>data};
+  };navigator.sendBeacon=()=>false;
+ };
+ html=html.replace('<head>',()=>'<head><style>.nav-btn:not([data-view="growth"]):not([data-view="vision"]){display:none}</style><meta http-equiv="Content-Security-Policy" content="connect-src &#39;none&#39;; form-action &#39;none&#39;"><script>('+fixture.toString()+')();<\/script>');
+ // Force the synthetic view without granting the frame access to parent storage.
+ html=html.replace("v=p.get('view')","v='"+view+"'");
+ document.querySelector('iframe').srcdoc=html;
+})().catch(e=>document.querySelector('header').textContent=e.message);
+</script></body></html>

@@ -10,7 +10,7 @@
   const same = (a,b) => JSON.stringify(a) === JSON.stringify(b);
   const identity = () => state.user && state.token ? state.user.id + ':' + state.token : '';
   let active = null, attempted = '', loadingOwner = '', lastOwner = '';
-  function track(event, step) { try { window.__scoreTrackerTrack?.(event, {step}, 'setup'); } catch (_) {} }
+  function track(event, step, extra={}) { try { window.__scoreTrackerTrack?.(event, {step,guide_version:VERSION,...extra}, 'setup'); } catch (_) {} }
   async function call(endpoint, action, payload, token) {
     const response = await fetch('/api/' + endpoint, {method:'POST',headers:{'Content-Type':'application/json'},signal:AbortSignal.timeout(20000),body:JSON.stringify({action,token:token || state.token,...payload})});
     const data = await response.json().catch(() => ({}));
@@ -37,6 +37,8 @@
     let school=null,schoolQuery='',schoolMatches=[],searchTimer,searchSeq=0,schoolSearching=false;
     let goal={subjects:{},totalGoal:null,targetRank:null,school:'',date:'',dateName:''};
     let initial={},appearance=visual(),initialVisual=clone(appearance),benefits=null,benefitError='';
+    let shownStep=-1,stepStarted=performance.now();const runId=crypto.randomUUID();
+    function emit(event,n=step){track(event,n,{account_kind:isNew?'new':'existing',guide_run_id:runId,duration_ms:Math.round(performance.now()-stepStarted)});}
     let rename=user.username,password='',confirmation='',showPassword=false;
     const root=document.createElement('div');root.className='setup-overlay sg-root';
     root.setAttribute('role','dialog');root.setAttribute('aria-modal','true');root.setAttribute('aria-label','账号设置引导');
@@ -95,6 +97,7 @@
     }
     function draw(animate=true) {
       if(!current())return;
+      if(shownStep!==step){shownStep=step;stepStarted=performance.now();emit('setup_step_shown');}
       root.innerHTML='<div class="sg-shell"><header class="sg-top"><span class="sg-brand"><span class="sg-product-logo logo" aria-hidden="true">'+(window.__v29?.logoSvg||'')+'</span><span>Score Tracker</span></span><span class="sg-position">'+(step===0?'让进步有迹可循':STEPS[step]+' <span>'+step+' / 8</span>')+'</span></header><div class="sg-progress" role="progressbar" aria-label="设置进度" aria-valuenow="'+step+'" aria-valuemin="0" aria-valuemax="8"><i style="width:'+(step/8*100)+'%"></i></div><main class="sg-main '+(step===0?'sg-intro ':'')+(animate?'sg-enter':'')+'">'+content()+'</main><footer class="sg-footer"><div><button type="button" class="sg-back" data-back '+(step===0?'hidden':'')+'>← 上一步</button></div><div class="sg-footer-right">'+(step>1&&step<8?'<button type="button" class="sg-skip" data-skip>稍后设置</button>':'')+'<button type="button" class="sg-next" data-next '+(busy||step>0&&!ready?'disabled':'')+'>'+(busy?'保存中…':step===0?'开始':step===1&&!credentialSaved?'已保存，继续':step===8?'开始记录':'继续')+' <span aria-hidden="true">→</span></button></div><p class="sg-error" role="alert">'+esc(message)+'</p></footer></div>';
       bind();if(step>0&&animate)root.querySelector('#sg-title')?.focus({preventScroll:true});
     }
@@ -176,12 +179,12 @@
           if(!same(goal,initial.goal)){await dataApiV7('save_goal',{goal});if(!current())return;initial.goal=clone(goal);window.__v33?.reload();}
         }
         if(step===7){if(skip){appearance=clone(initialVisual);applyVisual(appearance,true);}else{applyVisual(appearance,true);initialVisual=clone(appearance);}}
-        if(step===8){await checkpoint(8,{preference_guide_version:VERSION,completed:true,step:6});if(!current())return;attempted=key;close(false);render();track('setup_completed',8);return;}
+        if(step===8){await checkpoint(8,{preference_guide_version:VERSION,completed:true,step:6});if(!current())return;attempted=key;emit('setup_step_completed',8);emit('setup_completed',8);close(false);render();return;}
         if(!current())return;
         if(step!==3&&step!==4||skip)await checkpoint(step+1);
         if(!current())return;
-        track(skip?'setup_step_skipped':'setup_step_completed',step);step++;busy=false;message='';draw();if(step===8)loadBenefits();
-      }catch(error){if(current()){message=error.message||'暂时没有保存成功';busy=false;draw(false);}}
+        emit(skip?'setup_step_skipped':'setup_step_completed',step);step++;busy=false;message='';draw();if(step===8)loadBenefits();
+      }catch(error){if(current()){emit('setup_step_failed');message=error.message||'暂时没有保存成功';busy=false;draw(false);}}
     }
     async function loadBenefits() {
       benefitError='';
@@ -198,7 +201,7 @@
     function bind() {
       root.querySelector('[data-next]').onclick=()=>advance(false);
       root.querySelector('[data-skip]')?.addEventListener('click',()=>advance(true));
-      root.querySelector('[data-back]').onclick=()=>{if(busy)return;capture();message='';step=Math.max(0,step-1);draw();};
+      root.querySelector('[data-back]').onclick=()=>{if(busy)return;capture();emit('setup_step_back');message='';step=Math.max(0,step-1);draw();};
       root.querySelector('[data-retry]')?.addEventListener('click',prepare);
       root.querySelector('[data-retry-level]')?.addEventListener('click',loadBenefits);
       root.querySelectorAll('[data-copy]').forEach(b=>b.onclick=async()=>{try{await navigator.clipboard.writeText(credentials[b.dataset.copy]);if(current())b.textContent='已复制';}catch(_){message='请长按复制，或截图保存';draw(false);}});
@@ -242,7 +245,7 @@
         state.setupProfile=profile;ready=true;state.setupGuideLoading=false;draw(false);loadBenefits();
       }catch(e){if(current()){message=e.message||'设置加载失败';draw(false);}}
     }
-    draw();track('setup_shown',0);prepare();
+    draw();emit('setup_shown',0);prepare();
   }
   async function maybe() {
     const key=identity();

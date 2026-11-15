@@ -4,6 +4,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { visionRecords, visionRecordDetail, deleteVisionRecord } from "./vision-records.ts";
 import { userRecords } from "./user-records.ts";
+import { paperRecords, paperRecordDetail } from "./paper-records.ts";
 import { DEFAULT_VISION_TIERS, validateVisionTiers } from "./vision-tiers.ts";
 
 const U=Deno.env.get('SUPABASE_URL')||'',S=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||'';
@@ -149,6 +150,9 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
   }
   if(action==='user_records'&&req.method==='GET')return json(await userRecords(db,q.searchParams));
   if(action==='vision_requests'&&req.method==='GET')return json(await visionRecords(db,q.searchParams));
+  if(action==='account_growth'&&req.method==='GET'){const r=await db.rpc('score_tracker_admin_growth_report');if(r.error)throw r.error;return json(r.data);}
+  if(action==='paper_requests'&&req.method==='GET')return json(await paperRecords(db,q.searchParams));
+  if(action==='paper_request_detail'&&req.method==='GET'){const record=await paperRecordDetail(db,q.searchParams.get('id')||'');return record?json({record}):json({error:'记录不存在'},404);}
   if(action==='vision_request_detail'&&req.method==='GET'){const record=await visionRecordDetail(db,q.searchParams.get('id')||'');return record?json({record}):json({error:'记录不存在'},404)}
   if(action==='vision_record_delete'&&req.method==='POST'){const body=await req.json();const result=await deleteVisionRecord(db,String(body.id||''));return json(result,result.error?result.status:200)}
   if(action==='feedback_reply'&&req.method==='POST'){const b=await req.json(),id=String(b.id||''),content=String(b.content||'').trim().slice(0,5000);if(!content)return json({error:'empty'},400);const {error}=await db.from('score_tracker_feedback_replies').insert({feedback_id:id,author_user_id:admin.id,author_type:'admin',content});if(error)throw error;await db.from('score_tracker_feedback_submissions').update({status:'reviewing'}).eq('id',id).eq('status','new');return json({ok:true})}
