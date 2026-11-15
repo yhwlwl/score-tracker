@@ -20,7 +20,7 @@
  window.fetch=async function(url,options){
   var path=new URL(typeof url==='string'?url:url.url,location.href).pathname;if(!path.startsWith('/api/'))return realFetch(url,options);
   var b={};try{b=JSON.parse(options&&options.body||'{}');}catch(_){}
-  var data={ok:true,enabled:false,modules:[],subjects:[],exams:store.exams,profile:{completed_at:'2026-10-01',school_prompted_at:'2026-10-01'}};
+  var data={ok:true,enabled:false,modules:[],subjects:[],exams:store.exams,profile:{preference_guide_version:2,completed_at:'2026-10-01',school_prompted_at:'2026-10-01'}};
   if(b.action==='account_status')return response({account:{enabled:true,analysis_enabled:false,budget_status:'available',credits:{available:1840,balance:1840,held:0,monthly:1300,cap:3900,welcome:150},growth:{level:7,points:250,valid_exams:8,active_months:3,registered_days:95,next_threshold:280,levels:[[1,0,0,0,0],[2,50,0,0,400],[3,120,0,0,500],[4,140,0,0,650],[5,165,0,0,800],[6,195,0,0,1000],[7,230,0,0,1300],[8,280,0,0,1700],[9,350,30,2,2200],[10,450,30,2,2800],[11,650,60,3,3600],[12,1200,180,5,4500]].map(function(x){return {level:x[0],threshold:x[1],min_days:x[2],min_months:x[3],monthly_credits:x[4]};}),features:[{feature:'record',points:30,earned:true},{feature:'trend',points:15,earned:true},{feature:'paper',points:20,earned:true},{feature:'types',points:20,earned:false}]}}});
   if(b.action==='account_usage')return response({usage:[{feature:'vision',status:'succeeded',charged_credits:13,created_at:'2026-11-14T10:00:00Z'},{feature:'paper_entry',status:'succeeded',charged_credits:389,created_at:'2026-11-13T10:00:00Z'},{feature:'paper_entry',status:'failed',charged_credits:0,created_at:'2026-11-12T10:00:00Z'}]});
   if(path.includes('score-tracker-paper-review')){
