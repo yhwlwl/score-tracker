@@ -42,7 +42,7 @@
     if (entryOnly()) {
       root.querySelector('.pr-eyebrow').textContent='试题资料';
       root.querySelector('.ph-header h1').textContent='试题录入';
-      root.querySelector('.ph-header p').textContent='上传试卷，核对题目、作答与批改分，保存后查看题型统计。';
+      root.querySelector('.ph-header p').textContent='读取题目、作答和已有批改分，确认后保存。';
     }
     root.querySelector('.ph-workspace').onclick = async function (e) {
       var b = e.target.closest('[data-hub]'); if (!b) return;
@@ -105,7 +105,7 @@
     selection=null;
     body().innerHTML='<div class="ph-create"><div class="ph-section-title"><div><h2>'+(draft?'继续试题录入':'上传试卷')+'</h2><p>先上传并识别，核对后可保存题型得分，也可以生成 AI 分析。</p></div>'+button('返回试卷列表','list')+'</div><form class="ph-basics">'+step('01','录入哪张试卷','可以先录入，之后再关联考试。')+'<div class="ph-form-grid"><label>科目<input name="subject" list="ph-subjects" maxlength="40" required placeholder="请选择或输入科目" value="'+esc(selectedSubject)+'"><datalist id="ph-subjects">'+subjects().map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist></label><label>关联考试<select name="exam_id">'+examOptions(data.exam_id || '',selectedSubject)+'</select></label></div><details class="ph-name"><summary>试卷名称 <span data-title-preview></span></summary><label>自定义名称<input name="title" maxlength="100" value="'+esc(data.title || '')+'" placeholder="按考试和科目自动命名"></label></details>'+(data.originDraft?'<p class="ph-hint">保存正在编辑的考试后，试题会自动关联。</p>':'')+'</form><div class="ph-editor ph-create-editor"></div></div>';
     var basics=body().querySelector('form'), c=Object.assign(context(),{host:body().querySelector('.ph-editor'),draftId:data.draft_id || window.ScorePaperReview.draftFor(user(),'hub'),sessions:{},setup:true,onClose:list});
-    if(entryOnly())body().querySelector('.ph-section-title p').textContent='先识别题目和已有批改分，核对后保存；试卷分析暂未开放。';
+    if(entryOnly())body().querySelector('.ph-section-title p').textContent='读取已有内容，确认识别结果后保存。';
     function update(){
       var subject=basics.elements.subject.value.trim();
       c.title=basics.elements.title.value.trim() || (basics.elements.exam_id.value?examName(basics.elements.exam_id.value)+' · ':'')+(subject || '试卷')+' · 试题';
