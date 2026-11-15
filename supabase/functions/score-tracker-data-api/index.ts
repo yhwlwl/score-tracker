@@ -656,7 +656,7 @@ async function loginV2(body: any) {
 async function getGoal(uid: string) {
   const r = await db
     .from("score_tracker_user_goals")
-    .select("subject_goals,total_goal,dream_school,exam_date,date_name,updated_at")
+    .select("subject_goals,total_goal,target_rank,dream_school,exam_date,date_name,updated_at")
     .eq("user_id", uid)
     .maybeSingle();
   if (r.error) throw r.error;
@@ -666,6 +666,7 @@ async function getGoal(uid: string) {
     goal: {
       subjects: g.subject_goals ?? {},
       totalGoal: g.total_goal === null || g.total_goal === undefined ? null : Number(g.total_goal),
+      targetRank: g.target_rank == null ? null : Number(g.target_rank),
       school: g.dream_school ?? "",
       date: g.exam_date ?? "",
       dateName: g.date_name ?? "",
@@ -686,10 +687,22 @@ async function saveGoal(uid: string, raw: any) {
     }
   }
   const total = score(raw?.totalGoal);
+  const rankPatch: Record<string, number | null> = {};
+  if (Object.prototype.hasOwnProperty.call(raw || {}, "targetRank")) {
+    const rank = raw.targetRank == null || raw.targetRank === "" ? null : Number(raw.targetRank);
+    if (rank !== null && (!Number.isInteger(rank) || rank < 1 || rank > 10000000)) return { error: "目标名次请输入正整数", status: 400 };
+    rankPatch.target_rank = rank;
+  }
   const school = text(raw?.school, 40);
   const date = /^\d{4}-\d{2}-\d{2}$/.test(String(raw?.date ?? "")) ? String(raw.date) : null;
   const dateName = text(raw?.dateName, 20);
-  const hasAny = Object.keys(subjects).length > 0 || total !== null || !!school || !!date;
+  // Older clients omit targetRank. Preserve its stored value when editing scores.
+  if (!("target_rank" in rankPatch)) {
+    const existing = await db.from("score_tracker_user_goals").select("target_rank").eq("user_id", uid).maybeSingle();
+    if (existing.error) throw existing.error;
+    rankPatch.target_rank = existing.data?.target_rank ?? null;
+  }
+  const hasAny = Object.keys(subjects).length > 0 || total !== null || rankPatch.target_rank !== null || !!school || !!date;
   const now = new Date().toISOString();
   if (!hasAny) {
     const del = await db.from("score_tracker_user_goals").delete().eq("user_id", uid);
@@ -697,7 +710,7 @@ async function saveGoal(uid: string, raw: any) {
     return { ok: true, cleared: true };
   }
   const r = await db.from("score_tracker_user_goals").upsert(
-    { user_id: uid, subject_goals: subjects, total_goal: total, dream_school: school, exam_date: date, date_name: dateName, updated_at: now },
+    { user_id: uid, subject_goals: subjects, total_goal: total, ...rankPatch, dream_school: school, exam_date: date, date_name: dateName, updated_at: now },
     { onConflict: "user_id" }
   );
   if (r.error) throw r.error;

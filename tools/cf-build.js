@@ -56,7 +56,7 @@ for (const f of FILES) fs.copyFileSync(path.join(ROOT, f), path.join(OUT, f));
 if (fs.existsSync(path.join(ROOT, 'vendor'))) fs.cpSync(path.join(ROOT, 'vendor'), path.join(OUT, 'vendor'), { recursive: true });
 if (fs.existsSync(path.join(ROOT, 'assets'))) fs.cpSync(path.join(ROOT, 'assets'), path.join(OUT, 'assets'), { recursive: true });
 if (fs.existsSync(path.join(ROOT, 'appearance-qa'))) fs.cpSync(path.join(ROOT, 'appearance-qa'), path.join(OUT, 'appearance-qa'), { recursive: true });
-for (const qa of ['paper-record-flow-qa','paper-entry-only-qa','question-type-qa','question-type-analysis-qa']) {
+for (const qa of ['paper-record-flow-qa','paper-entry-only-qa','question-type-qa','question-type-analysis-qa','setup-guide-qa']) {
   if (fs.existsSync(path.join(ROOT,'design',qa))) fs.cpSync(path.join(ROOT,'design',qa),path.join(OUT,'design',qa),{recursive:true});
 }
 fs.cpSync(path.join(ROOT, 'design/community-invite-qa'), path.join(OUT, 'design/community-invite-qa'), { recursive: true });

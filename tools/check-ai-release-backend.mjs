@@ -9,6 +9,10 @@ export async function checkAiBackend(base,send=fetch){
   if(!r.ok||j.release!==release||j.migration_ready!==true||j.analysis!==false)throw Error(name+' 的额度后端或迁移尚未就绪');return name;
  }));
  const failed=results.filter(r=>r.status==='rejected');if(failed.length)throw Error('已阻止生产前端发布；请先部署已审核迁移和计费后端。'+failed.map(r=>r.reason?.message||'检查失败').join('；'));
+ for(const [name,field,value] of [['score-tracker-setup','setup_guide_version',2],['score-tracker-trajectories','privacy_status_version',1]]){
+  const r=await send(new URL('/functions/v1/'+name,base),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'release_capabilities'}),signal:AbortSignal.timeout(15000)}),j=await r.json();
+  if(!r.ok||j[field]!==value||(name==='score-tracker-setup'&&j.migration_ready!==true))throw Error('已阻止生产前端发布；'+name+' 的统一引导后端或迁移尚未就绪');
+ }
  return functions;
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){

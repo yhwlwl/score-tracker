@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>全屏引导 · 预览</title><style>
+*{box-sizing:border-box}body{margin:0;background:#f6f8fb;font:12px/1.5 system-ui;color:#536078}header{height:46px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;border-bottom:1px solid #e0e6ef;background:#fff;gap:12px}nav{display:flex;gap:8px}a{color:inherit;text-decoration:none;padding:5px 12px;border-radius:7px}a[aria-current]{background:#edf0ff;color:#536bd7}small{font-size:10px}iframe{display:block;width:100%;height:calc(100dvh - 46px);border:0}#error{padding:30px}@media(max-width:420px){header{padding:0 10px}small{max-width:120px;font-size:9px}a{padding:5px 9px}}
+</style></head><body><header><nav><a href="?user=new" id="new">新用户</a><a href="?user=existing" id="existing">老用户</a></nav><small>合成账号 · 不调用 AI · 不写入生产</small></header><iframe title="Score Tracker 全屏引导" id="preview"></iframe><p id="error" hidden></p><script>
+(async function(){
+ const mode=new URLSearchParams(location.search).get('user')==='new'?'new':'existing';document.getElementById(mode).setAttribute('aria-current','page');
+ try{
+  const [html,fixture]=await Promise.all([fetch('../../index.html').then(r=>r.text()),fetch('fixture.js').then(r=>r.text())]);
+  const base=new URL('../../',location.href).href;
+  const frame=html.replace('<head>','<head><base href="'+base+'"><script>window.SETUP_QA_MODE='+JSON.stringify(mode)+';<\/script><script>'+fixture+'<\/script>');
+  preview.srcdoc=frame;
+ }catch(e){document.getElementById('error').hidden=false;document.getElementById('error').textContent='预览未能加载：'+e.message;}
+})();
+</script></body></html>

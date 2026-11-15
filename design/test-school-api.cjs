@@ -1,8 +1,8 @@
 const assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path'), vm = require('node:vm');
 const {webcrypto} = require('node:crypto');
-const ts = require('typescript');
+const {stripTypeScriptTypes} = require('node:module');
 const source = fs.readFileSync(path.join(__dirname,'../supabase/functions/score-tracker-setup/index.ts'),'utf8');
-const code = ts.transpile(source.replace(/^import .*;\n/gm,''),{target:ts.ScriptTarget.ES2022});
+const code = stripTypeScriptTypes(source.replace(/^import .*;\n/gm,''));
 const records = new Map(); let handler, expired=false, writes=0;
 const db = {
   from(table) {
@@ -52,5 +52,8 @@ async function call(action,payload={},token='fixture-token') {return handler(new
   records.clear();response=await call('start',{guide_only:true});assert.equal(response.status,200);p=(await response.json()).profile;assert.equal(p.step,6);assert.equal(p.preference_guide_version,0);assert(p.completed_at);
   response=await call('save',{preference_guide_version:1});assert.equal(response.status,200);assert.equal((await response.json()).profile.preference_guide_version,1);
   assert.equal((await call('save',{preference_guide_version:2})).status,400);
+  response=await call('save',{guide_step:9,current_grade:'初二',privacy_notice_version:1});assert.equal(response.status,200);p=(await response.json()).profile;assert.equal(p.current_grade,'初二');assert(p.privacy_acknowledged_at);
+  response=await call('save',{preference_guide_version:2});assert.equal(response.status,200);
+  for(const payload of [{guide_step:10},{guide_step:-1},{privacy_notice_version:2},{current_grade:'x'.repeat(21)},{current_grade:123},{preference_guide_version:3}])assert.equal((await call('save',payload)).status,400);
   console.log('School API: session authentication, validation, profile preservation, one-time guide state, claims and directory shapes passed.');
 })().catch(e=>{console.error(e);process.exit(1)});

@@ -48,7 +48,7 @@
     }
     if (!u) return;
     if (!loaded && !fetching && Date.now() >= retryAt) { load(u); return; }
-    if (!loaded || claiming || modal || blocked() || profile?.school) return;
+    if (!loaded || claiming || modal || blocked() || profile?.school || window.ScoreSetupGuide) return;
     if (claimed) { open(u, true); return; }
     if (profile?.school_prompted_at || profile?.completed_at || profile?.step === 6 || Date.now() < retryAt) return;
     claiming = true;

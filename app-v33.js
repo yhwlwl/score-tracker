@@ -19,7 +19,7 @@ var G={data:null,loaded:false};
 function hasGoal(){
   var d=G.data;if(!d)return false;
   var n=0;for(var k in (d.subjects||{}))n++;
-  return !!(n>0||d.totalGoal!=null||d.school||d.date);
+  return !!(n>0||d.totalGoal!=null||d.targetRank!=null||d.school||d.date);
 }
 function goalSubjects(){return G.data&&G.data.subjects?G.data.subjects:{}}
 /* 顶层 const state 不会挂到 window 上,必须经词法作用域安全取用 */
@@ -123,6 +123,7 @@ function applyGoalResponse(r){
   G.data=g?{
     subjects:g.subjects||{},
     totalGoal:g.totalGoal!=null?Number(g.totalGoal):null,
+    targetRank:g.targetRank!=null?Number(g.targetRank):null,
     school:g.school||g.dream_school||"",
     date:g.date||g.exam_date||"",
     dateName:g.dateName||g.date_name||""
@@ -142,6 +143,7 @@ function persistGoal(){
   var d=G.data||{};
   return apiCall("save_goal",{goal:{
     subjects:d.subjects||{},totalGoal:d.totalGoal??null,
+    targetRank:d.targetRank??null,
     school:d.school||"",date:d.date||"",dateName:d.dateName||""
   }});
 }
@@ -246,6 +248,7 @@ function renderHomeCard(mount){
       :'<div class="gh-cd"><small>'+esc(G.data.dateName||"目标")+"倒计时</small><b>"+dl+" 天</b></div>";
   }
   if(G.data.school)side+='<div class="gh-school">理想学校<b>'+esc(G.data.school)+"</b></div>";
+  if(G.data.targetRank!=null)side+='<div class="gh-school">目标年级名次<b>'+esc(G.data.targetRank)+"</b></div>";
   var card=document.createElement("div");card.id="goalHeroV33";card.className="goal-hero-v33";
   card.onclick=function(e){if(e.target&&e.target.closest&&e.target.closest('.gh-chips'))return;openEditor("card")};
   card.innerHTML='<div class="gh-main-v33"><div class="gh-title-row"><span class="gh-title">我的目标 · '+esc(G.data.name||"本学期")
@@ -343,13 +346,15 @@ function openEditor(via){
     +'<p class="gm-hint" id="gv33Hint"></p>'
     +'<div style="display:flex;gap:8px;margin-bottom:10px"><button class="gm-mini" id="gv33Auto">自动求和</button><button class="gm-mini" id="gv33Manu">手动指定</button>'
     +'<input class="gm-input" id="gv33Manual" style="display:none;max-width:140px" inputmode="decimal" placeholder="如 675"/></div>'
-    +'<input class="gm-input" id="gv33School" style="width:100%" maxlength="40" placeholder="理想学校（选填），例如 浙江大学"/>'
+    +'<label class="gm-label" for="gv33TargetRank">目标年级名次</label><input class="gm-input" id="gv33TargetRank" type="number" min="1" max="10000000" inputmode="numeric" placeholder="选填"/>'
+    +'<input class="gm-input" id="gv33School" style="width:100%;margin-top:12px" maxlength="40" placeholder="理想学校（选填），例如 浙江大学"/>'
     +'<div class="gm-label">③ 目标日期 <span>用于首页倒计时，可不填</span></div>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap"><select class="gm-input" id="gv33DateName" style="max-width:150px">'+dateOpts+'</select>'
     +'<input class="gm-input" id="gv33Custom" style="display:none;max-width:150px" maxlength="20" placeholder="名称，如 一模"/>'
     +'<input class="gm-input" id="gv33Date" type="date" style="max-width:190px"/></div>'
     +'<div class="gm-foot"><button class="gm-clear" id="gv33Clear">清除全部目标</button><button class="gm-save" id="gv33Save">保存</button></div>';
   $("#gv33School").value=d.school||"";
+  $("#gv33TargetRank").value=d.targetRank??"";
   $("#gv33Date").value=d.date||"";
   EDIT.mode=d.totalGoal!=null?"manu":"auto";
   $("#gv33Manual").value=d.totalGoal==null?"":d.totalGoal;
@@ -406,11 +411,15 @@ function saveEditor(){
   var before=G.data?{
     subjects:Object.assign({},G.data.subjects||{}),
     totalGoal:G.data.totalGoal??null,
+    targetRank:G.data.targetRank??null,
     school:G.data.school||"",
     date:G.data.date||"",
     dateName:G.data.dateName||""
   }:null;
   var d=G.data=G.data||{};
+  var rankText=$("#gv33TargetRank").value.trim(),rankValue=rankText?Number(rankText):null;
+  if(rankValue!==null&&(!Number.isInteger(rankValue)||rankValue<1||rankValue>10000000)){try{toast("目标名次请输入正整数");}catch(_){}return;}
+  d.targetRank=rankValue;
   d.subjects=collectInputs();
   var school=$("#gv33School").value.trim();
   var date=$("#gv33Date").value||"";
@@ -434,7 +443,7 @@ function saveEditor(){
 }
 function clearEditor(){
   track("goal_cleared");
-  G.data={subjects:{},totalGoal:null,school:"",date:"",dateName:""};
+  G.data={subjects:{},totalGoal:null,targetRank:null,school:"",date:"",dateName:""};
   persistGoal().then(function(){refreshGoalUI()}).catch(function(){});
   closeEditor();refreshGoalUI();
 }
