@@ -5,7 +5,6 @@ const db = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABA
 const headers = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS", "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers });
 const columns = "step,selected_subjects,school,completed_at,updated_at,school_prompted_at,preference_guide_version,guide_step,current_grade,privacy_notice_version,privacy_acknowledged_at";
-const extras = new Set(["物理", "历史", "化学", "生物", "政治", "地理", "技术"]);
 async function profile(userId: string) {
   const r = await db.from("score_tracker_setup_profiles").select(columns).eq("user_id", userId).maybeSingle();
   if (r.error) throw r.error;
@@ -112,7 +111,7 @@ Deno.serve(async req => {
         update.privacy_acknowledged_at = new Date().toISOString();
       }
       if ("selected_subjects" in body) {
-        if (!Array.isArray(body.selected_subjects) || ![0, 3].includes(body.selected_subjects.length) || body.selected_subjects.some((s: unknown) => typeof s !== "string" || !extras.has(s)) || new Set(body.selected_subjects).size !== body.selected_subjects.length) throw new Error("请选择 3 门科目，或先跳过");
+        if (!Array.isArray(body.selected_subjects) || body.selected_subjects.length > 3 || body.selected_subjects.some((s: unknown) => typeof s !== "string" || !s.trim() || s.length > 40 || /[\x00-\x1f]/.test(s)) || new Set(body.selected_subjects).size !== body.selected_subjects.length) throw new Error("最多选择 3 门科目，名称不能为空");
         update.selected_subjects = body.selected_subjects;
       }
       if ("school" in body) update.school = cleanSchool(body.school);

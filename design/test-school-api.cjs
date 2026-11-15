@@ -54,6 +54,8 @@ async function call(action,payload={},token='fixture-token') {return handler(new
   assert.equal((await call('save',{preference_guide_version:2})).status,400);
   response=await call('save',{guide_step:9,current_grade:'初二',privacy_notice_version:1});assert.equal(response.status,200);p=(await response.json()).profile;assert.equal(p.current_grade,'初二');assert(p.privacy_acknowledged_at);
   response=await call('save',{preference_guide_version:2});assert.equal(response.status,200);
+  response=await call('save',{selected_subjects:['体育']});assert.equal(response.status,200);assert.deepEqual((await response.json()).profile.selected_subjects,['体育']);
+  assert.equal((await call('save',{selected_subjects:['体育','体育']})).status,400);
   for(const payload of [{guide_step:10},{guide_step:-1},{privacy_notice_version:2},{current_grade:'x'.repeat(21)},{current_grade:123},{preference_guide_version:3}])assert.equal((await call('save',payload)).status,400);
   console.log('School API: session authentication, validation, profile preservation, one-time guide state, claims and directory shapes passed.');
 })().catch(e=>{console.error(e);process.exit(1)});
