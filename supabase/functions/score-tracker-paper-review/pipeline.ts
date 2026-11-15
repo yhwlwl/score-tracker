@@ -6,9 +6,11 @@ import { analysisQueue, fullCredit, answerCorrect, needsConfirmation } from "./l
 import { reviewModel, imageContent } from "./runtime.ts";
 import { inventoryPrompt, normalizeInventory, workPrompt, normalizeWork, scoreTargets, scoreReadViews, scoreViewContent, scoreReadingPrompt, mergeScoreReading } from "./reading.ts";
 import { gradingTargets, gradingPrompt, mergeGrading, gradingChecks } from './grading.ts';
+import { scanQueue, scanProgress, scanPrompt, normalizeScanPage, scanReport } from './scan-entry.ts';
 
 const REVIEW_TABLE = "score_tracker_paper_reviews";
 export function progressFor(state: any) {
+  if(state.flow==='screenshot_record')return scanProgress(state);
   if(state.options?.purpose==='record')return {version:3,phase:state.phase,updated_at:new Date().toISOString(),active_ms:state.active_ms||0,steps:['识别试题','匹配作答','核对资料'],completed_steps:state.phase==='extract'?0:state.phase==='read_work'?1:2,message:({extract:'正在识别题目与印刷分值',read_work:'正在匹配作答与批改',verify:'正在核对题号与资料',read_scores:'正在补读批改分数',diagnose:'正在整理录入结果'} as any)[state.phase]||'正在整理资料',detail:'仅识别资料，不解题、不判分、不生成试卷分析。'};
   if (state.phase === 'grade') return { version: 3, phase: 'grade', updated_at: new Date().toISOString(), active_ms: state.active_ms || 0,
     steps: ['核对作答与答案', '独立复核AI判分', '更新报告'], completed_steps: state.grading_round ? 1 : 0,
@@ -73,6 +75,32 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
     if (pauseReason) {
       state.pause_reason = pauseReason;
       await readDatabase(() => db.from(REVIEW_TABLE).update({ status: "paused", pause_requested: false, analysis_state: state, progress: { ...progressFor(state), message: pauseReason === "review" ? "资料已录入，等待核对" : "已保存进度，可随时继续" } }).eq("request_id", input.request_id).eq("user_id", user).eq("status", "running").eq("analysis_state->>claim", state.claim));
+      return;
+    }
+    if (state.flow === 'screenshot_record') {
+      state.scan_pages ||= [];
+      const page = scanQueue(input).find((p: any) => !state.scan_pages.some((d: any) => d.page === p.page));
+      if (!page) {
+        const result = scanReport(state.scan_pages, input);
+        await audit.finish('succeeded', { ok: true, result });
+        await readDatabase(() => db.from(REVIEW_TABLE).update({ analysis_state: {}, progress: { ...scanProgress(state), phase: 'completed', completed_steps: 3, message: '截图与分数已整理，等待核对' } }).eq('request_id', input.request_id).eq('user_id', user).eq('status', 'succeeded'));
+        return;
+      }
+      const stage = 'scan_page_' + page.page;
+      await audit.mark(stage + '_started');
+      // Only the full current page is sent: crop coordinates must refer to that page.
+      const outcome = await reviewModel({ config, billing: { db, user, task: input.billing_task_id, claim: state.claim },
+        content: [{ type: 'text', text: scanPrompt(input, page, state.scan_pages) }, ...imageContent({ pages: [{ ...page, regions: [] }] })],
+        requestId: input.request_id, stage, validate: raw => normalizeScanPage(raw, page, input), mark: audit.mark });
+      if (!outcome.ok) { await audit.finish('failed', outcome); return; }
+      state.scan_pages.push(outcome.result);
+      state.claim = crypto.randomUUID(); state.scan_retry = false;
+      state.active_ms = (state.active_ms || 0) + Date.now() - stageStarted;
+      state.phase_started_at = new Date().toISOString();
+      await audit.mark(stage + '_completed');
+      const saved = await readDatabase(() => db.from(REVIEW_TABLE).update({ analysis_state: state, progress: scanProgress(state) }).eq('request_id', input.request_id).eq('user_id', user).eq('status', 'running').select('request_id').maybeSingle());
+      if (saved.error) throw saved.error;
+      if (saved.data) await dispatch(state.claim);
       return;
     }
     if (state.phase === "diagnose" && (settings.purpose === "record" || !(settings as any).config_version && !settings.modules.length)) {
@@ -357,7 +385,7 @@ export function checkpointInput(row: any) {
     exam_context: state.exam_context, account_context: state.account_context, source_record: state.source_record, text_recovery: true };
 }
 export function recoveryInfo(row: any) {
-  const state = row.analysis_state || {}, available = !!state.phase && (row.status === "paused" || (state.resume_count || 0) < 2);
+  const state = row.analysis_state || {}, upgradeScan = row.options?.purpose==='record' && state.phase==='extract' && !state.evidence && state.flow!=='screenshot_record', available = !!state.phase && (upgradeScan || row.status === "paused" || (state.resume_count || 0) < 2);
   return { available, mode: state.flow === "revision" || canRecoverText(state) ? "saved" : "images",
     completed: state.diagnoses?.length || 0, total: state.evidence?.questions?.length || 0,
     questions: (state.evidence?.questions || []).map((q: any) => ({ label: q.label, stem: q.stem, answer: q.answer, teacher_score: q.teacher_score, max_score: q.max_score, pages: q.pages, work_pages: q.work_pages, source_regions: q.source_regions })) };

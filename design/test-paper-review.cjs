@@ -23,6 +23,10 @@ function diagnosis(q) {
 }
 function stagedReply(reply,request) {
   const p=request.messages[0].content[0].text;
+  if(p.startsWith('截图录入 v1。')){
+    const page=Number(p.match(/本轮仅第(\d+)页/)[1]),role=p.includes('角色work')?'work':'paper',f=facts(reply);
+    return {questions:f.questions.map(q=>({...q,source_regions:[{kind:role,page,box:[0.05,0.1,0.8,0.2]}],score_mark:{...q.score_mark,page},max_mark:{...q.max_mark,page}})),total:{...f.total,score_mark:{...f.total.score_mark,page},max_mark:{...f.total.max_mark,page}},score_groups:[]};
+  }
   if(p.includes('独立答案核对与AI判分。'))return {questions:[]};
   if(p.includes('阶段一：'))return facts(reply);
   if(p.includes('识别作答：'))return facts(reply);
@@ -73,7 +77,7 @@ function harness() {
     console:{log(...args){logs.push(args)},error(...args){logs.push(args)},warn(...args){logs.push(args)}},
     fetch:async(url,options)=>{if(url.startsWith('https://test.local/functions/'))return handler(new Request(url,options));const request=JSON.parse(options.body);upstream.push(request);return transport?transport(url,options):new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify(stagedReply(modelReply,request))}}]}));} };
   vm.createContext(scope);
-  ['supabase/functions/_shared/ai-release.ts','supabase/functions/_shared/ai-credits.ts','score-worth-model.js','supabase/functions/_shared/question-types.js','supabase/functions/score-tracker-vision-preview/reliability.ts','supabase/functions/score-tracker-paper-review/options.ts','supabase/functions/score-tracker-paper-review/model.ts','supabase/functions/score-tracker-paper-review/learner.ts','supabase/functions/score-tracker-paper-review/account.ts','supabase/functions/score-tracker-paper-review/grading.ts','supabase/functions/score-tracker-paper-review/analysis.ts','supabase/functions/score-tracker-paper-review/reading.ts','supabase/functions/score-tracker-paper-review/runtime.ts','supabase/functions/score-tracker-paper-review/audit.ts','supabase/functions/score-tracker-paper-review/pipeline.ts','supabase/functions/score-tracker-paper-review/workspace.ts','supabase/functions/score-tracker-paper-review/records.ts','supabase/functions/score-tracker-paper-review/index.ts'].forEach(f=>vm.runInContext(code(f),scope));
+  ['supabase/functions/_shared/ai-release.ts','supabase/functions/_shared/ai-credits.ts','score-worth-model.js','supabase/functions/_shared/question-types.js','supabase/functions/score-tracker-vision-preview/reliability.ts','supabase/functions/score-tracker-paper-review/options.ts','supabase/functions/score-tracker-paper-review/model.ts','supabase/functions/score-tracker-paper-review/learner.ts','supabase/functions/score-tracker-paper-review/account.ts','supabase/functions/score-tracker-paper-review/grading.ts','supabase/functions/score-tracker-paper-review/analysis.ts','supabase/functions/score-tracker-paper-review/reading.ts','supabase/functions/score-tracker-paper-review/scan-entry.ts','supabase/functions/score-tracker-paper-review/runtime.ts','supabase/functions/score-tracker-paper-review/audit.ts','supabase/functions/score-tracker-paper-review/pipeline.ts','supabase/functions/score-tracker-paper-review/workspace.ts','supabase/functions/score-tracker-paper-review/records.ts','supabase/functions/score-tracker-paper-review/index.ts'].forEach(f=>vm.runInContext(code(f),scope));
   return { scope, blobs, tables, calls, writes, upstream, background, logs, set transport(v){transport=v},set reply(v){modelReply=v}, set fail(v){failWrites=v}, async init(){tables.score_tracker_users[0].session_token_hash=Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode('test-token'))).toString('hex')},
     call:body=>handler(new Request('https://test.local/api',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:'test-token',...body})})), handler, drain:async()=>{for(let i=0;i<background.length;i++)await background[i]} };
 }

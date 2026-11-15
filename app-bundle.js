@@ -15362,7 +15362,7 @@ window.ScorePaperEntryOnly = true;
   function runningReport(r) {
     var record = r.options && r.options.purpose==='record', p = r.progress || {}, steps = p.steps || (record ? ['识别试题', '读取作答与批改分', '整理识别结果'] : ['录入题目与作答', '核对批改与填涂', '分析优势和失分原因', '综合复盘与建议']), completed = p.completed_steps == null ? 0 : p.completed_steps;
     return '<section class="pr-progress" aria-label="分析进度"><h3>' + esc(p.message || '正在接收分析任务') + '</h3><p class="pr-text">' + esc(p.detail || '正在读取上传资料。') + '</p><ol class="pr-milestones">' + steps.map(function (title, i) { return '<li class="' + (i < completed ? 'is-done' : i === completed ? 'is-current' : '') + '"><span aria-hidden="true">' + (i < completed ? '✓' : i + 1) + '</span>' + title + '<small>' + (i < completed ? '已完成' : i === completed ? '进行中' : '等待中') + '</small></li>'; }).join('') + '</ol>' +
-      (p.total_questions ? '<p>已录入 <b>' + p.total_questions + '</b> 题 · 已分析 <b>' + (p.completed_questions || 0) + '</b> / ' + p.total_questions + ' 题（其中优势分析 ' + (p.strength_questions || 0) + ' 题） · 可读批改 ' + (p.readable_marks || 0) + ' 处</p>' : '') +
+      (record && p.version>=4 ? '<p class="pr-scan-counts">已处理 <b>'+esc(p.completed_pages)+' / '+esc(p.total_pages)+'</b> 页 · 已定位 <b>'+esc(p.total_questions)+'</b> 题<br>已关联作答 <b>'+esc(p.linked_questions)+'</b> 题 · 已读批改分 <b>'+esc(p.readable_marks)+'</b> 题</p><div class="pr-page-statuses">'+(p.page_statuses||[]).map(function(x){return '<span class="pr-page-'+esc(x.status)+'">第 '+esc(x.page)+' 页 '+(x.status==='done'?'✓':x.status==='current'?'处理中':'等待')+'</span>';}).join('')+'</div>' : p.total_questions ? '<p>已录入 <b>' + p.total_questions + '</b> 题'+(record?'':' · 已分析 <b>' + (p.completed_questions || 0) + '</b> / ' + p.total_questions + ' 题')+' · 可读批改 ' + (p.readable_marks || 0) + ' 处</p>' : '') +
       (p.current_questions && p.current_questions.length ? '<p class="pr-current-questions">本轮：第 ' + esc(p.current_questions.join('、')) + ' 题</p>' : '') +
       '<p class="pr-muted">本轮已等待 ' + elapsed(Date.now() - Date.parse(p.run_started_at || r.created_at)) + ' · 当前阶段 ' + elapsed(Date.now() - Date.parse(p.phase_started_at || r.created_at)) + '</p><p class="pr-muted">' + (record ? '进度自动更新，可稍后返回查看识别结果。' : '复杂题会单独分析，阶段耗时可能不同。进度每 3 秒自动更新；你可以返回填写考试，稍后在分析记录中查看。') + '</p>' + button('刷新状态', 'report:' + r.request_id) + '</section>';
   }
@@ -15636,7 +15636,7 @@ window.ScorePaperEntryOnly = true;
         main.querySelector('[name=pr_location][value=none]').closest('label').querySelector('small').textContent='识别题目、分值及已有参考答案。';
         main.querySelector('[data-upload-role=paper]>p').textContent='按题目顺序上传。';
         main.querySelector('[data-upload-role=reference]>p').textContent='可上传参考答案或评分细则。';
-        main.querySelector('.pr-help').innerHTML='<summary>图片与识别说明</summary><p>JPG / PNG / WebP，单张不超过 10MB。拍清题号与批改分，裁掉姓名、考号；PDF 请先转图片。</p><p>只转录已有内容，模糊处由你核对；不解题、不判分、不生成分析。</p>';
+        main.querySelector('.pr-help').innerHTML='<summary>图片与识别说明</summary><p>JPG / PNG / WebP，单张不超过 10MB。拍清题号与批改分，裁掉姓名、考号；PDF 请先转图片。</p><p>关联原题与作答截图，读取已有分数；模糊处由你核对。</p>';
         main.querySelector('.pr-consent').lastChild.textContent='同意将图片发送给 AI 识别，并在账号中保存试题资料';
       }
       if(quota && quota.unit==='credits'){
@@ -15701,7 +15701,7 @@ window.ScorePaperEntryOnly = true;
       if(ctx.onRecordChange)ctx.onRecordChange(r);
       if(r.result && r.result.record_only && r.status==='succeeded' && ctx.onRecorded){var recorded=ctx.onRecorded;ctx.onRecorded=null;recorded(r);return;}
       selected = r; view = 'report'; dirty = false; if (ctx.onView) ctx.onView('report');
-      if (r.status === 'paused') { main.innerHTML = '<section class="pr-recovery"><h3>' + esc(r.progress && r.progress.message || '进度已保存') + '</h3><p>本轮已完成的内容已保存。核对资料后，可以继续剩余分析。</p>' + button('继续分析', 'resume', 'pr-primary') + button('删除记录', 'delete', 'pr-danger') + '</section>'; if (window.ScorePaperScans) window.ScorePaperScans.decorate(main, r, ctx, { api: api, load: load, note: note }); return; }
+      if (r.status === 'paused') { var pp=r.progress||{},isEntry=r.options&&r.options.purpose==='record'; main.innerHTML = '<section class="pr-recovery"><h3>' + esc(pp.message || '进度已保存') + '</h3><p>'+(pp.version>=4?'已处理 '+esc(pp.completed_pages)+' / '+esc(pp.total_pages)+' 页，继续时只处理剩余页面。':'本轮已完成的内容已保存。')+'</p>' + button(isEntry?'继续录入':'继续分析', 'resume', 'pr-primary') + button('删除记录', 'delete', 'pr-danger') + '</section>'; if (window.ScorePaperScans) window.ScorePaperScans.decorate(main, r, ctx, { api: api, load: load, note: note }); return; }
       if (r.status === 'running' && !r.result) {
         main.innerHTML = runningReport(r) + button(r.pause_requested ? '完成当前步骤后暂停' : '暂停并保存进度', 'pause');
         clearTimeout(timer); timer = setTimeout(function () { load(r.request_id); }, 3000); return;
@@ -15710,9 +15710,9 @@ window.ScorePaperEntryOnly = true;
       if (r.status === 'failed' && !r.result) {
         var p = r.progress || {}, recovery = r.recovery || { available: p.version >= 2 && (p.resume_remaining == null || p.resume_remaining > 0), completed: p.completed_questions || 0, total: p.total_questions || 0, questions: [] };
         var matching = session.pending === r.request_id || session.cacheId === r.request_id;
-        main.innerHTML = '<section class="pr-recovery"><h3>分析已暂停，进度已保存</h3><p>已完成 <b>' + recovery.completed + ' / ' + recovery.total + '</b> 题分析。</p>' +
+        main.innerHTML = '<section class="pr-recovery"><h3>任务已中断，进度已保存</h3><p>'+(p.version>=4?'已处理 <b>'+esc(p.completed_pages)+' / '+esc(p.total_pages)+'</b> 页。已完成的页保留，重试当前页后继续。':'已完成 <b>' + recovery.completed + ' / ' + recovery.total + '</b> 题。')+'</p>' +
           (matching && session.pages.length ? '<p>已自动回填上次上传的 ' + session.pages.length + ' 张图片及设置。</p><div class="pr-recovered-pages">' + session.pages.map(function (p) { return '<img src="' + p.url + '" alt="' + esc(roleNames[p.role]) + '">'; }).join('') + '</div>' : recovery.mode === 'saved' ? '<p>已恢复保存的题目、作答和批改分，可直接继续。</p>' : '') +
-          (recovery.available ? button('恢复分析', 'resume', 'pr-primary') + '<p class="pr-muted">接着完成剩余部分，不另计开始次数。</p>' : '<p>本次恢复次数已用完，已保存的资料仍可查看。</p>') +
+          (recovery.available ? button(r.options&&r.options.purpose==='record'?'继续录入':'恢复分析', 'resume', 'pr-primary') + '<p class="pr-muted">继续未完成部分，AI 调用按实际用量结算。</p>' : '<p>本次恢复次数已用完，已保存的资料仍可查看。</p>') +
           (recovery.questions.length ? '<details class="pr-recovered-work"><summary>查看已恢复的题目和作答</summary>' + recovery.questions.map(function (q) { return '<article><h4>第 ' + esc(q.label) + ' 题</h4><p class="pr-text">' + esc(q.stem) + '</p><p class="pr-text">作答：' + esc(q.answer || '未作答') + '</p></article>'; }).join('') + '</details>' : '') +
           '<details><summary>查看中断详情</summary><p>' + esc(r.error_message) + '</p></details></section>' + button('返回记录', 'history') + button('删除记录', 'delete', 'pr-danger');
         support.renderMath(main); return;
@@ -16241,15 +16241,18 @@ window.ScorePaperEntryOnly = true;
   function valueOf(c,q,key){return Object.prototype.hasOwnProperty.call(c,key)?c[key]:q[key];}
   function questionState(q, c) {
     var reasons=[];
-    if (!(valueOf(c,q,'stem') || '').trim()) reasons.push('缺少题干');
-    if (valueOf(c,q,'teacher_score') == null) reasons.push('缺少得分');
-    if (valueOf(c,q,'max_score') == null) reasons.push('缺少满分');
+    if (!q.screenshot_only && !(valueOf(c,q,'stem') || '').trim()) reasons.push('缺少题干');
+    if (q.screenshot_only && !(q.source_regions||[]).some(function(r){return r.kind==='paper';})) reasons.push('原题截图待定位');
+    if (q.screenshot_only && q.work_pages&&q.work_pages.length && !(q.source_regions||[]).some(function(r){return r.kind==='work';})) reasons.push('作答截图待定位');
+    var grouped=q.type_total&&valueOf(c,q,'question_type')===q.type_total.label;
+    if (valueOf(c,q,'teacher_score') == null&&!grouped) reasons.push('缺少得分');
+    if (valueOf(c,q,'max_score') == null&&!grouped) reasons.push('缺少满分');
     if (!(valueOf(c,q,'question_type') || '').trim()) reasons.push('未填题型');
     var score=valueOf(c,q,'teacher_score'),max=valueOf(c,q,'max_score');
     if(score!=null&&(!Number.isFinite(score)||score<0)||max!=null&&(!Number.isFinite(max)||max<=0)||score!=null&&max!=null&&score>max)reasons.push('分值需检查');
     if (!c.verified && (q.score_verification === 'conflict' || q.review_status === 'teacher_conflict')) reasons.push('批改分有冲突');
     if (!c.verified && q.answer_verification === 'conflict') reasons.push('作答存在歧义');
-    if (!c.verified && (['low','medium'].includes(q.confidence) || q.analysis_mode === 'needs_confirmation' || q.status === 'unclear')) reasons.push('识别内容待确认');
+    if (!c.verified && (['low','medium'].includes(q.confidence) || !q.screenshot_only&&(q.analysis_mode === 'needs_confirmation' || q.status === 'unclear'))) reasons.push('识别内容待确认');
     if (!c.verified && ['single_read','conflict'].includes(q.max_verification)) reasons.push('满分待复核');
     if (!c.verified && q.score_verification === 'single_read') reasons.push('批改分待复核');
     if (!c.verified && (q.uncertainties||[]).some(function(s){return String(s||'').trim();})) reasons.push('有待核对备注');
@@ -16262,7 +16265,7 @@ window.ScorePaperEntryOnly = true;
       return {q:q,c:{stem:value('stem',valueOf(old,q,'stem')),answer:value('answer',valueOf(old,q,'answer')),question_type:value('question_type',valueOf(old,q,'question_type')),question_difficulty:value('question_difficulty',valueOf(old,q,'question_difficulty')),teacher_score:value('teacher_score',valueOf(old,q,'teacher_score')),max_score:value('max_score',valueOf(old,q,'max_score')),verified:value('verified',!!old.verified)}};
     });
   }
-  function totals(items) {
+  function totals(items, scoreGroups) {
     var groups=new Map(),untyped=0,unverified=0;
     items.forEach(function(item){var c=item.c,name=(c.question_type||'').trim();if(!name){untyped++;return;}if(!c.verified)unverified++;
       var g=groups.get(name)||{name:name,score:0,max:0,levels:[]};
@@ -16270,7 +16273,7 @@ window.ScorePaperEntryOnly = true;
       g.max=g.max==null||c.max_score==null?null:Math.round((g.max+c.max_score)*100)/100;
       g.levels.push(c.question_difficulty);groups.set(name,g);
     });
-    return {rows:Array.from(groups.values()).map(function(g){var level=g.levels[0];return {name:g.name,score:g.score,max:g.max,difficulty:level&&g.levels.every(function(x){return x===level;})?level:''};}),untyped:untyped,unverified:unverified};
+    return {rows:Array.from(groups.values()).map(function(g){var level=g.levels[0],members=items.filter(function(i){return (i.c.question_type||'').trim()===g.name;}),group=(scoreGroups||[]).find(function(s){return s.label===g.name&&s.questions.length===members.length&&members.every(function(i){return i.c.verified&&s.questions.includes(i.q.label);});});return {name:g.name,score:g.score??(group&&group.teacher_score)??null,max:g.max??(group&&group.max_score)??null,difficulty:level&&g.levels.every(function(x){return x===level;})?level:''};}),untyped:untyped,unverified:unverified};
   }
   function existingFor(row) {
     var exam=(state.allExams||state.exams||[]).find(function(e){return e.id===row.exam_id;});return exam && exam.question_type_scores && exam.question_type_scores[row.subject] || [];
@@ -16283,6 +16286,13 @@ window.ScorePaperEntryOnly = true;
       '<div class="pr-footer">'+(linked?'<button type="button" class="pr-button pr-primary" data-sync-types>保存并更新题型得分</button>':'')+'<button type="button" class="pr-button" data-pr="save">只保存试题</button></div><p role="status" data-sync-note></p>';
   }
   function decorate(main,row,ctx,api,note,hooks) {
+    if(row.result.screenshot_only){
+      main.classList.add('pr-screenshot-entry');
+      main.querySelectorAll('.pr-source>.pr-fold-body>h4,.pr-source>.pr-fold-body>p').forEach(function(n){n.hidden=true;});
+      main.querySelectorAll('[data-field="stem"],[data-field="answer"],[data-field="corrected"]').forEach(function(n){n.closest('label').hidden=true;});
+      main.querySelectorAll('.pr-edit>summary').forEach(function(n){n.textContent='修改题型或分数';});
+      row.result.questions.forEach(function(q){if(!q.type_total)return;var node=Array.from(main.querySelectorAll('[data-question]')).find(function(n){return n.dataset.question===String(q.id);});if(node){var hint=document.createElement('p');hint.className='pr-muted';hint.textContent=q.type_total.label+'卷面合计：'+q.type_total.score+' / '+q.type_total.max+' 分；不拆分到每题。';node.querySelector('.pr-question-body').prepend(hint);}});
+    }
     var lastBatch=[];
     var overview=document.createElement('section');overview.className='pr-record-overview';overview.setAttribute('aria-label','核对概览');
     main.querySelector('.pr-result-top').after(overview);
@@ -16310,7 +16320,7 @@ window.ScorePaperEntryOnly = true;
         var brief=node.querySelector('.pr-record-brief');if(!brief){brief=document.createElement('small');brief.className='pr-record-brief';node.querySelector('summary>span').appendChild(brief);}
         brief.textContent=[item.c.question_type||'未分类',info.reasons.length?info.reasons.join(' · '):info.verified?'已核对':'未对照原卷'].join(' · ');
       });
-      var data=totals(items);data.existing=existingFor(row);drawSync(panel,data,!!row.exam_id);
+      var data=totals(items,row.result.score_groups);data.existing=existingFor(row);drawSync(panel,data,!!row.exam_id);
       var submit=panel.querySelector('[data-sync-types]'),replace=panel.querySelector('[data-replace-types]');
       function enabled(){if(submit)submit.disabled=!data.rows.length||data.unverified>0||!!replace&&!replace.checked;}
       if(replace)replace.onchange=enabled;enabled();
@@ -16375,6 +16385,7 @@ window.ScorePaperEntryOnly = true;
   style.textContent='.ph-workspace>.ph-header[hidden]{display:none!important}.pr-record-view .pr-result-top{background:transparent;padding:0;margin:0 0 16px}.pr-record-view .pr-result-top h3{font-size:22px!important;margin:6px 0}.pr-record-view .pr-report-nav{display:none}.pr-record-view .pr-first-action{padding:0;background:none;margin:16px 0}.pr-record-view .pr-first-action p{margin:0}.pr-record-view .pr-reading-section{padding-top:20px!important;margin-top:20px!important}.pr-type-table{overflow-x:auto}.pr-type-table table{width:100%;border-collapse:collapse;font-size:14px}.pr-type-table th,.pr-type-table td{padding:12px 8px;border-bottom:1px solid var(--line);text-align:left}.pr-type-table td:first-child{overflow-wrap:anywhere}.pr-type-sync .pr-footer{flex-wrap:wrap}.pr-record-analysis>label{display:block;margin:18px 0}.pr-record-analysis fieldset{border:1px solid var(--line);border-radius:10px}.pr-record-overview{padding:18px;border:1px solid var(--line);border-radius:14px;margin:18px 0;background:var(--panel-solid)}.pr-check-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.pr-check-metrics>div{display:flex;flex-direction:column;gap:6px}.pr-check-metrics b{font-size:23px}.pr-check-metrics span,.pr-record-overview p,.pr-record-brief{font-size:13px;color:var(--muted);line-height:1.7}.pr-record-brief{display:block;margin-top:3px}.ph-paper-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px}.ph-paper-bar nav{display:flex;gap:8px}.ph-paper-bar [aria-pressed=true]{color:var(--accent);background:var(--accent-soft);border-color:var(--accent)}.ph-list-filters{margin:14px 0 20px}.pr-upload-extra>summary{padding:16px 0;cursor:pointer;font-size:15px;font-weight:600}.ph-list-filters summary{cursor:pointer;font-size:14px;color:var(--muted)}.ph-workspace .pr-inline .pr-head{display:none}.ph-report-list>p{line-height:1.7}.ph-report-list>.ph-list{margin-top:20px}.ph-report-list>.pr-button{margin:8px 0}.ph-tabs{flex-wrap:wrap}.ph-tabs button{white-space:nowrap}.pr-question[data-needs-confirm=true]>summary{border-left:3px solid #ba7c2d}.pr-type-sync .pr-check{margin:16px 0}.pr-record-overview p{margin-bottom:0}.ph-workspace .pr-record-analysis input[type=checkbox],.ph-workspace .pr-record-analysis input[type=radio]{width:16px;height:16px;flex:none}.pr-report-extra>summary{padding:16px;cursor:pointer;font-weight:600;color:var(--accent)}.pr-report-extra{margin:20px 0;border:1px solid var(--line);border-radius:12px}.pr-report-extra>.pr-reading-section{margin:0!important;padding:20px!important;border:0!important}@media(max-width:520px){.pr-check-metrics{grid-template-columns:1fr 1fr}.pr-type-sync .pr-button{width:100%}.ph-paper-bar nav{width:100%}.ph-paper-bar nav .pr-button{flex:1}.ph-tabs button{flex:1 1 auto;padding:9px 8px}}';
   document.head.appendChild(style);
   var bulkStyle=document.createElement('style');bulkStyle.textContent='.pr-bulk-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.pr-bulk-hint{font-size:12px!important}.pr-bulk-actions .pr-button{white-space:normal}@media(max-width:520px){.pr-bulk-actions .pr-button{flex:1 1 100%}}';document.head.appendChild(bulkStyle);
+  var scanStyle=document.createElement('style');scanStyle.textContent='.pr-page-statuses{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.pr-page-statuses span{padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px;color:var(--muted)}.pr-page-statuses .pr-page-done{color:var(--text)}.pr-page-statuses .pr-page-current{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}.pr-scan-counts{line-height:1.9}.pr-screenshot-entry [hidden]{display:none!important}';document.head.appendChild(scanStyle);
 })();
 
 /* ===== exam-detail.js ===== */

@@ -16,7 +16,7 @@ export async function reviewModel(options: { config: any; content: any[]; reques
   const budget = Math.min(STAGE_BUDGET_MS, typeof config.stage_deadline === "number" ? config.stage_deadline - started - 5000 : STAGE_BUDGET_MS);
   if (budget < 15000) return { ok: false, code: "worker_deadline", stage: options.stage };
   const clean = (v: unknown, max = 1200) => safeMessage(String(v ?? "").split(config.api_key).join("[hidden]"), max);
-  const scoreOnly = /^read_scores(?:_|$)/.test(options.stage);
+  const scoreOnly = /^(?:read_scores|scan_page)(?:_|$)/.test(options.stage);
   const modelOptions = () => {
     const mode = reviewOptions(config.model, new URL(config.base_url).hostname, options.effort || (/^(?:diagnose|recheck)_/.test(options.stage) ? "high" : "low"));
     // Numeric transcription is not mathematical diagnosis. Keep reasoning on in all

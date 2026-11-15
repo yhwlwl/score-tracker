@@ -30,14 +30,15 @@ export function recordTypeRows(row: any) {
     if (!name) { untyped++; continue; }
     if (!c?.verified) unverified++;
     const values = groups.get(name) || [];
-    values.push({ score: c?.verified ? c.teacher_score : null, max: c?.verified ? c.max_score : null,
+    values.push({ label: q.label, verified: !!c?.verified, score: c?.verified ? c.teacher_score : null, max: c?.verified ? c.max_score : null,
       difficulty: c?.question_difficulty ?? q.question_difficulty ?? '' });
     groups.set(name, values);
   }
   const rows = [...groups].map(([name, qs]) => {
     const total = (key: string) => qs.every(q => typeof q[key] === 'number') ? Math.round(qs.reduce((n, q) => n + q[key], 0) * 100) / 100 : null;
     const difficulty = qs[0].difficulty;
-    return { name, score: total('score'), max: total('max'), ...(difficulty && qs.every(q => q.difficulty === difficulty) ? { difficulty } : {}) };
+    const group = (row.result.score_groups||[]).find((g: any) => g.label===name && g.questions.length===qs.length && qs.every(q => q.verified&&g.questions.includes(q.label)));
+    return { name, score: total('score') ?? group?.teacher_score ?? null, max: total('max') ?? group?.max_score ?? null, ...(difficulty && qs.every(q => q.difficulty === difficulty) ? { difficulty } : {}) };
   });
   const model = (globalThis as any).ScoreQuestionTypeModel;
   try { return { rows: model.clean(rows, row.subject), untyped, unverified, questions: row.result.questions.length }; }

@@ -14,7 +14,7 @@ const {backendHarness}=require('./vision-harness.cjs');
  let r=(await call({action:'get',request_id:rid})).review;
  assert.equal(r.status,'succeeded',JSON.stringify(h.logs));assert(r.result.record_only);assert.equal(r.result.questions[1].teacher_score,0);
  assert(h.calls.includes('score_tracker_ai_call_reserve'));assert(h.calls.includes('score_tracker_ai_call_settle'));assert.equal(h.tables.score_tracker_ai_tasks[0].status,'succeeded');
- assert(h.upstream.length>=2);assert(!h.upstream.some(b=>/阶段二：|独立答案核对与AI判分。|综合复盘/.test(b.messages[0].content[0].text)));
+ assert.equal(h.upstream.length,1);assert(r.result.screenshot_only);assert(!h.upstream.some(b=>/阶段二：|独立答案核对与AI判分。|综合复盘/.test(b.messages[0].content[0].text)));
  const n=h.upstream.length;await call({action:'start',request_id:rid,use_saved:true,consent:true,work_on_paper:true},202);await h.drain();assert.equal(h.upstream.length,n);
  const corrections=r.result.questions.map((q,i)=>({id:q.id,stem:q.stem,answer:q.answer,teacher_score:q.teacher_score,max_score:q.max_score,verified:true,question_type:i?'解答题':'填空题'}));
  r=(await call({action:'correct',request_id:rid,revision:r.revision,corrections})).review;

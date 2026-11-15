@@ -111,7 +111,7 @@
   function runningReport(r) {
     var record = r.options && r.options.purpose==='record', p = r.progress || {}, steps = p.steps || (record ? ['识别试题', '读取作答与批改分', '整理识别结果'] : ['录入题目与作答', '核对批改与填涂', '分析优势和失分原因', '综合复盘与建议']), completed = p.completed_steps == null ? 0 : p.completed_steps;
     return '<section class="pr-progress" aria-label="分析进度"><h3>' + esc(p.message || '正在接收分析任务') + '</h3><p class="pr-text">' + esc(p.detail || '正在读取上传资料。') + '</p><ol class="pr-milestones">' + steps.map(function (title, i) { return '<li class="' + (i < completed ? 'is-done' : i === completed ? 'is-current' : '') + '"><span aria-hidden="true">' + (i < completed ? '✓' : i + 1) + '</span>' + title + '<small>' + (i < completed ? '已完成' : i === completed ? '进行中' : '等待中') + '</small></li>'; }).join('') + '</ol>' +
-      (p.total_questions ? '<p>已录入 <b>' + p.total_questions + '</b> 题 · 已分析 <b>' + (p.completed_questions || 0) + '</b> / ' + p.total_questions + ' 题（其中优势分析 ' + (p.strength_questions || 0) + ' 题） · 可读批改 ' + (p.readable_marks || 0) + ' 处</p>' : '') +
+      (record && p.version>=4 ? '<p class="pr-scan-counts">已处理 <b>'+esc(p.completed_pages)+' / '+esc(p.total_pages)+'</b> 页 · 已定位 <b>'+esc(p.total_questions)+'</b> 题<br>已关联作答 <b>'+esc(p.linked_questions)+'</b> 题 · 已读批改分 <b>'+esc(p.readable_marks)+'</b> 题</p><div class="pr-page-statuses">'+(p.page_statuses||[]).map(function(x){return '<span class="pr-page-'+esc(x.status)+'">第 '+esc(x.page)+' 页 '+(x.status==='done'?'✓':x.status==='current'?'处理中':'等待')+'</span>';}).join('')+'</div>' : p.total_questions ? '<p>已录入 <b>' + p.total_questions + '</b> 题'+(record?'':' · 已分析 <b>' + (p.completed_questions || 0) + '</b> / ' + p.total_questions + ' 题')+' · 可读批改 ' + (p.readable_marks || 0) + ' 处</p>' : '') +
       (p.current_questions && p.current_questions.length ? '<p class="pr-current-questions">本轮：第 ' + esc(p.current_questions.join('、')) + ' 题</p>' : '') +
       '<p class="pr-muted">本轮已等待 ' + elapsed(Date.now() - Date.parse(p.run_started_at || r.created_at)) + ' · 当前阶段 ' + elapsed(Date.now() - Date.parse(p.phase_started_at || r.created_at)) + '</p><p class="pr-muted">' + (record ? '进度自动更新，可稍后返回查看识别结果。' : '复杂题会单独分析，阶段耗时可能不同。进度每 3 秒自动更新；你可以返回填写考试，稍后在分析记录中查看。') + '</p>' + button('刷新状态', 'report:' + r.request_id) + '</section>';
   }
@@ -385,7 +385,7 @@
         main.querySelector('[name=pr_location][value=none]').closest('label').querySelector('small').textContent='识别题目、分值及已有参考答案。';
         main.querySelector('[data-upload-role=paper]>p').textContent='按题目顺序上传。';
         main.querySelector('[data-upload-role=reference]>p').textContent='可上传参考答案或评分细则。';
-        main.querySelector('.pr-help').innerHTML='<summary>图片与识别说明</summary><p>JPG / PNG / WebP，单张不超过 10MB。拍清题号与批改分，裁掉姓名、考号；PDF 请先转图片。</p><p>只转录已有内容，模糊处由你核对；不解题、不判分、不生成分析。</p>';
+        main.querySelector('.pr-help').innerHTML='<summary>图片与识别说明</summary><p>JPG / PNG / WebP，单张不超过 10MB。拍清题号与批改分，裁掉姓名、考号；PDF 请先转图片。</p><p>关联原题与作答截图，读取已有分数；模糊处由你核对。</p>';
         main.querySelector('.pr-consent').lastChild.textContent='同意将图片发送给 AI 识别，并在账号中保存试题资料';
       }
       if(quota && quota.unit==='credits'){
@@ -450,7 +450,7 @@
       if(ctx.onRecordChange)ctx.onRecordChange(r);
       if(r.result && r.result.record_only && r.status==='succeeded' && ctx.onRecorded){var recorded=ctx.onRecorded;ctx.onRecorded=null;recorded(r);return;}
       selected = r; view = 'report'; dirty = false; if (ctx.onView) ctx.onView('report');
-      if (r.status === 'paused') { main.innerHTML = '<section class="pr-recovery"><h3>' + esc(r.progress && r.progress.message || '进度已保存') + '</h3><p>本轮已完成的内容已保存。核对资料后，可以继续剩余分析。</p>' + button('继续分析', 'resume', 'pr-primary') + button('删除记录', 'delete', 'pr-danger') + '</section>'; if (window.ScorePaperScans) window.ScorePaperScans.decorate(main, r, ctx, { api: api, load: load, note: note }); return; }
+      if (r.status === 'paused') { var pp=r.progress||{},isEntry=r.options&&r.options.purpose==='record'; main.innerHTML = '<section class="pr-recovery"><h3>' + esc(pp.message || '进度已保存') + '</h3><p>'+(pp.version>=4?'已处理 '+esc(pp.completed_pages)+' / '+esc(pp.total_pages)+' 页，继续时只处理剩余页面。':'本轮已完成的内容已保存。')+'</p>' + button(isEntry?'继续录入':'继续分析', 'resume', 'pr-primary') + button('删除记录', 'delete', 'pr-danger') + '</section>'; if (window.ScorePaperScans) window.ScorePaperScans.decorate(main, r, ctx, { api: api, load: load, note: note }); return; }
       if (r.status === 'running' && !r.result) {
         main.innerHTML = runningReport(r) + button(r.pause_requested ? '完成当前步骤后暂停' : '暂停并保存进度', 'pause');
         clearTimeout(timer); timer = setTimeout(function () { load(r.request_id); }, 3000); return;
@@ -459,9 +459,9 @@
       if (r.status === 'failed' && !r.result) {
         var p = r.progress || {}, recovery = r.recovery || { available: p.version >= 2 && (p.resume_remaining == null || p.resume_remaining > 0), completed: p.completed_questions || 0, total: p.total_questions || 0, questions: [] };
         var matching = session.pending === r.request_id || session.cacheId === r.request_id;
-        main.innerHTML = '<section class="pr-recovery"><h3>分析已暂停，进度已保存</h3><p>已完成 <b>' + recovery.completed + ' / ' + recovery.total + '</b> 题分析。</p>' +
+        main.innerHTML = '<section class="pr-recovery"><h3>任务已中断，进度已保存</h3><p>'+(p.version>=4?'已处理 <b>'+esc(p.completed_pages)+' / '+esc(p.total_pages)+'</b> 页。已完成的页保留，重试当前页后继续。':'已完成 <b>' + recovery.completed + ' / ' + recovery.total + '</b> 题。')+'</p>' +
           (matching && session.pages.length ? '<p>已自动回填上次上传的 ' + session.pages.length + ' 张图片及设置。</p><div class="pr-recovered-pages">' + session.pages.map(function (p) { return '<img src="' + p.url + '" alt="' + esc(roleNames[p.role]) + '">'; }).join('') + '</div>' : recovery.mode === 'saved' ? '<p>已恢复保存的题目、作答和批改分，可直接继续。</p>' : '') +
-          (recovery.available ? button('恢复分析', 'resume', 'pr-primary') + '<p class="pr-muted">接着完成剩余部分，不另计开始次数。</p>' : '<p>本次恢复次数已用完，已保存的资料仍可查看。</p>') +
+          (recovery.available ? button(r.options&&r.options.purpose==='record'?'继续录入':'恢复分析', 'resume', 'pr-primary') + '<p class="pr-muted">继续未完成部分，AI 调用按实际用量结算。</p>' : '<p>本次恢复次数已用完，已保存的资料仍可查看。</p>') +
           (recovery.questions.length ? '<details class="pr-recovered-work"><summary>查看已恢复的题目和作答</summary>' + recovery.questions.map(function (q) { return '<article><h4>第 ' + esc(q.label) + ' 题</h4><p class="pr-text">' + esc(q.stem) + '</p><p class="pr-text">作答：' + esc(q.answer || '未作答') + '</p></article>'; }).join('') + '</details>' : '') +
           '<details><summary>查看中断详情</summary><p>' + esc(r.error_message) + '</p></details></section>' + button('返回记录', 'history') + button('删除记录', 'delete', 'pr-danger');
         support.renderMath(main); return;

@@ -11,15 +11,18 @@
   function valueOf(c,q,key){return Object.prototype.hasOwnProperty.call(c,key)?c[key]:q[key];}
   function questionState(q, c) {
     var reasons=[];
-    if (!(valueOf(c,q,'stem') || '').trim()) reasons.push('缺少题干');
-    if (valueOf(c,q,'teacher_score') == null) reasons.push('缺少得分');
-    if (valueOf(c,q,'max_score') == null) reasons.push('缺少满分');
+    if (!q.screenshot_only && !(valueOf(c,q,'stem') || '').trim()) reasons.push('缺少题干');
+    if (q.screenshot_only && !(q.source_regions||[]).some(function(r){return r.kind==='paper';})) reasons.push('原题截图待定位');
+    if (q.screenshot_only && q.work_pages&&q.work_pages.length && !(q.source_regions||[]).some(function(r){return r.kind==='work';})) reasons.push('作答截图待定位');
+    var grouped=q.type_total&&valueOf(c,q,'question_type')===q.type_total.label;
+    if (valueOf(c,q,'teacher_score') == null&&!grouped) reasons.push('缺少得分');
+    if (valueOf(c,q,'max_score') == null&&!grouped) reasons.push('缺少满分');
     if (!(valueOf(c,q,'question_type') || '').trim()) reasons.push('未填题型');
     var score=valueOf(c,q,'teacher_score'),max=valueOf(c,q,'max_score');
     if(score!=null&&(!Number.isFinite(score)||score<0)||max!=null&&(!Number.isFinite(max)||max<=0)||score!=null&&max!=null&&score>max)reasons.push('分值需检查');
     if (!c.verified && (q.score_verification === 'conflict' || q.review_status === 'teacher_conflict')) reasons.push('批改分有冲突');
     if (!c.verified && q.answer_verification === 'conflict') reasons.push('作答存在歧义');
-    if (!c.verified && (['low','medium'].includes(q.confidence) || q.analysis_mode === 'needs_confirmation' || q.status === 'unclear')) reasons.push('识别内容待确认');
+    if (!c.verified && (['low','medium'].includes(q.confidence) || !q.screenshot_only&&(q.analysis_mode === 'needs_confirmation' || q.status === 'unclear'))) reasons.push('识别内容待确认');
     if (!c.verified && ['single_read','conflict'].includes(q.max_verification)) reasons.push('满分待复核');
     if (!c.verified && q.score_verification === 'single_read') reasons.push('批改分待复核');
     if (!c.verified && (q.uncertainties||[]).some(function(s){return String(s||'').trim();})) reasons.push('有待核对备注');
@@ -32,7 +35,7 @@
       return {q:q,c:{stem:value('stem',valueOf(old,q,'stem')),answer:value('answer',valueOf(old,q,'answer')),question_type:value('question_type',valueOf(old,q,'question_type')),question_difficulty:value('question_difficulty',valueOf(old,q,'question_difficulty')),teacher_score:value('teacher_score',valueOf(old,q,'teacher_score')),max_score:value('max_score',valueOf(old,q,'max_score')),verified:value('verified',!!old.verified)}};
     });
   }
-  function totals(items) {
+  function totals(items, scoreGroups) {
     var groups=new Map(),untyped=0,unverified=0;
     items.forEach(function(item){var c=item.c,name=(c.question_type||'').trim();if(!name){untyped++;return;}if(!c.verified)unverified++;
       var g=groups.get(name)||{name:name,score:0,max:0,levels:[]};
@@ -40,7 +43,7 @@
       g.max=g.max==null||c.max_score==null?null:Math.round((g.max+c.max_score)*100)/100;
       g.levels.push(c.question_difficulty);groups.set(name,g);
     });
-    return {rows:Array.from(groups.values()).map(function(g){var level=g.levels[0];return {name:g.name,score:g.score,max:g.max,difficulty:level&&g.levels.every(function(x){return x===level;})?level:''};}),untyped:untyped,unverified:unverified};
+    return {rows:Array.from(groups.values()).map(function(g){var level=g.levels[0],members=items.filter(function(i){return (i.c.question_type||'').trim()===g.name;}),group=(scoreGroups||[]).find(function(s){return s.label===g.name&&s.questions.length===members.length&&members.every(function(i){return i.c.verified&&s.questions.includes(i.q.label);});});return {name:g.name,score:g.score??(group&&group.teacher_score)??null,max:g.max??(group&&group.max_score)??null,difficulty:level&&g.levels.every(function(x){return x===level;})?level:''};}),untyped:untyped,unverified:unverified};
   }
   function existingFor(row) {
     var exam=(state.allExams||state.exams||[]).find(function(e){return e.id===row.exam_id;});return exam && exam.question_type_scores && exam.question_type_scores[row.subject] || [];
@@ -53,6 +56,13 @@
       '<div class="pr-footer">'+(linked?'<button type="button" class="pr-button pr-primary" data-sync-types>保存并更新题型得分</button>':'')+'<button type="button" class="pr-button" data-pr="save">只保存试题</button></div><p role="status" data-sync-note></p>';
   }
   function decorate(main,row,ctx,api,note,hooks) {
+    if(row.result.screenshot_only){
+      main.classList.add('pr-screenshot-entry');
+      main.querySelectorAll('.pr-source>.pr-fold-body>h4,.pr-source>.pr-fold-body>p').forEach(function(n){n.hidden=true;});
+      main.querySelectorAll('[data-field="stem"],[data-field="answer"],[data-field="corrected"]').forEach(function(n){n.closest('label').hidden=true;});
+      main.querySelectorAll('.pr-edit>summary').forEach(function(n){n.textContent='修改题型或分数';});
+      row.result.questions.forEach(function(q){if(!q.type_total)return;var node=Array.from(main.querySelectorAll('[data-question]')).find(function(n){return n.dataset.question===String(q.id);});if(node){var hint=document.createElement('p');hint.className='pr-muted';hint.textContent=q.type_total.label+'卷面合计：'+q.type_total.score+' / '+q.type_total.max+' 分；不拆分到每题。';node.querySelector('.pr-question-body').prepend(hint);}});
+    }
     var lastBatch=[];
     var overview=document.createElement('section');overview.className='pr-record-overview';overview.setAttribute('aria-label','核对概览');
     main.querySelector('.pr-result-top').after(overview);
@@ -80,7 +90,7 @@
         var brief=node.querySelector('.pr-record-brief');if(!brief){brief=document.createElement('small');brief.className='pr-record-brief';node.querySelector('summary>span').appendChild(brief);}
         brief.textContent=[item.c.question_type||'未分类',info.reasons.length?info.reasons.join(' · '):info.verified?'已核对':'未对照原卷'].join(' · ');
       });
-      var data=totals(items);data.existing=existingFor(row);drawSync(panel,data,!!row.exam_id);
+      var data=totals(items,row.result.score_groups);data.existing=existingFor(row);drawSync(panel,data,!!row.exam_id);
       var submit=panel.querySelector('[data-sync-types]'),replace=panel.querySelector('[data-replace-types]');
       function enabled(){if(submit)submit.disabled=!data.rows.length||data.unverified>0||!!replace&&!replace.checked;}
       if(replace)replace.onchange=enabled;enabled();
@@ -145,4 +155,5 @@
   style.textContent='.ph-workspace>.ph-header[hidden]{display:none!important}.pr-record-view .pr-result-top{background:transparent;padding:0;margin:0 0 16px}.pr-record-view .pr-result-top h3{font-size:22px!important;margin:6px 0}.pr-record-view .pr-report-nav{display:none}.pr-record-view .pr-first-action{padding:0;background:none;margin:16px 0}.pr-record-view .pr-first-action p{margin:0}.pr-record-view .pr-reading-section{padding-top:20px!important;margin-top:20px!important}.pr-type-table{overflow-x:auto}.pr-type-table table{width:100%;border-collapse:collapse;font-size:14px}.pr-type-table th,.pr-type-table td{padding:12px 8px;border-bottom:1px solid var(--line);text-align:left}.pr-type-table td:first-child{overflow-wrap:anywhere}.pr-type-sync .pr-footer{flex-wrap:wrap}.pr-record-analysis>label{display:block;margin:18px 0}.pr-record-analysis fieldset{border:1px solid var(--line);border-radius:10px}.pr-record-overview{padding:18px;border:1px solid var(--line);border-radius:14px;margin:18px 0;background:var(--panel-solid)}.pr-check-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.pr-check-metrics>div{display:flex;flex-direction:column;gap:6px}.pr-check-metrics b{font-size:23px}.pr-check-metrics span,.pr-record-overview p,.pr-record-brief{font-size:13px;color:var(--muted);line-height:1.7}.pr-record-brief{display:block;margin-top:3px}.ph-paper-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px}.ph-paper-bar nav{display:flex;gap:8px}.ph-paper-bar [aria-pressed=true]{color:var(--accent);background:var(--accent-soft);border-color:var(--accent)}.ph-list-filters{margin:14px 0 20px}.pr-upload-extra>summary{padding:16px 0;cursor:pointer;font-size:15px;font-weight:600}.ph-list-filters summary{cursor:pointer;font-size:14px;color:var(--muted)}.ph-workspace .pr-inline .pr-head{display:none}.ph-report-list>p{line-height:1.7}.ph-report-list>.ph-list{margin-top:20px}.ph-report-list>.pr-button{margin:8px 0}.ph-tabs{flex-wrap:wrap}.ph-tabs button{white-space:nowrap}.pr-question[data-needs-confirm=true]>summary{border-left:3px solid #ba7c2d}.pr-type-sync .pr-check{margin:16px 0}.pr-record-overview p{margin-bottom:0}.ph-workspace .pr-record-analysis input[type=checkbox],.ph-workspace .pr-record-analysis input[type=radio]{width:16px;height:16px;flex:none}.pr-report-extra>summary{padding:16px;cursor:pointer;font-weight:600;color:var(--accent)}.pr-report-extra{margin:20px 0;border:1px solid var(--line);border-radius:12px}.pr-report-extra>.pr-reading-section{margin:0!important;padding:20px!important;border:0!important}@media(max-width:520px){.pr-check-metrics{grid-template-columns:1fr 1fr}.pr-type-sync .pr-button{width:100%}.ph-paper-bar nav{width:100%}.ph-paper-bar nav .pr-button{flex:1}.ph-tabs button{flex:1 1 auto;padding:9px 8px}}';
   document.head.appendChild(style);
   var bulkStyle=document.createElement('style');bulkStyle.textContent='.pr-bulk-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.pr-bulk-hint{font-size:12px!important}.pr-bulk-actions .pr-button{white-space:normal}@media(max-width:520px){.pr-bulk-actions .pr-button{flex:1 1 100%}}';document.head.appendChild(bulkStyle);
+  var scanStyle=document.createElement('style');scanStyle.textContent='.pr-page-statuses{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.pr-page-statuses span{padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px;color:var(--muted)}.pr-page-statuses .pr-page-done{color:var(--text)}.pr-page-statuses .pr-page-current{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}.pr-scan-counts{line-height:1.9}.pr-screenshot-entry [hidden]{display:none!important}';document.head.appendChild(scanStyle);
 })();
