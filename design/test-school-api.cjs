@@ -51,7 +51,7 @@ async function call(action,payload={},token='fixture-token') {return handler(new
   assert.equal((await call('get')).status,200);assert.equal((await call('unknown')).status,400);
   records.clear();response=await call('start',{guide_only:true});assert.equal(response.status,200);p=(await response.json()).profile;assert.equal(p.step,6);assert.equal(p.preference_guide_version,0);assert(p.completed_at);
   response=await call('save',{preference_guide_version:1});assert.equal(response.status,200);assert.equal((await response.json()).profile.preference_guide_version,1);
-  assert.equal((await call('save',{preference_guide_version:2})).status,400);
+  assert.equal((await call('save',{preference_guide_version:2})).status,200);assert.equal(records.get('fixture-user').privacy_acknowledged_at,undefined);
   response=await call('save',{guide_step:9,current_grade:'初二',privacy_notice_version:1});assert.equal(response.status,200);p=(await response.json()).profile;assert.equal(p.current_grade,'初二');assert(p.privacy_acknowledged_at);
   response=await call('save',{preference_guide_version:2});assert.equal(response.status,200);
   response=await call('save',{selected_subjects:['体育']});assert.equal(response.status,200);assert.deepEqual((await response.json()).profile.selected_subjects,['体育']);

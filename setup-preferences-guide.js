@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const VERSION = 2;
-  const STEPS = ['欢迎','账号','科目','选科与组合','考试分类','学校','目标','外观','隐私','等级'];
+  const STEPS = ['欢迎','账号','科目','选科与组合','考试分类','学校','目标','外观','等级'];
   const CORE = ['语文','数学','英语'], EXTRAS = ['物理','历史','化学','生物','政治','地理','技术'];
   const BUILTINS = ['语数外','语数外 + 物理/历史（四科）','语数外 + 所选科（六科）'];
   const clone = v => JSON.parse(JSON.stringify(v));
@@ -35,9 +35,9 @@
     let profile=options.profile || null,ready=false,busy=false,message='',step=0;
     let subjects=[],modules=[],selected=[],counts={},classification={label:'年级',options:['高一','高二','高三']},grade='';
     let school=null,schoolQuery='',schoolMatches=[],searchTimer,searchSeq=0,schoolSearching=false;
-    let goal={subjects:{},totalGoal:null,targetRank:null,school:'',date:'',dateName:''},sharing=false,sharingConfigured=false;
+    let goal={subjects:{},totalGoal:null,targetRank:null,school:'',date:'',dateName:''};
     let initial={},appearance=visual(),initialVisual=clone(appearance),benefits=null,benefitError='';
-    let rename=user.username,password='',confirmation='',showPassword=false,privacyLoaded=false;
+    let rename=user.username,password='',confirmation='',showPassword=false;
     const root=document.createElement('div');root.className='setup-overlay sg-root';
     root.setAttribute('role','dialog');root.setAttribute('aria-modal','true');root.setAttribute('aria-label','账号设置引导');
     const app=document.getElementById('app'),inert=app?.inert,overflow=document.body.style.overflow,focus=document.activeElement;
@@ -82,9 +82,6 @@
     function appearancePage() {
       return heading('选一种喜欢的样子','点选，即刻预览。',!isNew)+'<section class="sg-appearance appearance-card-v29">'+(window.__v29?.appearanceHtml?.(appearance.theme)||'')+'</section>';
     }
-    function privacyPage() {
-      return heading('你的数据，你来决定','使用前，了解这几件事。')+'<div class="sg-privacy-list"><section><span class="sg-privacy-icon">01</span><div><h2>成绩与设置</h2><p>保存在账号下，用于记录、统计和跨设备同步。</p></div></section><section><span class="sg-privacy-icon">02</span><div><h2>AI 图片识别</h2><p>使用时，图片会发送给配置的 AI 服务处理；上传资料与识别记录会保存。</p></div></section><section><span class="sg-privacy-icon">03</span><div><h2>运行记录</h2><p>记录访问、操作和错误信息，用于排错与改进。</p></div></section></div><section class="sg-sharing"><div><h2>参与匿名轨迹匹配</h2><p>让其他用户匹配你的匿名成绩走势，不显示用户名。可随时关闭。</p></div><label class="sg-switch"><input type="checkbox" id="sg-sharing" '+(sharing?'checked':'')+' '+(!privacyLoaded?'disabled':'')+'><span aria-hidden="true"></span><b class="sg-sr">参与匿名轨迹匹配</b></label></section>'+(sharingConfigured?'<p class="sg-note">已沿用你现有的选择。</p>':'')+'<details class="sg-fold"><summary>查看详细说明</summary><p>成绩、目标、学校与设置用于提供对应功能。图片识别仅在你主动提交时调用 AI；上传前可遮盖姓名、学号等无关信息。服务会保存必要的使用记录。匿名匹配不会向匹配用户展示你的账号名称，但不应视为无法被关联的保证。你可以在设置中修改授权，也可以导出或删除自己的成绩。</p></details>';
-    }
     function levelPage() {
       if(!benefits)return heading('你的成长，从这里继续','')+'<div class="sg-level-empty"><p>'+esc(benefitError||'正在读取账号等级…')+'</p><button type="button" class="sg-text" data-retry-level>重新读取</button></div>';
       const g=benefits.growth,c=benefits.credits,next=(g.levels||[]).find(l=>l.level===g.level+1),progress=next?Math.min(100,Math.max(0,100*g.points/next.threshold)):100;
@@ -94,11 +91,11 @@
       if(step===0)return '<div class="sg-welcome"><div class="sg-welcome-mark logo" aria-hidden="true">'+(window.__v29?.logoSvg||'')+'</div><span class="sg-kicker">SCORE TRACKER</span><h1 id="sg-title" tabindex="-1"><span class="sg-hi">Hi </span><span class="sg-welcome-name">'+esc(state.user.username)+'，</span></h1><p>'+(isNew?'欢迎使用 Score Tracker！':'欢迎回来！')+'</p></div>';
       if(step===1&&isNew&&!credentialSaved)return account();
       if(!ready)return heading('正在准备你的设置',message||'稍等片刻…')+'<button type="button" class="sg-text" data-retry>重新加载</button>';
-      return [null,account,subjectPage,combinationPage,classificationPage,schoolPage,goalPage,appearancePage,privacyPage,levelPage][step]();
+      return [null,account,subjectPage,combinationPage,classificationPage,schoolPage,goalPage,appearancePage,levelPage][step]();
     }
     function draw(animate=true) {
       if(!current())return;
-      root.innerHTML='<div class="sg-shell"><header class="sg-top"><span class="sg-brand"><span class="sg-product-logo logo" aria-hidden="true">'+(window.__v29?.logoSvg||'')+'</span><span>Score Tracker</span></span><span class="sg-position">'+(step===0?'让进步有迹可循':STEPS[step]+' <span>'+step+' / 9</span>')+'</span></header><div class="sg-progress" role="progressbar" aria-label="设置进度" aria-valuenow="'+step+'" aria-valuemin="0" aria-valuemax="9"><i style="width:'+(step/9*100)+'%"></i></div><main class="sg-main '+(step===0?'sg-intro ':'')+(animate?'sg-enter':'')+'">'+content()+'</main><footer class="sg-footer"><div><button type="button" class="sg-back" data-back '+(step===0?'hidden':'')+'>← 上一步</button></div><div class="sg-footer-right">'+(step>1&&step<8?'<button type="button" class="sg-skip" data-skip>稍后设置</button>':'')+'<button type="button" class="sg-next" data-next '+(busy||step>0&&!ready||step===8&&!privacyLoaded?'disabled':'')+'>'+(busy?'保存中…':step===0?'开始':step===1&&!credentialSaved?'已保存，继续':step===8?'知道了，继续':step===9?'开始记录':'继续')+' <span aria-hidden="true">→</span></button></div><p class="sg-error" role="alert">'+esc(message)+'</p></footer></div>';
+      root.innerHTML='<div class="sg-shell"><header class="sg-top"><span class="sg-brand"><span class="sg-product-logo logo" aria-hidden="true">'+(window.__v29?.logoSvg||'')+'</span><span>Score Tracker</span></span><span class="sg-position">'+(step===0?'让进步有迹可循':STEPS[step]+' <span>'+step+' / 8</span>')+'</span></header><div class="sg-progress" role="progressbar" aria-label="设置进度" aria-valuenow="'+step+'" aria-valuemin="0" aria-valuemax="8"><i style="width:'+(step/8*100)+'%"></i></div><main class="sg-main '+(step===0?'sg-intro ':'')+(animate?'sg-enter':'')+'">'+content()+'</main><footer class="sg-footer"><div><button type="button" class="sg-back" data-back '+(step===0?'hidden':'')+'>← 上一步</button></div><div class="sg-footer-right">'+(step>1&&step<8?'<button type="button" class="sg-skip" data-skip>稍后设置</button>':'')+'<button type="button" class="sg-next" data-next '+(busy||step>0&&!ready?'disabled':'')+'>'+(busy?'保存中…':step===0?'开始':step===1&&!credentialSaved?'已保存，继续':step===8?'开始记录':'继续')+' <span aria-hidden="true">→</span></button></div><p class="sg-error" role="alert">'+esc(message)+'</p></footer></div>';
       bind();if(step>0&&animate)root.querySelector('#sg-title')?.focus({preventScroll:true});
     }
     function valueIn(row,name) { return row.querySelector('[data-field="'+name+'"]')?.value || ''; }
@@ -111,7 +108,6 @@
       if(step===3)root.querySelectorAll('[data-module-row]').forEach(row=>{const name=row.querySelector('[data-field="module-name"]');if(name)modules[+row.dataset.moduleRow].name=name.value.trim();});
       if(step===4){classification={label:value('category-label').trim(),options:[...root.querySelectorAll('[data-field^="category-option:"]')].map(el=>el.value.trim())};grade=value('grade')||'';}
       if(step===6){goal.totalGoal=value('goal-total');goal.targetRank=value('goal-rank');goal.school=value('goal-school').trim();subjects.forEach(s=>{goal.subjects[s.name]=value('goal-subject:'+s.name);});}
-      if(step===8&&privacyLoaded)sharing=root.querySelector('#sg-sharing').checked;
     }
     async function checkpoint(next,extra={}) {
       if(!current())return;
@@ -180,22 +176,17 @@
           if(!same(goal,initial.goal)){await dataApiV7('save_goal',{goal});if(!current())return;initial.goal=clone(goal);window.__v33?.reload();}
         }
         if(step===7){if(skip){appearance=clone(initialVisual);applyVisual(appearance,true);}else{applyVisual(appearance,true);initialVisual=clone(appearance);}}
-        if(step===8){
-          if(!privacyLoaded)throw Error('隐私设置尚未读取，请重试');
-          await call('score-tracker-trajectories','sharing',{enabled:sharing},token);if(!current())return;
-          await checkpoint(9,{privacy_notice_version:1});
-        }
-        if(step===9){await checkpoint(9,{preference_guide_version:VERSION,completed:true,step:6});if(!current())return;attempted=key;close(false);render();track('setup_completed',9);return;}
+        if(step===8){await checkpoint(8,{preference_guide_version:VERSION,completed:true,step:6});if(!current())return;attempted=key;close(false);render();track('setup_completed',8);return;}
         if(!current())return;
-        if(step!==3&&step!==4&&step!==8||skip)await checkpoint(step+1);
+        if(step!==3&&step!==4||skip)await checkpoint(step+1);
         if(!current())return;
-        track(skip?'setup_step_skipped':'setup_step_completed',step);step++;busy=false;message='';draw();if(step===9)loadBenefits();
+        track(skip?'setup_step_skipped':'setup_step_completed',step);step++;busy=false;message='';draw();if(step===8)loadBenefits();
       }catch(error){if(current()){message=error.message||'暂时没有保存成功';busy=false;draw(false);}}
     }
     async function loadBenefits() {
       benefitError='';
-      try{const d=await dataApiV7('account_status');if(current()){benefits=d.account;if(step===9)draw(false);}}
-      catch(_){if(current()){benefitError='等级暂时未能读取，稍后可在账号页查看。';if(step===9)draw(false);}}
+      try{const d=await dataApiV7('account_status');if(current()){benefits=d.account;if(step===8)draw(false);}}
+      catch(_){if(current()){benefitError='等级暂时未能读取，稍后可在账号页查看。';if(step===8)draw(false);}}
     }
     function searchSchool() {
       clearTimeout(searchTimer);const seq=++searchSeq;school=null;schoolMatches=[];
@@ -225,7 +216,6 @@
       root.querySelector('[data-field="school"]')?.addEventListener('input',e=>{schoolQuery=e.target.value;searchSchool();});bindSchools();
       const visualHost=root.querySelector('.sg-appearance');
       if(visualHost)window.__v29?.bindAppearance?.(visualHost,{silent:true,persist:false,theme:appearance.theme,onChange:function(next){appearance=next;draw(false);}});
-      root.querySelector('#sg-sharing')?.addEventListener('change',e=>{sharing=e.target.checked;});
       root.querySelectorAll('button,input,select').forEach(el=>{if(busy)el.disabled=true;});
     }
     root.addEventListener('keydown',e=>{
@@ -240,14 +230,12 @@
         if(!profile){const d=await setup('start',{guide_only:true},token);if(!current())return;profile=d.profile;}
         await loadExams();if(!current())return;
         const g=await dataApiV7('get_goal');if(!current())return;
-        const status=await call('score-tracker-trajectories','privacy_status',{},token);if(!current())return;
         subjects=clone(state.subjectConfigs||[]);modules=clone(state.modulesV18||[]);classification=clone(state.classification||classification);
         if(!subjects.length)throw Error('科目尚未加载，请重试');
         selected=clone(profile.selected_subjects||[]);grade=profile.current_grade||'';
         if(!selected.length&&!isNew){const m=modules.find(m=>m.name===BUILTINS[2]);selected=(m?.subjects||[]).filter(n=>subjects.some(s=>s.name===n)&&!CORE.includes(n));}
         school=clone(profile.school||null);schoolQuery=school?.name||'';
         goal={subjects:{},totalGoal:null,targetRank:null,school:'',date:'',dateName:'',...g.goal};
-        sharing=!!status.enabled;sharingConfigured=!!status.configured;privacyLoaded=true;
         const savedDefaults=window.ScoreParticipantDefaults?.snapshot?.()||{};
         counts.total=clone(savedDefaults.total||{});subjects.forEach((s,i)=>counts['s:'+i]=clone(savedDefaults['s:'+s.name]||{}));modules.forEach((m,i)=>counts['m:'+i]=clone(savedDefaults['m:'+m.id]||{}));
         initial={subjects:clone(subjects),modules:clone(modules),classification:clone(classification),school:clone(school),goal:clone(goal),defaults:clone(savedDefaults)};

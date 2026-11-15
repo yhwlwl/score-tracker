@@ -117,7 +117,6 @@ Deno.serve(async req => {
       if ("school" in body) update.school = cleanSchool(body.school);
       if (body.completed === true) { if (body.step !== 6) throw new Error("请先完成前面的设置"); update.completed_at = new Date().toISOString(); }
     } catch (e) { return reply({ error: e instanceof Error ? e.message : "设置内容不正确" }, 400); }
-    if (body.preference_guide_version === 2 && (await profile(user.id))?.privacy_notice_version !== 1) return reply({ error: "请先阅读隐私告知" }, 400);
     const r = await db.from("score_tracker_setup_profiles").update(update).eq("user_id", user.id).select(columns).maybeSingle();
     if (r.error) throw r.error;
     if (!r.data) return reply({ error: "请重新打开首次设置" }, 409);
