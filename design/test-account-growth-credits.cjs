@@ -29,7 +29,7 @@ await db.exec(`
  create table score_tracker_visit_logs(user_id uuid,event_type text,metadata jsonb,occurred_at timestamptz default now());
  grant select on all tables in schema public to service_role;
 `);
-await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/20261114184101_account_growth_ai_credits.sql'),'utf8'));
+await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/20261115060104_account_growth_ai_credits.sql'),'utf8'));
 eq(await rpc('score_tracker_ai_release_ready'),true);
 await sql('insert into score_tracker_users(id) values($1),($2)',[uid,other]);
 await sql('update score_tracker_users set is_admin=true where id=$1',[other]);

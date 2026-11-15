@@ -5,8 +5,8 @@ const read=f=>fs.readFileSync(path.join(__dirname,'..',f),'utf8');
 (async()=>{
  const pg=new PGlite();
  await pg.exec("create table score_tracker_setup_profiles(user_id uuid primary key,step int default 0,school jsonb);create table score_tracker_user_goals(user_id uuid primary key,total_goal numeric);insert into score_tracker_setup_profiles(user_id,school) values('00000000-0000-4000-8000-000000000001','{\"name\":\"已有学校\"}');insert into score_tracker_user_goals values('00000000-0000-4000-8000-000000000001',620);");
- const migration=read('supabase/migrations/20261115042449_unified_setup_guide.sql');
- const old=read('supabase/migrations/20261115090000_setup_preference_guide.sql');
+ const migration=read('supabase/migrations/20261115060110_unified_setup_guide.sql');
+ const old=read('supabase/migrations/20261115060115_setup_preference_guide.sql');
  await pg.exec(migration);await pg.exec(old);await pg.exec(migration);
  assert.equal((await pg.query('select total_goal from score_tracker_user_goals')).rows[0].total_goal,'620');
  assert.equal((await pg.query('select school from score_tracker_setup_profiles')).rows[0].school.name,'已有学校');

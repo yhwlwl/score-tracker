@@ -1,4 +1,7 @@
--- PR-only migration. Apply before the new Edge Functions; never run from the browser.
+-- Additive preparation: applied 2026-11-15 before the new Edge Functions. AI stays disabled.
+-- Run inside the migration transaction; fail quickly instead of waiting on live traffic.
+set local lock_timeout = '2s';
+set local statement_timeout = '30s';
 create table public.score_tracker_account_levels (
  level integer primary key check(level between 1 and 12), threshold integer not null,
  min_days integer not null default 0, min_months integer not null default 0,

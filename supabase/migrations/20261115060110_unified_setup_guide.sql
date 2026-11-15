@@ -1,4 +1,6 @@
--- The unified guide is versioned independently from legacy first-run steps.
+-- Applied 2026-11-15. The unified guide is versioned independently from legacy first-run steps.
+set local lock_timeout = '2s';
+set local statement_timeout = '30s';
 alter table public.score_tracker_setup_profiles
   add column if not exists preference_guide_version smallint not null default 0,
   add column if not exists guide_step smallint not null default 0 check (guide_step between 0 and 9),

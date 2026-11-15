@@ -1,5 +1,7 @@
--- One-time preference guide for every account. Existing setup profiles keep
+-- Applied 2026-11-15. One-time preference guide for every account. Existing setup profiles keep
 -- their current first-run state and receive version 0 until the guide is seen.
+set local lock_timeout = '2s';
+set local statement_timeout = '30s';
 alter table public.score_tracker_setup_profiles
   add column if not exists preference_guide_version smallint not null default 0;
 
