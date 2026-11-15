@@ -49,5 +49,8 @@ async function call(action,payload={},token='fixture-token') {return handler(new
   assert.deepEqual((await(await call('school_search',{query:'测试'})).json()).schools,[['测试中学','浙江省','杭州市','测试区']]);
   assert.deepEqual((await(await call('school_regions')).json()).regions,[['浙江省','杭州市']]);
   assert.equal((await call('get')).status,200);assert.equal((await call('unknown')).status,400);
-  console.log('School API: session authentication, validation, profile preservation, first save, claims and directory shapes passed.');
+  records.clear();response=await call('start',{guide_only:true});assert.equal(response.status,200);p=(await response.json()).profile;assert.equal(p.step,6);assert.equal(p.preference_guide_version,0);assert(p.completed_at);
+  response=await call('save',{preference_guide_version:1});assert.equal(response.status,200);assert.equal((await response.json()).profile.preference_guide_version,1);
+  assert.equal((await call('save',{preference_guide_version:2})).status,400);
+  console.log('School API: session authentication, validation, profile preservation, one-time guide state, claims and directory shapes passed.');
 })().catch(e=>{console.error(e);process.exit(1)});
