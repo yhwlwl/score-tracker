@@ -6,7 +6,8 @@ import { analysisQueue, fullCredit, answerCorrect, needsConfirmation } from "./l
 import { reviewModel, imageContent } from "./runtime.ts";
 import { inventoryPrompt, normalizeInventory, workPrompt, normalizeWork, scoreTargets, scoreReadViews, scoreViewContent, scoreReadingPrompt, mergeScoreReading } from "./reading.ts";
 import { gradingTargets, gradingPrompt, mergeGrading, gradingChecks } from './grading.ts';
-import { scanQueue, scanProgress, scanPrompt, scanContent, normalizeScanPage, scanReport } from './scan-entry.ts';
+import { scanQueue, scanProgress, scanPrompt, scanContent, normalizeScanPage, scanReport, mergeScanPagePasses } from './scan-entry.ts';
+import { modelScanPage } from './workspace.ts';
 
 const REVIEW_TABLE = "score_tracker_paper_reviews";
 export function progressFor(state: any) {
@@ -86,15 +87,23 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
         await readDatabase(() => db.from(REVIEW_TABLE).update({ analysis_state: {}, progress: { ...scanProgress(state), phase: 'completed', completed_steps: 3, message: '截图与分数已整理，等待核对' } }).eq('request_id', input.request_id).eq('user_id', user).eq('status', 'succeeded'));
         return;
       }
-      const stage = 'scan_page_' + page.page;
+      const pending=state.scan_pending?.page===page.page?state.scan_pending:null;
+      const activeView=pending?.remaining?.[0],knownPages=[...state.scan_pages,...(pending?.parts||[])];
+      const scanPage=Number.isInteger(activeView)?{...page,active_view:activeView}:page;
+      const stage = 'scan_page_' + page.page+(Number.isInteger(activeView)?'_focus_'+activeView:'');
       await audit.mark(stage + '_started');
-      // Only the full current page is sent: crop coordinates must refer to that page.
+      // Sign only the current owner's page, immediately before this model call.
+      const modelPage = input.saved_materials ? await modelScanPage(db, user, input.request_id, scanPage) : scanPage;
       const outcome = await reviewModel({ config, billing: { db, user, task: input.billing_task_id, claim: state.claim },
-        content: scanContent(input,page,state.scan_pages),
-        requestId: input.request_id, stage, validate: raw => normalizeScanPage(raw, page, input,state.scan_pages), mark: audit.mark });
+        content: scanContent(input,modelPage,knownPages),
+        ...(input.saved_materials ? {refreshImages:async()=>scanContent(input,await modelScanPage(db,user,input.request_id,scanPage),knownPages)} : {}),
+        requestId: input.request_id, stage, validate: raw => normalizeScanPage(raw, page, input,knownPages), mark: audit.mark });
       if (!outcome.ok) { await audit.finish('failed', outcome); return; }
-      state.scan_pages.push(outcome.result);
-      state.claim = crypto.randomUUID(); state.scan_retry = false;
+      if(pending){pending.parts.push(outcome.result);pending.remaining.shift();}
+      else if((page.role==='work'||input.work_on_paper)&&page.region_focus?.length)state.scan_pending={page:page.page,parts:[outcome.result],remaining:[...page.region_focus],total:page.region_focus.length};
+      else state.scan_pages.push(outcome.result);
+      if(state.scan_pending&&!state.scan_pending.remaining.length){state.scan_pages.push(mergeScanPagePasses(state.scan_pending.parts));delete state.scan_pending;}
+      state.claim = crypto.randomUUID(); state.scan_retry = false; state.resume_count=0;
       state.active_ms = (state.active_ms || 0) + Date.now() - stageStarted;
       state.phase_started_at = new Date().toISOString();
       await audit.mark(stage + '_completed');

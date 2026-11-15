@@ -11,7 +11,7 @@ export function reviewOptions(model: string, host: string, effort = "high") {
 }
 
 // Isolated from score recognition: never inherit its thinking=disabled or 90s cap.
-export async function reviewModel(options: { config: any; content: any[]; requestId: string; stage: string; billing: {db:any;user:string;task:string;claim:string}; effort?: "low" | "high"; repairOutput?: string; validate: (raw: any) => any; mark: (phase: string, extra?: any) => any }) {
+export async function reviewModel(options: { config: any; content: any[]; requestId: string; stage: string; billing: {db:any;user:string;task:string;claim:string}; effort?: "low" | "high"; refreshImages?: () => Promise<any[]>; repairOutput?: string; validate: (raw: any) => any; mark: (phase: string, extra?: any) => any }) {
   const { config } = options, started = Date.now();
   const budget = Math.min(STAGE_BUDGET_MS, typeof config.stage_deadline === "number" ? config.stage_deadline - started - 5000 : STAGE_BUDGET_MS);
   if (budget < 15000) return { ok: false, code: "worker_deadline", stage: options.stage };
@@ -31,10 +31,10 @@ export async function reviewModel(options: { config: any; content: any[]; reques
   }
   const promptHash = async () => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(body.messages.map((m: any) => ({ role: m.role, content: typeof m.content === "string" ? m.content : m.content.filter((c: any) => c.type === "text") }))))))].map(b => b.toString(16).padStart(2, "0")).join("");
   const imageUrls = options.content.filter(c => c.type === "image_url").map(c => c.image_url.url);
-  const imageBytes = imageUrls.reduce((n, url) => { const b64 = url.slice(url.indexOf(",") + 1); return n + Math.floor(b64.length * 3 / 4) - (b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0); }, 0);
+  const imageBytes = imageUrls.filter(url => url.startsWith('data:')).reduce((n, url) => { const b64 = url.slice(url.indexOf(",") + 1); return n + Math.floor(b64.length * 3 / 4) - (b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0); }, 0);
   let last: any = { code: "upstream_timeout", stage: options.stage }, rawOutput = "";
   for (let i = 0; i < 2 && Date.now() - started < budget - 500; i++) {
-    const attempt: any = { stage: options.stage, attempt: i + 1, started_at: new Date().toISOString(), timeout_ms: budget - (Date.now() - started), max_tokens: body.max_tokens, thinking: body.thinking || body.reasoning || null, reasoning_effort: body.reasoning_effort || body.reasoning?.effort || null, prompt_hash: await promptHash(), prompt_hash_scope: "all_text_messages", image_count: imageUrls.length, image_bytes: imageBytes, json_mode: !!body.response_format };
+    const attempt: any = { stage: options.stage, attempt: i + 1, started_at: new Date().toISOString(), timeout_ms: budget - (Date.now() - started), max_tokens: body.max_tokens, thinking: body.thinking || body.reasoning || null, reasoning_effort: body.reasoning_effort || body.reasoning?.effort || null, prompt_hash: await promptHash(), prompt_hash_scope: "all_text_messages", image_count: imageUrls.length, image_bytes: imageBytes, image_url_count: imageUrls.filter(url => /^https:\/\//.test(url)).length, json_mode: !!body.response_format };
     const at = Date.now(), controller = new AbortController(), timer = setTimeout(() => controller.abort(), attempt.timeout_ms);
     let retry = false;
     try {
@@ -53,6 +53,7 @@ export async function reviewModel(options: { config: any; content: any[]; reques
         // Do not silently switch reasoning off. JSON formatting alone may be relaxed.
         if ([400, 422].includes(status) && /response_format|json_object/i.test(message)) { delete body.response_format; retry = true; attempt.recovery = "json_format_compatibility"; }
         else if ([400, 422].includes(status) && /thinking|reasoning|effort/i.test(message)) last.code = "reasoning_not_supported";
+        else if (scoreOnly && status === 400 && /Failed to download image/i.test(message)) { retry = true; attempt.recovery = 'retry_image_download'; if (options.refreshImages && i === 0) { body.messages[0].content = await options.refreshImages(); attempt.recovery = 'refresh_image_links'; } }
         else retry = [408, 425, 429, 500, 502, 503, 504].includes(status) && Number(response.headers.get("retry-after") || 0) <= 3;
       } else {
         const content = modelText(payload), finish = payload.choices?.[0]?.finish_reason;

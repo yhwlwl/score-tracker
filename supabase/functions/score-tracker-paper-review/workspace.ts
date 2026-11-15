@@ -26,8 +26,30 @@ export async function storedPages(db: any, user: string, id: string) {
     for (let i = 0; i < bytes.length; i += 16384) binary += String.fromCharCode(...bytes.subarray(i, i + 16384));
     return `data:${p.mime};base64,${btoa(binary)}`;
   };
-  return Promise.all(m.pages.map(async (p: any) => ({ role: p.role, page: p.page, url: await download(p),
-    ...((p.detail_images || []).length ? { regions: await Promise.all(p.detail_images.map(download)), ...(p.detail_images.every((d: any) => d.box) ? {region_boxes:p.detail_images.map((d: any) => d.box)} : {}) } : {}) })));
+  return Promise.all(m.pages.map(async (p: any) => ({ role: p.role, page: p.page, url: await download(p), ...(p.page_frames ? {page_frames:p.page_frames} : {}), ...(p.region_focus ? {region_focus:p.region_focus} : {}),
+    ...((p.detail_images || []).length ? { regions: await Promise.all(p.detail_images.map(download)), ...(p.detail_images.every((d: any) => d.box) ? {region_boxes:p.detail_images.map((d: any) => d.box), ...(p.detail_images.every((d: any) => d.rows) ? {region_rows:p.detail_images.map((d: any) => d.rows)} : {})} : {}) } : {}) })));
+}
+// Only sign paths selected from this owner's saved materials. Client URLs never
+// enter this path. Keep expiring URLs out of fingerprints, checkpoints and reports.
+export async function modelScanPage(db: any, user: string, id: string, page: any) {
+  const materials = await materialFor(db, user, id);
+  const stored = materials?.pages?.find((p: any) => p.page === page.page && p.role === page.role);
+  if (!stored) throw new WorkspaceError('扫描件读取未完成，请重试', 503);
+  const views = page.region_boxes?.length === page.regions?.length && page.regions?.length;
+  const selected = views ? [Number.isInteger(page.active_view) ? page.active_view : 0] : [];
+  const allPaths = views ? (stored.detail_images || []).map((p: any) => p.path) : [stored.path];
+  if (!allPaths.length || views && allPaths.length !== page.regions.length) throw new WorkspaceError('定位视图已更新，请刷新后重试', 409);
+  const paths=views?selected.map(i=>allPaths[i]):allPaths;
+  const { data, error } = await db.storage.from(SCAN_BUCKET).createSignedUrls(paths, 600);
+  if (error || data?.length !== paths.length || data.some((d: any) => !d.signedUrl || d.error)) throw new WorkspaceError('扫描件授权未完成，请重试', 503);
+  // Check/warm the exact expiring URLs before reserving a paid model call.
+  // A transient storage failure leaves the current page retryable and uncharged.
+  try { await Promise.all(data.map(async (d: any) => {
+    const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 8000);
+    try { const response = await fetch(d.signedUrl, { signal: controller.signal }); if (!response.ok) throw new Error('image_unavailable'); await response.arrayBuffer(); }
+    finally { clearTimeout(timer); }
+  })); } catch { throw new WorkspaceError('扫描件暂时无法读取，已保留进度，请重试本页', 503); }
+  return views ? { ...page, regions:page.regions.map((url:string,i:number)=>selected.includes(i)?data[selected.indexOf(i)].signedUrl:url) } : { ...page, url: data[0].signedUrl };
 }
 export async function deleteMaterials(db: any, user: string, id: string) {
   const m = await materialFor(db, user, id); if (!m) return;
@@ -89,15 +111,15 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
     if (!m || row?.status === 'running') throw new WorkspaceError('请先保存资料信息，或等待分析完成', 409);
     const n = body.page; if (!Number.isInteger(n) || n < 1 || n > MAX_PAGES || n > m.pages.length + 1) throw new WorkspaceError(`请按页序上传，最多${MAX_PAGES}张`);
     // Apply the same byte/signature checks used by analysis without allowing URLs.
-    let p: any; try { p = validateStart({ request_id: body.request_id, draft_id: m.draft_id, subject: m.subject, consent: true, pages: [{ role: 'paper', url: body.url, regions: body.regions, region_boxes:body.region_boxes }] }).pages[0]; } catch (e) { throw new WorkspaceError((e as Error).message); }
+    let p: any; try { p = validateStart({ request_id: body.request_id, draft_id: m.draft_id, subject: m.subject, consent: true, pages: [{ role: 'paper', url: body.url, regions: body.regions, region_boxes:body.region_boxes,region_rows:body.region_rows,page_frames:body.page_frames,region_focus:body.region_focus }] }).pages[0]; } catch (e) { throw new WorkspaceError((e as Error).message); }
     if (!['paper','work','reference'].includes(body.role)) throw new WorkspaceError('图片类别无效');
     if (row && m.pages[n - 1]) throw new WorkspaceError('已分析的原图保留原样，请追加扫描页', 409);
     const mime = p.url.slice(5, p.url.indexOf(';')), binary = atob(p.url.split(',')[1]), bytes = Uint8Array.from(binary, (c: string) => c.charCodeAt(0));
     const path = `${user}/${body.request_id}/${n}-${crypto.randomUUID()}`;
     const pages = [...m.pages]; const previous = pages[n - 1];
-    pages[n - 1] = { page: n, role: body.role, path, mime, bytes: bytes.length };
+    pages[n - 1] = { page: n, role: body.role, path, mime, bytes: bytes.length, ...(p.page_frames ? {page_frames:p.page_frames} : {}), ...(p.region_focus ? {region_focus:p.region_focus} : {}) };
     const detailImages = (p.regions || []).map((url: string, i: number) => {
-      const raw = atob(url.split(',')[1]); return { path: `${path}-detail-${i}`, mime: 'image/jpeg', bytes: raw.length, ...(p.region_boxes ? {box:p.region_boxes[i]} : {}), data: Uint8Array.from(raw, (c: string) => c.charCodeAt(0)) };
+      const raw = atob(url.split(',')[1]); return { path: `${path}-detail-${i}`, mime: 'image/jpeg', bytes: raw.length, ...(p.region_boxes ? {box:p.region_boxes[i]} : {}), ...(p.region_rows ? {rows:p.region_rows[i]} : {}), data: Uint8Array.from(raw, (c: string) => c.charCodeAt(0)) };
     });
     pages[n - 1].detail_images = detailImages.map(({ data, ...meta }: any) => meta);
     if (pages.reduce((sum: number, p: any) => sum + p.bytes + (p.detail_images || []).reduce((n: number, r: any) => n + r.bytes, 0), 0) > MAX_MATERIAL_BYTES) throw new WorkspaceError('本份资料较大，请压缩图片或减少页数');

@@ -45,7 +45,7 @@
           if (encoded.length > 2800000) encoded = canvas.toDataURL('image/jpeg', 0.82);
           if (encoded.length > 2800000) throw new Error('图片内容过多，请裁剪成单页后再选');
           var views=window.ScorePaperScanViews.build(canvas);
-          resolve({ url: encoded, name: file.name, regions: views.regions, region_boxes:views.region_boxes });
+          resolve({ url: encoded, name: file.name, regions: views.regions, region_boxes:views.region_boxes,region_rows:views.region_rows,page_frames:views.page_frames,region_focus:views.region_focus });
         } catch (e) { reject(e); } finally { URL.revokeObjectURL(url); canvas.width = canvas.height = 1; }
       };
       image.src = url;
@@ -72,7 +72,7 @@
     await new Promise(function (resolve, reject) { image.onload = resolve; image.onerror = reject; image.src = page.url; });
     var canvas = document.createElement('canvas'); canvas.width = image.height; canvas.height = image.width;
     var c = canvas.getContext('2d'); c.translate(canvas.width, 0); c.rotate(Math.PI / 2); c.drawImage(image, 0, 0);
-    page.url = canvas.toDataURL('image/jpeg', 0.92); var views=window.ScorePaperScanViews.build(canvas);page.regions=views.regions;page.region_boxes=views.region_boxes; canvas.width = canvas.height = 1;
+    page.url = canvas.toDataURL('image/jpeg', 0.92); var views=window.ScorePaperScanViews.build(canvas);page.regions=views.regions;page.region_boxes=views.region_boxes;page.region_rows=views.region_rows;page.page_frames=views.page_frames;page.region_focus=views.region_focus; canvas.width = canvas.height = 1;
   }
   async function restoreScoreDetails(ctx, id, update) {
     var scans = await api(ctx, 'sources', { request_id: id });
@@ -331,7 +331,7 @@
       session.cloudDraftId = id;
       for (var pi = 0; pi < session.pages.length; pi++) {
         note('正在保存扫描件 ' + (pi + 1) + ' / ' + session.pages.length);
-        try { await api(ctx, 'upload_page', { request_id: id, page: pi + 1, role: session.pages[pi].role, url: session.pages[pi].url, regions: session.pages[pi].regions || [],region_boxes:session.pages[pi].region_boxes }); }
+        try { await api(ctx, 'upload_page', { request_id: id, page: pi + 1, role: session.pages[pi].role, url: session.pages[pi].url, regions: session.pages[pi].regions || [],region_boxes:session.pages[pi].region_boxes,region_rows:session.pages[pi].region_rows,page_frames:session.pages[pi].page_frames,region_focus:session.pages[pi].region_focus }); }
         catch (e) { e.message = '第 ' + (pi + 1) + ' 张扫描件保存失败：' + e.message; throw e; }
       }
       session.cloudReady = true; session.cloudDraftId = id;
@@ -346,7 +346,7 @@
       session.pages = saved.pages; session.workOnPaper = saved.workOnPaper; session.workLocation = saved.workLocation; session.consent = saved.consent;
       session.cloudDraftId = saved.cloudDraftId; session.cloudReady = saved.cloudReady;
       session.pending = saved.pending; session.cacheId = saved.id; session.retrySubmission = saved.retrySubmission;
-      session.payload = saved.payload && Object.assign({}, saved.payload, { pages: saved.pages.map(function (p) { return { role: p.role, url: p.url, regions: p.regions || [],region_boxes:p.region_boxes }; }) });
+      session.payload = saved.payload && Object.assign({}, saved.payload, { pages: saved.pages.map(function (p) { return { role: p.role, url: p.url, regions: p.regions || [],region_boxes:p.region_boxes,region_rows:p.region_rows,page_frames:p.page_frames,region_focus:p.region_focus }; }) });
       restoredUploads = true; return true;
     }
     async function resume() {
@@ -361,7 +361,7 @@
       }
       var data = await api(ctx, 'resume', { request_id: r.request_id,
         mode: ctx.host ? 'saved' : matching && session.pages.length ? 'images' : 'saved',
-        pages: !ctx.host && matching ? session.pages.map(function (p) { return { role: p.role, url: p.url, regions: p.regions || [],region_boxes:p.region_boxes }; }) : [],
+        pages: !ctx.host && matching ? session.pages.map(function (p) { return { role: p.role, url: p.url, regions: p.regions || [],region_boxes:p.region_boxes,region_rows:p.region_rows,page_frames:p.page_frames,region_focus:p.region_focus }; }) : [],
         work_on_paper: session.workOnPaper, consent: session.consent });
       session.pending = r.request_id; session.resumeTarget = null;
       if (session.pages.length) await persist();
@@ -527,7 +527,7 @@
       try {
         var savedSubject = ctx.exam && ctx.exam.scores && ctx.exam.scores[subject];
         session.payload = session.payload || { request_id: id, draft_id: ctx.draftId, exam_id: savedSubject ? ctx.examId : null,
-          subject: subject, title: ctx.title || '', options: ctx.options, exam_context: ctx.host ? ctx.examContext : formContext(ctx, subject), pages: session.pages.map(function (p) { return { role: p.role, url: p.url, regions: p.regions || [],region_boxes:p.region_boxes }; }), work_on_paper: session.workOnPaper, consent: true };
+          subject: subject, title: ctx.title || '', options: ctx.options, exam_context: ctx.host ? ctx.examContext : formContext(ctx, subject), pages: session.pages.map(function (p) { return { role: p.role, url: p.url, regions: p.regions || [],region_boxes:p.region_boxes,region_rows:p.region_rows,page_frames:p.page_frames,region_focus:p.region_focus }; }), work_on_paper: session.workOnPaper, consent: true };
         if (!await persist()) note('本机暂时无法保存图片；完成识别后仍可从保存的作答恢复。');
         await support.uploads('delete', ctx.user, cacheScope);
         if (ctx.host && (!session.cloudReady || ctx.setup)) {
