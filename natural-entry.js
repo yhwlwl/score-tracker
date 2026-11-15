@@ -973,8 +973,10 @@
       var q = quotaState.quota;
       if(q.unit==='credits'){
         quotaCount.textContent='可用 '+Math.floor(q.remaining)+' AI 积分';
-        quotaNote.textContent=(!quotaState.enabled||!q.service_enabled?'识图服务暂未启用。':q.global_remaining<=0?'本月共享 AI 预算暂时不足。':'')+'普通成绩识图约 13 分，提交时最多预留 150 分；成功后按实际用量扣分，失败不扣。查看和确认填入免费；等级与月额度可在设置页查看。';
-        quotaDetails.hidden=true;syncVisionButton();return;
+        quotaNote.textContent=(!quotaState.enabled||!q.service_enabled?'识图暂未启用。':q.global_remaining<=0?'本月 AI 预算不足。':'')+'约 13 分 / 次，按实际用量扣分，失败不扣。';
+        quotaRules.textContent='开始需 13 可用积分，提交时最多预留 '+Math.min(150,Math.floor(q.remaining))+' 分，完成后释放余量。确认填入免费。';
+        quotaDetails.querySelector('summary').textContent='如何扣分';
+        quotaDetails.hidden=false;syncVisionButton();return;
       }
       var period = q.period || 'day';
       var prefixes = {lifetime:'体验',month:'本月',week:'本周',day:'今日'};

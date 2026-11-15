@@ -368,7 +368,7 @@
     }
     function upload() {
       if (!tab('upload')) return;
-      var quotaText = quota ? (quota.enabled ? (quota.unit==='credits'?'可用 '+Math.floor(quota.remaining)+' AI 积分 · 仅题目约 150 分、含作答约 400 分起；最多预留 1000 分，成功按实际用量扣分，失败不扣。核对与保存免费。':'剩余 '+quota.remaining+' 次') : '试题识别暂未开放') : '正在读取 AI 额度…';
+      var quotaText = quota ? (quota.enabled ? (quota.unit==='credits'?'可用 '+Math.floor(quota.remaining)+' AI 积分':'剩余 '+quota.remaining+' 次') : '试题识别暂未开放') : '正在读取 AI 额度…';
       var location = session.workLocation || (session.workOnPaper ? 'paper' : session.pages.some(function(p){return p.role==='work';}) ? 'separate' : 'none');
       main.innerHTML = (restoredUploads ? '<p class="pr-message">已自动回填上次的图片、顺序和设置。</p>' : '') + '<section class="pr-intro"><h3>添加试卷与作答</h3><p>按页序添加清晰图片，试卷、答题卡与参考答案合计最多 15 张。</p><div class="pr-quota">' + esc(quotaText) + '</div></section><fieldset class="pr-work-location"><legend>作答写在哪里？</legend>' + [['paper','写在试卷上','上传带作答的试卷即可。'],['separate','在答题卡上','分别添加试卷和答题卡。'],['none','仅上传题目','只识别题目与印刷分值，不生成分析。']].map(function(x){return '<label><input type="radio" name="pr_location" value="'+x[0]+'" '+(location===x[0]?'checked':'')+'><span><strong>'+x[1]+'</strong><small>'+x[2]+'</small></span></label>';}).join('') + '</fieldset>' +
         Object.keys(roleNames).map(function (role) {
@@ -382,10 +382,15 @@
         '<label class="pr-check pr-consent"><input type="checkbox" id="pr-consent" ' + (session.consent ? 'checked' : '') + '>同意将这些图片，以及允许调用时的本次与历史考试数值发送给第三方 AI 服务分析，并在账号内保存扫描件与报告</label><div class="pr-footer"><span>' + session.pages.length + ' / ' + MAX_PAGES + ' 张</span>' + button(session.resumeTarget ? '恢复这份分析' : session.pending ? (session.retrySubmission ? '继续确认本次分析' : '查看进行中的分析') : busy ? '处理图片中…' : ctx.options && ctx.options.purpose==='record' ? '开始识别 · 消耗 1 次' : '开始分析 · 消耗 1 次', session.resumeTarget ? 'resume' : 'start', 'pr-primary') + '</div>';
       var referenceGroup=main.querySelector('[data-upload-role=reference]');if(referenceGroup){var extra=document.createElement('details');extra.className='pr-upload-extra';extra.open=session.pages.some(function(p){return p.role==='reference';});extra.innerHTML='<summary>添加参考答案（选填）</summary>';referenceGroup.before(extra);extra.appendChild(referenceGroup);}
       if(entryOnly()){
-        main.querySelector('[name=pr_location][value=none]').closest('label').querySelector('small').textContent='只转录题目和参考答案，不解题、不判分。';
-        main.querySelector('[data-upload-role=reference]>p').textContent='补充已有参考答案或评分细则，识别后可对照查看。';
-        main.querySelector('.pr-help').innerHTML='<summary>图片要求与识别说明</summary><p>支持 JPG、PNG、WebP，合计最多15张。请拍清题号、文字和批改分，裁掉姓名、考号等信息。</p><p>只识别已有题目、作答和批改分，不推理解题、AI判分或生成分析。未读清的内容保留待核对，不把未知分数填成0。核对、保存和更新题型得分不调用模型。</p>';
-        main.querySelector('.pr-consent').lastChild.textContent='同意将这些图片发送给 AI 服务识别题目、作答与已有批改分，并保存试题资料';
+        main.querySelector('[name=pr_location][value=none]').closest('label').querySelector('small').textContent='识别题目、分值及已有参考答案。';
+        main.querySelector('[data-upload-role=paper]>p').textContent='按题目顺序上传。';
+        main.querySelector('[data-upload-role=reference]>p').textContent='可上传参考答案或评分细则。';
+        main.querySelector('.pr-help').innerHTML='<summary>图片与识别说明</summary><p>JPG / PNG / WebP，单张不超过 10MB。拍清题号与批改分，裁掉姓名、考号；PDF 请先转图片。</p><p>只转录已有内容，模糊处由你核对；不解题、不判分、不生成分析。</p>';
+        main.querySelector('.pr-consent').lastChild.textContent='同意将图片发送给 AI 识别，并在账号中保存试题资料';
+      }
+      if(quota && quota.unit==='credits'){
+        main.querySelectorAll('[name=pr_location]').forEach(function(el){var small=el.closest('label').querySelector('small');small.insertAdjacentHTML('beforeend',' <b>需 '+(el.value==='none'?150:400)+' 可用积分</b>');});
+        main.querySelector('.pr-quota').insertAdjacentHTML('beforeend','<div class="pr-credit-quote"><b>'+({paper:'写在试卷上',separate:'在答题卡上',none:'仅上传题目'})[location]+'</b> · 开始需 '+(location==='none'?150:400)+' 分</div><details><summary>如何扣分</summary><p>按实际用量扣分，失败不扣。提交时最多预留 '+Math.min(1000,Math.floor(quota.remaining))+' 分，完成后释放余量。手动核对与保存免费。</p></details>');
       }
       main.querySelectorAll('input[type=file]').forEach(function (input) { input.onchange = async function () {
         var files = Array.from(input.files || []); if (!files.length || busy) return;

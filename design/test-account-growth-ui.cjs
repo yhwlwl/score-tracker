@@ -8,6 +8,10 @@ const account={enabled:true,budget_status:'available',growth:{level:2,points:110
  let fail=false;w.fetch=async(url,init)=>{const body=JSON.parse(init.body);calls.push(body);return {ok:!fail,json:async()=>fail?{error:'服务暂不可用'}:body.action==='account_status'?{account:structuredClone(account)}:{usage:[{feature:'vision',status:'failed',charged_credits:0,created_at:'2026-11-14T00:00:00Z'}]}};};
  w.eval(fs.readFileSync('account-growth.js','utf8'));const render=()=>{w.document.querySelector('main').innerHTML=w.accountHtml();w.bindPage();};
  render();await wait();assert.equal(w.document.querySelector('.ag-level').textContent,'Lv.2');assert(w.document.querySelector('.ag-wallet').textContent.includes('550'));assert(w.document.querySelector('#accountGrowth').previousElementSibling.classList.contains('account-chip'));
+ const creditTable=w.document.querySelector('[aria-label="识别选项与开始所需积分"]');
+ for(const [label,floor] of [['仅上传题目',150],['写在试卷上',400],['在答题卡上',400]]){const row=[...creditTable.rows].find(r=>r.textContent.includes(label));assert(row&&row.cells[1].textContent.includes(floor));}
+ assert(!w.document.querySelector('#accountGrowth').textContent.includes('含作答核对'));
+ assert(w.document.querySelector('.ag-table').closest('details')&&!w.document.querySelector('.ag-table').closest('details').open,'detailed rules are collapsed');
  render();await wait();assert.equal(calls.length,1,'same-account status reads are cached');
  w.document.querySelector('.ag-usage').click();await wait();assert(w.document.querySelector('.ag-history').textContent.includes('失败未扣分'));
  account.credits.available=0;account.credits.held=550;await w.ScoreAccountBenefits.refresh();assert.equal(w.document.querySelector('.ag-wallet b').textContent,'0');assert(w.document.querySelector('.ag-wallet').textContent.includes('任务预留'));
