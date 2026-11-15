@@ -29,7 +29,7 @@ const records = samples.map((sample, i) => {
     exam_id:'00000000-0000-4000-8000-000000004'+suffix, subject:sample.subject, title:sample.subject+' · 录入示例',
     created_at:sample.tested_on+'T00:00:00Z', completed_at:sample.tested_on+'T00:00:00Z', revision:0,
     options:{config_version:2,purpose:'record',modules:[],use_account_history:false,time_budget_minutes:15,review_before_analysis:false}, corrections:[] });
-  row.result = Object.assign(clone(template.result), { record_only:true, account_context:null, exam_context:null, context:{},
+  row.result = Object.assign(clone(template.result), { record_only:true, screenshot_only:true, account_context:null, exam_context:null, context:{},
     source_pages:[], options:row.options, overview:'用于预览核对、保存和题型统计的合成试题。',
     total:{score:Number(sample.total_score),max:Number(sample.total_max)},
     coverage:'合成演示数据；不调用模型，不读取或修改真实账号。',
@@ -45,7 +45,7 @@ const records = samples.map((sample, i) => {
       q.analysis_mode='record';q.review_status='unresolved';q.evidence_verified=false;
       return q;
     }) });
-  buildScans(row);return row;
+  buildScans(row);row.result.questions.forEach(q=>{q.screenshot_only=true;q.work_expected=true;q.stem='原题见截图';q.answer='';q.analysis_mode='';q.confirmation_prompt='';});return row;
 });
 const exams=records.map(r=>({id:r.exam_id,name:r.subject+' · 示例考试',exam_date:r.created_at.slice(0,10),updated_at:r.created_at,
   scores:{[r.subject]:{actual:r.result.total.score,max:r.result.total.max,raw:r.result.total.score,rawMax:r.result.total.max}},question_type_scores:{}}));

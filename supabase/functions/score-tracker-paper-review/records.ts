@@ -38,7 +38,13 @@ export function recordTypeRows(row: any) {
     const total = (key: string) => qs.every(q => typeof q[key] === 'number') ? Math.round(qs.reduce((n, q) => n + q[key], 0) * 100) / 100 : null;
     const difficulty = qs[0].difficulty;
     const group = (row.result.score_groups||[]).find((g: any) => g.label===name && g.questions.length===qs.length && qs.every(q => q.verified&&g.questions.includes(q.label)));
-    return { name, score: total('score') ?? group?.teacher_score ?? null, max: total('max') ?? group?.max_score ?? null, ...(difficulty && qs.every(q => q.difficulty === difficulty) ? { difficulty } : {}) };
+    const value = (key: string, groupKey: string) => {
+      const sum = total(key), fallback = group?.[groupKey];
+      if (sum !== null) return sum;
+      const partial = qs.reduce((n, q) => n + (q[key] ?? 0), 0);
+      return typeof fallback === 'number' && partial <= fallback + 0.000001 ? fallback : null;
+    };
+    return { name, score: value('score', 'teacher_score'), max: value('max', 'max_score'), ...(difficulty && qs.every(q => q.difficulty === difficulty) ? { difficulty } : {}) };
   });
   const model = (globalThis as any).ScoreQuestionTypeModel;
   try { return { rows: model.clean(rows, row.subject), untyped, unverified, questions: row.result.questions.length }; }

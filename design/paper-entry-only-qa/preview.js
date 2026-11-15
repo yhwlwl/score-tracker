@@ -1,7 +1,7 @@
 /* All /api requests stay in this browser. No model calls, tokens, or production writes. */
 (function(){
  'use strict';
- var f=window.__entryPreview,realFetch=window.fetch.bind(window),key='st_entry_public_demo_20261115_v2';
+ var f=window.__entryPreview,realFetch=window.fetch.bind(window),key='st_entry_public_demo_20261115_v3';
  var store={records:JSON.parse(JSON.stringify(f.records)),exams:JSON.parse(JSON.stringify(f.exams)),drafts:{}};
  try{var cached=JSON.parse(localStorage.getItem(key)||'null');if(cached&&cached.records&&cached.exams)store=cached;}catch(_){}
  try{localStorage.setItem('st_known_user','1');localStorage.setItem('st_token','entry-preview-local');localStorage.setItem('st_pwa_install_v1',JSON.stringify({never:true}));}catch(_){}
