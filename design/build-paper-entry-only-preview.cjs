@@ -50,7 +50,7 @@ const records = samples.map((sample, i) => {
 const exams=records.map(r=>({id:r.exam_id,name:r.subject+' · 示例考试',exam_date:r.created_at.slice(0,10),updated_at:r.created_at,
   scores:{[r.subject]:{actual:r.result.total.score,max:r.result.total.max,raw:r.result.total.score,rawMax:r.result.total.max}},question_type_scores:{}}));
 const data={user,records,exams,scans};
-const pre='<meta name="robots" content="noindex,nofollow,noarchive"><script>window.ScorePaperEntryOnly=true;window.__entryPreview='+JSON.stringify(data).replaceAll('<','\\u003c')+';</script><script src="./preview.js"></script><link rel="stylesheet" href="./preview.css">';
+const pre='<base href="/design/paper-entry-only-qa/"><meta name="robots" content="noindex,nofollow,noarchive"><script>window.ScorePaperEntryOnly=true;window.__entryPreview='+JSON.stringify(data).replaceAll('<','\\u003c')+';</script><script src="./preview.js"></script><link rel="stylesheet" href="./preview.css">';
 let html=fs.readFileSync(path.join(root,'index.html'),'utf8').replace(/(src|href)="\.\//g,'$1="../../').replace('<head>','<head>'+pre);
 html=html.replace(/<title>[^<]*<\/title>/,'<title>试题录入预览 · 成绩轨迹</title>').replace('</body>','<script src="./boot.js"></script></body>');
 fs.writeFileSync(path.join(out,'index.html'),html.trimEnd()+'\n');
