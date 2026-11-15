@@ -24,7 +24,7 @@ function $(h,s){return h.w.document.querySelector(s)}
 async function next(h){$(h,'[data-next]').click();await wait();await wait();}
 async function skip(h){$(h,'[data-skip]').click();await wait();await wait();}
 (async()=>{
- let h=harness();await wait();await wait();assert($(h,'.sg-welcome').textContent.includes('欢迎回来'));
+ let h=harness();await wait();await wait();assert.equal($(h,'#sg-title').textContent,'Hi tester，');assert($(h,'.sg-welcome').textContent.includes('欢迎回来！'));
  await next(h);assert($(h,'.sg-done'));await next(h);assert($(h,'[data-count="s:1"]'));assert.equal($(h,'[data-count="s:1"] [data-field="year"]').value,'600');
  $(h,'[data-count="s:1"] [data-field="year"]').value='700';await next(h);assert.equal(h.defaults['s:数学'].year,700);
  const before=JSON.stringify(h.w.state.modulesV18);$(h,'[data-elective="地理"]').click();$(h,'[data-elective="生物"]').click();await next(h);assert.equal(JSON.stringify(h.w.state.modulesV18),before,'changing electives must not overwrite existing combinations');assert(!h.calls.some(c=>c.action==='save_modules'));
@@ -35,11 +35,18 @@ async function skip(h){$(h,'[data-skip]').click();await wait();await wait();}
  assert($(h,'#sg-sharing').checked);$(h,'#sg-sharing').checked=false;await next(h);assert.equal(h.calls.filter(c=>c.action==='sharing').at(-1).enabled,false);assert.equal(h.profile.privacy_notice_version,1);
  assert($(h,'.sg-level-orbit').textContent.includes('5'));await next(h);assert.equal(h.profile.preference_guide_version,2);assert(!$(h,'.sg-root'));h.w.render();await wait();assert(!$(h,'.sg-root'));h.close();
 
- h=harness({fresh:true});await wait();await next(h);assert($(h,'.sg-credentials').textContent.includes('synthetic-only-123'));assert(!h.calls.some(c=>JSON.stringify(c).includes('synthetic-only-123')),'credentials are never sent to tracking or setup');await next(h);$(h,'[data-field="username"]').value='changed-name';$(h,'[data-field="password"]').value='newpass123';$(h,'[data-field="confirmation"]').value='wrong';await next(h);assert($(h,'.sg-error').textContent.includes('不一致'));assert(!h.calls.some(c=>c.action==='rename'));$(h,'[data-field="confirmation"]').value='newpass123';await next(h);assert.equal(h.w.state.user.username,'changed-name');assert(h.calls.some(c=>c.action==='password'));
+ h=harness({fresh:true});await wait();assert.equal($(h,'#sg-title').textContent,'Hi new-user，');assert($(h,'.sg-welcome').textContent.includes('欢迎使用 Score Tracker！'));await next(h);assert($(h,'.sg-credentials').textContent.includes('synthetic-only-123'));assert(!h.calls.some(c=>JSON.stringify(c).includes('synthetic-only-123')),'credentials are never sent to tracking or setup');await next(h);$(h,'[data-field="username"]').value='changed-name';$(h,'[data-field="password"]').value='newpass123';$(h,'[data-field="confirmation"]').value='wrong';await next(h);assert($(h,'.sg-error').textContent.includes('不一致'));assert(!h.calls.some(c=>c.action==='rename'));$(h,'[data-field="confirmation"]').value='newpass123';await next(h);assert.equal(h.w.state.user.username,'changed-name');assert(h.calls.some(c=>c.action==='password'));
  for(let step=2;step<=7;step++)await skip(h);assert(!$(h,'#sg-sharing').checked,'new account is not pre-authorized');assert(!h.calls.some(c=>c.action==='sharing'));await next(h);assert.equal(h.calls.find(c=>c.action==='sharing').enabled,false);h.close();
 
  h=harness({fail:'save_participant_defaults'});await wait();await next(h);await next(h);$(h,'[data-count="total"] [data-field="year"]').value='700';await next(h);assert($(h,'[data-subject-row]'),'failed save stays on the current page');assert($(h,'.sg-error').textContent.includes('模拟'));h.failure='';await next(h);assert($(h,'[data-elective]'));h.close();
  h=harness({version:2});await wait();await wait();assert(!$(h,'.sg-root'),'completed guide is not automatically repeated');h.close();
  h=harness({delay:true});h.w.state.user={id:'other',username:'other'};h.w.state.token='other-token';h.w.render();await new Promise(r=>setTimeout(r,140));assert(!h.calls.some(c=>c.action==='save'),'stale account responses never save');h.close();
- console.log('PASS: unified new/existing user flows, credentials, preservation, defaults, classification, goals, live appearance, privacy, failure retry and account isolation');
+ const shell=fs.readFileSync(path.join(__dirname,'setup-guide-qa/index.html'),'utf8');
+ for(const suffix of ['/?user=new','?user=existing']){
+  const urls=[],dom=new JSDOM(shell,{url:'https://fixture.test/design/setup-guide-qa'+suffix,runScripts:'dangerously',beforeParse(w){w.fetch=async(url)=>{urls.push(String(url));return new Response(String(url).includes('fixture.js')?'/* fixture */':'<!doctype html><head></head><body></body>',{headers:{'Content-Type':String(url).includes('fixture.js')?'application/javascript':'text/html'}})}}});
+  await wait();assert.deepEqual(urls,['https://fixture.test/index.html','https://fixture.test/design/setup-guide-qa/fixture.js']);
+  const frame=dom.window.document.querySelector('iframe').srcdoc;assert(frame.includes("connect-src 'none'"),'preview must fail closed');assert(frame.includes('/* fixture */'));dom.window.close();
+ }
+ const broken=new JSDOM(shell,{url:'https://fixture.test/design/setup-guide-qa?user=new',runScripts:'dangerously',beforeParse(w){w.fetch=async()=>new Response('<html>404</html>',{status:404,headers:{'Content-Type':'text/html'}})}});await wait();assert(!broken.window.document.querySelector('iframe').srcdoc,'missing fixture must never boot live app');broken.window.close();
+ console.log('PASS: unified setup, welcome copy, credentials, preservation, privacy and cleanUrls preview isolation');
 })().catch(e=>{console.error(e);process.exitCode=1});

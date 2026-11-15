@@ -92,7 +92,7 @@
       return heading(isNew?'准备好了。':'欢迎继续，'+esc(state.user.username)+'。','每一次有效记录，都会积累成长。')+'<div class="sg-level-orbit"><span>ACCOUNT LEVEL</span><strong><small>Lv.</small>'+g.level+'</strong><span>'+Number(g.points).toLocaleString()+' 成长分</span></div><div class="sg-level-progress"><i style="width:'+progress+'%"></i></div><p class="sg-note sg-center">'+(next?'距 Lv.'+next.level+' 还需 '+Math.max(0,next.threshold-g.points)+' 成长分'+(next.min_days||next.min_months?' · 需满足使用时长':''):'已达到最高等级')+'</p><div class="sg-benefits"><div><b>'+Number(c.available).toLocaleString()+'</b><span>可用 AI 积分</span></div><div><b>'+Number(c.monthly).toLocaleString()+'</b><span>每月积分</span></div></div>';
     }
     function content() {
-      if(step===0)return '<div class="sg-welcome"><div class="sg-welcome-mark" aria-hidden="true"><svg viewBox="0 0 100 100"><path d="M22 74L46 50L58 61L79 27M56 27H79V50"/></svg></div><span class="sg-kicker">SCORE TRACKER</span><h1 id="sg-title" tabindex="-1">Hi'+(isNew?'。':'，'+esc(state.user.username)+'。')+'</h1><p>'+(isNew?'欢迎使用 Score Tracker。':'欢迎回来。')+'</p></div>';
+      if(step===0)return '<div class="sg-welcome"><div class="sg-welcome-mark" aria-hidden="true"><svg viewBox="0 0 100 100"><path d="M22 74L46 50L58 61L79 27M56 27H79V50"/></svg></div><span class="sg-kicker">SCORE TRACKER</span><h1 id="sg-title" tabindex="-1">Hi '+esc(state.user.username)+'，</h1><p>'+(isNew?'欢迎使用 Score Tracker！':'欢迎回来！')+'</p></div>';
       if(step===1&&isNew&&!credentialSaved)return account();
       if(!ready)return heading('正在准备你的设置',message||'稍等片刻…')+'<button type="button" class="sg-text" data-retry>重新加载</button>';
       return [null,account,subjectPage,combinationPage,classificationPage,schoolPage,goalPage,appearancePage,privacyPage,levelPage][step]();

@@ -5,9 +5,11 @@
 (async function(){
  const mode=new URLSearchParams(location.search).get('user')==='new'?'new':'existing';document.getElementById(mode).setAttribute('aria-current','page');
  try{
-  const [html,fixture]=await Promise.all([fetch('../../index.html').then(r=>r.text()),fetch('fixture.js').then(r=>r.text())]);
-  const base=new URL('../../',location.href).href;
-  const frame=html.replace('<head>','<head><base href="'+base+'"><script>window.SETUP_QA_MODE='+JSON.stringify(mode)+';<\/script><script>'+fixture+'<\/script>');
+  // cleanUrls removes the final slash: all resource URLs must be absolute.
+  const base=new URL('/',location.href).href;
+  const [html,fixture]=await Promise.all([fetch(new URL('index.html',base),{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('页面加载失败');return r.text();}),fetch(new URL('design/setup-guide-qa/fixture.js',base),{cache:'no-store'}).then(r=>{if(!r.ok||!r.headers.get('content-type')?.includes('javascript'))throw Error('演示数据未加载');return r.text();})]);
+  // Even a broken fixture cannot send account/model requests to a live backend.
+  const frame=html.replace('<head>',()=>'<head><base href="'+base+'"><meta http-equiv="Content-Security-Policy" content="connect-src \'none\'; form-action \'none\'"><script>window.SETUP_QA_MODE='+JSON.stringify(mode)+';window.fetch=()=>Promise.reject(new Error("演示数据未加载"));navigator.sendBeacon=()=>false;<\/script><script>'+fixture+'<\/script>');
   preview.srcdoc=frame;
  }catch(e){document.getElementById('error').hidden=false;document.getElementById('error').textContent='预览未能加载：'+e.message;}
 })();
