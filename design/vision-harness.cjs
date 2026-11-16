@@ -46,6 +46,7 @@ function backendHarness(){
   vm.createContext(scope);
   vm.runInContext(source('supabase/functions/_shared/ai-release.ts'),scope);
   vm.runInContext(source('supabase/functions/_shared/ai-credits.ts'),scope);
+  vm.runInContext(source('supabase/functions/_shared/recognition-config.ts'),scope);
   for(const p of ['reliability.ts','audit.ts','index.ts'])vm.runInContext(source('supabase/functions/score-tracker-vision-preview/'+p),scope);
   return {scope,upstream,rows,records,connectivityRecords,uploads,tasks,logs,db,set reply(v){reply=v},get quotaCalls(){return quotaCalls},call:body=>handler(new Request('https://vision.test/',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:'fixture-token',...body})})),drain:()=>Promise.all(tasks)};
 }

@@ -1,3 +1,4 @@
+import { recognitionConfig } from "../_shared/recognition-config.ts";
 import { reviewSettings } from "./options.ts";
 import { startAiTask, finishAiTask, creditRpc, AiBudgetError } from '../_shared/ai-credits.ts';
 import { aiReleaseCapabilities } from '../_shared/ai-release.ts';
@@ -77,9 +78,16 @@ async function reportFor(user: string, id: string) {
   return report;
 }
 function background(task: Promise<unknown>) { if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(task); return task; }
-async function configForReview(requestStartedAt = Date.now()) {
+async function configForReview(requestStartedAt = Date.now(), screenshotEntry = false) {
   const config = await query(() => db.from("score_tracker_paper_settings").select("enabled,api_key,model,base_url").eq("id", "default").single());
-  if (!config?.enabled || !config.api_key || !config.model) throw new Failure("试卷分析暂未开放，请稍后再来", 503);
+  if (!config?.enabled) throw new Failure("试题录入暂未开放，请稍后再来", 503);
+  if (screenshotEntry) {
+    const row = await query(() => db.from("score_tracker_ai_configs").select("openrouter_api_key,base_url,model,enabled,beta_only").eq("id", "score_vision").maybeSingle());
+    const vision = recognitionConfig(row);
+    if (vision.disabled || !vision.apiKey || !vision.baseUrl) throw new Failure("识图服务暂不可用，请稍后重试", 503);
+    return { enabled: true, api_key: vision.apiKey, base_url: vision.baseUrl, model: vision.model, stage_deadline: requestStartedAt + 140000 };
+  }
+  if (!config.api_key || !config.model) throw new Failure("试卷分析暂未开放，请稍后再来", 503);
   let url: URL;
   try { url = new URL(config.base_url); } catch { throw new Failure("分析服务配置暂不可用", 503); }
   if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) throw new Failure("分析服务配置暂不可用", 503);
@@ -130,7 +138,7 @@ Deno.serve(async (req: Request) => {
       const scope = row.analysis_state.original_exam_id;
       if (scope !== undefined) input.exam_id = scope;
       if (!["revision", "score_refresh", "record_analysis"].includes(row.analysis_state.flow) && !input.text_recovery && await fingerprintFor(input) !== row.fingerprint) throw new Failure("分析资料与原请求不一致", 409);
-      const config = await configForReview(startedAt);
+      const config = await configForReview(startedAt, input.options?.purpose === "record");
       background(runReviewStage(db, input, row.user_id, config, row, body.claim, claim => dispatchStage(input, claim)));
       return out({ accepted: true }, 202);
     }
@@ -162,7 +170,7 @@ Deno.serve(async (req: Request) => {
       } else if (input.options.use_account_history === false) input.exam_context = undefined;
       input.account_context = await loadAccountSnapshot(db, user, input);
       state.exam_context = input.exam_context; state.account_context = input.account_context;
-      const config = await configForReview(startedAt);
+      const config = await configForReview(startedAt, input.options?.purpose === "record");
       const fingerprint = await sha(JSON.stringify({ source: input.source_record, options: input.options, exam: input.exam_id }));
       const reserved = await query(() => db.rpc('score_tracker_ai_paper_reserve', { p_user_id: user, p_request_id: input.request_id, p_draft_id: input.draft_id, p_exam_id: input.exam_id, p_subject: input.subject, p_fingerprint: fingerprint }));
       if (!reserved.allowed) return out({ error: reserved.message, code: reserved.reason, quota: reserved.quota }, reserved.reason === 'conflict' ? 409 : 429);
@@ -197,7 +205,7 @@ Deno.serve(async (req: Request) => {
       input.saved_materials = body.use_saved === true;
       input.exam_context = state.exam_context; input.account_context = state.account_context; input.options = row.options || state.options ? reviewSettings(row.options || state.options) : undefined;
       if (!["revision", "score_refresh", "record_analysis"].includes(state.flow) && !recoverSaved && await fingerprintFor(input) !== row.fingerprint) throw new Failure("资料与原请求不一致，请使用相同图片和页序", 409);
-      const config = await configForReview(startedAt);
+      const config = await configForReview(startedAt, input.options?.purpose === "record");
       if (recoverSaved && !state.source_images) { state.text_recovery = true; state.source_input ||= { work_on_paper: input.work_on_paper, pages: input.pages.map((p: any) => ({ page: p.page, role: p.role })) }; }
       const previousBilling=state.billing_task_id||row.request_id;
       await creditRpc(db,'score_tracker_ai_account',{p_user:user});
@@ -237,7 +245,7 @@ Deno.serve(async (req: Request) => {
       const input: any = { ...revisionInput(row), pages, saved_materials: true, text_revision: false, options: reviewSettings(row.options || row.result.options) };
       if (input.options.use_account_history === false) input.exam_context = undefined;
       input.account_context = await loadAccountSnapshot(db, user, input);
-      const state = scoreRefreshState(row, input), config = await configForReview(startedAt);
+      const state = scoreRefreshState(row, input), config = await configForReview(startedAt, input.options?.purpose === "record");
       const updated = await query(() => db.from(TABLE).update({ status: "running", analysis_state: state, progress: progressFor(state),
         pause_requested: false, error_message: null, error_code: null, error_stage: null, completed_at: null, revision: row.revision + 1 })
         .eq("request_id", row.request_id).eq("user_id", user).eq("status", "succeeded").eq("revision", row.revision).select("*").maybeSingle());
@@ -263,7 +271,7 @@ Deno.serve(async (req: Request) => {
       }
       input.account_context = await loadAccountSnapshot(db, user, input);
       stage = "configuration";
-      const config = await configForReview(startedAt);
+      const config = await configForReview(startedAt, input.options?.purpose === "record");
       const fingerprint = await fingerprintFor(input);
       const billed=await startAiTask(db,user,input.request_id,'paper_entry',input.work_on_paper||input.pages.some((p:any)=>p.role==='work')?400:150,1000);
       if(!billed.duplicate)unstartedBilling={user,task:input.request_id};

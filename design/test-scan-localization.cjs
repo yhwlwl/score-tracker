@@ -1,4 +1,4 @@
-const assert=require('node:assert/strict'),{plan,rows,frames}=require('../paper-scan-views.js'),{harness,input,rid}=require('./test-paper-review.cjs');
+const assert=require('node:assert/strict'),{plan,rows,frames,focusFrames,printedInk}=require('../paper-scan-views.js'),{harness,input,rid}=require('./test-paper-review.cjs');
 (async()=>{
  const pixels=new Uint8ClampedArray(100*100*4).fill(255);
  const ink=(x,y)=>{for(let c=0;c<3;c++)pixels[(y*100+x)*4+c]=0;};
@@ -10,12 +10,20 @@ const assert=require('node:assert/strict'),{plan,rows,frames}=require('../paper-
  for(const x of [10,100,190,290])for(let y=10;y<=190;y++)dot(x,y);
  for(const y of [10,190])for(let x=10;x<=290;x++)dot(x,y);
  for(const y of [100,130])for(let x=10;x<=100;x++)dot(x,y);
- const detected=frames(ruled,300,200);assert.equal(detected.length,4);assert(detected.slice(0,3).every(f=>f[3]-f[1]>800));assert(detected[3][3]-detected[3][1]<200,'small ruled cells are eligible for adaptive zoom');
+ const detected=frames(ruled,300,200);assert.equal(detected.length,3);assert(detected.every(f=>f[3]-f[1]>800));
  for(const [w,h] of [[1280,1810],[1807,1280],[800,800],[400,2400],[2400,400],[1000,1400]]){
   const boxes=plan(w,h);assert.deepEqual(boxes[0],[0,0,1,1]);assert(boxes.length<=6);
   for(let y=0;y<=50;y++)for(let x=0;x<=50;x++)assert(boxes.slice(1).some(([l,t,ww,hh])=>x/50>=l-1e-8&&x/50<=l+ww+1e-8&&y/50>=t-1e-8&&y/50<=t+hh+1e-8),'detail crops cover any aspect ratio');
  }
+
+ const broken=new Uint8ClampedArray(300*200*4).fill(255),mark=(x,y)=>{for(let c=0;c<3;c++)broken[(y*300+x)*4+c]=0;};
+ for(let y=0;y<=190;y++){mark(10,y);if(y<=40||y>=100)mark(100,y);}
+ for(const y of [0,40,52,88,100,190])for(let x=10;x<=100;x++)mark(x,y);
+ assert(frames(broken,300,200).some(f=>f[1]>=180&&f[3]<=520&&f[3]-f[1]<250),'unboxed horizontal answer bands are found between partial column frames');
+ assert(focusFrames([[20,550,350,940],[350,50,670,960],[650,50,980,950]],3300,2300).some(f=>f[1]===550),'partial-height answer frames are included, not only full-height columns');
+ const inkLayers=printedInk(new Uint8ClampedArray([0,0,0,255,240,20,30,255,30,50,240,255,200,200,200,255]));assert.deepEqual(Array.from(inkLayers.pixels),[0,0,0,255,255,255,255,255,255,255,255,255,200,200,200,255]);assert.equal(inkLayers.changed,2,'colored annotations can be hidden for label lookup while black and gray print remain intact');
  const h=harness();await h.init();const k=h.scope,boxes=plan(1807,1280),jpeg='data:image/jpeg;base64,/9j/AA==';
+ const mapped=k.recognitionConfig({enabled:true,openrouter_api_key:'fixture',base_url:'https://provider.test/v1/chat/completions/',model:'configured-model'});assert.equal(mapped.baseUrl,'https://provider.test/v1');assert.equal(mapped.model,'configured-model');assert.equal(k.recognitionConfig({enabled:false,openrouter_api_key:'fixture'}).apiKey,'');assert.equal(k.normalizeBaseUrl('https://u:pw@provider.test'),null);
  const page={page:2,role:'work',url:input.pages[0].url,regions:boxes.map(()=>jpeg),region_boxes:boxes},normal={...input,work_on_paper:false,pages:[{page:1,role:'paper'},page]};
  const raw={coordinate_system:'view_xyxy_1000',questions:[{label:'1',question_type:'单选题',confidence:'high',source_regions:[{kind:'work',view_id:'v2',bbox:[100,200,800,900]}]}],shared_regions:[{questions:['2','3','999'],kind:'work',view_id:'v1',bbox:[100,100,900,300]}]};
  const saved=[{questions:[{label:'1',question_type:'单选题'},{label:'2',question_type:'单选题'},{label:'3',question_type:'单选题'}]}];
@@ -28,6 +36,29 @@ const assert=require('node:assert/strict'),{plan,rows,frames}=require('../paper-
  assert.equal(rowRaw.questions[0].source_regions[0].bbox[1],0,'row calibration never mutates model evidence');
  const framed=k.normalizeScanPage({coordinate_system:'view_xyxy_1000',questions:[{label:'1',source_regions:[{kind:'work',view_id:'v0',frame_id:'F1'}]}]},{...page,page_frames:[[330,50,660,900]]},normal);
  assert.deepEqual(JSON.parse(JSON.stringify(framed.questions[0].source_regions[0].box)),[.33,.05,.33,.85],'printed-frame coordinates retain both sides of a long answer');
+ const columnPage={...page,active_view:1,region_boxes:[[0,0,1,1],[.5,0,.5,1]],regions:[jpeg,jpeg],page_frames:[[500,0,1000,1000]]};
+ const coarse={page:2,role:'work',questions:[{label:'21',source_regions:[{kind:'work',page:2,box:[0,0,.4,1]}]},{label:'22',source_regions:[{kind:'work',page:2,box:[.5,0,.5,1]}]}]};
+ const wrongColumn={coordinate_system:'view_xyxy_1000',questions:[{label:'21',teacher_score:3,score_mark:{page:2,quote:'3分',scope:'question',label:'21'},source_regions:[{kind:'work',view_id:'v1',bbox:[0,0,900,900]}]}]};
+ const reread=k.normalizeScanPage(wrongColumn,columnPage,normal,[coarse]);assert.equal(reread.questions[0].label,'21','coarse geometry cannot block an independently read question');
+ const continuation=k.normalizeScanPage({...wrongColumn,questions:[{...wrongColumn.questions[0],teacher_score:null,score_mark:null}]},columnPage,normal,[coarse]);assert.equal(continuation.questions[0].label,'21','scoreless cross-column continuation is allowed');
+ const localColumn={page:2,role:'work',complete:true,focus_kind:'column',focus_frame:[.5,0,.5,1],questions:[{label:'22',teacher_score:null,score_mark:null,max_score:null,max_mark:null,question_type:'解答题',confidence:'high',uncertainties:[],source_regions:[{kind:'work',page:2,box:[.5,.02,.2,.8]}]}],total:{score:null,max:null},score_groups:[],warnings:[]};
+ const mergedColumn=k.mergeScanPagePasses([{...localColumn,focus_kind:null,questions:[{...localColumn.questions[0],source_regions:[{kind:'work',page:2,box:[.5,0,.5,1]}]}]},localColumn]);
+ assert(mergedColumn.questions[0].source_regions.some(r=>JSON.stringify(r.box)==='[0.5,0,0.5,1]'),'a single-question full column retains the entire printed frame');
+ const boundedGrid={...columnPage,active_view:1,region_boxes:[[0,0,1,1],[.1,.1,.8,.1]],page_frames:[]};
+ const bound=k.normalizeScanPage({...wrongColumn,questions:[{...wrongColumn.questions[0],teacher_score:6,max_score:6,max_mark:{page:2,quote:'每题6分'},score_mark:{page:2,quote:'6分',scope:'question',label:'21'}}]},boundedGrid,normal,[{page:1,role:'paper',questions:[{label:'21',max_score:4,max_mark:{page:1,quote:'每题4分'},question_type:'单选题'}]}]);assert.equal(bound.questions[0].teacher_score,null);assert.equal(bound.questions[0].confidence,'low','a wrong grid score stays unknown and reviewable without stopping other pages');
+ const gapRaw={questions:[{label:'31'},{label:'33'}]};
+ assert.throws(()=>k.normalizeScanPage(gapRaw,{page:3,role:'paper'},normal),/未核对的间隔/,'a skipped printed number triggers a visual recheck instead of silently merging its content into a continuation');
+ const checkedGap=k.normalizeScanPage({...gapRaw,unseen_labels:['32']},{page:3,role:'paper'},normal);assert(checkedGap.warnings.some(w=>w.includes('32')),'real numbering gaps remain explicit; questions are never invented');
+ const anchors=k.normalizeScanPage({anchor_columns:[{id:'a',bbox:[50,0,950,1000]}],questions:[{label:'41',anchors:[{column:'a',view_id:'v0',y:100}]},{label:'42',anchors:[{column:'a',view_id:'v0',y:600}]}]}, {...page,role:'paper'},normal);assert.deepEqual(JSON.parse(JSON.stringify(anchors.questions.map(q=>q.source_regions[0].box))),[[.05,.09,.9,.5],[.05,.59,.9,.41]],'neighboring question starts define complete regions without model end estimates');
+ const continued=k.normalizeScanPage({anchor_columns:[{id:'a',bbox:[0,0,1000,1000]}],questions:[{label:'续41',anchors:[{column:'a',view_id:'v0',y:0}]}]},{...page,role:'paper'},normal,[{page:1,role:'paper',questions:[{label:'41'}]}]);assert.equal(continued.questions[0].label,'41','a continuation prefix links to an existing original label instead of creating another question');
+ const unitPage={page:2,role:'work'},unitRaw={questions:['1','2','3'].map(label=>({label})),score_groups:[{label:'多选题',questions:['1','2','3'],max_score:30,max_mark:{page:2,quote:'共3小题，每题6分，共18分',unit_score:6,unit_labels:['1','2','3']}}]};
+ const units=k.normalizeScanPage(unitRaw,unitPage,normal);assert.equal(units.score_groups[0].max_score,18);assert(units.questions.every(q=>q.max_score===6&&q.teacher_score===null),'printed per-question rules compute maxima only');
+ const ranged=k.normalizeScanPage({...unitRaw,score_groups:[{label:'多选题',questions:['1','2','3'],max_score:18,max_mark:{page:2,quote:'1–3多选，每题6分'}}]},unitPage,normal);assert(ranged.questions.every(q=>q.max_score===6),'an explicit printed inclusive range verifies unit maxima even when the aggregate is not separately printed');
+ const partialUnits=k.normalizeScanPage({...unitRaw,score_groups:[{...unitRaw.score_groups[0],questions:['1','2']}]},unitPage,normal);assert.equal(partialUnits.score_groups[0].max_score,null);assert(partialUnits.questions.every(q=>q.max_score===null),'a printed count cannot be applied to an incomplete label set');
+ const summed=k.normalizeScanPage({questions:[{label:'1',max_score:17,max_mark:{page:2,quote:'(1)8分，(2)9分',parts_complete:true,parts:[{label:'(1)',score:8,quote:'(1)8分'},{label:'(2)',score:9,quote:'(2)9分'}]}}]},unitPage,normal);assert.equal(summed.questions[0].max_score,17,'all explicitly printed part points can be summed without solving or grading');
+ assert(!k.validMaxMark({page:2,quote:'8分9分',parts:[{label:'1',score:8,quote:'1 8分'},{label:'2',score:9,quote:'2 9分'}]},17,normal),'partial or unconfirmed component scope cannot create a maximum');
+ const bare=k.normalizeScanPage({questions:[{label:'1',max_score:9,max_mark:{page:2,quote:'9'}}]},unitPage,normal);assert.equal(bare.questions[0].max_score,null,'a bare question number is not printed maximum evidence');
+ assert.throws(()=>k.normalizeScanPage({questions:[{label:'1',teacher_score:5,score_mark:{page:2,quote:'5'}}]},unitPage,normal),/score_mark缺少/,'missing redundant score binding is repaired instead of silently losing a visible score');
  assert.throws(()=>k.normalizeScanPage({...rowRaw,questions:[{label:'1',source_regions:[{kind:'work',view_id:'v0',bbox:[100,0,800,1000]}]}]},rowPage,normal),/rows起止行/);
  assert.throws(()=>k.normalizeScanPage({...raw,coordinate_system:'xywh'},page,normal),/坐标格式/);
  const invalid=k.normalizeScanPage({...raw,questions:[{label:'1',source_regions:[{kind:'work',view_id:'missing',bbox:[0,0,500,500]}]}],shared_regions:[]},page,normal);
@@ -40,28 +71,26 @@ const assert=require('node:assert/strict'),{plan,rows,frames}=require('../paper-
  const restored=await k.storedPages(h.scope.createClient(),'00000000-0000-4000-8000-000000000001',rid);assert.deepEqual(JSON.parse(JSON.stringify(restored[0].region_boxes)),boxes);
  assert.deepEqual(JSON.parse(JSON.stringify(restored[0].region_rows)),rowPage.region_rows);
  const before=JSON.stringify(restored),db=h.scope.createClient();
- const signed=await k.modelScanPage(db,'00000000-0000-4000-8000-000000000001',rid,restored[0]);
- assert(signed.regions[0].startsWith('https://scan.test/'));assert.equal(signed.regions[1],restored[0].regions[1],'unused views are not signed or transmitted');
- assert.equal(JSON.stringify(restored),before,'ephemeral model URLs never replace source data or fingerprint inputs');
- await assert.rejects(()=>k.modelScanPage(db,'00000000-0000-4000-8000-000000000002',rid,restored[0]),/扫描件读取/,'another owner cannot sign these images');
+ const inline=k.scanContent(normal,restored[0],[]).filter(c=>c.type==='image_url');
+ assert.equal(inline.length,restored[0].regions.length);assert(inline[0].image_url.url.startsWith('data:'));
+ assert.equal(JSON.stringify(restored),before,'model inputs never replace source data or fingerprint inputs');
+ await assert.rejects(()=>k.storedPages(db,'00000000-0000-4000-8000-000000000002',rid),/添加试卷/,'another owner cannot load these images');
  assert.throws(()=>k.validateStart({...input,pages:[{...input.pages[0],regions:page.regions,region_boxes:boxes.slice(1)}]}),/坐标范围/);
  h.transport=async()=>new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify({coordinate_system:'view_xyxy_1000',questions:[{label:'1',question_type:'单选题',confidence:'high',source_regions:[{kind:'paper',view_id:'v2',bbox:[100,200,800,900]}],max_score:5,max_mark:{page:1,quote:'本题5分'}}],shared_regions:[],total:{}})}}]}));
  await call({action:'start',request_id:rid,use_saved:true,consent:true,work_on_paper:false},202);await h.drain();
  const completed=h.tables.score_tracker_paper_reviews[0];assert.equal(completed.status,'succeeded');assert.equal(completed.result.prompt_version,'screenshots-v2');assert.equal(completed.result.questions[0].source_regions.length,1);
- assert.equal(h.upstream[0].messages[0].content.filter(c=>c.type==='image_url').length,1);assert.equal(h.upstream[0].thinking,undefined,'fixture non-DeepSeek model has no invented reasoning setting');
+ assert.equal(h.upstream[0].messages[0].content.filter(c=>c.type==='image_url').length,restored[0].regions.length);assert.equal(h.upstream[0].thinking,undefined,'fixture non-DeepSeek model has no invented reasoning setting');
  await call({action:'start',request_id:rid,use_saved:true,consent:true,work_on_paper:false},202);await h.drain();assert.equal(h.upstream.length,1,'stored transformed views survive fingerprint checks and start deduplication');
  const content=k.scanContent(normal,page,saved);assert.equal(content.filter(c=>c.type==='image_url').length,1);assert(content[0].text.includes('shared_regions'));assert(content[0].text.includes('view_xyxy_1000'));assert(content[0].text.includes('坐标统一基于整页总览'));assert(content[0].text.includes('teacher_score,score_mark,max_score,max_mark'));
  assert(k.scanPrompt({...normal,work_on_paper:true},{...page,role:'paper'},saved).includes('paper和work'),'work written on the paper keeps both region kinds');
- const attempts=[];let tries=0;
- h.transport=async()=>++tries===1?new Response(JSON.stringify({error:{message:'Failed to download image from private source'}}),{status:400}):new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:'{"ready":true}'}}],usage:{prompt_tokens:1,completion_tokens:1}}));
- const retried=await k.reviewModel({config:h.tables.score_tracker_paper_settings[0],content:[{type:'image_url',image_url:{url:'https://scan.test/private'}}],requestId:rid,stage:'scan_page_1',billing:{db,user:'00000000-0000-4000-8000-000000000001',task:rid,claim:'image-retry'},validate:raw=>raw,mark:(_,a)=>attempts.push(a)});
- assert(retried.ok);assert.equal(tries,2);assert.equal(attempts[0].recovery,'retry_image_download');assert.equal(attempts[0].image_bytes,0);assert.equal(attempts[0].image_url_count,1);
+ assert.equal(h.upstream[0].model,'test-stable-vision','entry uses the configured score vision provider, not paper analysis config');
+ let tries=0;
  tries=0;h.transport=async()=>{tries++;return new Response(JSON.stringify({error:{message:'unauthorized'}}),{status:401});};
  const rejected=await k.reviewModel({config:h.tables.score_tracker_paper_settings[0],content:[],requestId:rid,stage:'scan_page_1',billing:{db,user:'00000000-0000-4000-8000-000000000001',task:rid,claim:'auth'},validate:raw=>raw,mark:()=>{}});
  assert(!rejected.ok);assert.equal(tries,1,'authentication errors are never image-download retries');
  const resumed=harness();await resumed.init();let failFocus=true;
  resumed.transport=async(_url,init)=>{
-  const prompt=JSON.parse(init.body).messages[0].content[0].text,focus=prompt.includes('小型答题区补读'),work=prompt.includes('本轮仅第2页')||focus;
+  const prompt=JSON.parse(init.body).messages[0].content[0].text,focus=prompt.includes('局部作答补读'),work=prompt.includes('本轮仅第2页')||focus;
   if(focus&&failFocus)return new Response('temporary unavailable',{status:503});
   const q={label:'1',question_type:'填空题',confidence:'high',source_regions:[work?{kind:'work',view_id:focus?'v2':'v0',bbox:[100,100,900,900]}:{kind:'paper',page:1,box:[.1,.1,.8,.8]}],...(focus?{teacher_score:0,score_mark:{page:2,quote:'0分',scope:'question',label:'1'}}:{})};
   return new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify({coordinate_system:'view_xyxy_1000',complete:true,questions:[q]})}}]}));
@@ -69,7 +98,7 @@ const assert=require('node:assert/strict'),{plan,rows,frames}=require('../paper-
  const focusedPages=[input.pages[0],{role:'work',url:input.pages[0].url,regions:page.regions,region_boxes:boxes,region_focus:[2]}];
  assert.equal((await resumed.call({action:'start',...input,pages:focusedPages,work_on_paper:false,options:{purpose:'record',config_version:2}})).status,202);await resumed.drain();
  const pending=resumed.tables.score_tracker_paper_reviews[0];assert.equal(pending.status,'failed');assert.equal(pending.analysis_state.scan_pages.length,1);assert.equal(pending.analysis_state.scan_pending.parts.length,1);
- const wholeReads=()=>resumed.upstream.filter(b=>!b.messages[0].content[0].text.includes('小型答题区补读')).length;assert.equal(wholeReads(),2);
+ const wholeReads=()=>resumed.upstream.filter(b=>!b.messages[0].content[0].text.includes('局部作答补读')).length;assert.equal(wholeReads(),2);
  failFocus=false;assert.equal((await resumed.call({action:'resume',request_id:rid,pages:focusedPages,consent:true,work_on_paper:false})).status,202);await resumed.drain();
  assert.equal(pending.status,'succeeded');assert.equal(wholeReads(),2,'focus recovery never replays either completed page or the current whole-page pass');assert.equal(pending.result.questions[0].teacher_score,0);assert.equal(pending.progress.completed_pages,2);
  console.log('PASS: general portrait/landscape/square crop coverage, local-to-original XYXY transforms, shared answer grids, invalid coordinates, legacy compatibility and persisted view metadata round trip');

@@ -3,7 +3,7 @@ const {JSDOM,VirtualConsole}=require('jsdom');
 const {harness,input,rid}=require('./test-paper-review.cjs');
 (async()=>{
  const h=harness();await h.init();
- h.tables.score_tracker_paper_settings[0].model='deepseek-v4.1-flash';
+ h.tables.score_tracker_ai_configs[0].model='deepseek-flash';
  let fail=true;
  h.transport=async(_url,opts)=>{
   const b=JSON.parse(opts.body),p=b.messages[0].content[0].text,page=Number(p.match(/本轮仅第(\d+)页/)[1]);

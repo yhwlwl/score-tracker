@@ -7,7 +7,6 @@ import { reviewModel, imageContent } from "./runtime.ts";
 import { inventoryPrompt, normalizeInventory, workPrompt, normalizeWork, scoreTargets, scoreReadViews, scoreViewContent, scoreReadingPrompt, mergeScoreReading } from "./reading.ts";
 import { gradingTargets, gradingPrompt, mergeGrading, gradingChecks } from './grading.ts';
 import { scanQueue, scanProgress, scanPrompt, scanContent, normalizeScanPage, scanReport, mergeScanPagePasses } from './scan-entry.ts';
-import { modelScanPage } from './workspace.ts';
 
 const REVIEW_TABLE = "score_tracker_paper_reviews";
 export function progressFor(state: any) {
@@ -92,11 +91,9 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
       const scanPage=Number.isInteger(activeView)?{...page,active_view:activeView}:page;
       const stage = 'scan_page_' + page.page+(Number.isInteger(activeView)?'_focus_'+activeView:'');
       await audit.mark(stage + '_started');
-      // Sign only the current owner's page, immediately before this model call.
-      const modelPage = input.saved_materials ? await modelScanPage(db, user, input.request_id, scanPage) : scanPage;
+      // Stored pages are already owner-checked inline images, like score vision.
       const outcome = await reviewModel({ config, billing: { db, user, task: input.billing_task_id, claim: state.claim },
-        content: scanContent(input,modelPage,knownPages),
-        ...(input.saved_materials ? {refreshImages:async()=>scanContent(input,await modelScanPage(db,user,input.request_id,scanPage),knownPages)} : {}),
+        content: scanContent(input,scanPage,knownPages),
         requestId: input.request_id, stage, validate: raw => normalizeScanPage(raw, page, input,knownPages), mark: audit.mark });
       if (!outcome.ok) { await audit.finish('failed', outcome); return; }
       if(pending){pending.parts.push(outcome.result);pending.remaining.shift();}

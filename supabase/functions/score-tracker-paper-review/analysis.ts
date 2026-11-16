@@ -52,6 +52,10 @@ export function validMark(mark: any, value: number | null, input: any, work = fa
 }
 export function validMaxMark(mark: any, value: number | null, input: any) {
   if (validMark(mark, value, input)) return true;
+  const parts=mark?.parts;
+  if(value!==null&&mark?.parts_complete===true&&Array.isArray(parts)&&parts.length>1&&parts.length<=20&&new Set(parts.map(p=>p.label)).size===parts.length
+    &&parts.every(p=>text(p.label,40)&&number(p.score)!==null&&p.score>0&&validMark({page:mark.page,quote:p.quote},p.score,input)&&/分|marks?|points?/i.test(p.quote)&&String(p.quote).includes(p.label))
+    &&Math.abs(parts.reduce((n,p)=>n+p.score,0)-value)<.001)return true;
   const unit = number(mark?.unit_score), units = list(mark?.unit_labels, 40, 100);
   return value !== null && unit !== null && unit > 0 && units.length > 0 && new Set(units).size === units.length && Math.abs(unit * units.length - value) < 0.001
     && /每(?:小?题|空|个|项|问)|(?:each|per)\s+(?:question|blank|item|part)|(?:marks?|points?)\s+each/i.test(mark.quote || "") && validMark(mark, unit, input);
@@ -74,7 +78,7 @@ export function normalizeEvidence(raw: any, input: any) {
       subparts: Array.isArray(q.subparts) ? q.subparts.slice(0, 20).map((s: any) => ({ label: text(s.label, 60), answer: hasWork(input) ? text(s.answer, 2000) : "", status: hasWork(input) && ["answered", "blank"].includes(s.status) ? s.status : "unclear" })) : [],
       max_score: acceptedMax ? max : null, teacher_score: acceptedScore && (max === null || score! <= max) ? score : null,
       score_mark: acceptedScore ? { page: q.score_mark.page, quote: text(q.score_mark.quote, 500), scope: "question", label } : null,
-      max_mark: acceptedMax ? { page: q.max_mark.page, quote: text(q.max_mark.quote, 500), unit_score: number(q.max_mark.unit_score), unit_labels: list(q.max_mark.unit_labels, 40, 100) } : null,
+      max_mark: acceptedMax ? { ...(q.max_mark.parts_complete===true?{parts_complete:true,parts:q.max_mark.parts}:{}), page: q.max_mark.page, quote: text(q.max_mark.quote, 500), unit_score: number(q.max_mark.unit_score), unit_labels: list(q.max_mark.unit_labels, 40, 100) } : null,
       provided_reference: referencePages(q, input).length ? text(q.provided_reference, 4000) : "",
       reference_pages: referencePages(q, input), reference_mark: referencePages(q, input).includes(q.reference_mark?.page) ? { page: q.reference_mark.page, quote: text(q.reference_mark.quote, 700) } : null, uncertainties: list(q.uncertainties, 8) };
   });

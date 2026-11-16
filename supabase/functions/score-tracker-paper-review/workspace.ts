@@ -29,28 +29,6 @@ export async function storedPages(db: any, user: string, id: string) {
   return Promise.all(m.pages.map(async (p: any) => ({ role: p.role, page: p.page, url: await download(p), ...(p.page_frames ? {page_frames:p.page_frames} : {}), ...(p.region_focus ? {region_focus:p.region_focus} : {}),
     ...((p.detail_images || []).length ? { regions: await Promise.all(p.detail_images.map(download)), ...(p.detail_images.every((d: any) => d.box) ? {region_boxes:p.detail_images.map((d: any) => d.box), ...(p.detail_images.every((d: any) => d.rows) ? {region_rows:p.detail_images.map((d: any) => d.rows)} : {})} : {}) } : {}) })));
 }
-// Only sign paths selected from this owner's saved materials. Client URLs never
-// enter this path. Keep expiring URLs out of fingerprints, checkpoints and reports.
-export async function modelScanPage(db: any, user: string, id: string, page: any) {
-  const materials = await materialFor(db, user, id);
-  const stored = materials?.pages?.find((p: any) => p.page === page.page && p.role === page.role);
-  if (!stored) throw new WorkspaceError('扫描件读取未完成，请重试', 503);
-  const views = page.region_boxes?.length === page.regions?.length && page.regions?.length;
-  const selected = views ? [Number.isInteger(page.active_view) ? page.active_view : 0] : [];
-  const allPaths = views ? (stored.detail_images || []).map((p: any) => p.path) : [stored.path];
-  if (!allPaths.length || views && allPaths.length !== page.regions.length) throw new WorkspaceError('定位视图已更新，请刷新后重试', 409);
-  const paths=views?selected.map(i=>allPaths[i]):allPaths;
-  const { data, error } = await db.storage.from(SCAN_BUCKET).createSignedUrls(paths, 600);
-  if (error || data?.length !== paths.length || data.some((d: any) => !d.signedUrl || d.error)) throw new WorkspaceError('扫描件授权未完成，请重试', 503);
-  // Check/warm the exact expiring URLs before reserving a paid model call.
-  // A transient storage failure leaves the current page retryable and uncharged.
-  try { await Promise.all(data.map(async (d: any) => {
-    const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 8000);
-    try { const response = await fetch(d.signedUrl, { signal: controller.signal }); if (!response.ok) throw new Error('image_unavailable'); await response.arrayBuffer(); }
-    finally { clearTimeout(timer); }
-  })); } catch { throw new WorkspaceError('扫描件暂时无法读取，已保留进度，请重试本页', 503); }
-  return views ? { ...page, regions:page.regions.map((url:string,i:number)=>selected.includes(i)?data[selected.indexOf(i)].signedUrl:url) } : { ...page, url: data[0].signedUrl };
-}
 export async function deleteMaterials(db: any, user: string, id: string) {
   const m = await materialFor(db, user, id); if (!m) return;
   if (m.pages.length) { const r = await db.storage.from(SCAN_BUCKET).remove(materialPaths(m.pages)); if (r.error) throw new WorkspaceError('扫描件删除未完成，请重试', 503); }

@@ -53,34 +53,44 @@
       return [f[1],f[3]].every(function(edge){var count=0,center=Math.round(edge/1000*height);for(var x=left;x<right;x++){for(var y=Math.max(0,center-8);y<Math.min(height,center+9);y++){var i=(y*width+x)*4;if(pixels[i]<200&&pixels[i+1]<200&&pixels[i+2]<200){count++;break;}}}return count>(right-left)*.8;});
     });
     result=result.filter(function(f){return !result.some(function(inner){return inner!==f&&inner[0]>=f[0]&&inner[2]<=f[2]&&inner[2]-inner[0]<f[2]-f[0]-10&&Math.min(inner[3],f[3])-Math.max(inner[1],f[1])>(f[3]-f[1])*.8;});});
-    var children=[];
-    result.forEach(function(frame){
+    var children=[],columns=result.filter(function(f){return f[3]-f[1]>=200&&f[3]-f[1]<=500&&!result.some(function(other){return other!==f&&other[0]<=f[0]+5&&other[2]>=f[2]-5&&other[2]-other[0]>f[2]-f[0]+10;});});
+    columns.forEach(function(frame){
       var left=Math.round(frame[0]/1000*width),right=Math.min(width,Math.round(frame[2]/1000*width)),lines=[];
-      for(var y=Math.round(frame[1]/1000*height);y<frame[3]/1000*height;y++){
-        var n=0;for(var x=left;x<right;x++){var i=(y*width+x)*4;if(pixels[i]<200&&pixels[i+1]<200&&pixels[i+2]<200)n++;}
-        if(n>(right-left)*.7&&(lines.length===0||y-lines[lines.length-1]>5))lines.push(y);
+      for(var y=3;y<height-3;y++){
+        if(result.some(function(f){return y>=f[1]/1000*height&&y<=f[3]/1000*height&&Math.min(f[2],frame[2])-Math.max(f[0],frame[0])>(frame[2]-frame[0])*.5;}))continue;
+        var n=0;for(var x=left;x<right;x++)for(var yy=y-3;yy<=y+3;yy++){var i=(yy*width+x)*4;if(pixels[i]<200&&pixels[i+1]<200&&pixels[i+2]<200){n++;break;}}
+        if(n>(right-left)*.55&&(lines.length===0||y-lines[lines.length-1]>5))lines.push(y);
       }
-      for(var i=1;i<lines.length;i++)if(lines[i]-lines[i-1]>height*.035&&lines[i]-lines[i-1]<height*.2)children.push([frame[0],Math.floor(lines[i-1]/height*1000),frame[2],Math.ceil((lines[i]+1)/height*1000)]);
+      for(var i=1;i<lines.length;i++)if(lines[i]-lines[i-1]>height*.035&&lines[i]-lines[i-1]<height*.2)children.push([frame[0],Math.max(0,Math.floor((lines[i-1]-6)/height*1000)),frame[2],Math.min(1000,Math.ceil((lines[i]+7)/height*1000))]);
     });
-    return result.concat(children).slice(0,12);
+    return result.concat(children).filter(function(f,i,all){return all.findIndex(function(other){return other.join(',')===f.join(',');})===i;}).slice(0,12);
+  }
+  function focusFrames(pageFrames,width,height){
+    var compact=pageFrames.filter(function(f){return f[3]-f[1]<200&&(f[2]-f[0])*width/((f[3]-f[1])*height)>2;}).sort(function(a,b){return (b[2]-b[0])*(b[3]-b[1])-(a[2]-a[0])*(a[3]-a[1]);}).slice(0,2);
+    var columns=pageFrames.filter(function(f){return f[3]-f[1]>=200&&!pageFrames.some(function(other){return other!==f&&other[3]-other[1]>=200&&other[0]<=f[0]+5&&other[2]>=f[2]-5&&other[2]-other[0]>f[2]-f[0]+20;});});
+    return compact.concat(columns).slice(0,5);
+  }
+  function printedInk(pixels){
+    var result=new Uint8ClampedArray(pixels),changed=0;
+    for(var i=0;i<result.length;i+=4){var high=Math.max(result[i],result[i+1],result[i+2]),low=Math.min(result[i],result[i+1],result[i+2]);if(high-low>50&&high>100){result[i]=result[i+1]=result[i+2]=255;changed++;}}
+    return {pixels:result,changed:changed};
   }
   function build(source){
     var boxes=plan(source.width,source.height),baseCount=boxes.length,canvas=document.createElement('canvas'),rowBands=[],pageFrames=[];
     var overviewScale=Math.min(1,1600/Math.max(source.width,source.height));canvas.width=Math.round(source.width*overviewScale);canvas.height=Math.round(source.height*overviewScale);
     var overview=canvas.getContext('2d');overview.fillStyle='#fff';overview.fillRect(0,0,canvas.width,canvas.height);overview.drawImage(source,0,0,canvas.width,canvas.height);
     pageFrames=frames(overview.getImageData(0,0,canvas.width,canvas.height).data,canvas.width,canvas.height);
-    var compact=pageFrames.filter(function(f){return f[3]-f[1]<200&&(f[2]-f[0])*source.width/((f[3]-f[1])*source.height)>2;}).slice(0,2);
-    var headers=pageFrames.filter(function(f){return f[3]-f[1]>500;}).map(function(f){return [f[0],f[1],f[2],Math.min(f[3],f[1]+140)];});
-    if(compact.length||headers.length){boxes=[[0,0,1,1]];baseCount=1;compact.concat(headers).slice(0,5).forEach(function(f){boxes.push([f[0]/1000,f[1]/1000,(f[2]-f[0])/1000,(f[3]-f[1])/1000]);});}
+    var focus=focusFrames(pageFrames,source.width,source.height);
+    if(focus.length){boxes=[[0,0,1,1]];baseCount=1;focus.forEach(function(f){boxes.push([f[0]/1000,f[1]/1000,(f[2]-f[0])/1000,(f[3]-f[1])/1000]);});}
     boxes=boxes.slice(0,6);
     var urls=boxes.map(function(box,viewIndex){
       var sx=Math.round(box[0]*source.width),sy=Math.round(box[1]*source.height),sw=Math.min(source.width-sx,Math.round(box[2]*source.width)),sh=Math.min(source.height-sy,Math.round(box[3]*source.height));
       // Keep geometry tied to the actual rounded pixel crop.
       box.splice(0,4,sx/source.width,sy/source.height,sw/source.width,sh/source.height);
-      var scale=Math.min(viewIndex>=baseCount?3:1,1600/Math.max(sw,sh)),cw=Math.round(sw*scale),ch=Math.round(sh*scale),leftMargin=44,topMargin=22;
+      var scale=Math.min(viewIndex>=baseCount?3:1,(viewIndex===0?3200:2000)/Math.max(sw,sh),Math.sqrt(8000000/(sw*sh))),cw=Math.round(sw*scale),ch=Math.round(sh*scale),leftMargin=44,topMargin=22;
       canvas.width=cw+88;canvas.height=ch+44;
       var c=canvas.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,canvas.width,canvas.height);c.drawImage(source,sx,sy,sw,sh,leftMargin,topMargin,cw,ch);
-      var pixels=viewIndex===0?c.getImageData(leftMargin,topMargin,cw,ch).data:null;
+      var pixels=(viewIndex===0||viewIndex>=baseCount&&box[3]>.2)?c.getImageData(leftMargin,topMargin,cw,ch).data:null;
       var bands=pixels?rows(pixels,cw,ch):[];rowBands.push(bands);
       c.strokeStyle='rgba(30,100,200,.20)';c.lineWidth=1;c.font='bold 13px sans-serif';
       for(var i=0;i<=10;i++){
@@ -91,10 +101,23 @@
       c.font='bold 11px sans-serif';c.fillStyle='#174ca8';
       bands.forEach(function(band,index){c.fillText('L'+(index+1),2,topMargin+band[0]/1000*ch+10);});
       if(viewIndex===0)pageFrames.forEach(function(frame,index){c.fillText('F'+(index+1),leftMargin+(frame[0]+frame[2])/2000*cw,Math.max(14,topMargin+frame[1]/1000*ch-4));});
-      return canvas.toDataURL('image/jpeg',.86);
+      // Separate colored corrections from black printed labels for small answer grids.
+      // Both model panels refer to the same original crop; only the upper panel grades.
+      if(viewIndex>=baseCount&&box[3]<.2){
+        canvas.width=cw;canvas.height=ch;c=canvas.getContext('2d');c.drawImage(source,sx,sy,sw,sh,0,0,cw,ch);
+        var original=c.getImageData(0,0,cw,ch),cleaned=printedInk(original.data),caption=26;
+        if(cleaned.changed>cw*ch*.0005){
+          canvas.height=2*(ch+caption);c=canvas.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,cw,canvas.height);c.putImageData(original,0,caption);
+          original.data.set(cleaned.pixels);c.putImageData(original,0,ch+2*caption);c.fillStyle='#174ca8';c.font='bold 15px sans-serif';c.fillText('A 原图：读取批改分',8,18);c.fillText('B 隐藏彩色批改：只核对印刷题号，不读得分',8,ch+caption+18);
+        }
+      }
+      var encoded=canvas.toDataURL('image/jpeg',.92);
+      if(encoded.length>2800000)encoded=canvas.toDataURL('image/jpeg',.82);
+      if(encoded.length>2800000)throw new Error('图片内容过多，请裁剪成单页后再选');
+      return encoded;
     });
     canvas.width=canvas.height=1;return {regions:urls,region_boxes:boxes,region_rows:rowBands,page_frames:pageFrames,region_focus:boxes.map(function(_,i){return i;}).filter(function(i){return i>=baseCount;})};
   }
-  root.ScorePaperScanViews={plan:plan,build:build,rows:rows,frames:frames};
+  root.ScorePaperScanViews={plan:plan,build:build,rows:rows,frames:frames,focusFrames:focusFrames,printedInk:printedInk};
   if(typeof module!=='undefined'&&module.exports)module.exports=root.ScorePaperScanViews;
 })(globalThis);
