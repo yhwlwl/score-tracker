@@ -249,13 +249,26 @@ function reading(items: any[], key: string, markKey: string) {
   return { value: values.size === 1 ? candidates[0][key] : null, mark: values.size === 1 ? candidates[0][markKey] : null, conflict: values.size > 1 };
 }
 export function mergeScanPagePasses(parts: any[]) {
+  // In one printed answer column, a later independent question start closes the
+  // preceding crop. Shared grids are excluded; retain the original model data.
+  parts=parts.map(p=>{
+    if(p.focus_kind!=='column')return p;
+    const questions=p.questions.map((q:any)=>({...q,source_regions:q.source_regions.map((r:any)=>({...r,box:[...r.box]}))}));
+    for(const q of questions)if(!q.shared_work)for(const r of q.source_regions)if(r.kind==='work')for(const other of questions)if(other.label!==q.label&&!other.shared_work)for(const b of other.source_regions){
+      const width=Math.max(0,Math.min(r.box[0]+r.box[2],b.box[0]+b.box[2])-Math.max(r.box[0],b.box[0]));
+      if(b.kind==='work'&&width>Math.min(r.box[2],b.box[2])*.8&&b.box[1]>r.box[1]+.015&&b.box[1]<r.box[1]+r.box[3])r.box[3]=Math.max(.01,Math.round((b.box[1]-r.box[1]-.002)*10000)/10000);
+    }
+    return {...p,questions};
+  });
   const base=parts[0],labels=[...new Set(parts.flatMap(p=>p.questions.map((q:any)=>q.label)))];
   const questions=labels.map(label=>{
     const entries=parts.flatMap(p=>p.questions.filter((q:any)=>q.label===label));
     const score=reading(entries,'teacher_score','score_mark'),max=reading(entries,'max_score','max_mark');
     const types=[...new Set(entries.map(q=>q.question_type).filter(Boolean))];
     const grid=parts.filter(p=>p.focus_kind==='grid').flatMap(p=>p.questions.filter((q:any)=>q.label===label));
-    let regions:any[]=[...(base.questions.find((q:any)=>q.label===label)?.source_regions||[])];
+    const coarseRegions=base.questions.find((q:any)=>q.label===label)?.source_regions||[];
+    const focusedRegions=parts.slice(1).filter(p=>p.focus_kind==='grid'||p.focus_kind==='column').flatMap(p=>p.questions.filter((q:any)=>q.label===label).flatMap((q:any)=>q.source_regions)).filter((r:any)=>r.kind==='work');
+    let regions:any[]=focusedRegions.length?coarseRegions.filter((r:any)=>r.kind!=='work'):[...coarseRegions];
     const overlap=(a:number[],b:number[])=>Math.max(0,Math.min(a[0]+a[2],b[0]+b[2])-Math.max(a[0],b[0]))*Math.max(0,Math.min(a[1]+a[3],b[1]+b[3])-Math.max(a[1],b[1]));
     for(const p of parts.slice(1)){
       const q=p.questions.find((q:any)=>q.label===label);if(!q)continue;
@@ -268,12 +281,12 @@ export function mergeScanPagePasses(parts: any[]) {
       const other=base.questions.some((q:any)=>q.label!==label&&q.source_regions.some((r:any)=>r.kind==='work'&&overlap(r.box,f)>area*.15));
       if(!other&&(p.focus_kind!=='column'||p.questions.find((q:any)=>q.label===label).source_regions.some((r:any)=>r.kind==='work'&&r.box[1]<=f[1]+Math.max(.02,f[3]*.08)))&&baseWork.some((r:any)=>overlap(r.box,f)>area*.25))regions=[...regions.filter(r=>r.kind!=='work'||overlap(r.box,f)<r.box[2]*r.box[3]*.9),{kind:'work',page:base.page,box:f}];
     }
-    regions=regions.filter(r=>r.kind!=='work'||parts.slice(1).flatMap(p=>p.questions.filter((q:any)=>q.label!==label&&!(entries.some(e=>e.shared_work)&&q.shared_work)).flatMap((q:any)=>q.source_regions)).filter((v:any,i:number,all:any[])=>v.kind==='work'&&all.findIndex(o=>JSON.stringify(o.box)===JSON.stringify(v.box))===i).reduce((n:number,v:any)=>n+overlap(r.box,v.box),0)<r.box[2]*r.box[3]*.7);
+    const geometryConflict=parts.some(p=>p.focus_kind==='column'&&p.questions.some((q:any)=>q.label===label))&&focusedRegions.length&&coarseRegions.some((r:any)=>r.kind==='work'&&!focusedRegions.some((v:any)=>overlap(r.box,v.box)>r.box[2]*r.box[3]*.7));
     regions=[...new Map(regions.map(r=>[JSON.stringify(r),r])).values()];
     return {...entries[0],source_regions:regions,shared_work:entries.some(q=>q.shared_work),
       teacher_score:score.value,score_mark:score.mark,max_score:max.value,max_mark:max.mark,
       question_type:types.length===1?types[0]:'',confidence:entries.every(q=>q.confidence==='high')?'high':'low',
-      uncertainties:[...new Set(entries.flatMap(q=>q.uncertainties)),...(score.conflict?['整页与补读批改分不一致，请核对']:[]),...(max.conflict?['整页与补读满分不一致，请核对']:[]),...(types.length>1?['整页与补读题型不一致，请核对']:[])]};
+      uncertainties:[...new Set(entries.flatMap(q=>q.uncertainties)),...(geometryConflict?['整页与局部作答范围不同，已采用局部截图；请核对跨栏续写']:[]),...(score.conflict?['整页与补读批改分不一致，请核对']:[]),...(max.conflict?['整页与补读满分不一致，请核对']:[]),...(types.length>1?['整页与补读题型不一致，请核对']:[])]};
   });
   const score=reading(parts.map(p=>p.total),'score','score_mark'),max=reading(parts.map(p=>p.total),'max','max_mark');
   return {...base,questions,complete:parts.every(p=>p.complete),score_groups:parts.flatMap(p=>p.score_groups),
@@ -319,6 +332,7 @@ export function scanReport(saved: any[], input: any) {
   const result = assembleReport({ overview: '核对截图与分数，保存后更新题型统计。', warnings: [] }, evidence, input, evidence.questions.map((q: any) => ({ label: q.label })));
   result.screenshot_only = true; result.prompt_version=input.pages.some((p: any)=>scanViews(p).length)?'screenshots-v2':'screenshots-v1';
   for (const q of result.questions) {
+    q.uncertainties=[...new Set([...(q.uncertainties||[]),...(evidence.questions.find((v:any)=>v.label===q.label)?.uncertainties||[])])];
     q.shared_work=saved.some(p=>p.questions.some((v: any)=>v.label===q.label&&v.shared_work));
     q.screenshot_only = true; q.analysis_mode = ''; q.confirmation_prompt = '';
     q.work_expected = input.work_on_paper || input.pages.some((p: any) => p.role === 'work');
