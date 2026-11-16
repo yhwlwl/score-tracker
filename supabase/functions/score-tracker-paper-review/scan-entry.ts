@@ -76,6 +76,23 @@ function viewRegions(values: any, page: any, input: any, issues: string[]) {
 function overlapArea(a: number[], b: number[]) {
   return Math.max(0,Math.min(a[0]+a[2],b[0]+b[2])-Math.max(a[0],b[0]))*Math.max(0,Math.min(a[1]+a[3],b[1]+b[3])-Math.max(a[1],b[1]));
 }
+// Remove only near-contained duplicates for the same physical source. Never join adjacent pieces.
+export function compactScanRegions(values: any[]) {
+  const result:any[]=[];
+  for(const region of values){
+    const area=region.box[2]*region.box[3];
+    let duplicate=false;
+    for(let i=result.length-1;i>=0;i--){
+      const old=result[i];if(old.page!==region.page||old.kind!==region.kind)continue;
+      const other=old.box[2]*old.box[3],intersection=overlapArea(old.box,region.box),small=Math.min(area,other),large=Math.max(area,other);
+      if(small<=0||large/small>1.45||intersection/small<.985)continue;
+      if(other>=area){duplicate=true;break;}
+      result.splice(i,1);
+    }
+    if(!duplicate)result.push(region);
+  }
+  return result;
+}
 function localWorkDirectory(page: any, saved: any[]) {
   const box=Number.isInteger(page.active_view)?page.region_boxes?.[page.active_view]:null;
   const local=saved.filter(p=>p.page===page.page).flatMap(p=>p.questions.map((q:any)=>({label:q.label,shared:!!q.shared_work,regions:(q.source_regions||[]).filter((r:any)=>r.kind==='work'&&(!box||overlapArea(r.box,box)>r.box[2]*r.box[3]*.25))}))).filter((q:any)=>q.regions.length);
@@ -95,11 +112,12 @@ export function scanPrompt(input: any, page: any, saved: any[]) {
   const allowedKinds = page.role === 'paper' && input.work_on_paper ? 'paper和work（分别关联原题与作答）' : page.role;
   if(page.role==='paper'&&!input.work_on_paper&&!Number.isInteger(page.active_view)&&views.length)return `原题截图录入。只找一级题号的起点、题型和印刷分值，不转录题干、选项、公式，不解题。
 同一页的总览和重叠放大是同一份资料，不重复计题。忽略蓝色L行号。请逐行清点全部印刷一级题号，特别是页底和页首紧接续题后的新题；不要把(1)(2)小问、图中数字当一级题号。
-上一原卷页末题号：${JSON.stringify(previousLast||null)}。页首无新一级题号的文字/选项/图属于上一题，直到出现下一个印刷一级题号；为这段续题在本页顶部单独给起点。跨栏续题也单列起点，沿用实际题号。
+上一原卷页末题号：${JSON.stringify(previousLast||null)}。请独立检查本页第一个新题号上方：若存在属于上一题的选项、文字或附图，prefix_continuation=true且questions必须包含上一题与本页续题anchors；只有标题/页眉/空白时false；看不清则null，不得默认false或忽略页首。页首无新一级题号的文字/选项/图属于上一题，直到出现下一个印刷一级题号；为这段续题在本页顶部单独给起点。跨栏续题也单列起点，沿用实际题号。
 请给anchor_columns分栏（0–1000总览坐标bbox:[左,上,右,下]），单栏用整页内容栏；栏的底边可到1000。每题只给anchors起点，不估计题目末尾，程序会按相邻一级题号起点裁剪，包含全部小问和附图。
+清晰的大题栏目标题另记section_starts，含column、view_id、y和question_type；仅记录独立印刷的大题标题，不把小问、题干词语或说明文字当标题。程序只在相邻题型确实切换时用它结束前题，避免把下一栏目的标题和说明框进前题。不确定时省略，不猜位置。
 起点使用最清楚的已提供视图view_id与该视图内的y（0–1000），在印刷题号所在行顶部，不要把局部视图边缘当题目起点。视图与原页对应：${JSON.stringify(views.map((v:any)=>({view_id:v.id,original_crop:v.box})))}。
 题型按印刷栏目，单项选择记单选题，多项选择记多选题。请单独读栏目印刷规则printed_rules，每条包含label、unit_score、count和quote原文；如印刷共若干题、每题若干分，保留完整题数和每题分值，即使题目跨页。quote必须包含这些数字，不能从批改分或惯例推测。每个非null的max_score也必须带max_mark={page:${page.page},quote}，没有原文依据就留null。印刷每题分可记score_groups并列完整题号；完整小问分值可相加，max_mark含parts_complete:true,parts:[{label:"(1)",score:8,quote:"(1)8分"},{label:"(2)",score:9,quote:"(2)9分"}]。不能按惯例猜分值。
-只返回JSON：{"printed_rules":[{"label":"印刷题型","unit_score":null,"count":null,"quote":"印刷题数、每题分值原文"}],"anchor_columns":[{"id":"c1","bbox":[0,0,1000,1000]}],"questions":[{"label":"实际一级题号","question_type":"题型","anchors":[{"column":"c1","view_id":"最清楚的视图","y":0}],"confidence":"high/medium/low","max_score":null,"max_mark":null,"uncertainties":[]}],"score_groups":[{"label":"栏目","questions":[],"max_score":null,"max_mark":null}],"total":{},"warnings":[]}。所有印刷一级题号都要出现一次，同题跨页/跨栏用多个anchors。看不清时明确warnings，不编造题目。`;
+只返回JSON：{"prefix_continuation":null,"section_starts":[{"column":"c1","view_id":"v0","y":0,"question_type":"标题对应题型"}],"printed_rules":[{"label":"印刷题型","unit_score":null,"count":null,"quote":"印刷题数、每题分值原文"}],"anchor_columns":[{"id":"c1","bbox":[0,0,1000,1000]}],"questions":[{"label":"实际一级题号","question_type":"题型","anchors":[{"column":"c1","view_id":"最清楚的视图","y":0}],"confidence":"high/medium/low","max_score":null,"max_mark":null,"uncertainties":[]}],"score_groups":[{"label":"栏目","questions":[],"max_score":null,"max_mark":null}],"total":{},"warnings":[]}。所有印刷一级题号都要出现一次，同题跨页/跨栏用多个anchors。看不清时明确warnings，不编造题目。`;
   const focus=page.region_boxes?.[page.active_view];
   if(Number.isInteger(page.active_view)&&focus&&focus[3]<.2&&!page.page_frames?.some((f:any)=>f[3]-f[1]>=200&&Math.abs(focus[0]-f[0]/1000)<.003&&Math.abs(focus[1]-f[1]/1000)<.003&&Math.abs(focus[2]-(f[2]-f[0])/1000)<.003))return `小型答题表格读取。只读印刷小题号、相邻已有批改分，不判分、不转录答案。
 如是姓名、考号或说明区，area_type=other且grid_columns为空。原图A用于读批改，隐藏彩色批改的B只用于核对同位置黑色题号，B不是未批改答案，不从B判0分。
@@ -153,7 +171,22 @@ function materializePaperAnchors(raw:any,page:any){
   for(const c of raw.anchor_columns){const b=c?.bbox,id=text(c?.id,40);if(!id||columns.has(id)||!Array.isArray(b)||b.length!==4||b.some((n:any)=>!Number.isFinite(n)||n<0||n>1000)||b[2]-b[0]<80||b[3]-b[1]<100)throw new Error('原题分栏坐标无效');columns.set(id,b);}
   const starts:any[]=[];
   for(const q of raw.questions){if(!Array.isArray(q.anchors)||!q.anchors.length||q.anchors.length>4)throw new Error('原题'+q.label+'缺少实际题号起点');for(const a of q.anchors){const c=columns.get(a.column),view=scanViews(page).find((v:any)=>v.id===a.view_id);if(!c||!view||!Number.isFinite(a.y)||a.y<0||a.y>1000)throw new Error('原题起点视图或坐标无效');const y=(view.box[1]+a.y/1000*view.box[3])*1000;if(y<c[1]-20||y>c[3])throw new Error('原题起点超出分栏');starts.push({label:q.label,column:a.column,y:Math.max(c[1],y)});}}
-  const questions=raw.questions.map((q:any)=>{const own=starts.filter(a=>a.label===q.label),regions=own.map(a=>{const c=columns.get(a.column)!,next=starts.filter(b=>b.column===a.column&&b.label!==q.label&&b.y>a.y+3).sort((a,b)=>a.y-b.y)[0];const top=Math.max(c[1],a.y-10),end=next?Math.max(top+5,next.y-10):c[3];return {kind:'paper',anchor_box:[c[0]/1000,top/1000,(c[2]-c[0])/1000,(end-top)/1000]};});return {...q,source_regions:regions};});
+  const sections:any[]=(Array.isArray(raw.section_starts)?raw.section_starts:[]).slice(0,20).flatMap((a:any)=>{
+    const c=columns.get(a.column),view=scanViews(page).find((v:any)=>v.id===a.view_id),type=scanType(a.question_type);
+    if(!c||!view||!type||!Number.isFinite(a.y)||a.y<0||a.y>1000)return [];
+    const y=(view.box[1]+a.y/1000*view.box[3])*1000;
+    return y>=c[1]&&y<=c[3]?[{column:a.column,y,type}]:[];
+  });
+  const questions=raw.questions.map((q:any)=>{
+    const own=starts.filter(a=>a.label===q.label),regions=own.map(a=>{
+      const c=columns.get(a.column)!,next=starts.filter(b=>b.column===a.column&&b.label!==q.label&&b.y>a.y+3).sort((a,b)=>a.y-b.y)[0];
+      const nextType=next?scanType(raw.questions.find((v:any)=>v.label===next.label)?.question_type):'',ownType=scanType(q.question_type);
+      const section=next&&ownType&&nextType&&ownType!==nextType?sections.filter(b=>b.column===a.column&&b.type===nextType&&b.y>a.y+10&&b.y<next.y-3).sort((a,b)=>a.y-b.y)[0]:null;
+      const top=Math.max(c[1],a.y-10),end=next?Math.max(top+5,(section?section.y:next.y)-10):c[3];
+      return {kind:'paper',anchor_box:[c[0]/1000,top/1000,(c[2]-c[0])/1000,(end-top)/1000]};
+    });
+    return {...q,source_regions:regions};
+  });
   return {...raw,coordinate_system:'view_xyxy_1000',questions};
 }
 function materializeColumnStarts(raw:any,page:any,input:any,saved:any[]){
@@ -183,6 +216,17 @@ function printedRules(raw:any,page:any,input:any){
     return [{label,unit_score:unit,count,mark:{page:page.page,quote}}];
   });
 }
+// A printed point value must bind to its unit, not merely equal the question number.
+function validPrintedMaximum(mark:any,value:number|null,input:any){
+  if(!validMaxMark(mark,value,input)||value===null)return false;
+  const quote=text(mark?.quote,500),points=[...quote.matchAll(/(\d+(?:\.\d+)?)\s*(?:分|marks?|points?)/gi)].map(m=>Number(m[1]));
+  if(points.includes(value))return true;
+  const explicit=/(?:满分|总分|maximum|max)\s*[:：]?\s*(\d+(?:\.\d+)?)/i.exec(quote);
+  if(explicit&&Number(explicit[1])===value)return true;
+  if(mark.parts_complete===true&&Array.isArray(mark.parts)&&mark.parts.length>1&&mark.parts.every((p:any)=>validPrintedMaximum({page:mark.page,quote:p.quote},number(p.score),input))&&Math.abs(mark.parts.reduce((n:number,p:any)=>n+p.score,0)-value)<.001)return true;
+  const unit=number(mark.unit_score),labels=mark.unit_labels;
+  return unit!==null&&unit>0&&Array.isArray(labels)&&labels.length>0&&new Set(labels).size===labels.length&&points.includes(unit)&&Math.abs(unit*labels.length-value)<.001;
+}
 export function normalizeScanPage(raw: any, page: any, input: any, saved: any[] = []) {
   raw=materializeColumnStarts(raw,page,input,saved);
   if(Array.isArray(raw?.grid_columns)&&raw.grid_columns.length<=12&&raw.grid_columns.every((c:any)=>Array.isArray(c.cells)))raw={...raw,questions:raw.grid_columns.flatMap((c:any)=>c.cells)};
@@ -190,6 +234,9 @@ export function normalizeScanPage(raw: any, page: any, input: any, saved: any[] 
   const knownLabels=new Set(saved.flatMap((p:any)=>p.questions.map((q:any)=>q.label)));
   const canonical=(label:any)=>{const value=text(label,40),match=/^(?:续|接|continued\s*[:：]?\s*)(.+)$/i.exec(value);return match&&knownLabels.has(match[1].trim())?match[1].trim():value;};
   raw={...raw,questions:raw.questions.map((q:any)=>{const label=canonical(q.label),types=[...new Set(saved.filter(p=>p.role==='paper').flatMap(p=>p.questions.filter((v:any)=>v.label===label).map((v:any)=>v.question_type).filter(Boolean)))];return {...q,label,...(label!==text(q.label,40)&&types.length===1?{question_type:types[0]}:{}),...(q.score_mark?{score_mark:{...q.score_mark,label:canonical(q.score_mark.label)}}:{})};}),score_groups:(raw.score_groups||[]).map((g:any)=>({...g,questions:(g.questions||[]).map(canonical)}))};
+  const previousPaper=saved.filter(p=>p.role==='paper').at(-1),previousLabel=previousPaper?.questions?.at(-1)?.label;
+  const checkPrefix=page.role==='paper'&&!Number.isInteger(page.active_view)&&Array.isArray(raw.anchor_columns)&&previousLabel;
+  if(checkPrefix&&raw.prefix_continuation===true&&!raw.questions.some((q:any)=>q.label===previousLabel))throw new Error('页首已确认有第'+previousLabel+'题续题，但缺少该题本页anchors；请补上页首选项、文字或附图的实际起点，不得并入下一题');
   raw=materializePaperAnchors(raw,page);
   if(scanViews(page).length && raw.coordinate_system!=='view_xyxy_1000')throw new Error('截图坐标格式必须为view_xyxy_1000');
   if(Number.isInteger(page.active_view)&&raw.area_type==='other')return {page:page.page,role:page.role,complete:true,focus_kind:'other',focus_frame:null,questions:[],score_groups:[],total:{score:null,score_mark:null,max:null,max_mark:null},warnings:[]};
@@ -225,7 +272,7 @@ export function normalizeScanPage(raw: any, page: any, input: any, saved: any[] 
   const focusBox=Number.isInteger(page.active_view)?page.region_boxes?.[page.active_view]:null;
   const parent=focusBox?(page.page_frames||[]).find((f:any)=>f[3]-f[1]>=200&&Math.abs(focusBox[0]-f[0]/1000)<.003&&Math.abs(focusBox[1]-f[1]/1000)<.003&&Math.abs(focusBox[2]-(f[2]-f[0])/1000)<.003&&(focusBox[3]<=.145||Math.abs(focusBox[3]-(f[3]-f[1])/1000)<.003)):null;
   const focusKind=focusBox?(parent?(focusBox[3]>.2?'column':'header'):'grid'):null;
-  const result={ unit_rules:printedRules(raw,page,input), page: page.page, role: page.role, complete: raw.complete!==false&&(sourceQuestions.length>0||summaryOnly||Number.isInteger(page.active_view)),
+  const result={ ...(checkPrefix&&raw.prefix_continuation===null?{prefix_review:previousLabel}:{}), unit_rules:printedRules(raw,page,input), page: page.page, role: page.role, complete: raw.complete!==false&&(sourceQuestions.length>0||summaryOnly||Number.isInteger(page.active_view)),
     start_anchored:raw.column_items?raw.start_anchored===true:false,row_anchored:raw.column_items?raw.row_anchored===true:false,focus_kind:focusKind,focus_frame:parent?[parent[0]/1000,parent[1]/1000,(parent[2]-parent[0])/1000,(parent[3]-parent[1])/1000]:null,
     questions: sourceQuestions.map((q: any) => {
       const label = text(q.label, 40); if (!label || seen.has(label)) throw new Error('本页题号缺失或重复'); seen.add(label);
@@ -233,7 +280,7 @@ export function normalizeScanPage(raw: any, page: any, input: any, saved: any[] 
       if(canWork&&score!==null&&sm&&(!q.score_mark.scope||!q.score_mark.label))throw new Error('第'+label+'题score_mark缺少scope:"question"或label:"'+label+'"；只补全JSON字段，保留原数值，不推算得分');
       const printedLimits=[...new Set(saved.filter(p=>p.role==='paper').flatMap(p=>p.questions.filter((v:any)=>v.label===label&&v.max_score!==null&&v.max_mark).map((v:any)=>v.max_score)))];
       const knownMax=printedLimits.length===1?printedLimits[0] as number:null;
-      const maxOk=max!==0&&!!mm&&/分|每|满|marks?|points?|maximum|max/i.test(mm.quote)&&validMaxMark(mm,max,input), scoreOk=canWork&&validMark(sm,score,input,true)&&sm?.scope==='question'&&sm?.label===label&&(!maxOk||score!<=max!)&&(knownMax===null||score!<=knownMax);
+      const maxOk=max!==0&&!!mm&&/分|每|满|marks?|points?|maximum|max/i.test(mm.quote)&&validPrintedMaximum(mm,max,input), scoreOk=canWork&&validMark(sm,score,input,true)&&sm?.scope==='question'&&sm?.label===label&&(!maxOk||score!<=max!)&&(knownMax===null||score!<=knownMax);
       const regionIssues: string[]=[];
       if(Array.isArray(q.source_regions) && q.source_regions.some((r: any)=>r?.kind==='paper'&&page.role!=='paper'||r?.kind==='work'&&!canWork))regionIssues.push('截图类别与本页不符，请核对或重新框选');
       const regions=focusKind==='grid'&&canWork?[{kind:'work',page:page.page,box:focusBox}]:[...viewRegions(q.source_regions,page,input,regionIssues),...(shared.get(label)||[])].filter((r: any) => r.kind==='paper'&&page.role==='paper'||r.kind==='work'&&canWork);
@@ -316,7 +363,7 @@ export function mergeScanPagePasses(parts: any[]) {
       if(!other&&(p.focus_kind!=='column'||p.questions.find((q:any)=>q.label===label).source_regions.some((r:any)=>r.kind==='work'&&r.box[1]<=f[1]+Math.max(.02,f[3]*.08)))&&baseWork.some((r:any)=>overlap(r.box,f)>area*.25))regions=[...regions.filter(r=>r.kind!=='work'||overlap(r.box,f)<r.box[2]*r.box[3]*.9),{kind:'work',page:base.page,box:f}];
     }
     const geometryConflict=parts.some(p=>p.focus_kind==='column'&&!p.row_anchored&&!p.start_anchored&&p.questions.some((q:any)=>q.label===label))&&focusedRegions.length&&coarseRegions.some((r:any)=>r.kind==='work'&&!focusedRegions.some((v:any)=>overlap(r.box,v.box)>r.box[2]*r.box[3]*.7));
-    regions=[...new Map(regions.map(r=>[JSON.stringify(r),r])).values()];
+    regions=compactScanRegions(regions);
     return {...entries[0],source_regions:regions,shared_work:entries.some(q=>q.shared_work),
       teacher_score:score.value,score_mark:score.mark,max_score:max.value,max_mark:max.mark,
       question_type:types.length===1?types[0]:'',confidence:entries.every(q=>q.confidence==='high')?'high':'low',
@@ -342,14 +389,14 @@ export function scanReport(saved: any[], input: any) {
     return { label, stem: '原题见截图', answer: '', screenshot_only: true,
       question_type: types.length === 1 ? types[0] : '',
       pages: entries.filter(q => q.role === 'paper').map(q => q.page), work_pages: entries.filter(q => q.role === 'work' || input.work_on_paper).map(q => q.page),
-      source_regions: entries.flatMap(q => q.source_regions), teacher_score: score.value, score_mark: score.mark, max_score: max.value, max_mark: max.mark,
+      source_regions: compactScanRegions(entries.flatMap(q => q.source_regions)), teacher_score: score.value, score_mark: score.mark, max_score: max.value, max_mark: max.mark,
       status: 'unclear', confidence: entries.every(q => q.confidence === 'high') ? 'high' : 'low', subparts: [],
-      uncertainties: [...new Set(entries.flatMap(q => q.uncertainties).filter(v=>max.value===null||v!=='印刷满分依据不完整，请核对')), ...(score.conflict ? ['跨页批改分不一致，请确认'] : []), ...(max.conflict ? ['跨页满分不一致，请确认'] : []), ...(types.length > 1 ? ['跨页题型不一致，请确认'] : [])] };
+      uncertainties: [...(saved.some(p=>p.prefix_review===label)?['下一页页首续题范围未确认，请核对选项、文字与附图是否完整']:[]), ...new Set(entries.flatMap(q => q.uncertainties).filter(v=>max.value===null||v!=='印刷满分依据不完整，请核对')), ...(score.conflict ? ['跨页批改分不一致，请确认'] : []), ...(max.conflict ? ['跨页满分不一致，请确认'] : []), ...(types.length > 1 ? ['跨页题型不一致，请确认'] : [])] };
   });
   const ts = reading(saved.map(p => p.total), 'score', 'score_mark'), tm = reading(saved.map(p => p.total), 'max', 'max_mark');
   const printedGroups=saved.flatMap(p=>p.score_groups).map(g=>({...g,questions:[...g.questions],max_mark:g.max_mark?{...g.max_mark}:null}));
   const rulesByType=new Map<string,any[]>();for(const rule of saved.flatMap(p=>p.unit_rules||[])){const list=rulesByType.get(rule.label)||[];list.push(rule);rulesByType.set(rule.label,list);}
-  for(const [type,rules] of rulesByType){const scopes=new Set(rules.map(r=>r.unit_score+':'+r.count)),members=questions.filter(q=>q.question_type===type);if(scopes.size!==1||members.length!==rules[0].count)continue;const rule=rules[0],labels=members.map(q=>q.label),mm={...rule.mark,unit_score:rule.unit_score,unit_labels:labels};if(!validMaxMark(mm,rule.unit_score*labels.length,input)||members.some(q=>q.max_score!==null&&q.max_score!==rule.unit_score))continue;for(const q of members)if(q.max_score===null){q.max_score=rule.unit_score;q.max_mark=mm;q.uncertainties=q.uncertainties.filter(s=>s!=='印刷满分依据不完整，请核对');}printedGroups.push({label:type,questions:labels,teacher_score:null,score_mark:null,max_score:rule.unit_score*labels.length,max_mark:mm});}
+  for(const [type,rules] of rulesByType){const scopes=new Set(rules.map(r=>r.unit_score+':'+r.count));let members=questions.filter(q=>q.question_type===type);if(!members.length&&type==='选择题'&&scopes.size===1){const candidates=['单选题','多选题'].map(name=>questions.filter(q=>q.question_type===name)).filter(items=>items.length===rules[0].count&&items.every(q=>q.max_score===null||q.max_score===rules[0].unit_score));if(candidates.length===1)members=candidates[0];}if(scopes.size!==1||members.length!==rules[0].count)continue;const rule=rules[0],labels=members.map(q=>q.label),mm={...rule.mark,unit_score:rule.unit_score,unit_labels:labels};if(!validMaxMark(mm,rule.unit_score*labels.length,input)||members.some(q=>q.max_score!==null&&q.max_score!==rule.unit_score))continue;for(const q of members)if(q.max_score===null){q.max_score=rule.unit_score;q.max_mark=mm;q.uncertainties=q.uncertainties.filter(s=>s!=='印刷满分依据不完整，请核对');}printedGroups.push({label:members[0].question_type,questions:labels,teacher_score:null,score_mark:null,max_score:rule.unit_score*labels.length,max_mark:mm});}
   applyPrintedUnitMaxima({questions,score_groups:printedGroups},input,new Set(labels));
   const groups = new Map<string, any[]>();
   for (const g of printedGroups) {
@@ -370,13 +417,15 @@ export function scanReport(saved: any[], input: any) {
     return [{ ...gs[0], teacher_score: s.value, score_mark: s.mark, max_score: m.value, max_mark: m.mark }];
   });
   applyPrintedUnitMaxima({questions,score_groups},input,new Set(labels));
-  const evidence = normalizeEvidence({ questions, score_groups, total: { score: ts.value, score_mark: ts.mark, max: tm.value, max_mark: tm.mark }, complete: !saved.some(p => p.complete===false||p.warnings.length), warnings, coverage: `已处理 ${saved.length} 页；按题号关联原题与作答截图。` }, input);
+  const evidence = normalizeEvidence({ questions, score_groups, total: { score: ts.value, score_mark: ts.mark, max: tm.value, max_mark: tm.mark }, complete: !saved.some(p => p.complete===false||p.warnings.length||p.prefix_review) && questions.every(q=>q.source_regions.some((r:any)=>r.kind==='paper')&&(!(input.work_on_paper||input.pages.some((p:any)=>p.role==='work'))||q.source_regions.some((r:any)=>r.kind==='work'))), warnings, coverage: `已处理 ${saved.length} 页；按题号关联原题与作答截图。` }, input);
   const result = assembleReport({ overview: '核对截图与分数，保存后更新题型统计。', warnings: [] }, evidence, input, evidence.questions.map((q: any) => ({ label: q.label })));
   result.screenshot_only = true; result.prompt_version=input.pages.some((p: any)=>scanViews(p).length)?'screenshots-v2':'screenshots-v1';
   for (const q of result.questions) {
     q.uncertainties=[...new Set([...(q.uncertainties||[]),...(evidence.questions.find((v:any)=>v.label===q.label)?.uncertainties||[])])];
     q.shared_work=saved.some(p=>p.questions.some((v: any)=>v.label===q.label&&v.shared_work));
     q.screenshot_only = true; q.analysis_mode = ''; q.confirmation_prompt = '';
+    q.paper_expected = true;
+    if (!q.source_regions.some((r:any)=>r.kind==='paper') && !q.pages.length) q.pages = input.pages.filter((p:any)=>p.role==='paper').map((p:any)=>p.page);
     q.work_expected = input.work_on_paper || input.pages.some((p: any) => p.role === 'work');
     if (q.work_expected && !q.work_pages.length) q.work_pages = input.pages.filter((p: any) => p.role === (input.work_on_paper ? 'paper' : 'work')).map((p: any) => p.page);
     const group = evidence.score_groups.find((g: any) => g.label===q.question_type && g.teacher_score!==null && g.max_score!==null && g.questions.includes(q.label)

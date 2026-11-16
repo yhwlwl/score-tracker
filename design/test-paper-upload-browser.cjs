@@ -6,7 +6,7 @@ const {chromium}=require('playwright'),{harness,uid,input}=require('./test-paper
  const browser=await chromium.launch({headless:true,...(process.env.PAPER_UPLOAD_CHROMIUM?{executablePath:process.env.PAPER_UPLOAD_CHROMIUM}:{})});
  try{
  const page=await browser.newPage({viewport:{width:390,height:844}});page.on('pageerror',e=>errors.push(e.message));
- await page.route('http://fixture.test/**',async route=>{
+ await page.route('https://fixture.test/**',async route=>{
   const request=route.request(),url=new URL(request.url());
   if(url.pathname==='/api/score-tracker-paper-review'){
    const body=request.postDataJSON();calls.push({action:body.action,page:body.page,view:body.view,size:Buffer.byteLength(request.postData())});
@@ -19,7 +19,7 @@ const {chromium}=require('playwright'),{harness,uid,input}=require('./test-paper
   if(!file.startsWith(path.resolve(__dirname,'..')+path.sep)||!fs.existsSync(file))return route.fulfill({status:404,body:''});
   return route.fulfill({path:file});
  });
- await page.goto('http://fixture.test/');await page.waitForFunction(()=>window.ScorePaperReview);
+ await page.goto('https://fixture.test/');await page.waitForFunction(()=>window.ScorePaperReview);
  await page.evaluate(({uid,input})=>{
   Object.assign(state,{user:{id:uid},token:'test-token',page:'stats',analysisTab:'papers'});
   const host=document.createElement('section');host.id='upload-qa';document.body.appendChild(host);
