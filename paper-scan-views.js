@@ -111,13 +111,25 @@
           original.data.set(cleaned.pixels);c.putImageData(original,0,ch+2*caption);c.fillStyle='#174ca8';c.font='bold 15px sans-serif';c.fillText('A 原图：读取批改分',8,18);c.fillText('B 隐藏彩色批改：只核对印刷题号，不读得分',8,ch+caption+18);
         }
       }
-      var encoded=canvas.toDataURL('image/jpeg',.92);
-      if(encoded.length>2800000)encoded=canvas.toDataURL('image/jpeg',.82);
-      if(encoded.length>2800000)throw new Error('图片内容过多，请裁剪成单页后再选');
-      return encoded;
+      return encode(canvas);
     });
     canvas.width=canvas.height=1;return {regions:urls,region_boxes:boxes,region_rows:rowBands,page_frames:pageFrames,region_focus:boxes.map(function(_,i){return i;}).filter(function(i){return i>=baseCount;})};
   }
-  root.ScorePaperScanViews={plan:plan,build:build,rows:rows,frames:frames,focusFrames:focusFrames,printedInk:printedInk};
+  function encode(canvas) {
+    // Keep full resolution whenever possible; dense photos shrink automatically.
+    var qualities=[.92,.86,.80,.74,.68],encoded;
+    for(var q=0;q<qualities.length;q++){encoded=canvas.toDataURL('image/jpeg',qualities[q]);if(encoded.length<=2800000)return encoded;}
+    var copy=document.createElement('canvas');
+    try {
+      while(Math.max(canvas.width,canvas.height)>1024){
+        copy.width=canvas.width;copy.height=canvas.height;copy.getContext('2d').drawImage(canvas,0,0);
+        canvas.width=Math.round(copy.width*.85);canvas.height=Math.round(copy.height*.85);
+        canvas.getContext('2d').drawImage(copy,0,0,canvas.width,canvas.height);
+        encoded=canvas.toDataURL('image/jpeg',.80);if(encoded.length<=2800000)return encoded;
+      }
+      throw new Error('图片处理未完成，请重新选择');
+    } finally {copy.width=copy.height=1;}
+  }
+  root.ScorePaperScanViews={encode:encode,plan:plan,build:build,rows:rows,frames:frames,focusFrames:focusFrames,printedInk:printedInk};
   if(typeof module!=='undefined'&&module.exports)module.exports=root.ScorePaperScanViews;
 })(globalThis);

@@ -11,7 +11,7 @@ import { MAX_BODY, UUID, text, validateStart, normalizeCorrections } from "./mod
 import { examContext } from "./learner.ts";
 import { loadAccountSnapshot } from "./account.ts";
 import { paperFailure } from "./audit.ts";
-import { runReviewStage, initialState, progressFor, revisionInput, revisionState, scoreRefreshState, MAX_REPORT_UPDATES, canRecoverText, checkpointInput, recoveryInfo } from "./pipeline.ts";
+import { runReviewStage, initialState, progressFor, revisionInput, revisionState, scoreRefreshState, MAX_REPORT_UPDATES, canRecoverText, checkpointInput, recoveryInfo, SCAN_CONTEXT_VERSION, needsScanContextUpgrade } from "./pipeline.ts";
 
 const db = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "", { auth: { persistSession: false, autoRefreshToken: false } });
 const TABLE = "score_tracker_paper_reviews";
@@ -129,9 +129,9 @@ Deno.serve(async (req: Request) => {
       if (body.use_saved === true) {
         const source = row.analysis_state.source_record?.request_id;
         if (source && !(await materialFor(db, row.user_id, source))?.pages?.length) useRecordedText(row.analysis_state);
-        else body.pages = await storedPages(db, row.user_id, source || row.request_id);
+        else body.pages = await storedPages(db, row.user_id, source || row.request_id, row.analysis_state.material_version === 2 ? [] : undefined);
       }
-      const input: any = row.analysis_state.flow === 'record_analysis' ? { ...checkpointInput(row), ...(row.analysis_state.source_images ? { pages: body.pages, text_recovery: false } : {}) } : row.analysis_state.flow === "revision" ? revisionInput(row) : row.analysis_state.text_recovery && canRecoverText(row.analysis_state) ? checkpointInput(row) : validateStart({ ...body, draft_id: row.draft_id, exam_id: row.exam_id, subject: row.subject, consent: true });
+      const input: any = row.analysis_state.flow === 'record_analysis' ? { ...checkpointInput(row), ...(row.analysis_state.source_images ? { pages: body.pages, text_recovery: false } : {}) } : row.analysis_state.flow === "revision" ? revisionInput(row) : row.analysis_state.text_recovery && canRecoverText(row.analysis_state) ? checkpointInput(row) : validateStart({ ...body, draft_id: row.draft_id, exam_id: row.exam_id, subject: row.subject, consent: true }, body.use_saved === true && row.analysis_state.material_version === 2);
       input.saved_materials = body.use_saved === true;
       // Use the original attachment scope even if the user saved the exam mid-analysis.
       input.exam_context = row.analysis_state.exam_context; input.account_context = row.analysis_state.account_context; input.options = row.options || row.analysis_state.options ? reviewSettings(row.options || row.analysis_state.options) : undefined;
@@ -142,7 +142,7 @@ Deno.serve(async (req: Request) => {
       background(runReviewStage(db, input, row.user_id, config, row, body.claim, claim => dispatchStage(input, claim)));
       return out({ accepted: true }, 202);
     }
-    action = ["start", "analyze_record", "preview_types", "sync_types", "resume", "retry_scores", "get", "list", "attach", "correct", "delete", "quota", "list_all", "preferences", "save_materials", "upload_page", "save_score_details", "sources", "save_regions", "link", "pause", "confirm_input", "delete_draft"].includes(body.action) ? body.action : "unknown";
+    action = ["start", "analyze_record", "preview_types", "sync_types", "resume", "retry_scores", "get", "list", "attach", "correct", "delete", "quota", "list_all", "preferences", "save_materials", "upload_page", "upload_page_view", "save_score_details", "sources", "save_regions", "link", "pause", "confirm_input", "delete_draft"].includes(body.action) ? body.action : "unknown";
     if (UUID.test(body.request_id || "")) requestId = body.request_id;
     stage = "authentication";
     const user = await userFor(body.token);
@@ -192,15 +192,15 @@ Deno.serve(async (req: Request) => {
       const state = row.analysis_state;
       if(!['extract','read_work','verify','read_scores','diagnose'].includes(state?.phase))throw new Failure('试卷分析暂未开放',403);
       const upgradeScan = state.phase === 'extract' && !state.evidence && state.flow !== 'screenshot_record';
-      if (!["failed", "paused"].includes(row.status) || !state?.phase || (row.status === "failed" && (state.resume_count || 0) >= 2 && !upgradeScan)) throw new Failure("恢复次数已用完，请重新开始录入", 409);
+      if (!["failed", "paused"].includes(row.status) || !state?.phase || (row.status === "failed" && (state.resume_count || 0) >= 2 && !upgradeScan && !needsScanContextUpgrade(state))) throw new Failure("恢复次数已用完，请重新开始录入", 409);
       if (state.flow === 'record_analysis' && state.source_images) {
         if ((await materialFor(db, user, state.source_record.request_id))?.pages?.length) { body.pages = await storedPages(db, user, state.source_record.request_id); body.use_saved = true; }
         else useRecordedText(state);
       }
-      if (!canRecoverText(state) && !['revision','record_analysis'].includes(state.flow) && !body.pages?.length) { body.pages = await storedPages(db, user, row.request_id); body.consent = true; body.work_on_paper = state.source_input?.work_on_paper; body.use_saved = true; }
+      if (!canRecoverText(state) && !['revision','record_analysis'].includes(state.flow) && (state.material_version === 2 || !body.pages?.length)) { body.pages = await storedPages(db, user, row.request_id, state.material_version === 2 ? [] : undefined); body.consent = true; body.work_on_paper = state.source_input?.work_on_paper; body.use_saved = true; }
       const recoverSaved = canRecoverText(state) && (state.text_recovery || body.mode === "saved" || !body.pages?.length);
       let input: any;
-      try { input = state.flow === 'record_analysis' ? { ...checkpointInput(row), ...(state.source_images ? { pages: body.pages, text_recovery: false } : {}) } : state.flow === "revision" ? revisionInput(row) : recoverSaved ? checkpointInput(row) : validateStart({ ...body, draft_id: row.draft_id, exam_id: state.original_exam_id ?? null, subject: row.subject }); }
+      try { input = state.flow === 'record_analysis' ? { ...checkpointInput(row), ...(state.source_images ? { pages: body.pages, text_recovery: false } : {}) } : state.flow === "revision" ? revisionInput(row) : recoverSaved ? checkpointInput(row) : validateStart({ ...body, draft_id: row.draft_id, exam_id: state.original_exam_id ?? null, subject: row.subject }, body.use_saved === true && state.material_version === 2); }
       catch (e) { throw new Failure((e as Error).message); }
       input.saved_materials = body.use_saved === true;
       input.exam_context = state.exam_context; input.account_context = state.account_context; input.options = row.options || state.options ? reviewSettings(row.options || state.options) : undefined;
@@ -214,6 +214,7 @@ Deno.serve(async (req: Request) => {
       const newBilling=row.status==='failed'||prior?.status!=='active';
       if(newBilling){state.billing_task_id=crypto.randomUUID();await startAiTask(db,user,state.billing_task_id,'paper_entry',state.has_work===false?150:400,1000);unstartedBilling={user,task:state.billing_task_id};}
       if (upgradeScan) { state.flow = 'screenshot_record'; state.scan_pages = []; state.resume_count = 0; }
+      if (needsScanContextUpgrade(state)) { state.resume_count = 0; state.scan_context_version = SCAN_CONTEXT_VERSION; }
       state.scan_retry = state.flow === 'screenshot_record';
       const oldClaim = state.claim; state.claim = crypto.randomUUID(); state.resume_count = (state.resume_count || 0) + (row.status === "failed" ? 1 : 0); state.budget_start_ms = state.active_ms || 0; state.input_confirmed = state.input_confirmed || state.pause_reason !== "review"; delete state.pause_reason; state.phase_started_at = new Date().toISOString();
       state.run_started_at = state.phase_started_at;
@@ -255,8 +256,8 @@ Deno.serve(async (req: Request) => {
     if (body.action === "start") {
       stage = "input_validation";
       let input: any;
-      if (body.use_saved === true) { const m = await materialFor(db, user, body.request_id); if (!m) throw new Failure("请先保存资料"); body.pages = await storedPages(db, user, body.request_id); body.subject = m.subject; body.draft_id = m.draft_id; body.exam_id = m.exam_id; body.options = m.options; body.title = m.title; }
-      try { input = validateStart(body); } catch (e) { throw new Failure((e as Error).message); }
+      if (body.use_saved === true) { const m = await materialFor(db, user, body.request_id); if (!m) throw new Failure("请先保存资料"); body.pages = await storedPages(db, user, body.request_id, []); body.subject = m.subject; body.draft_id = m.draft_id; body.exam_id = m.exam_id; body.options = m.options; body.title = m.title; }
+      try { input = validateStart(body, body.use_saved === true); } catch (e) { throw new Failure((e as Error).message); }
       if(input.options?.purpose!=='record')throw new Failure('试卷分析暂未开放',403);
       input.saved_materials = body.use_saved === true;
       const useHistory = input.options?.use_account_history !== false;
@@ -284,7 +285,7 @@ Deno.serve(async (req: Request) => {
       }
       console.log("paper_review_request", JSON.stringify({ request_id: requestId, action, stage: reserved.created ? "accepted" : "deduplicated", http_status: 202, duration_ms: Date.now() - startedAt }));
       if (reserved.created) {
-        const state = { billing_task_id:input.request_id,...initialState(input.work_on_paper || input.pages.some((p: any) => p.role === "work")), flow: 'screenshot_record', scan_pages: [], original_exam_id: input.exam_id, exam_context: input.exam_context, account_context: input.account_context, options: input.options, source_input: { work_on_paper: input.work_on_paper, pages: input.pages.map((p: any) => ({ page: p.page, role: p.role })) } };
+        const state = { billing_task_id:input.request_id,...initialState(input.work_on_paper || input.pages.some((p: any) => p.role === "work")), flow: 'screenshot_record', scan_context_version: SCAN_CONTEXT_VERSION, ...(body.use_saved === true ? {material_version:2} : {}), scan_pages: [], original_exam_id: input.exam_id, exam_context: input.exam_context, account_context: input.account_context, options: input.options, source_input: { work_on_paper: input.work_on_paper, pages: input.pages.map((p: any) => ({ page: p.page, role: p.role })) } };
         const row = await query(() => db.from(TABLE).update({ analysis_state: state, progress: progressFor(state), options: input.options, title: text(body.title, 100) }).eq("request_id", input.request_id).eq("user_id", user).eq("status", "running").select("*").single());
         if (body.use_saved) await query(() => db.from("score_tracker_paper_materials").update({ submitted: true }).eq("request_id", input.request_id).eq("user_id", user));
         const task = background(runReviewStage(db, input, user, config, row, state.claim, claim => dispatchStage(input, claim)));

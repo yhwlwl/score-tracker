@@ -1,8 +1,10 @@
 import { reviewSettings } from "./options.ts";
 // Bounded, evidence-first contract. AI output is untrusted data, never HTML or SQL.
 export const MAX_PAGES = 15;
-export const MAX_IMAGE_DATA = MAX_PAGES * 2800000;
-export const MAX_MATERIAL_BYTES = MAX_PAGES * 2100000;
+export const MAX_IMAGE_SIZE = 2800000;
+// Each page owns one source and at most six independently uploaded views.
+export const MAX_IMAGE_DATA = MAX_PAGES * 7 * MAX_IMAGE_SIZE;
+export const MAX_MATERIAL_BYTES = MAX_PAGES * 7 * 2100000;
 export const MAX_BODY = 12500000;
 export const ROLES = ["paper", "work", "reference"];
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -16,17 +18,41 @@ export function number(value: unknown): number | null {
 function strings(value: any, max = 10) {
   return Array.isArray(value) ? value.slice(0, max).map(v => text(v, 600)).filter(Boolean) : [];
 }
-export function validateImageRegions(value: any) {
+// Only owner-checked storage metadata may use internal references. Public URLs remain forbidden.
+export function isStoredImage(value: any) { return typeof value === 'string' && /^stored:[a-zA-Z0-9_/-]+$/.test(value); }
+export function validateScanMetadata(p: any, viewCount: number) {
+  if (!Number.isInteger(viewCount) || viewCount < 0 || viewCount > 6) throw new Error('图片局部过多');
+  let regionBoxes: any, regionRows: any, pageFrames: any, regionFocus: any;
+  if (p.region_boxes !== undefined) {
+    if (!Array.isArray(p.region_boxes) || p.region_boxes.length !== viewCount || !viewCount || p.region_boxes.some((b: any) => !Array.isArray(b) || b.length !== 4 || b.some((n: any) => typeof n !== 'number' || !Number.isFinite(n) || n < 0 || n > 1) || b[2] <= .01 || b[3] <= .01 || b[0] + b[2] > 1.000001 || b[1] + b[3] > 1.000001) || p.region_boxes[0].some((n: number, i: number) => n !== [0,0,1,1][i])) throw new Error('截图定位视图与坐标范围不一致');
+    regionBoxes = p.region_boxes;
+  }
+  if (p.region_rows !== undefined) {
+    if (!regionBoxes || !Array.isArray(p.region_rows) || p.region_rows.length !== viewCount || p.region_rows.some((rows: any) => !Array.isArray(rows) || rows.length > 120 || rows.some((b: any, i: number) => !Array.isArray(b) || b.length !== 2 || b.some((n: any) => !Number.isInteger(n) || n < 0 || n > 1000) || b[1] <= b[0] || i && b[0] < rows[i-1][1]))) throw new Error('截图行定位数据无效');
+    regionRows = p.region_rows;
+  }
+  if (p.page_frames !== undefined) {
+    if (!regionBoxes || !Array.isArray(p.page_frames) || p.page_frames.length > 12 || p.page_frames.some((b: any)=>!Array.isArray(b)||b.length!==4||b.some((n: any)=>!Number.isInteger(n)||n<0||n>1000)||b[2]<=b[0]||b[3]<=b[1])) throw new Error('截图答题框数据无效');
+    pageFrames = p.page_frames;
+  }
+  if (p.region_focus !== undefined) {
+    if (!regionBoxes || !Array.isArray(p.region_focus) || p.region_focus.length>5 || new Set(p.region_focus).size!==p.region_focus.length || p.region_focus.some((n:any)=>!Number.isInteger(n)||n<1||n>=viewCount)) throw new Error('截图补读区域无效');
+    regionFocus=p.region_focus;
+  }
+  return { regionBoxes, regionRows, pageFrames, regionFocus };
+}
+export function validateImageRegions(value: any, internalSaved = false) {
   const regions = Array.isArray(value) ? value : [];
   if (regions.length > 6) throw new Error('图片局部过多');
   for (const region of regions) {
-    if (typeof region !== 'string' || region.length > 2800000 || !/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(region)) throw new Error('局部图片格式不正确');
+    if (internalSaved && isStoredImage(region)) continue;
+    if (typeof region !== 'string' || region.length > MAX_IMAGE_SIZE || !/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(region)) throw new Error('局部图片格式不正确');
     const encoded = region.slice(region.indexOf(',') + 1);
     if (encoded.length % 4 || !atob(encoded.slice(0, 32)).startsWith('\xff\xd8\xff')) throw new Error('局部图片数据不完整');
   }
   return regions;
 }
-export function validateStart(body: any) {
+export function validateStart(body: any, internalSaved = false) {
   if (!UUID.test(body.request_id || "") || !UUID.test(body.draft_id || "") || (body.exam_id && !UUID.test(body.exam_id))) throw new Error("分析编号无效，请重新打开试卷分析");
   const subject = text(body.subject, 40);
   if (!subject || subject !== body.subject) throw new Error("请先选择科目");
@@ -34,32 +60,18 @@ export function validateStart(body: any) {
   if (!Array.isArray(body.pages) || !body.pages.length || body.pages.length > MAX_PAGES) throw new Error(`每次请选择 1～${MAX_PAGES} 张图片`);
   let length = 0;
   const pages = body.pages.map((p: any, i: number) => {
-    if (!ROLES.includes(p?.role) || typeof p.url !== "string" || p.url.length > 2800000 || !/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(p.url)) throw new Error("图片格式或大小不正确，请使用 JPG、PNG、WebP");
+    if (!ROLES.includes(p?.role) || !(internalSaved && isStoredImage(p.url)) && (typeof p.url !== "string" || p.url.length > MAX_IMAGE_SIZE || !/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(p.url))) throw new Error("图片格式或大小不正确，请使用 JPG、PNG、WebP");
     // Reject non-images masquerading as a data URL without fetching user URLs.
-    const encoded = p.url.slice(p.url.indexOf(",") + 1);
-    if (encoded.length % 4) throw new Error("图片数据不完整");
-    const head = atob(encoded.slice(0, 32));
-    const valid = p.url.startsWith("data:image/jpeg;") ? head.startsWith("\xff\xd8\xff")
-      : p.url.startsWith("data:image/png;") ? head.startsWith("\x89PNG\r\n\x1a\n") : head.startsWith("RIFF") && head.slice(8, 12) === "WEBP";
-    if (!valid) throw new Error("无法读取这张图片，请重新选择");
-    const regions = validateImageRegions(p.regions);
-    let regionBoxes: any, regionRows: any, pageFrames: any, regionFocus: any;
-    if (p.region_boxes !== undefined) {
-      if (!Array.isArray(p.region_boxes) || p.region_boxes.length !== regions.length || !regions.length || p.region_boxes.some((b: any) => !Array.isArray(b) || b.length !== 4 || b.some((n: any) => typeof n !== 'number' || !Number.isFinite(n) || n < 0 || n > 1) || b[2] <= .01 || b[3] <= .01 || b[0] + b[2] > 1.000001 || b[1] + b[3] > 1.000001) || p.region_boxes[0].some((n: number, i: number) => n !== [0,0,1,1][i])) throw new Error('截图定位视图与坐标范围不一致');
-      regionBoxes = p.region_boxes;
+    if (!(internalSaved && isStoredImage(p.url))) {
+      const encoded = p.url.slice(p.url.indexOf(",") + 1);
+      if (encoded.length % 4) throw new Error("图片数据不完整");
+      const head = atob(encoded.slice(0, 32));
+      const valid = p.url.startsWith("data:image/jpeg;") ? head.startsWith("\xff\xd8\xff")
+        : p.url.startsWith("data:image/png;") ? head.startsWith("\x89PNG\r\n\x1a\n") : head.startsWith("RIFF") && head.slice(8, 12) === "WEBP";
+      if (!valid) throw new Error("无法读取这张图片，请重新选择");
     }
-    if (p.region_rows !== undefined) {
-      if (!regionBoxes || !Array.isArray(p.region_rows) || p.region_rows.length !== regions.length || p.region_rows.some((rows: any) => !Array.isArray(rows) || rows.length > 120 || rows.some((b: any, i: number) => !Array.isArray(b) || b.length !== 2 || b.some((n: any) => !Number.isInteger(n) || n < 0 || n > 1000) || b[1] <= b[0] || i && b[0] < rows[i-1][1]))) throw new Error('截图行定位数据无效');
-      regionRows = p.region_rows;
-    }
-    if (p.page_frames !== undefined) {
-      if (!regionBoxes || !Array.isArray(p.page_frames) || p.page_frames.length > 12 || p.page_frames.some((b: any)=>!Array.isArray(b)||b.length!==4||b.some((n: any)=>!Number.isInteger(n)||n<0||n>1000)||b[2]<=b[0]||b[3]<=b[1])) throw new Error('截图答题框数据无效');
-      pageFrames = p.page_frames;
-    }
-    if (p.region_focus !== undefined) {
-      if (!regionBoxes || !Array.isArray(p.region_focus) || p.region_focus.length>5 || new Set(p.region_focus).size!==p.region_focus.length || p.region_focus.some((n:any)=>!Number.isInteger(n)||n<1||n>=regions.length)) throw new Error('截图补读区域无效');
-      regionFocus=p.region_focus;
-    }
+    const regions = validateImageRegions(p.regions, internalSaved);
+    const { regionBoxes, regionRows, pageFrames, regionFocus } = validateScanMetadata(p, regions.length);
     length += regions.reduce((n: number, r: string) => n + r.length, 0);
     length += p.url.length;
     return { role: p.role, page: i + 1, url: p.url, ...(regions.length ? { regions } : {}), ...(regionBoxes ? { region_boxes:regionBoxes } : {}), ...(regionRows ? {region_rows:regionRows} : {}), ...(pageFrames ? {page_frames:pageFrames} : {}), ...(regionFocus ? {region_focus:regionFocus} : {}) };

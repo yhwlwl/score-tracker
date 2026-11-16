@@ -15362,14 +15362,26 @@ window.ScorePaperEntryOnly = true;
           original.data.set(cleaned.pixels);c.putImageData(original,0,ch+2*caption);c.fillStyle='#174ca8';c.font='bold 15px sans-serif';c.fillText('A 原图：读取批改分',8,18);c.fillText('B 隐藏彩色批改：只核对印刷题号，不读得分',8,ch+caption+18);
         }
       }
-      var encoded=canvas.toDataURL('image/jpeg',.92);
-      if(encoded.length>2800000)encoded=canvas.toDataURL('image/jpeg',.82);
-      if(encoded.length>2800000)throw new Error('图片内容过多，请裁剪成单页后再选');
-      return encoded;
+      return encode(canvas);
     });
     canvas.width=canvas.height=1;return {regions:urls,region_boxes:boxes,region_rows:rowBands,page_frames:pageFrames,region_focus:boxes.map(function(_,i){return i;}).filter(function(i){return i>=baseCount;})};
   }
-  root.ScorePaperScanViews={plan:plan,build:build,rows:rows,frames:frames,focusFrames:focusFrames,printedInk:printedInk};
+  function encode(canvas) {
+    // Keep full resolution whenever possible; dense photos shrink automatically.
+    var qualities=[.92,.86,.80,.74,.68],encoded;
+    for(var q=0;q<qualities.length;q++){encoded=canvas.toDataURL('image/jpeg',qualities[q]);if(encoded.length<=2800000)return encoded;}
+    var copy=document.createElement('canvas');
+    try {
+      while(Math.max(canvas.width,canvas.height)>1024){
+        copy.width=canvas.width;copy.height=canvas.height;copy.getContext('2d').drawImage(canvas,0,0);
+        canvas.width=Math.round(copy.width*.85);canvas.height=Math.round(copy.height*.85);
+        canvas.getContext('2d').drawImage(copy,0,0,canvas.width,canvas.height);
+        encoded=canvas.toDataURL('image/jpeg',.80);if(encoded.length<=2800000)return encoded;
+      }
+      throw new Error('图片处理未完成，请重新选择');
+    } finally {copy.width=copy.height=1;}
+  }
+  root.ScorePaperScanViews={encode:encode,plan:plan,build:build,rows:rows,frames:frames,focusFrames:focusFrames,printedInk:printedInk};
   if(typeof module!=='undefined'&&module.exports)module.exports=root.ScorePaperScanViews;
 })(globalThis);
 
@@ -15405,7 +15417,7 @@ window.ScorePaperEntryOnly = true;
   }
   function prepare(file) {
     if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return Promise.reject(new Error('第一版支持 JPG、PNG、WebP 图片；PDF 请先导出为图片'));
-    if (file.size > 10 * 1024 * 1024) return Promise.reject(new Error('单张图片请控制在 10MB 以内'));
+    if (file.size > 20 * 1024 * 1024) return Promise.reject(new Error('单张图片请控制在 20MB 以内'));
     return new Promise(function (resolve, reject) {
       var url = URL.createObjectURL(file), image = new Image();
       image.onerror = function () { URL.revokeObjectURL(url); reject(new Error('这张图片打不开，请重新选择')); };
@@ -15417,10 +15429,8 @@ window.ScorePaperEntryOnly = true;
           var scale = Math.min(1, 3600 / Math.max(w, h));
           canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale);
           var c = canvas.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, canvas.width, canvas.height); c.drawImage(image, 0, 0, canvas.width, canvas.height);
-          var encoded = canvas.toDataURL('image/jpeg', 0.92);
-          if (encoded.length > 2800000) encoded = canvas.toDataURL('image/jpeg', 0.82);
-          if (encoded.length > 2800000) throw new Error('图片内容过多，请裁剪成单页后再选');
           var views=window.ScorePaperScanViews.build(canvas);
+          var encoded=window.ScorePaperScanViews.encode(canvas);
           resolve({ url: encoded, name: file.name, regions: views.regions, region_boxes:views.region_boxes,region_rows:views.region_rows,page_frames:views.page_frames,region_focus:views.region_focus });
         } catch (e) { reject(e); } finally { URL.revokeObjectURL(url); canvas.width = canvas.height = 1; }
       };
@@ -15706,9 +15716,19 @@ window.ScorePaperEntryOnly = true;
       await api(ctx, 'save_materials', { request_id: id, draft_id: ctx.draftId, exam_id: ctx.examId || null, subject: subject, title: ctx.title || '', options: ctx.options, page_count: session.pages.length, consent: true });
       session.cloudDraftId = id;
       for (var pi = 0; pi < session.pages.length; pi++) {
-        note('正在保存扫描件 ' + (pi + 1) + ' / ' + session.pages.length);
-        try { await api(ctx, 'upload_page', { request_id: id, page: pi + 1, role: session.pages[pi].role, url: session.pages[pi].url, regions: session.pages[pi].regions || [],region_boxes:session.pages[pi].region_boxes,region_rows:session.pages[pi].region_rows,page_frames:session.pages[pi].page_frames,region_focus:session.pages[pi].region_focus }); }
-        catch (e) { e.message = '第 ' + (pi + 1) + ' 张扫描件保存失败：' + e.message; throw e; }
+        var scan=session.pages[pi],regions=scan.regions || [],uploaded=scan.cloud_upload;
+        try {
+          if (!uploaded || uploaded.request_id!==id || uploaded.role!==scan.role || uploaded.page!==pi+1) {
+            note('正在保存第 ' + (pi + 1) + ' / ' + session.pages.length + ' 页原图');
+            var saved=await api(ctx,'upload_page',{request_id:id,page:pi+1,role:scan.role,url:scan.url,separate_views:true,expected_views:regions.length,region_boxes:scan.region_boxes,region_rows:scan.region_rows,page_frames:scan.page_frames,region_focus:scan.region_focus});
+            uploaded=scan.cloud_upload={request_id:id,page:pi+1,role:scan.role,source_path:saved.source_path,views:0};await persist();
+          }
+          for(var vi=uploaded.views;vi<regions.length;vi++){
+            note('正在保存第 ' + (pi + 1) + ' / ' + session.pages.length + ' 页 · 局部图 ' + (vi+1) + ' / ' + regions.length);
+            await api(ctx,'upload_page_view',{request_id:id,page:pi+1,view:vi,source_path:uploaded.source_path,regions:[regions[vi]]});
+            uploaded.views=vi+1;await persist();
+          }
+        } catch (e) { if(e.status===409){delete scan.cloud_upload;await persist();} e.message = '第 ' + (pi + 1) + ' 张扫描件保存失败：' + e.message; throw e; }
       }
       session.cloudReady = true; session.cloudDraftId = id;
     }
@@ -15737,7 +15757,7 @@ window.ScorePaperEntryOnly = true;
       }
       var data = await api(ctx, 'resume', { request_id: r.request_id,
         mode: ctx.host ? 'saved' : matching && session.pages.length ? 'images' : 'saved',
-        pages: !ctx.host && matching ? session.pages.map(function (p) { return { role: p.role, url: p.url, regions: p.regions || [],region_boxes:p.region_boxes,region_rows:p.region_rows,page_frames:p.page_frames,region_focus:p.region_focus }; }) : [],
+        pages: !ctx.host && matching && (!r.recovery || r.recovery.mode!=='saved') ? session.pages.map(function (p) { return { role: p.role, url: p.url, regions: p.regions || [],region_boxes:p.region_boxes,region_rows:p.region_rows,page_frames:p.page_frames,region_focus:p.region_focus }; }) : [],
         work_on_paper: session.workOnPaper, consent: session.consent });
       session.pending = r.request_id; session.resumeTarget = null;
       if (session.pages.length) await persist();
@@ -15755,14 +15775,14 @@ window.ScorePaperEntryOnly = true;
             return '<article class="pr-page"><img src="' + p.url + '" alt="' + esc(roleNames[role] + '第' + (pages.indexOf(p) + 1) + '页') + '"><div class="pr-page-info">第 ' + (i + 1) + ' 页 · ' + esc(p.name) + '</div><div class="pr-page-actions">' + button('前移', 'up:' + i) + button('旋转', 'rotate:' + i) + button('移除', 'remove:' + i) + '</div></article>';
           }).join('') + '</div></section>';
         }).join('') + '<label class="pr-check" hidden><input type="checkbox" id="pr-work" ' + (session.workOnPaper ? 'checked' : '') + '>试卷图片中包含我的作答 / 老师批改</label>' +
-        '<details class="pr-help"><summary>图片要求与计次说明</summary><p>支持 JPG、PNG、WebP，共 1～' + MAX_PAGES + ' 张，每张原图不超过 10MB。拍清题号、文字、步骤和批改痕迹，裁掉姓名、考号等信息。PDF 请先转成图片。</p><p>看不清的部分单独核对，其他内容继续分析。AI 判断与老师批改分分开显示，不会自动填入考试成绩。没有作答也可讲解题目和安排原题尝试，但不评价个人优劣。编辑中的图片会暂存在当前设备7天。提交后扫描件和录入内容保存到当前账号，可跨设备查看和恢复；删除原始试题录入会删除扫描件，已有分析仍保留文字。</p><p>试用次数独立于成绩识图。AI 识别录入与新建 AI 分析各计一次，失败也计次；重复提交同一请求、查看和手动核对不重复计次。北京时间每天 0 点重置。</p></details>' +
+        '<details class="pr-help"><summary>图片要求与计次说明</summary><p>支持 JPG、PNG、WebP，共 1～' + MAX_PAGES + ' 张，每张原图不超过 20MB。拍清题号、文字、步骤和批改痕迹，裁掉姓名、考号等信息。PDF 请先转成图片。</p><p>看不清的部分单独核对，其他内容继续分析。AI 判断与老师批改分分开显示，不会自动填入考试成绩。没有作答也可讲解题目和安排原题尝试，但不评价个人优劣。编辑中的图片会暂存在当前设备7天。提交后扫描件和录入内容保存到当前账号，可跨设备查看和恢复；删除原始试题录入会删除扫描件，已有分析仍保留文字。</p><p>试用次数独立于成绩识图。AI 识别录入与新建 AI 分析各计一次，失败也计次；重复提交同一请求、查看和手动核对不重复计次。北京时间每天 0 点重置。</p></details>' +
         '<label class="pr-check pr-consent"><input type="checkbox" id="pr-consent" ' + (session.consent ? 'checked' : '') + '>同意将这些图片，以及允许调用时的本次与历史考试数值发送给第三方 AI 服务分析，并在账号内保存扫描件与报告</label><div class="pr-footer"><span>' + session.pages.length + ' / ' + MAX_PAGES + ' 张</span>' + button(session.resumeTarget ? '恢复这份分析' : session.pending ? (session.retrySubmission ? '继续确认本次分析' : '查看进行中的分析') : busy ? '处理图片中…' : ctx.options && ctx.options.purpose==='record' ? '开始识别 · 消耗 1 次' : '开始分析 · 消耗 1 次', session.resumeTarget ? 'resume' : 'start', 'pr-primary') + '</div>';
       var referenceGroup=main.querySelector('[data-upload-role=reference]');if(referenceGroup){var extra=document.createElement('details');extra.className='pr-upload-extra';extra.open=session.pages.some(function(p){return p.role==='reference';});extra.innerHTML='<summary>添加参考答案（选填）</summary>';referenceGroup.before(extra);extra.appendChild(referenceGroup);}
       if(entryOnly()){
         main.querySelector('[name=pr_location][value=none]').closest('label').querySelector('small').textContent='识别题目、分值及已有参考答案。';
         main.querySelector('[data-upload-role=paper]>p').textContent='按题目顺序上传。';
         main.querySelector('[data-upload-role=reference]>p').textContent='可上传参考答案或评分细则。';
-        main.querySelector('.pr-help').innerHTML='<summary>图片与识别说明</summary><p>JPG / PNG / WebP，单张不超过 10MB。拍清题号与批改分，裁掉姓名、考号；PDF 请先转图片。</p><p>关联原题与作答截图，读取已有分数；模糊处由你核对。</p>';
+        main.querySelector('.pr-help').innerHTML='<summary>图片与识别说明</summary><p>JPG / PNG / WebP，最多15张，单张原图不超过 20MB；大图会自动处理并逐张保存。拍清题号与批改分，裁掉姓名、考号；PDF 请先转图片。</p><p>关联原题与作答截图，读取已有分数；模糊处由你核对。</p>';
         main.querySelector('.pr-consent').lastChild.textContent='同意将图片发送给 AI 识别，并在账号中保存试题资料';
       }
       if(quota && quota.unit==='credits'){
@@ -15777,7 +15797,7 @@ window.ScorePaperEntryOnly = true;
           var added = [];
           for (var file of files) { var p = await prepare(file); p.role = input.dataset.role; added.push(p); }
           var all = session.pages.concat(added);
-          if (all.reduce(function (n, p) { return n + p.url.length + (p.regions || []).reduce(function (sum, url) { return sum + url.length; }, 0); }, 0) > 12000000) throw new Error('图片总大小较大，请减少页数');
+          // Each source/view is bounded during preparation; the 15-page cap bounds the total.
           session.pages = all; session.cloudReady = false; restoredUploads = false; var saved = await persist(); note(saved ? '图片已保存，可检查方向和页序' : '图片已添加，请保持页面打开直到题目和作答读取完成。');
         } catch (e) { note(e.message, true); } finally { busy = false; if (alive()) upload(); }
       }; });
@@ -15801,7 +15821,7 @@ window.ScorePaperEntryOnly = true;
           if (!session.consent) return note('请先确认扫描件保存说明', true);
           busy = true; draftButton.disabled = true;
           try { if (ctx.beforeSubmit) subject = await ctx.beforeSubmit(); await saveCloud(session.cloudDraftId || crypto.randomUUID()); await persist(); note('草稿已保存，可从试卷列表继续上传'); }
-          catch (e) { note(e.message, true); } finally { busy = false; if (draftButton.isConnected) draftButton.disabled = false; }
+          catch (e) { note(e.message, true); } finally { busy = false; if (alive() && view === 'upload') upload(); }
         };
       }
     }
@@ -15980,7 +16000,7 @@ window.ScorePaperEntryOnly = true;
           await api(ctx, 'delete', { request_id: selected.request_id }); await support.uploads('delete', ctx.user, selected.request_id); if (session.pending === selected.request_id || session.cacheId === selected.request_id) { session.pages = []; session.pending = null; session.payload = null; session.cacheId = null; } selected = null; dirty = false; note('报告已删除'); view = 'history'; if (ctx.host) close(false); else await refresh();
         } else if (action.startsWith('remove:')) { session.pages.splice(Number(action.split(':')[1]), 1); session.cloudReady = false; await persist(); upload(); }
         else if (action.startsWith('up:')) { var i = Number(action.split(':')[1]); if (i > 0) { var p = session.pages.splice(i, 1)[0]; session.pages.splice(i - 1, 0, p); session.cloudReady = false; await persist(); upload(); } }
-        else if (action.startsWith('rotate:')) { busy = true; await rotate(session.pages[Number(action.split(':')[1])]); session.cloudReady = false; await persist(); busy = false; upload(); }
+        else if (action.startsWith('rotate:')) { busy = true; await rotate(session.pages[Number(action.split(':')[1])]); delete session.pages[Number(action.split(':')[1])].cloud_upload; session.cloudReady = false; await persist(); busy = false; upload(); }
       } catch (error) { if (alive()) note(error.message, true); }
       finally { busy = false; if (target.isConnected) target.disabled = false; }
     });

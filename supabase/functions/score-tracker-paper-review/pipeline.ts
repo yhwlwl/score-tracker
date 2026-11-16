@@ -8,6 +8,10 @@ import { inventoryPrompt, normalizeInventory, workPrompt, normalizeWork, scoreTa
 import { gradingTargets, gradingPrompt, mergeGrading, gradingChecks } from './grading.ts';
 import { scanQueue, scanProgress, scanPrompt, scanContent, normalizeScanPage, scanReport, mergeScanPagePasses } from './scan-entry.ts';
 
+import { storedPages } from "./workspace.ts";
+export const SCAN_CONTEXT_VERSION = 2;
+export function needsScanContextUpgrade(state: any) { return state?.flow === "screenshot_record" && (state.scan_context_version || 0) < SCAN_CONTEXT_VERSION; }
+
 const REVIEW_TABLE = "score_tracker_paper_reviews";
 export function progressFor(state: any) {
   if(state.flow==='screenshot_record')return scanProgress(state);
@@ -88,13 +92,14 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
       }
       const pending=state.scan_pending?.page===page.page?state.scan_pending:null;
       const activeView=pending?.remaining?.[0],knownPages=[...state.scan_pages,...(pending?.parts||[])];
-      const scanPage=Number.isInteger(activeView)?{...page,active_view:activeView}:page;
+      const loadedPage = state.material_version === 2 ? (await storedPages(db, user, input.request_id, [page.page])).find((p: any) => p.page === page.page) : page;
+      const scanPage=Number.isInteger(activeView)?{...loadedPage,active_view:activeView}:loadedPage;
       const stage = 'scan_page_' + page.page+(Number.isInteger(activeView)?'_focus_'+activeView:'');
       await audit.mark(stage + '_started');
       // Stored pages are already owner-checked inline images, like score vision.
       const outcome = await reviewModel({ config, billing: { db, user, task: input.billing_task_id, claim: state.claim },
         content: scanContent(input,scanPage,knownPages),
-        requestId: input.request_id, stage, validate: raw => normalizeScanPage(raw, page, input,knownPages), mark: audit.mark });
+        requestId: input.request_id, stage, validate: raw => normalizeScanPage(raw, scanPage, input,knownPages), mark: audit.mark });
       if (!outcome.ok) { await audit.finish('failed', outcome); return; }
       if(pending){pending.parts.push(outcome.result);pending.remaining.shift();}
       else if((page.role==='work'||input.work_on_paper)&&page.region_focus?.length)state.scan_pending={page:page.page,parts:[outcome.result],remaining:[...page.region_focus],total:page.region_focus.length};
@@ -391,7 +396,7 @@ export function checkpointInput(row: any) {
     exam_context: state.exam_context, account_context: state.account_context, source_record: state.source_record, text_recovery: true };
 }
 export function recoveryInfo(row: any) {
-  const state = row.analysis_state || {}, upgradeScan = row.options?.purpose==='record' && state.phase==='extract' && !state.evidence && state.flow!=='screenshot_record', available = !!state.phase && (upgradeScan || row.status === "paused" || (state.resume_count || 0) < 2);
+  const state = row.analysis_state || {}, upgradeScan = row.options?.purpose==='record' && state.phase==='extract' && !state.evidence && state.flow!=='screenshot_record', available = !!state.phase && (upgradeScan || needsScanContextUpgrade(state) || row.status === "paused" || (state.resume_count || 0) < 2);
   return { available, mode: state.flow === "revision" || canRecoverText(state) ? "saved" : "images",
     completed: state.diagnoses?.length || 0, total: state.evidence?.questions?.length || 0,
     questions: (state.evidence?.questions || []).map((q: any) => ({ label: q.label, stem: q.stem, answer: q.answer, teacher_score: q.teacher_score, max_score: q.max_score, pages: q.pages, work_pages: q.work_pages, source_regions: q.source_regions })) };

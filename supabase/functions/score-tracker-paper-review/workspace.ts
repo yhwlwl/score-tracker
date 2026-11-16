@@ -1,4 +1,4 @@
-import { UUID, validateStart, validateImageRegions, text, number, MAX_PAGES, MAX_MATERIAL_BYTES } from './model.ts';
+import { UUID, validateStart, validateImageRegions, validateScanMetadata, text, number, MAX_PAGES, MAX_MATERIAL_BYTES } from './model.ts';
 import { reviewSettings, preferenceSettings, scanRegions } from './options.ts';
 const MATERIALS = 'score_tracker_paper_materials', SCAN_BUCKET = 'score-tracker-paper-scans';
 const materialPaths = (pages: any[]) => pages.flatMap(p => [p.path, ...(p.detail_images || []).map((r: any) => r.path)]);
@@ -16,18 +16,20 @@ export async function materialFor(db: any, user: string, id: string) {
   if (!UUID.test(id || '')) throw new WorkspaceError('分析编号无效');
   return materialQuery(db.from(MATERIALS).select('*').eq('request_id', id).eq('user_id', user).maybeSingle());
 }
-export async function storedPages(db: any, user: string, id: string) {
+export async function storedPages(db: any, user: string, id: string, loadPages?: number[]) {
   const m = await materialFor(db, user, id);
   if (!m?.pages?.length) throw new WorkspaceError('请先添加试卷图片');
-  const download = async (p: any) => {
+  if (m.pages.some((p: any) => p.expected_views != null && p.expected_views !== (p.detail_images || []).length)) throw new WorkspaceError('局部图尚未上传完成，请继续保存扫描件', 409);
+  const download = async (p: any, page: number) => {
+    if (loadPages && !loadPages.includes(page)) return `stored:${p.path}`;
     const { data, error } = await db.storage.from(SCAN_BUCKET).download(p.path);
     if (error || !data) throw new WorkspaceError('扫描件读取未完成，请重试', 503);
     const bytes = new Uint8Array(await data.arrayBuffer()); let binary = '';
     for (let i = 0; i < bytes.length; i += 16384) binary += String.fromCharCode(...bytes.subarray(i, i + 16384));
     return `data:${p.mime};base64,${btoa(binary)}`;
   };
-  return Promise.all(m.pages.map(async (p: any) => ({ role: p.role, page: p.page, url: await download(p), ...(p.page_frames ? {page_frames:p.page_frames} : {}), ...(p.region_focus ? {region_focus:p.region_focus} : {}),
-    ...((p.detail_images || []).length ? { regions: await Promise.all(p.detail_images.map(download)), ...(p.detail_images.every((d: any) => d.box) ? {region_boxes:p.detail_images.map((d: any) => d.box), ...(p.detail_images.every((d: any) => d.rows) ? {region_rows:p.detail_images.map((d: any) => d.rows)} : {})} : {}) } : {}) })));
+  return Promise.all(m.pages.map(async (p: any) => ({ role: p.role, page: p.page, url: await download(p, p.page), ...(p.page_frames ? {page_frames:p.page_frames} : {}), ...(p.region_focus ? {region_focus:p.region_focus} : {}),
+    ...((p.detail_images || []).length ? { regions: await Promise.all(p.detail_images.map((d: any) => download(d, p.page))), ...(p.detail_images.every((d: any) => d.box) ? {region_boxes:p.detail_images.map((d: any) => d.box), ...(p.detail_images.every((d: any) => d.rows) ? {region_rows:p.detail_images.map((d: any) => d.rows)} : {})} : {}) } : {}) })));
 }
 export async function deleteMaterials(db: any, user: string, id: string) {
   const m = await materialFor(db, user, id); if (!m) return;
@@ -57,7 +59,7 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
     const r = await materialQuery(db.from('score_tracker_paper_preferences').select('settings').eq('user_id', user).maybeSingle());
     return { settings: preferenceSettings(r?.settings) };
   }
-  if (!['save_materials','upload_page','save_score_details','sources','save_regions','link','pause','confirm_input','delete_draft'].includes(action)) return undefined;
+  if (!['save_materials','upload_page','upload_page_view','save_score_details','sources','save_regions','link','pause','confirm_input','delete_draft'].includes(action)) return undefined;
   if (!UUID.test(body.request_id || '')) throw new WorkspaceError('分析编号无效');
   const row = await materialQuery(db.from(reviews).select('*').eq('request_id', body.request_id).eq('user_id', user).maybeSingle());
   const m = await materialFor(db, user, body.request_id);
@@ -89,13 +91,17 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
     if (!m || row?.status === 'running') throw new WorkspaceError('请先保存资料信息，或等待分析完成', 409);
     const n = body.page; if (!Number.isInteger(n) || n < 1 || n > MAX_PAGES || n > m.pages.length + 1) throw new WorkspaceError(`请按页序上传，最多${MAX_PAGES}张`);
     // Apply the same byte/signature checks used by analysis without allowing URLs.
-    let p: any; try { p = validateStart({ request_id: body.request_id, draft_id: m.draft_id, subject: m.subject, consent: true, pages: [{ role: 'paper', url: body.url, regions: body.regions, region_boxes:body.region_boxes,region_rows:body.region_rows,page_frames:body.page_frames,region_focus:body.region_focus }] }).pages[0]; } catch (e) { throw new WorkspaceError((e as Error).message); }
+    const separate = body.separate_views === true;
+    let metadata: any;
+    try { if (separate) metadata = validateScanMetadata(body, body.expected_views); } catch (e) { throw new WorkspaceError((e as Error).message); }
+    let p: any; try { p = validateStart({ request_id: body.request_id, draft_id: m.draft_id, subject: m.subject, consent: true, pages: [{ role: 'paper', url: body.url, ...(separate ? {} : {regions: body.regions, region_boxes:body.region_boxes,region_rows:body.region_rows,page_frames:body.page_frames,region_focus:body.region_focus}) }] }).pages[0]; } catch (e) { throw new WorkspaceError((e as Error).message); }
     if (!['paper','work','reference'].includes(body.role)) throw new WorkspaceError('图片类别无效');
     if (row && m.pages[n - 1]) throw new WorkspaceError('已分析的原图保留原样，请追加扫描页', 409);
     const mime = p.url.slice(5, p.url.indexOf(';')), binary = atob(p.url.split(',')[1]), bytes = Uint8Array.from(binary, (c: string) => c.charCodeAt(0));
     const path = `${user}/${body.request_id}/${n}-${crypto.randomUUID()}`;
     const pages = [...m.pages]; const previous = pages[n - 1];
     pages[n - 1] = { page: n, role: body.role, path, mime, bytes: bytes.length, ...(p.page_frames ? {page_frames:p.page_frames} : {}), ...(p.region_focus ? {region_focus:p.region_focus} : {}) };
+    if (separate) Object.assign(pages[n - 1], { expected_views: body.expected_views, view_boxes: metadata.regionBoxes, view_rows: metadata.regionRows, page_frames: metadata.pageFrames, region_focus: metadata.regionFocus });
     const detailImages = (p.regions || []).map((url: string, i: number) => {
       const raw = atob(url.split(',')[1]); return { path: `${path}-detail-${i}`, mime: 'image/jpeg', bytes: raw.length, ...(p.region_boxes ? {box:p.region_boxes[i]} : {}), ...(p.region_rows ? {rows:p.region_rows[i]} : {}), data: Uint8Array.from(raw, (c: string) => c.charCodeAt(0)) };
     });
@@ -112,7 +118,26 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
       if (!saved) throw new WorkspaceError('资料已在另一处更新，请刷新后重试', 409);
     } catch (e) { await db.storage.from(SCAN_BUCKET).remove(materialPaths([pages[n - 1]])); throw e; }
     if (previous) await db.storage.from(SCAN_BUCKET).remove(materialPaths([previous]));
-    return { ok: true, page: n };
+    return { ok: true, page: n, source_path:path };
+  }
+  if (action === 'upload_page_view') {
+    if (!m || row) throw new WorkspaceError('请在开始识别前完成局部图上传', 409);
+    const n = body.page, view = body.view, previous = m.pages.find((p: any) => p.page === n);
+    if (!previous || !Number.isInteger(view) || !Number.isInteger(previous.expected_views) || view < 0 || view >= previous.expected_views || view > (previous.detail_images || []).length || body.source_path !== previous.path) throw new WorkspaceError('扫描页已变化，请重新保存当前页', 409);
+    try { if (!Array.isArray(body.regions) || body.regions.length !== 1) throw new Error('请逐张上传局部图'); validateImageRegions(body.regions); } catch (e) { throw new WorkspaceError((e as Error).message); }
+    const binary = atob(body.regions[0].split(',')[1]), bytes = Uint8Array.from(binary, (c: string) => c.charCodeAt(0));
+    const detail = {path: `${previous.path}-detail-${view}-${crypto.randomUUID()}`, mime: 'image/jpeg', bytes: bytes.length, ...(previous.view_boxes ? {box:previous.view_boxes[view]} : {}), ...(previous.view_rows ? {rows:previous.view_rows[view]} : {})};
+    const details = [...(previous.detail_images || [])], old = details[view]; details[view] = detail;
+    const pages = m.pages.map((p: any) => p.page === n ? {...p,detail_images:details} : p);
+    if (pages.reduce((sum: number, p: any) => sum + p.bytes + (p.detail_images || []).reduce((n: number, r: any) => n + r.bytes, 0), 0) > MAX_MATERIAL_BYTES) throw new WorkspaceError('本份扫描资料超过支持大小');
+    const uploaded = await db.storage.from(SCAN_BUCKET).upload(detail.path, bytes, {contentType:detail.mime,upsert:false});
+    if (uploaded.error) throw new WorkspaceError('局部图上传未完成，请重试', 503);
+    try {
+      const saved = await materialQuery(db.from(MATERIALS).update({pages,revision:m.revision + 1}).eq('request_id',body.request_id).eq('user_id',user).eq('revision',m.revision).select('request_id').maybeSingle());
+      if (!saved) throw new WorkspaceError('扫描页已更新，请重新保存当前页',409);
+    } catch (e) { await db.storage.from(SCAN_BUCKET).remove([detail.path]); throw e; }
+    if (old) await db.storage.from(SCAN_BUCKET).remove([old.path]);
+    return {ok:true,page:n,view};
   }
   if (action === 'save_score_details') {
     if (!row?.result || !m || row.status !== 'succeeded') throw new WorkspaceError('请先完成当前分析', 409);
