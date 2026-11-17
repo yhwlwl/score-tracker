@@ -17,7 +17,7 @@ const tick=()=>new Promise(r=>setTimeout(r,15));
  w.eval(fs.readFileSync('app-bundle.js','utf8')+'\nwindow.state=state;');Object.assign(w.state,{user:{id:uid,username:'fixture'},token:'test-token',page:'stats',analysisTab:'papers'});
  const host=d.createElement('main');d.body.append(host);w.ScorePaperReview.mount({user:uid,token:'test-token',host,sessions:{},draftId:input.draft_id,initialReport:rid,isActive:()=>true,options:{purpose:'record'}},'数学');
  const q=s=>host.querySelector(s),until=async fn=>{for(let i=0;i<150;i++){if(fn())return;await tick();}throw Error(host.textContent.slice(-2000));};
- await until(()=>q('.pb-board'));assert.equal(host.querySelectorAll('.pb-pages button').length,2);assert(q('.pb-ledger'));assert.equal(q('.pb-board [data-pb-field=teacher_score]').value,'0','zero is not blank');
+ await until(()=>q('.pb-board'));assert.equal(host.querySelectorAll('.pb-pages button').length,2);assert(q('.pb-ledger'));assert(q('.pb-pages button').textContent.includes('原题'),'page title never replaces the first thumbnail');assert.equal(q('.pb-board [data-pb-field=teacher_score]').value,'0','zero is not blank');
  q('[data-pb-page="2"]').click();await tick();assert.equal(host.querySelectorAll('.pb-box').length,2,'identical shared answer areas have one outline');
  const shared=Array.from(host.querySelectorAll('[data-pb-select]')).find(b=>b.textContent.includes('2、3'));shared.click();await tick();assert.equal(q('[data-pb-score-label]').textContent,'题型合计');
  const total=q('[data-pb-field=teacher_score]');total.value='8';total.dispatchEvent(new w.Event('input',{bubbles:true}));q('.pb-form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));

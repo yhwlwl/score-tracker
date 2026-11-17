@@ -458,6 +458,7 @@
       message.classList.remove('pr-action-message');
       if(ctx.onRecordChange)ctx.onRecordChange(r);
       if(r.result && r.result.record_only && r.status==='succeeded' && ctx.onRecorded){var recorded=ctx.onRecorded;ctx.onRecorded=null;recorded(r);return;}
+      if(main.paperBoardDispose)main.paperBoardDispose();
       main.paperBoardBeforeSave=null;
       selected = r; view = 'report'; dirty = false; if (ctx.onView) ctx.onView('report');
       if (r.status === 'paused') { var pp=r.progress||{},isEntry=r.options&&r.options.purpose==='record'; main.innerHTML = '<section class="pr-recovery"><h3>' + esc(pp.message || '进度已保存') + '</h3><p>'+(pp.version>=4?'已处理 '+esc(pp.completed_pages)+' / '+esc(pp.total_pages)+' 页，继续时只处理剩余页面。':'本轮已完成的内容已保存。')+'</p>' + button(isEntry?'继续录入':'继续分析', 'resume', 'pr-primary') + button('删除记录', 'delete', 'pr-danger') + '</section>'; if (window.ScorePaperScans) window.ScorePaperScans.decorate(main, r, ctx, { api: api, load: load, note: note, save:save }); return; }
