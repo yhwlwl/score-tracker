@@ -61,6 +61,7 @@
   "paper-review-support.js",
   "paper-scan-views.js",
   "paper-review.js",
+  "paper-review-board.js",
   "paper-review-scans.js",
   "paper-review-hub.js",
   "paper-records.js",

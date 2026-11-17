@@ -177,12 +177,18 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
   }
   if (action === 'save_regions') {
     if (!m) throw new WorkspaceError('请先添加扫描件');
-    const label = text(body.label, 40);
     const questions = row?.result?.questions || row?.analysis_state?.evidence?.questions || [];
-    if (!questions.some((q: any) => q.label === label)) throw new WorkspaceError('题号不存在');
-    const regions = scanRegions(body.regions, m.pages.length);
-    if (!Array.isArray(body.regions) || regions.length !== body.regions.length) throw new WorkspaceError('请在图片范围内框选');
-    const updated = await materialQuery(db.from(MATERIALS).update({ regions: { ...m.regions, [label]: regions }, revision: m.revision + 1 }).eq('request_id', body.request_id).eq('user_id', user).eq('revision', m.revision).select('request_id').maybeSingle());
+    const updates=body.updates??[{label:body.label,regions:body.regions}];
+    if(!Array.isArray(updates)||!updates.length||updates.length>60)throw new WorkspaceError('截图更新格式无效');
+    const next={...m.regions},seen=new Set();
+    for(const update of updates){
+      const label=text(update?.label,40);
+      if(seen.has(label)||!questions.some((q:any)=>q.label===label))throw new WorkspaceError('题号不存在或重复');
+      seen.add(label);const regions=scanRegions(update.regions,m.pages.length);
+      if(!Array.isArray(update.regions)||regions.length!==update.regions.length)throw new WorkspaceError('请在图片范围内框选');
+      next[label]=regions;
+    }
+    const updated = await materialQuery(db.from(MATERIALS).update({ regions: next, revision: m.revision + 1 }).eq('request_id', body.request_id).eq('user_id', user).eq('revision', m.revision).select('request_id').maybeSingle());
     if (!updated) throw new WorkspaceError('扫描区域已更新，请刷新后重试', 409);
     return { ok: true };
   }

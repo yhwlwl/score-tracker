@@ -325,7 +325,8 @@ Deno.serve(async (req: Request) => {
       if (body.revision !== report.revision) throw new Failure("报告已更新，请重新打开后核对", 409);
       let corrections: any;
       try {
-        const incoming = normalizeCorrections(body.corrections, report.result);
+        const inputCorrections=Array.isArray(body.corrections)?body.corrections.map((c:any)=>{const previous=(report.corrections||[]).find((v:any)=>v.id===c.id);return previous?.type_total&&c.type_total===undefined&&c.question_type===previous.question_type?{...c,type_total:previous.type_total}:c;}):body.corrections;
+        const incoming = normalizeCorrections(inputCorrections, report.result);
         corrections = [...(report.corrections || []).filter((c: any) => !incoming.some((v: any) => v.id === c.id)), ...incoming];
       } catch (e) { throw new Failure((e as Error).message); }
       const state = revisionState(report.result, corrections);

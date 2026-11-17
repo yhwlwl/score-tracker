@@ -117,7 +117,7 @@ export function normalizeReport(raw: any, input: any) {
 export function normalizeCorrections(value: any, report: any) {
   if (!Array.isArray(value) || value.length > report.questions.length) throw new Error("核对数据格式无效");
   const seen = new Set();
-  return value.map((c: any) => {
+  const normalized = value.map((c: any) => {
     const q = report.questions.find((q: any) => q.id === c?.id);
     if (!q || seen.has(c.id)) throw new Error("题目编号无效");
     seen.add(c.id);
@@ -125,7 +125,27 @@ export function normalizeCorrections(value: any, report: any) {
     if (c.teacher_score !== null && c.max_score !== null && c.teacher_score > c.max_score) throw new Error("得分不能高于满分");
     if (c.question_type != null && (typeof c.question_type !== 'string' || c.question_type.trim().length > 40)) throw new Error('题型名称最多40字');
     if (c.question_difficulty && !['easy','medium','hard'].includes(c.question_difficulty)) throw new Error('请选择有效的题目难度');
-    return { id: q.id, ...(typeof c.stem === "string" && c.stem.trim() ? { stem: text(c.stem, 4500) } : {}), question_type: text(c.question_type ?? q.question_type, 40), question_difficulty: c.question_difficulty ?? q.question_difficulty ?? '', teacher_score: number(c.teacher_score), max_score: number(c.max_score), answer: text(c.answer, 4000), verified: c.verified === true, corrected: c.corrected === true, reflection: c.reflection && typeof c.reflection === "object" ? { cause: ["time", "idea", "execution", "reading", "expression", "uncertain"].includes(c.reflection.cause) ? c.reflection.cause : "uncertain", note: text(c.reflection.note, 500), source: "student_recollection" } : null };
+    let typeTotal:any;
+    if(c.type_total!=null){
+      const t=c.type_total,g=(report.score_groups||[]).find((g:any)=>g.label===t.label&&Array.isArray(t.questions)&&g.questions.length===t.questions.length&&g.questions.every((l:string)=>t.questions.includes(l))&&g.questions.includes(q.label));
+      if(!g||new Set(t.questions).size!==t.questions.length||t.label!==(c.question_type??q.question_type)||!report.screenshot_only||t.score!==null&&number(t.score)===null||t.max!==null&&(number(t.max)===null||t.max<=0)||t.score!==null&&t.max!==null&&t.score>t.max)throw new Error('题型合计或覆盖题号无效');
+      typeTotal={label:g.label,questions:[...g.questions],score:number(t.score),max:number(t.max)};
+    }
+    return { ...(typeTotal?{type_total:typeTotal}:{}), id: q.id, ...(typeof c.stem === "string" && c.stem.trim() ? { stem: text(c.stem, 4500) } : {}), question_type: text(c.question_type ?? q.question_type, 40), question_difficulty: c.question_difficulty ?? q.question_difficulty ?? '', teacher_score: number(c.teacher_score), max_score: number(c.max_score), answer: text(c.answer, 4000), verified: c.verified === true, corrected: c.corrected === true, reflection: c.reflection && typeof c.reflection === "object" ? { cause: ["time", "idea", "execution", "reading", "expression", "uncertain"].includes(c.reflection.cause) ? c.reflection.cause : "uncertain", note: text(c.reflection.note, 500), source: "student_recollection" } : null };
+  });
+  for(const c of normalized)if(c.type_total){
+    const t=c.type_total;
+    const members=normalized.filter((v:any)=>t.questions.includes(report.questions.find((q:any)=>q.id===v.id)?.label));
+    if(t.score!==null&&members.reduce((n:number,v:any)=>n+(v.teacher_score??0),0)>t.score||t.max!==null&&members.reduce((n:number,v:any)=>n+(v.max_score??0),0)>t.max)throw new Error('题型合计小于已填写的逐题分值');
+    if(!t.questions.every((label:string)=>normalized.some((v:any)=>report.questions.find((q:any)=>q.id===v.id)?.label===label&&JSON.stringify(v.type_total)===JSON.stringify(t))))throw new Error('请一并保存题型合计覆盖的全部题目');
+  }
+  return normalized;
+}
+export function correctedScoreGroups(report:any,corrections:any[]){
+  return (report.score_groups||[]).map((g:any)=>{
+    const candidates=corrections.filter((c:any)=>c.type_total?.label===g.label&&c.type_total.questions.length===g.questions.length&&g.questions.every((l:string)=>c.type_total.questions.includes(l)));
+    if(!g.questions.every((l:string)=>candidates.some((c:any)=>report.questions.find((q:any)=>q.id===c.id)?.label===l&&c.question_type===g.label))||!candidates.length||candidates.some((c:any)=>JSON.stringify(c.type_total)!==JSON.stringify(candidates[0].type_total)))return g;
+    return {...g,teacher_score:candidates[0].type_total.score,max_score:candidates[0].type_total.max,manual:true};
   });
 }
 export function prompt(input: any) {

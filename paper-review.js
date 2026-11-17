@@ -458,8 +458,9 @@
       message.classList.remove('pr-action-message');
       if(ctx.onRecordChange)ctx.onRecordChange(r);
       if(r.result && r.result.record_only && r.status==='succeeded' && ctx.onRecorded){var recorded=ctx.onRecorded;ctx.onRecorded=null;recorded(r);return;}
+      main.paperBoardBeforeSave=null;
       selected = r; view = 'report'; dirty = false; if (ctx.onView) ctx.onView('report');
-      if (r.status === 'paused') { var pp=r.progress||{},isEntry=r.options&&r.options.purpose==='record'; main.innerHTML = '<section class="pr-recovery"><h3>' + esc(pp.message || '进度已保存') + '</h3><p>'+(pp.version>=4?'已处理 '+esc(pp.completed_pages)+' / '+esc(pp.total_pages)+' 页，继续时只处理剩余页面。':'本轮已完成的内容已保存。')+'</p>' + button(isEntry?'继续录入':'继续分析', 'resume', 'pr-primary') + button('删除记录', 'delete', 'pr-danger') + '</section>'; if (window.ScorePaperScans) window.ScorePaperScans.decorate(main, r, ctx, { api: api, load: load, note: note }); return; }
+      if (r.status === 'paused') { var pp=r.progress||{},isEntry=r.options&&r.options.purpose==='record'; main.innerHTML = '<section class="pr-recovery"><h3>' + esc(pp.message || '进度已保存') + '</h3><p>'+(pp.version>=4?'已处理 '+esc(pp.completed_pages)+' / '+esc(pp.total_pages)+' 页，继续时只处理剩余页面。':'本轮已完成的内容已保存。')+'</p>' + button(isEntry?'继续录入':'继续分析', 'resume', 'pr-primary') + button('删除记录', 'delete', 'pr-danger') + '</section>'; if (window.ScorePaperScans) window.ScorePaperScans.decorate(main, r, ctx, { api: api, load: load, note: note, save:save }); return; }
       if (r.status === 'running' && !r.result) {
         main.innerHTML = runningReport(r) + button(r.pause_requested ? '完成当前步骤后暂停' : '暂停并保存进度', 'pause');
         clearTimeout(timer); timer = setTimeout(function () { load(r.request_id); }, 3000); return;
@@ -503,7 +504,7 @@
       });
       if(report.record_only && window.ScorePaperRecords)window.ScorePaperRecords.decorate(main,r,ctx,api,note,{save:save,isDirty:function(){return dirty;}});
       {(report.record_only?['materials']:['performance','insights','plan','materials']).forEach(function(id){var section=main.querySelector('[data-report-section="'+id+'"]');if(!section)return;var fold=document.createElement('details');fold.className='pr-report-extra';var title=section.querySelector('.pr-chapter h3');fold.innerHTML='<summary>'+esc(title?title.textContent:'更多内容')+'</summary>';section.before(fold);fold.appendChild(section);});}
-      losses(stats); support.renderMath(main); if (window.ScorePaperScans) window.ScorePaperScans.decorate(main, r, ctx, { api: api, load: load, note: note });
+      losses(stats); support.renderMath(main); if (window.ScorePaperScans) window.ScorePaperScans.decorate(main, r, ctx, { api: api, load: load, note: note, save:save });
       if (updating) { main.querySelectorAll('input,textarea,select,[data-pr=save],[data-pr=delete]').forEach(function (el) { el.disabled = true; }); clearTimeout(timer); timer = setTimeout(function () { load(r.request_id); }, 3000); }
       if ((report.update_count || 0) >= 5) (main.querySelector('[data-pr-save-status]')||message).textContent = '5次分析更新已用完，可继续保存核对和订正记录';
       main.querySelectorAll('.pr-question input,.pr-question textarea,.pr-question select').forEach(function (el) { el.addEventListener('input', function () { dirty = true; if (el.dataset.field === 'cause') { var detail = el.closest('[data-question]'), q = report.questions.find(function (q) { return q.id === detail.dataset.question; }); detail.querySelector('.pr-reflection-route').textContent = reflectionRoute(q, el.value); } (main.querySelector('[data-pr-save-status]')||message).textContent = '有未保存的核对修改'; }); });
@@ -562,6 +563,7 @@
     }
     async function save() {
       if(saving)return null;
+      if(main.paperBoardBeforeSave)await main.paperBoardBeforeSave();
       if(!dirty){note('试题已保存');return selected;}
       var corrections = [];
       for (var detail of main.querySelectorAll('[data-question]')) {
@@ -569,8 +571,9 @@
         for (var field of ['teacher_score', 'max_score']) { if (!get(field).validity.valid) { detail.open = true; get(field).focus(); throw new Error('分数请输入 0～9999，最多两位小数'); } }
         var score = number(get('teacher_score').value), max = number(get('max_score').value);
         if (score !== null && max !== null && score > max) { detail.open = true; get('teacher_score').focus(); throw new Error('得分不能高于本小题满分'); }
-        corrections.push({ id: detail.dataset.question, stem: get('stem').value, answer: get('answer').value, question_type:get('question_type')?get('question_type').value:undefined, question_difficulty:get('question_difficulty')?get('question_difficulty').value:undefined, teacher_score: score, max_score: max, verified: get('verified').checked, corrected: get('corrected').checked, reflection: get('cause') ? { cause: get('cause').value, note: get('reflection_note').value } : null });
+        corrections.push({ type_total:detail.dataset.groupTotal?JSON.parse(detail.dataset.groupTotal):((selected.corrections||[]).find(function(c){return c.id===detail.dataset.question;})||{}).type_total, id: detail.dataset.question, stem: get('stem').value, answer: get('answer').value, question_type:get('question_type')?get('question_type').value:undefined, question_difficulty:get('question_difficulty')?get('question_difficulty').value:undefined, teacher_score: score, max_score: max, verified: get('verified').checked, corrected: get('corrected').checked, reflection: get('cause') ? { cause: get('cause').value, note: get('reflection_note').value } : null });
       }
+      corrections.forEach(function(c){if(!c.type_total)return;var group=c.type_total;if(!group.questions.every(function(label){var q=selected.result.questions.find(function(q){return q.label===label;});return corrections.some(function(v){return v.id===q?.id&&v.question_type===group.label;});}))corrections.forEach(function(v){if(v.type_total&&v.type_total.label===group.label&&v.type_total.questions.length===group.questions.length&&group.questions.every(function(l){return v.type_total.questions.includes(l);}))v.type_total=null;});});
       saving=true;
       var controls=Array.from(main.querySelectorAll('input,textarea,select,button'));controls.forEach(function(el){el.dataset.wasDisabled=String(el.disabled);el.disabled=true;});
       try{

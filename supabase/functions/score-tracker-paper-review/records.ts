@@ -1,5 +1,5 @@
 import '../_shared/question-types.js';
-import { UUID, text } from './model.ts';
+import { UUID, text, correctedScoreGroups } from './model.ts';
 import { reviewSettings } from './options.ts';
 import { revisionInput, revisionState } from './pipeline.ts';
 import { WorkspaceError } from './workspace.ts';
@@ -37,10 +37,10 @@ export function recordTypeRows(row: any) {
   const rows = [...groups].map(([name, qs]) => {
     const total = (key: string) => qs.every(q => typeof q[key] === 'number') ? Math.round(qs.reduce((n, q) => n + q[key], 0) * 100) / 100 : null;
     const difficulty = qs[0].difficulty;
-    const group = (row.result.score_groups||[]).find((g: any) => g.label===name && g.questions.length===qs.length && qs.every(q => q.verified&&g.questions.includes(q.label)));
+    const group = correctedScoreGroups(row.result,row.corrections||[]).find((g: any) => g.label===name && g.questions.length===qs.length && qs.every(q => q.verified&&g.questions.includes(q.label)));
     const value = (key: string, groupKey: string) => {
       const sum = total(key), fallback = group?.[groupKey];
-      if (sum !== null) return sum;
+      if (sum !== null && !group?.manual) return sum;
       const partial = qs.reduce((n, q) => n + (q[key] ?? 0), 0);
       return typeof fallback === 'number' && partial <= fallback + 0.000001 ? fallback : null;
     };
