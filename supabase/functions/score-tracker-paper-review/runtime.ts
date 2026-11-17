@@ -12,7 +12,7 @@ export function reviewOptions(model: string, host: string, effort = "high") {
 
 // Screenshot entry shares score vision controls; analysis keeps its own reasoning budget.
 export async function reviewModel(options: { config: any; content: any[]; requestId: string; stage: string; billing: {db:any;user:string;task:string;claim:string}; effort?: "low" | "high"; repairOutput?: string; validate: (raw: any) => any; mark: (phase: string, extra?: any) => any }) {
-  const { config } = options, started = Date.now(), scoreOnly = /^(?:read_scores|scan_page)(?:_|$)/.test(options.stage);
+  const { config } = options, started = Date.now(), scoreOnly = /^(?:read_scores|scan_page|scan_score_recovery)(?:_|$)/.test(options.stage);
   const budget = Math.min(scoreOnly?UPSTREAM_BUDGET_MS:STAGE_BUDGET_MS, typeof config.stage_deadline === "number" ? config.stage_deadline - started - 5000 : STAGE_BUDGET_MS);
   if (budget < 15000) return { ok: false, code: "worker_deadline", stage: options.stage };
   const clean = (v: unknown, max = 1200) => safeMessage(String(v ?? "").split(config.api_key).join("[hidden]"), max);

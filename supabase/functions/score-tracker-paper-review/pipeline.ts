@@ -6,7 +6,7 @@ import { analysisQueue, fullCredit, answerCorrect, needsConfirmation } from "./l
 import { reviewModel, imageContent } from "./runtime.ts";
 import { inventoryPrompt, normalizeInventory, workPrompt, normalizeWork, scoreTargets, scoreReadViews, scoreViewContent, scoreReadingPrompt, mergeScoreReading } from "./reading.ts";
 import { gradingTargets, gradingPrompt, mergeGrading, gradingChecks } from './grading.ts';
-import { scanQueue, scanProgress, scanPrompt, scanContent, normalizeScanPage, scanReport, mergeScanPagePasses } from './scan-entry.ts';
+import { scanQueue, scanProgress, scanPrompt, scanContent, normalizeScanPage, scanReport, mergeScanPagePasses, scanScoreTargets, scanScoreContent, normalizeScanScores, mergeScanScores } from './scan-entry.ts';
 
 import { storedPages } from "./workspace.ts";
 export const SCAN_CONTEXT_VERSION = 2;
@@ -85,6 +85,28 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
       state.scan_pages ||= [];
       const page = scanQueue(input).find((p: any) => !state.scan_pages.some((d: any) => d.page === p.page));
       if (!page) {
+        state.scan_score_queue ??= state.scan_pages.filter((p:any)=>scanScoreTargets(p,input).length).map((p:any)=>({page:p.page,round:0}));
+        const pending=state.scan_score_queue[0];
+        if(pending){
+          const index=state.scan_pages.findIndex((p:any)=>p.page===pending.page),base=state.scan_pages[index],targets=scanScoreTargets(base,input);
+          if(targets.length){
+            const loaded=state.material_version===2?(await storedPages(db,user,input.request_id,[pending.page])).find((p:any)=>p.page===pending.page):input.pages.find((p:any)=>p.page===pending.page);
+            const stage='scan_score_recovery_'+pending.page+'_'+pending.round;
+            state.scan_score_pending={page:pending.page,round:pending.round,labels:targets.map((q:any)=>q.label)};
+            await readDatabase(()=>db.from(REVIEW_TABLE).update({analysis_state:state,progress:scanProgress(state)}).eq('request_id',input.request_id).eq('user_id',user).eq('status','running').eq('analysis_state->>claim',state.claim));
+            await audit.mark(stage+'_started');
+            let recovery:any;
+            try{recovery=await reviewModel({config,billing:{db,user,task:input.billing_task_id,claim:state.claim},content:scanScoreContent(input,loaded,targets,pending.round),requestId:input.request_id,stage,validate:raw=>normalizeScanScores(raw,loaded,input,state.scan_pages,targets),mark:audit.mark});}
+            catch(_){recovery={ok:false};}
+            state.scan_pages[index]=mergeScanScores(base,recovery.ok?recovery.result:[],targets,pending.round,!recovery.ok);
+            await audit.mark(stage+(recovery.ok?'_completed':'_kept_original'));
+          }
+          if(pending.round===0&&scanScoreTargets(state.scan_pages[index],input).length)pending.round=1;else state.scan_score_queue.shift();
+          delete state.scan_score_pending;
+          state.claim=crypto.randomUUID();state.active_ms=(state.active_ms||0)+Date.now()-stageStarted;
+          const saved=await readDatabase(()=>db.from(REVIEW_TABLE).update({analysis_state:state,progress:scanProgress(state)}).eq('request_id',input.request_id).eq('user_id',user).eq('status','running').select('request_id').maybeSingle());
+          if(saved.error)throw saved.error;if(saved.data)await dispatch(state.claim);return;
+        }
         const result = scanReport(state.scan_pages, input);
         await audit.finish('succeeded', { ok: true, result });
         await readDatabase(() => db.from(REVIEW_TABLE).update({ analysis_state: {}, progress: { ...scanProgress(state), phase: 'completed', completed_steps: 3, message: '截图与分数已整理，等待核对' } }).eq('request_id', input.request_id).eq('user_id', user).eq('status', 'succeeded'));
