@@ -1,6 +1,7 @@
 const UPSTREAM_ROOT = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/';
-// Cloudflare's build enables this only for the paper-entry preview branch.
-const CREDITS_PREVIEW_BUILD = false; // cloudflare-preview-routing
+// This fixed Pages branch alias serves the paper-entry preview. Other hosts,
+// including production and other preview branches, keep their own routes.
+const CREDITS_PREVIEW_HOST = 'feat-paper-entry-analysis-fl.score-tracker-d83.pages.dev';
 const CREDITS_PREVIEW_ENDPOINTS = Object.freeze({
   'score-tracker-data-api': 'score-tracker-data-api-credits-preview',
   'score-tracker-vision-preview': 'score-tracker-vision-credits-preview',
@@ -124,7 +125,7 @@ export async function proxyApi(request, options = {}) {
 
   try {
     // Buffer neither images nor credentials; forward the existing request body unchanged.
-    const upstreamEndpoint = CREDITS_PREVIEW_BUILD && Object.hasOwn(CREDITS_PREVIEW_ENDPOINTS, endpoint)
+    const upstreamEndpoint = url.hostname.toLowerCase() === CREDITS_PREVIEW_HOST && Object.hasOwn(CREDITS_PREVIEW_ENDPOINTS, endpoint)
       ? CREDITS_PREVIEW_ENDPOINTS[endpoint] : endpoint;
     const upstream = await (options.fetch || fetch)(UPSTREAM_ROOT + upstreamEndpoint, {
       method: 'POST', headers: upstreamHeaders, body: request.body,

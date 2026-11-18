@@ -21,14 +21,11 @@ async function run() {
   const logs = [], warn = console.warn;
   console.warn = (...args) => logs.push(args.join(' '));
   try {
-    const proxySource = fs.readFileSync(path.join(root, 'server/same-origin-api.js'), 'utf8');
-    const configurePreviewRouting = require('../tools/cf-preview-routing.cjs');
-    for (const branch of ['feat/paper-entry-analysis-flow', 'main', 'feat/unrelated']) {
-      const builtSource = configurePreviewRouting(proxySource, branch);
-      const built = await import('data:text/javascript;base64,' + Buffer.from(builtSource).toString('base64'));
+    for (const hostname of ['feat-paper-entry-analysis-fl.score-tracker-d83.pages.dev', 'score-tracker-d83.pages.dev', 'other-preview.score-tracker-d83.pages.dev', 'feat-paper-entry-analysis-fl.score-tracker-d83.pages.dev.attacker.test']) {
       for (const endpoint of ['score-tracker-data-api', 'score-tracker-paper-review', 'score-tracker-vision-preview', 'score-tracker-setup']) {
-        const response = await built.proxyApi(post(endpoint), { fetch: async url => {
-          const expected = branch === 'feat/paper-entry-analysis-flow' && endpoint !== 'score-tracker-setup'
+        const request = new Request('https://' + hostname + '/api/' + endpoint, {method:'POST',headers:{'content-type':'application/json'},body:privateBody});
+        const response = await proxyApi(request, { fetch: async url => {
+          const expected = hostname === 'feat-paper-entry-analysis-fl.score-tracker-d83.pages.dev' && endpoint !== 'score-tracker-setup'
             ? endpoint.replace('score-tracker-data-api', 'score-tracker-data-api-credits-preview')
               .replace('score-tracker-paper-review', 'score-tracker-paper-credits-preview')
               .replace('score-tracker-vision-preview', 'score-tracker-vision-credits-preview')
@@ -39,23 +36,7 @@ async function run() {
         assert.equal(response.status, 200);
       }
     }
-    assert.throws(() => configurePreviewRouting('', 'feat/paper-entry-analysis-flow'), /marker/);
-    const os = require('node:os');
-    const buildFixture = fs.mkdtempSync(path.join(os.tmpdir(), 'score-tracker-cf-build-'));
-    try {
-      const output = path.join(buildFixture, 'deploy');
-      fs.mkdirSync(path.join(buildFixture, 'server'), { recursive: true });
-      fs.mkdirSync(path.join(output, 'server'), { recursive: true });
-      const rootProxy = path.join(buildFixture, 'server/same-origin-api.js');
-      fs.writeFileSync(rootProxy, proxySource);
-      configurePreviewRouting.writeBuildProxy(buildFixture, output, 'feat/paper-entry-analysis-flow', true);
-      assert.match(fs.readFileSync(rootProxy, 'utf8'), /const CREDITS_PREVIEW_BUILD = true;/, 'Pages compiles the root Functions dependency');
-      assert.match(fs.readFileSync(path.join(output, 'server/same-origin-api.js'), 'utf8'), /const CREDITS_PREVIEW_BUILD = true;/);
-      fs.writeFileSync(rootProxy, proxySource);
-      configurePreviewRouting.writeBuildProxy(buildFixture, output, 'main', true);
-      assert.match(fs.readFileSync(rootProxy, 'utf8'), /const CREDITS_PREVIEW_BUILD = false;/, 'production remains on the production APIs');
-    } finally { fs.rmSync(buildFixture, { recursive: true, force: true }); }
-    console.log('PASS: Cloudflare branch build selects the isolated credits APIs; production and other branches keep their existing APIs');
+    console.log('PASS: the exact Cloudflare branch alias uses the isolated credits APIs; production, other branches and lookalike hosts do not');
     for (const endpoint of API_ENDPOINTS) {
       let calls = 0;
       const response = await proxyApi(post(endpoint), { fetch: async (url, init) => {
