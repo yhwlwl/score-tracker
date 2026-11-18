@@ -16,7 +16,9 @@
     } catch (error) { renderLogin(error.message); }
     finally { state.setupRegisterBusy = false; }
   };
-  showOnboarding = function () { window.ScoreSetupGuide?.open({credentials:state.onboarding?.password ? state.onboarding : null}); };
+  // app-bundle still calls this legacy hook from render(). The unified guide's
+  // render hook owns opening now, after it atomically claims the one-time slot.
+  showOnboarding = function () {};
   const register = startRegister;
   if (document.readyState !== 'complete') window.addEventListener('DOMContentLoaded', function () { window.startRegister = register; }, {once:true});
 })();
