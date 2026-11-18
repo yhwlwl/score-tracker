@@ -98,13 +98,25 @@ function useRecordedText(state: any) {
   state.source_images = false; state.text_recovery = true;
   if (state.phase === 'grade') { delete state.grading_views; state.grading_view = 0; state.grading_uses_images = false; }
 }
-async function dispatchStage(input: any, claim: string) {
+function continuationUrl(requestUrl: string) {
+  // Supabase retains the function name in req.url, with or without its gateway
+  // prefix. Keep preview checkpoints on the preview's matching code version.
+  const path = new URL(requestUrl).pathname;
+  const route = path.match(/^\/(?:functions\/v1\/)?(score-tracker-paper-(?:review|credits-preview))\/?$/);
+  if (!route) throw new Error("continuation_route_unknown");
+  // Only the path selects a known function. The privileged host always comes
+  // from server configuration, never request headers, payloads or URL origin.
+  return new URL("/functions/v1/" + route[1], Deno.env.get("SUPABASE_URL")).href;
+}
+async function dispatchStage(input: any, claim: string, requestUrl: string) {
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 12000);
   try {
-    const response = await fetch(Deno.env.get("SUPABASE_URL") + "/functions/v1/score-tracker-paper-review", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") },
+    const response = await fetch(continuationUrl(requestUrl), { method: "POST", redirect: "error", headers: { "Content-Type": "application/json", Authorization: "Bearer " + Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") },
       body: JSON.stringify({ action: "continue", request_id: input.request_id, claim, ...(input.saved_materials ? { use_saved: true } : { pages: input.pages }), work_on_paper: input.work_on_paper, options: input.options }), signal: controller.signal });
     if (!response.ok) throw new Error("continuation_http_" + response.status);
     await response.body?.cancel();
+  } catch (error) {
+    throw Object.assign(new Error((error as Error).message), { code: "continuation_failed" });
   } finally { clearTimeout(timer); }
 }
 
@@ -139,7 +151,7 @@ Deno.serve(async (req: Request) => {
       if (scope !== undefined) input.exam_id = scope;
       if (!["revision", "score_refresh", "record_analysis"].includes(row.analysis_state.flow) && !input.text_recovery && await fingerprintFor(input) !== row.fingerprint) throw new Failure("分析资料与原请求不一致", 409);
       const config = await configForReview(startedAt, input.options?.purpose === "record");
-      background(runReviewStage(db, input, row.user_id, config, row, body.claim, claim => dispatchStage(input, claim)));
+      background(runReviewStage(db, input, row.user_id, config, row, body.claim, claim => dispatchStage(input, claim, req.url)));
       return out({ accepted: true }, 202);
     }
     action = ["start", "analyze_record", "preview_types", "sync_types", "resume", "retry_scores", "get", "list", "attach", "correct", "delete", "quota", "list_all", "preferences", "save_materials", "upload_page", "upload_page_view", "save_score_details", "sources", "save_regions", "link", "pause", "confirm_input", "delete_draft"].includes(body.action) ? body.action : "unknown";
@@ -177,7 +189,7 @@ Deno.serve(async (req: Request) => {
       if (reserved.created) {
         const row = await query(() => db.from(TABLE).update({ analysis_state: state, progress: progressFor(state), options: input.options, title: text(body.title, 100) || (source.title || source.subject) + ' · AI 分析' })
           .eq('request_id', input.request_id).eq('user_id', user).eq('status', 'running').select('*').single());
-        const task = background(runReviewStage(db, input, user, config, row, state.claim, claim => dispatchStage(input, claim)));
+        const task = background(runReviewStage(db, input, user, config, row, state.claim, claim => dispatchStage(input, claim, req.url)));
         if (typeof EdgeRuntime === 'undefined') await task;
       }
       console.log('paper_record_analysis', JSON.stringify({ request_id: input.request_id, created: reserved.created, source_revision: source.revision }));
@@ -230,7 +242,7 @@ Deno.serve(async (req: Request) => {
       if (state.phase === "extract" && !state.evidence && state.flow !== 'screenshot_record') { state.flow = "split_reading"; state.has_work = input.work_on_paper || input.pages.some((p: any) => p.role === "work"); }
       if (!state.verification_done && state.evidence && (input.work_on_paper || input.pages.some((p: any) => p.role === "work"))) state.phase = "verify";
       const resumed = await query(() => db.from(TABLE).update({ status: "running", pause_requested: false, completed_at: null, error_code: null, error_stage: null, error_detail: null, error_message: null, analysis_state: state, progress: progressFor(state) }).eq("request_id", row.request_id).eq("user_id", user).eq("status", row.status).eq("analysis_state->>claim", oldClaim).select("*").maybeSingle());
-      if (resumed) background(runReviewStage(db, input, user, config, resumed, state.claim, claim => dispatchStage(input, claim)));
+      if (resumed) background(runReviewStage(db, input, user, config, resumed, state.claim, claim => dispatchStage(input, claim, req.url)));
       else if(newBilling)await finishAiTask(db,user,state.billing_task_id,false);
       unstartedBilling=null;
       return out({ request_id: row.request_id }, 202);
@@ -250,7 +262,7 @@ Deno.serve(async (req: Request) => {
       const updated = await query(() => db.from(TABLE).update({ status: "running", analysis_state: state, progress: progressFor(state),
         pause_requested: false, error_message: null, error_code: null, error_stage: null, completed_at: null, revision: row.revision + 1 })
         .eq("request_id", row.request_id).eq("user_id", user).eq("status", "succeeded").eq("revision", row.revision).select("*").maybeSingle());
-      if (updated) background(runReviewStage(db, input, user, config, updated, state.claim, claim => dispatchStage(input, claim)));
+      if (updated) background(runReviewStage(db, input, user, config, updated, state.claim, claim => dispatchStage(input, claim, req.url)));
       return out({ request_id: row.request_id }, 202);
     }
     if (body.action === "start") {
@@ -288,7 +300,7 @@ Deno.serve(async (req: Request) => {
         const state = { billing_task_id:input.request_id,...initialState(input.work_on_paper || input.pages.some((p: any) => p.role === "work")), flow: 'screenshot_record', scan_context_version: SCAN_CONTEXT_VERSION, ...(body.use_saved === true ? {material_version:2} : {}), scan_pages: [], original_exam_id: input.exam_id, exam_context: input.exam_context, account_context: input.account_context, options: input.options, source_input: { work_on_paper: input.work_on_paper, pages: input.pages.map((p: any) => ({ page: p.page, role: p.role })) } };
         const row = await query(() => db.from(TABLE).update({ analysis_state: state, progress: progressFor(state), options: input.options, title: text(body.title, 100) }).eq("request_id", input.request_id).eq("user_id", user).eq("status", "running").select("*").single());
         if (body.use_saved) await query(() => db.from("score_tracker_paper_materials").update({ submitted: true }).eq("request_id", input.request_id).eq("user_id", user));
-        const task = background(runReviewStage(db, input, user, config, row, state.claim, claim => dispatchStage(input, claim)));
+        const task = background(runReviewStage(db, input, user, config, row, state.claim, claim => dispatchStage(input, claim, req.url)));
         unstartedBilling=null;
         if (typeof EdgeRuntime === "undefined") await task;
       }
@@ -348,7 +360,7 @@ Deno.serve(async (req: Request) => {
       if (!changed) throw new Failure("报告已更新，请重新打开后核对", 409);
       if (reanalyse) {
         const input = revisionInput(changed);
-        background(runReviewStage(db, input, user, config, changed, state.claim, claim => dispatchStage(input, claim)));
+        background(runReviewStage(db, input, user, config, changed, state.claim, claim => dispatchStage(input, claim, req.url)));
       }
       return out({ review: Object.fromEntries(PUBLIC_FIELDS.split(",").filter(k => k in changed).map(k => [k, changed[k]])) }, reanalyse ? 202 : 200);
     }

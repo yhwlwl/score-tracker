@@ -339,7 +339,7 @@ export async function runReviewStage(db: any, input: any, user: string, config: 
     const current = await readDatabase(() => db.from(REVIEW_TABLE).select("analysis_state,status").eq("request_id", input.request_id).eq("user_id", user).maybeSingle());
     // A missing acknowledgement must not mark an already-started successor failed.
     if (current.data?.status !== "running" || current.data?.analysis_state?.claim !== (ownsClaim ? state.claim : expectedClaim)) return;
-    try { await audit.finish("failed", { code: original.phase === "synthesize" && outcome?.ok ? "result_save_failed" : "paper_handler_error", stage: original.phase === "synthesize" && outcome?.ok ? "result_save" : "pipeline_" + original.phase, detail: (e as Error).message, raw_output: outcome?.raw_output }); }
+    try { await audit.finish("failed", { code: (e as any)?.code === "continuation_failed" ? "continuation_failed" : original.phase === "synthesize" && outcome?.ok ? "result_save_failed" : "paper_handler_error", stage: original.phase === "synthesize" && outcome?.ok ? "result_save" : "pipeline_" + original.phase, detail: (e as Error).message, raw_output: outcome?.raw_output }); }
     catch (_) { /* audit.finish already emitted a structured write failure. */ }
   }
 }

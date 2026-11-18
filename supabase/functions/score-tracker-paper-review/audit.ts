@@ -24,6 +24,7 @@ export function paperFailure(code: string, status = 0) {
     no_usable_fields: "未能识别到有效题目或作答，请核对上传资料后重试",
     result_save_failed: "分析结果已生成，但报告保存失败，请稍后查看或重试",
     analysis_incomplete: "后台任务未能在预期时间内完成，可能发生超时或中断，请重试",
+    continuation_failed: "本轮处理已中断，进度已保存，可点击继续",
     paper_handler_error: "试卷分析后台发生异常，请稍后重试",
   };
   return messages[code] || (code === "upstream_error" ? `AI 服务返回错误${status ? `（HTTP ${status}）` : ""}，请稍后重试` : messages.paper_handler_error);
