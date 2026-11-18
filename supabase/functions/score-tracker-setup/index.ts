@@ -62,6 +62,26 @@ Deno.serve(async req => {
       return reply({ schools: rows.slice(0, 30).map((s: any) => [s.name, s.province, s.city, s.area]), has_more: rows.length > 30 });
     }
     if (body.action === "get") return reply({ profile: await profile(user.id) });
+    if (body.action === "guide_claim") {
+      // Claim the display once per account. The compare-and-set update makes
+      // simultaneous tabs deterministic: only one of them may open the guide.
+      // Version 1 means shown; version 2 is written after the final step.
+      const seed = await db.from("score_tracker_setup_profiles").upsert({
+        user_id: user.id,
+        step: 6,
+        completed_at: new Date().toISOString(),
+        preference_guide_version: 0,
+      }, { onConflict: "user_id", ignoreDuplicates: true });
+      if (seed.error) throw seed.error;
+      const claimed = await db.from("score_tracker_setup_profiles")
+        .update({ preference_guide_version: 1, updated_at: new Date().toISOString() })
+        .eq("user_id", user.id)
+        .eq("preference_guide_version", 0)
+        .select(columns)
+        .maybeSingle();
+      if (claimed.error) throw claimed.error;
+      return reply({ claimed: !!claimed.data, profile: claimed.data || await profile(user.id) });
+    }
     if (body.action === "school_prompt_claim") {
       const r = await db.rpc("score_tracker_claim_school_prompt", { p_user_id: user.id });
       if (r.error) throw r.error;

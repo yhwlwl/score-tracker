@@ -9,9 +9,9 @@
       state.token = data.token; state.user = data.user; state.page = 'home';
       localStorage.setItem('st_token', data.token); localStorage.setItem('st_known_user', '1');
       state.onboarding = {username:data.user.username, password:data.password};
-      const credentials=state.onboarding;
-      // Show the one-time credentials even if an unrelated dashboard fails.
-      window.ScoreSetupGuide.open({credentials});
+      // Let the unified guide claim its one-time display before opening. This
+      // prevents a registration render and the guide's own render from racing
+      // into two prompts.
       try { render(); } catch (_) {}
     } catch (error) { renderLogin(error.message); }
     finally { state.setupRegisterBusy = false; }

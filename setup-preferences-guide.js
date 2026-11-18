@@ -252,9 +252,14 @@
     if(key!==lastOwner){lastOwner=key;attempted='';if(active&&active.key!==key)active.close(true);}
     if(!key){state.setupGuideLoading=false;return;}
     if(active||attempted===key||loadingOwner===key)return;
-    if(state.onboarding?.password){open({credentials:state.onboarding});return;}
     state.setupGuideLoading=true;loadingOwner=key;
-    try{const d=await setup('get',{},state.token);if(identity()!==key)return;state.setupProfile=d.profile;attempted=key;if(Number(d.profile?.preference_guide_version||0)<VERSION)open({profile:d.profile});}
+    try{
+      const credentials=state.onboarding?.password?clone(state.onboarding):null;
+      const d=await setup('guide_claim',{},state.token);
+      if(identity()!==key)return;
+      state.setupProfile=d.profile;attempted=key;
+      if(d.claimed)open({profile:d.profile,credentials});
+    }
     catch(_){/* Next render retries; an unseen guide is never marked complete. */}
     finally{if(identity()===key){loadingOwner='';if(!active)state.setupGuideLoading=false;}}
   }
