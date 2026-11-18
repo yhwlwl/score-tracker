@@ -21,6 +21,26 @@ async function run() {
   const logs = [], warn = console.warn;
   console.warn = (...args) => logs.push(args.join(' '));
   try {
+    const proxySource = fs.readFileSync(path.join(root, 'server/same-origin-api.js'), 'utf8');
+    const configurePreviewRouting = require('../tools/cf-preview-routing.cjs');
+    for (const branch of ['feat/paper-entry-analysis-flow', 'main', 'feat/unrelated']) {
+      const builtSource = configurePreviewRouting(proxySource, branch);
+      const built = await import('data:text/javascript;base64,' + Buffer.from(builtSource).toString('base64'));
+      for (const endpoint of ['score-tracker-data-api', 'score-tracker-paper-review', 'score-tracker-vision-preview', 'score-tracker-setup']) {
+        const response = await built.proxyApi(post(endpoint), { fetch: async url => {
+          const expected = branch === 'feat/paper-entry-analysis-flow' && endpoint !== 'score-tracker-setup'
+            ? endpoint.replace('score-tracker-data-api', 'score-tracker-data-api-credits-preview')
+              .replace('score-tracker-paper-review', 'score-tracker-paper-credits-preview')
+              .replace('score-tracker-vision-preview', 'score-tracker-vision-credits-preview')
+            : endpoint;
+          assert.equal(url, 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/' + expected);
+          return new Response('{}');
+        }});
+        assert.equal(response.status, 200);
+      }
+    }
+    assert.throws(() => configurePreviewRouting('', 'feat/paper-entry-analysis-flow'), /marker/);
+    console.log('PASS: Cloudflare branch build selects the isolated credits APIs; production and other branches keep their existing APIs');
     for (const endpoint of API_ENDPOINTS) {
       let calls = 0;
       const response = await proxyApi(post(endpoint), { fetch: async (url, init) => {

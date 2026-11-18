@@ -68,7 +68,9 @@ fs.copyFileSync(path.join(ROOT, "api/mg-ui.js"), path.join(OUT, "api/mg-ui.js"))
 fs.mkdirSync(path.join(OUT, "functions/api"), { recursive: true });
 fs.mkdirSync(path.join(OUT, "server"), { recursive: true });
 fs.copyFileSync(path.join(ROOT, "functions/api/[endpoint].js"), path.join(OUT, "functions/api/[endpoint].js"));
-fs.copyFileSync(path.join(ROOT, "server/same-origin-api.js"), path.join(OUT, "server/same-origin-api.js"));
+const configurePreviewRouting = require('./cf-preview-routing.cjs');
+const proxySource = fs.readFileSync(path.join(ROOT, "server/same-origin-api.js"), 'utf8');
+fs.writeFileSync(path.join(OUT, "server/same-origin-api.js"), configurePreviewRouting(proxySource, process.env.CF_PAGES_BRANCH));
 fs.writeFileSync(path.join(OUT, "_routes.json"), JSON.stringify({
   version: 1, include: ["/api/*", "/mg", "/mg/*"], exclude: [],
 }, null, 2) + "\n");

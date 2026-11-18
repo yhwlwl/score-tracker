@@ -15718,7 +15718,9 @@ window.ScorePaperEntryOnly = true;
       for (var pi = 0; pi < session.pages.length; pi++) {
         var scan=session.pages[pi],regions=scan.regions || [],uploaded=scan.cloud_upload;
         try {
-          if (!uploaded || uploaded.request_id!==id || uploaded.role!==scan.role || uploaded.page!==pi+1) {
+          // Older backends could accept the page without returning its source
+          // path. Re-upload that incomplete checkpoint before saving details.
+          if (!uploaded || typeof uploaded.source_path!=='string' || !uploaded.source_path || uploaded.request_id!==id || uploaded.role!==scan.role || uploaded.page!==pi+1) {
             note('正在保存第 ' + (pi + 1) + ' / ' + session.pages.length + ' 页原图');
             var saved=await api(ctx,'upload_page',{request_id:id,page:pi+1,role:scan.role,url:scan.url,separate_views:true,expected_views:regions.length,region_boxes:scan.region_boxes,region_rows:scan.region_rows,page_frames:scan.page_frames,region_focus:scan.region_focus});
             uploaded=scan.cloud_upload={request_id:id,page:pi+1,role:scan.role,source_path:saved.source_path,views:0};await persist();

@@ -1,4 +1,11 @@
 const UPSTREAM_ROOT = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/';
+// Cloudflare's build enables this only for the paper-entry preview branch.
+const CREDITS_PREVIEW_BUILD = false; // cloudflare-preview-routing
+const CREDITS_PREVIEW_ENDPOINTS = Object.freeze({
+  'score-tracker-data-api': 'score-tracker-data-api-credits-preview',
+  'score-tracker-vision-preview': 'score-tracker-vision-credits-preview',
+  'score-tracker-paper-review': 'score-tracker-paper-credits-preview',
+});
 export const API_ENDPOINTS = Object.freeze([
   'score-tracker-api',
   'score-tracker-data-api',
@@ -117,7 +124,9 @@ export async function proxyApi(request, options = {}) {
 
   try {
     // Buffer neither images nor credentials; forward the existing request body unchanged.
-    const upstream = await (options.fetch || fetch)(UPSTREAM_ROOT + endpoint, {
+    const upstreamEndpoint = CREDITS_PREVIEW_BUILD && Object.hasOwn(CREDITS_PREVIEW_ENDPOINTS, endpoint)
+      ? CREDITS_PREVIEW_ENDPOINTS[endpoint] : endpoint;
+    const upstream = await (options.fetch || fetch)(UPSTREAM_ROOT + upstreamEndpoint, {
       method: 'POST', headers: upstreamHeaders, body: request.body,
       signal: controller.signal, redirect: 'manual', duplex: 'half',
     });

@@ -26,6 +26,12 @@ const {JSDOM,VirtualConsole}=require('jsdom'),{harness,uid,input}=require('./tes
  save().click();await until(()=>!save().disabled&&host.querySelector('.pr-message').textContent.includes('草稿已保存，可从试卷列表继续上传'));
  assert.equal(calls.filter(b=>b.action==='upload_page').length,2,'retry never reuploads a completed original');assert.equal(h.blobs.size,14);
  const count=calls.length;save().click();await until(()=>!save().disabled);assert(!calls.slice(count).some(b=>b.action.startsWith('upload_page')),'reopening save skips unchanged uploaded images');
+ const beforeLegacy=calls.length;delete session.pages[0].cloud_upload.source_path;
+ save().click();await until(()=>!save().disabled&&calls.length>beforeLegacy);
+ const legacyRetry=calls.slice(beforeLegacy);
+ assert.deepEqual(legacyRetry.filter(b=>b.action==='upload_page').map(b=>b.page),[1],'an old incomplete receipt reuploads only its own original');
+ assert.equal(legacyRetry.filter(b=>b.action==='upload_page_view'&&b.page===1).length,6,'all details use the new source receipt');
+ assert.equal(h.blobs.size,14);
  host.querySelector('[data-pr="up:1"]').click();await until(()=>host.querySelector('[data-pr="up:1"]'));
  save().click();await until(()=>!save().disabled);
  assert.deepEqual(h.tables.score_tracker_paper_materials[0].pages.map(p=>p.role),['work','paper'],'reordering invalidates the old page-index upload receipt');assert.equal(h.blobs.size,14);
