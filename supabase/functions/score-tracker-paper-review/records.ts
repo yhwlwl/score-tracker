@@ -28,9 +28,10 @@ export function recordTypeRows(row: any) {
     const c = (row.corrections || []).find((c: any) => c.id === q.id);
     const name = text(c?.question_type ?? q.question_type, 40);
     if (!name) { untyped++; continue; }
-    if (!c?.verified) unverified++;
+    const included = !!c?.verified || row.result.screenshot_only && c?.accepted === true;
+    if (!included) unverified++;
     const values = groups.get(name) || [];
-    values.push({ label: q.label, verified: !!c?.verified, score: c?.verified ? c.teacher_score : null, max: c?.verified ? c.max_score : null,
+    values.push({ label: q.label, verified: included, score: included ? c.teacher_score : null, max: included ? c.max_score : null,
       difficulty: c?.question_difficulty ?? q.question_difficulty ?? '' });
     groups.set(name, values);
   }
@@ -74,5 +75,9 @@ export async function recordTypesAction(db: any, user: string, body: any, row: a
   const updated = await read(db.from('score_tracker_exams').update({ question_type_scores: questionTypes, updated_at: new Date().toISOString() })
     .eq('id', row.exam_id).eq('user_id', user).eq('updated_at', exam.updated_at).select('id').maybeSingle());
   if (!updated) throw new WorkspaceError('考试已更新，请重新预览后同步', 409);
+  // Adopting clean recognition is also a completed paper-entry experience;
+  // the growth ledger makes this first-use award idempotent.
+  try { const growth=await db.rpc('score_tracker_growth_touch',{p_user:user,p_feature:'paper',p_at:new Date().toISOString(),p_exam:null});if(growth.error)console.error('paper_growth_failed',growth.error.code); }
+  catch (_) { console.error('paper_growth_failed'); }
   return { ok: true, exam_id: row.exam_id, subject: row.subject, question_type_scores: questionTypes };
 }

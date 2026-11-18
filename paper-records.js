@@ -17,7 +17,7 @@
     if (q.screenshot_only && (q.work_expected || q.work_pages&&q.work_pages.length) && !(q.source_regions||[]).some(function(r){return r.kind==='work';})) reasons.push('作答截图待定位');
     var grouped=q.type_total&&valueOf(c,q,'question_type')===q.type_total.label;
     if(grouped&&items){var members=items.filter(function(i){return i.c.question_type===c.question_type;});grouped=(scoreGroups||[]).some(function(g){return g.label===c.question_type&&g.teacher_score!=null&&g.max_score!=null&&g.questions.length===members.length&&members.every(function(i){return g.questions.includes(i.q.label);});});}
-    if (valueOf(c,q,'teacher_score') == null&&!grouped) reasons.push('缺少得分');
+    if (valueOf(c,q,'teacher_score') == null&&!grouped&&(!q.screenshot_only||q.work_expected||q.work_pages&&q.work_pages.length)) reasons.push('缺少得分');
     if (valueOf(c,q,'max_score') == null&&!grouped) reasons.push('缺少满分');
     if (!(valueOf(c,q,'question_type') || '').trim()) reasons.push('未填题型');
     var score=valueOf(c,q,'teacher_score'),max=valueOf(c,q,'max_score');
@@ -27,32 +27,32 @@
     if (!c.verified && (['low','medium'].includes(q.confidence) || !q.screenshot_only&&(q.analysis_mode === 'needs_confirmation' || q.status === 'unclear'))) reasons.push('识别内容待确认');
     if (!c.verified && ['single_read','conflict'].includes(q.max_verification)) reasons.push('满分待复核');
     if (!c.verified && q.score_verification === 'single_read') reasons.push('批改分待复核');
-    if (!c.verified && (q.uncertainties||[]).some(function(s){return String(s||'').trim();})) reasons.push('有待核对备注');
+    if (!c.verified) (q.uncertainties||[]).map(function(s){return String(s||'').trim();}).filter(Boolean).slice(0,3).forEach(function(s){reasons.push(s);});
     return { reasons:reasons, verified:!!c.verified };
   }
   function live(main, row) {
     return row.result.questions.map(function(q){
       var node=Array.from(main.querySelectorAll('[data-question]')).find(function(n){return n.dataset.question===String(q.id);}),old=(row.corrections||[]).find(function(c){return c.id===q.id;})||{};
       function value(k,fallback){var el=node && node.querySelector('[data-field="'+k+'"]');if(!el)return fallback;if(el.type==='checkbox')return el.checked;if(el.type==='number')return el.value.trim()===''?null:Number(el.value);return el.value;}
-      return {q:q,c:{stem:value('stem',valueOf(old,q,'stem')),answer:value('answer',valueOf(old,q,'answer')),question_type:value('question_type',valueOf(old,q,'question_type')),question_difficulty:value('question_difficulty',valueOf(old,q,'question_difficulty')),teacher_score:value('teacher_score',valueOf(old,q,'teacher_score')),max_score:value('max_score',valueOf(old,q,'max_score')),verified:value('verified',!!old.verified)}};
+      return {q:q,c:{stem:value('stem',valueOf(old,q,'stem')),answer:value('answer',valueOf(old,q,'answer')),question_type:value('question_type',valueOf(old,q,'question_type')),question_difficulty:value('question_difficulty',valueOf(old,q,'question_difficulty')),teacher_score:value('teacher_score',valueOf(old,q,'teacher_score')),max_score:value('max_score',valueOf(old,q,'max_score')),verified:value('verified',!!old.verified),accepted:value('accepted',!!old.accepted)}};
     });
   }
   function totals(items, scoreGroups) {
     var groups=new Map(),untyped=0,unverified=0;
-    items.forEach(function(item){var c=item.c,name=(c.question_type||'').trim();if(!name){untyped++;return;}if(!c.verified)unverified++;
+    items.forEach(function(item){var c=item.c,name=(c.question_type||'').trim();if(!name){untyped++;return;}if(!c.verified&&!c.accepted)unverified++;
       var g=groups.get(name)||{name:name,score:0,max:0,levels:[]};
       g.score=g.score==null||c.teacher_score==null?null:Math.round((g.score+c.teacher_score)*100)/100;
       g.max=g.max==null||c.max_score==null?null:Math.round((g.max+c.max_score)*100)/100;
       g.levels.push(c.question_difficulty);groups.set(name,g);
     });
-    return {rows:Array.from(groups.values()).map(function(g){var level=g.levels[0],members=items.filter(function(i){return (i.c.question_type||'').trim()===g.name;}),group=(scoreGroups||[]).find(function(s){return s.label===g.name&&s.questions.length===members.length&&members.every(function(i){return i.c.verified&&s.questions.includes(i.q.label);});});return {name:g.name,score:(!group?.manual?g.score:null)??(group&&members.reduce(function(n,i){return n+(i.c.teacher_score??0);},0)<=group.teacher_score?group.teacher_score:null),max:(!group?.manual?g.max:null)??(group&&members.reduce(function(n,i){return n+(i.c.max_score??0);},0)<=group.max_score?group.max_score:null),difficulty:level&&g.levels.every(function(x){return x===level;})?level:''};}),untyped:untyped,unverified:unverified};
+    return {rows:Array.from(groups.values()).map(function(g){var level=g.levels[0],members=items.filter(function(i){return (i.c.question_type||'').trim()===g.name;}),group=(scoreGroups||[]).find(function(s){return s.label===g.name&&s.questions.length===members.length&&members.every(function(i){return (i.c.verified||i.c.accepted||!questionState(i.q,i.c,items,scoreGroups).reasons.length)&&s.questions.includes(i.q.label);});});return {name:g.name,score:(!group?.manual?g.score:null)??(group&&members.reduce(function(n,i){return n+(i.c.teacher_score??0);},0)<=group.teacher_score?group.teacher_score:null),max:(!group?.manual?g.max:null)??(group&&members.reduce(function(n,i){return n+(i.c.max_score??0);},0)<=group.max_score?group.max_score:null),difficulty:level&&g.levels.every(function(x){return x===level;})?level:''};}),untyped:untyped,unverified:unverified};
   }
   function existingFor(row) {
     var exam=(state.allExams||state.exams||[]).find(function(e){return e.id===row.exam_id;});return exam && exam.question_type_scores && exam.question_type_scores[row.subject] || [];
   }
-  function drawSync(panel, data, linked) {
+  function drawSync(panel, data, linked, screenshot) {
     panel.innerHTML='<h3>本场题型得分</h3><p class="pr-muted">仅汇总你已确认的卷面批改分。</p>'+(data.rows.length?'<div class="pr-type-table"><table><thead><tr><th>题型</th><th>得分 / 满分</th><th>难度</th></tr></thead><tbody>'+data.rows.map(function(r){return '<tr><td>'+esc(r.name)+'</td><td>'+esc(r.score==null?'待补全':r.score)+' / '+esc(r.max==null?'待补全':r.max)+'</td><td>'+esc(ScoreQuestionTypeModel.difficulties[r.difficulty]||'未标注')+'</td></tr>';}).join('')+'</tbody></table></div>':'<p>填写题型名称后，这里会自动汇总。</p>')+
-      '<p class="pr-muted">'+(data.untyped?data.untyped+' 题未填题型，不纳入本次汇总。':'')+(data.unverified?data.unverified+' 题尚未对照原卷核对。':'')+'缺少得分或满分的题型保存为待补全，不参与统计。</p>'+
+      '<p class="pr-muted">'+(data.untyped?data.untyped+' 题未填题型，不纳入本次汇总。':'')+(data.unverified?(screenshot?'保存时将一并采用没有疑点的识别结果。':data.unverified+' 题尚未对照原卷核对。'):'')+'缺少得分或满分的题型保存为待补全，不参与统计。</p>'+
       (data.existing.length?'<details><summary>查看本科已有的 '+data.existing.length+' 项题型</summary><p>'+data.existing.map(function(r){return esc(r.name)+'：'+esc(r.score==null?'—':r.score)+' / '+esc(r.max==null?'—':r.max);}).join('；')+'</p></details><label class="pr-check"><input type="checkbox" data-replace-types>用上方汇总替换本科已有题型得分</label>':'')+
       (!linked?'<p>关联考试后，即可把这里的得分更新到题型分析。</p>':'')+
       '<div class="pr-footer">'+(linked?'<button type="button" class="pr-button pr-primary" data-sync-types>保存并更新题型得分</button>':'')+'<button type="button" class="pr-button" data-pr="save">只保存试题</button></div><p role="status" data-sync-note></p>';
@@ -71,7 +71,7 @@
     var panel=document.createElement('section');panel.className='pr-type-sync pr-insight';
     main.querySelector('[data-report-section="questions"] > .pr-footer').replaceWith(panel);
     function update(){
-      var items=live(main,row),pending=items.filter(function(i){return questionState(i.q,i.c,items,groupsFor(row)).reasons.length;}),verified=items.filter(function(i){return i.c.verified;}).length;
+      var items=live(main,row),pending=items.filter(function(i){return !i.c.verified&&questionState(i.q,i.c,items,groupsFor(row)).reasons.length;}),verified=items.filter(function(i){return i.c.verified;}).length;
       var total=row.result.total||{};
       overview.innerHTML='<div class="pr-check-metrics"><div><b>'+items.length+'</b><span>已识别题目</span></div><div><b>'+pending.length+'</b><span>处需要核对</span></div><div><b>'+verified+' / '+items.length+'</b><span>已对照原卷</span></div>'+(total.score!=null?'<div><b>'+esc(total.score)+(total.max!=null?' / '+esc(total.max):'')+'</b><span>卷面批改总分</span></div>':'')+'</div><p>'+ (pending.length?'先检查下方标出的缺失或冲突，其余题目也可展开查看。':'未发现明显缺失或冲突；仍请对照原卷确认后更新题型得分。')+'</p>';
       var eligible=items.filter(function(i){return !i.c.verified&&!questionState(i.q,i.c,items,groupsFor(row)).reasons.length;});
@@ -88,18 +88,23 @@
       var undo=overview.querySelector('[data-undo-batch]');if(undo)undo.onclick=function(){var ids=lastBatch.slice(),first;lastBatch=[];main.querySelectorAll('[data-question]').forEach(function(n){if(ids.includes(n.dataset.question)){var box=n.querySelector('[data-field=verified]');box.checked=false;first=first||box;}});if(first)first.dispatchEvent(new Event('input',{bubbles:true}));note('已撤销本次批量确认，其他题目的核对状态不变。');};
       var show=overview.querySelector('[data-show-pending]');if(show)show.onclick=function(){var filter=main.querySelector('[data-pr="filter:confirm"]');if(filter){filter.click();filter.scrollIntoView({block:'nearest'});}};
       items.forEach(function(item){var info=questionState(item.q,item.c,items,groupsFor(row)),node=Array.from(main.querySelectorAll('[data-question]')).find(function(n){return n.dataset.question===String(item.q.id);});if(!node)return;
-        node.dataset.needsConfirm=String(info.reasons.length>0);node.dataset.unverified=String(!info.verified);
+        node.dataset.needsConfirm=String(!info.verified&&info.reasons.length>0);node.dataset.unverified=String(!info.verified);
         var brief=node.querySelector('.pr-record-brief');if(!brief){brief=document.createElement('small');brief.className='pr-record-brief';node.querySelector('summary>span').appendChild(brief);}
         var hint=node.querySelector('.pr-type-total');if(hint){var members=items.filter(function(i){return i.c.question_type===item.c.question_type;});hint.hidden=!(groupsFor(row)||[]).some(function(g){return g.label===item.c.question_type&&g.questions.length===members.length&&members.every(function(i){return g.questions.includes(i.q.label);});});}
-        brief.textContent=[item.c.question_type||'未分类',info.reasons.length?info.reasons.join(' · '):info.verified?'已核对':'未对照原卷'].join(' · ');
+        brief.textContent=[item.c.question_type||'未分类',info.verified?'已核对':info.reasons.length?info.reasons.join(' · '):item.c.accepted?'已采用':'可直接采用'].join(' · ');
       });
-      var data=totals(items,groupsFor(row));data.existing=existingFor(row);drawSync(panel,data,!!row.exam_id);
+      var data=totals(items,groupsFor(row));data.existing=existingFor(row);drawSync(panel,data,!!row.exam_id,!!row.result.screenshot_only);
       var submit=panel.querySelector('[data-sync-types]'),replace=panel.querySelector('[data-replace-types]');
-      function enabled(){if(submit)submit.disabled=!data.rows.length||data.unverified>0||!!replace&&!replace.checked;}
+      function enabled(){if(submit)submit.disabled=!data.rows.length||(row.result.screenshot_only?pending.length>0:data.unverified>0)||!!replace&&!replace.checked;}
       if(replace)replace.onchange=enabled;enabled();
       if(submit)submit.onclick=async function(){
         var accepted=!!replace&&replace.checked;submit.disabled=true;
         try{
+          if(row.result.screenshot_only){
+            var current=live(main,row),first;
+            current.forEach(function(item){if(item.c.verified||item.c.accepted||questionState(item.q,item.c,current,groupsFor(row)).reasons.length)return;var box=main.querySelector('[data-question="'+item.q.id+'"] [data-field=accepted]');if(box){box.checked=true;first=first||box;}});
+            if(first)first.dispatchEvent(new Event('input',{bubbles:true}));
+          }
           var saved=await hooks.save();if(!saved)return;
           var preview=await api(ctx,'preview_types',{request_id:saved.request_id,revision:saved.revision});
           if(!main.isConnected)return;
@@ -125,7 +130,7 @@
     });
     live(main,row).forEach(function(item){var node=Array.from(main.querySelectorAll('[data-question]')).find(function(n){return n.dataset.question===String(item.q.id);});if(node&&questionState(item.q,item.c,live(main,row),groupsFor(row)).reasons.length){node.open=true;var edit=node.querySelector('.pr-edit');if(edit)edit.open=true;}});
     main.querySelectorAll('.pr-question input,.pr-question textarea,.pr-question select').forEach(function(el){el.addEventListener('input',function(){
-      if(el.dataset.field!=='verified'&&el.dataset.field!=='corrected'){var verified=el.closest('[data-question]').querySelector('[data-field=verified]');if(verified)verified.checked=false;}
+      if(el.dataset.field!=='verified'&&el.dataset.field!=='accepted'&&el.dataset.field!=='corrected'){var card=el.closest('[data-question]'),verified=card.querySelector('[data-field=verified]'),accepted=card.querySelector('[data-field=accepted]');if(verified)verified.checked=false;if(accepted)accepted.checked=false;}
       update();
     });});
   }

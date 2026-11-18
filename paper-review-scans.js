@@ -84,7 +84,7 @@
         if(source.readonly)zone.querySelectorAll('[data-scan^="edit:"],[data-scan^="remove:"]').forEach(function(b){b.remove();});
       }
       controllers.set(q.label,function(next){current=next;regions[q.label]=next;render();});
-      async function persist(next) { await api('save_regions', { label: q.label, regions: next }); current = next;regions[q.label]=next;render();var item=Array.from(main.querySelectorAll('[data-question]')).find(function(n){return n.dataset.question===String(q.id);}),check=item&&item.querySelector('[data-field=verified]');if(check){check.checked=false;check.dispatchEvent(new Event('input',{bubbles:true}));}hooks.note('截图区域已保存，请确认本题对应位置。'); }
+      async function persist(next) { await api('save_regions', { label: q.label, regions: next }); current = next;regions[q.label]=next;render();var item=Array.from(main.querySelectorAll('[data-question]')).find(function(n){return n.dataset.question===String(q.id);}),check=item&&item.querySelector('[data-field=verified]'),accepted=item&&item.querySelector('[data-field=accepted]');if(accepted)accepted.checked=false;if(check){check.checked=false;check.dispatchEvent(new Event('input',{bubbles:true}));}hooks.note('截图区域已保存，请确认本题对应位置。'); }
       zone.onclick = async function (e) { var b = e.target.closest('[data-scan]'); if (!b || b.closest('.ps-editor')) return; e.preventDefault(); e.stopPropagation();
         var a = b.dataset.scan, index = Number(a.split(':')[1]);
         try { if(a.startsWith('zoom:')){var region=current[index];if(region)enlarge(region,pages.find(function(p){return p.page===region.page;}),b);}
