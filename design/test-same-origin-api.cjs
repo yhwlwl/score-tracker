@@ -40,6 +40,21 @@ async function run() {
       }
     }
     assert.throws(() => configurePreviewRouting('', 'feat/paper-entry-analysis-flow'), /marker/);
+    const os = require('node:os');
+    const buildFixture = fs.mkdtempSync(path.join(os.tmpdir(), 'score-tracker-cf-build-'));
+    try {
+      const output = path.join(buildFixture, 'deploy');
+      fs.mkdirSync(path.join(buildFixture, 'server'), { recursive: true });
+      fs.mkdirSync(path.join(output, 'server'), { recursive: true });
+      const rootProxy = path.join(buildFixture, 'server/same-origin-api.js');
+      fs.writeFileSync(rootProxy, proxySource);
+      configurePreviewRouting.writeBuildProxy(buildFixture, output, 'feat/paper-entry-analysis-flow', true);
+      assert.match(fs.readFileSync(rootProxy, 'utf8'), /const CREDITS_PREVIEW_BUILD = true;/, 'Pages compiles the root Functions dependency');
+      assert.match(fs.readFileSync(path.join(output, 'server/same-origin-api.js'), 'utf8'), /const CREDITS_PREVIEW_BUILD = true;/);
+      fs.writeFileSync(rootProxy, proxySource);
+      configurePreviewRouting.writeBuildProxy(buildFixture, output, 'main', true);
+      assert.match(fs.readFileSync(rootProxy, 'utf8'), /const CREDITS_PREVIEW_BUILD = false;/, 'production remains on the production APIs');
+    } finally { fs.rmSync(buildFixture, { recursive: true, force: true }); }
     console.log('PASS: Cloudflare branch build selects the isolated credits APIs; production and other branches keep their existing APIs');
     for (const endpoint of API_ENDPOINTS) {
       let calls = 0;
