@@ -5,7 +5,7 @@ const {harness,input,rid}=require('./test-paper-review.cjs');
  const page={page:2,role:'work',url:input.pages[0].url},normal={...input,work_on_paper:false,pages:[{page:1,role:'paper',url:input.pages[0].url},page]};
  const q=(label,score=null)=>({label,question_type:'单选题',teacher_score:score,score_mark:score===null?null:{page:2,quote:String(score),scope:'question',label},max_score:null,max_mark:null,confidence:'high',uncertainties:[],source_regions:[{kind:'work',page:2,box:[0,0,1,1]}]});
  const base={page:2,role:'work',questions:[q('1'),q('2',0),q('3'),q('4')],score_groups:[{label:'填空题',questions:['3','4'],teacher_score:5,score_mark:{page:2,quote:'填空题5分'}}],total:{},warnings:[]};
- assert.deepEqual(Array.from(k.scanScoreTargets(base,normal),v=>v.label),['1'],'preserve zero and explicit grouped totals');
+ assert.deepEqual(Array.from(k.scanScoreTargets(base,normal),v=>v.label),['1','3','4'],'preserve zero but still check for explicit per-question marks in a scored group');
  const detailed={...page,regions:['overview','local','unrelated'],region_boxes:[[0,0,1,1],[0,0,.5,.5],[.75,.75,.2,.2]]};
  const localized={...base.questions[0],source_regions:[{kind:'work',page:2,box:[0,0,.4,.4]}]};
  assert.deepEqual(Array.from(k.scanScoreContent(normal,detailed,[localized],1).filter(c=>c.type==='image_url'),c=>c.image_url.url),['overview','local'],'independent review includes context and relevant magnification, excluding unrelated crops');
@@ -21,6 +21,23 @@ const {harness,input,rid}=require('./test-paper-review.cjs');
  const other=structuredClone(read);other[0].teacher_score=0;other[0].score_mark.quote='0分';
  const disputed=k.mergeScanScores(once,other,[once.questions[0]],1);assert.equal(disputed.questions[0].teacher_score,null);assert(disputed.questions[0].uncertainties.some(v=>v.includes('两次补读')));
  const failed=k.mergeScanScores(base,[],[base.questions[0]],1,true);assert.equal(failed.questions[1].teacher_score,0);assert.deepEqual(failed.questions[1].source_regions,base.questions[1].source_regions);
+ const shared=structuredClone(base);shared.questions[0].shared_work=true;
+ const sharedOnce=k.mergeScanScores(shared,read,[shared.questions[0]],0);assert.equal(sharedOnce.questions[0].teacher_score,null,'a shared grid needs independent confirmation');
+ const sharedTwice=k.mergeScanScores(sharedOnce,read,[sharedOnce.questions[0]],1);assert.equal(sharedTwice.questions[0].teacher_score,5);
+ const jpeg=require('jpeg-js'),pixels=Buffer.alloc(800*600*4,255);
+ for(let y=315;y<330;y++)for(let x=95;x<110;x++){const i=(y*800+x)*4;pixels[i]=230;pixels[i+1]=20;pixels[i+2]=20;}
+ const data=jpeg.encode({data:pixels,width:800,height:600},85).data;
+ const missingView={page:2,role:'work',url:'data:image/jpeg;base64,'+data.toString('base64'),regions:['overview','unrelated'],region_boxes:[[0,0,1,1],[.65,.05,.3,.8]]};
+ const grid={...base.questions[0],shared_work:true,source_regions:[{kind:'work',page:2,box:[.01,.51,.34,.07]}]};
+ const cropped=k.cropMissingScoreViews(missingView,[grid,{...grid,label:'2'}]);assert.equal(cropped.length,1,'a shared region is decoded once');
+ const decoded=jpeg.decode(Buffer.from(cropped[0].url.split(',')[1],'base64'),{useTArray:true});
+ assert(decoded.width<800&&decoded.height<200,'the missing score band is truly cropped, not another full-page image');
+ const redX=100-Math.floor(cropped[0].box[0]*800),redY=320-Math.floor(cropped[0].box[1]*600),red=(redY*decoded.width+redX)*4;
+ assert(decoded.data[red]>180&&decoded.data[red+1]<70&&decoded.data[red+2]<70,'RGB decoding preserves colored score marks in the crop');
+ assert(cropped[0].box[0]<=grid.source_regions[0].box[0]&&cropped[0].box[1]<grid.source_regions[0].box[1],'padding retains marks beside the detected grid');
+ const noCrop=k.cropMissingScoreViews({...missingView,regions:['overview','local'],region_boxes:[[0,0,1,1],[.01,.51,.34,.07]]},[grid]);assert.equal(noCrop.length,0,'an existing tight local view is reused');
+ assert.equal(k.cropMissingScoreViews({...missingView,url:'data:image/png;base64,AAAA'},[grid]).length,0,'unsupported images safely fall back to saved views');
+ const scoreContent=k.scanScoreContent(normal,missingView,[grid],0).filter(c=>c.type==='image_url');assert.equal(scoreContent.length,1);assert.notEqual(scoreContent[0].image_url.url,'overview','the actual model request receives the generated crop');
  // Exercise the durable handler, not only helpers: a missing score gets a local
  // attempt then a whole-page attempt, and neither replays completed pages.
  let recover=0;

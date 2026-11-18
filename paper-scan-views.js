@@ -70,19 +70,26 @@
     var columns=pageFrames.filter(function(f){return f[3]-f[1]>=200&&!pageFrames.some(function(other){return other!==f&&other[3]-other[1]>=200&&other[0]<=f[0]+5&&other[2]>=f[2]-5&&other[2]-other[0]>f[2]-f[0]+20;});});
     return compact.concat(columns).slice(0,5);
   }
+  function viewPlan(width,height,pageFrames){
+    var boxes=plan(width,height),focus=focusFrames(pageFrames,width,height);
+    // Retain coverage tiles for larger originals in case edge decoding is
+    // limited or a detected answer frame is incomplete.
+    if(focus.length&&width*height<=3000000)boxes=[[0,0,1,1]];
+    var baseCount=boxes.length;
+    focus.forEach(function(f){boxes.push([f[0]/1000,f[1]/1000,(f[2]-f[0])/1000,(f[3]-f[1])/1000]);});
+    return {boxes:boxes.slice(0,10),baseCount:baseCount};
+  }
   function printedInk(pixels){
     var result=new Uint8ClampedArray(pixels),changed=0;
     for(var i=0;i<result.length;i+=4){var high=Math.max(result[i],result[i+1],result[i+2]),low=Math.min(result[i],result[i+1],result[i+2]);if(high-low>50&&high>100){result[i]=result[i+1]=result[i+2]=255;changed++;}}
     return {pixels:result,changed:changed};
   }
   function build(source){
-    var boxes=plan(source.width,source.height),baseCount=boxes.length,canvas=document.createElement('canvas'),rowBands=[],pageFrames=[];
+    var canvas=document.createElement('canvas'),rowBands=[],pageFrames=[];
     var overviewScale=Math.min(1,1600/Math.max(source.width,source.height));canvas.width=Math.round(source.width*overviewScale);canvas.height=Math.round(source.height*overviewScale);
     var overview=canvas.getContext('2d');overview.fillStyle='#fff';overview.fillRect(0,0,canvas.width,canvas.height);overview.drawImage(source,0,0,canvas.width,canvas.height);
     pageFrames=frames(overview.getImageData(0,0,canvas.width,canvas.height).data,canvas.width,canvas.height);
-    var focus=focusFrames(pageFrames,source.width,source.height);
-    if(focus.length){boxes=[[0,0,1,1]];baseCount=1;focus.forEach(function(f){boxes.push([f[0]/1000,f[1]/1000,(f[2]-f[0])/1000,(f[3]-f[1])/1000]);});}
-    boxes=boxes.slice(0,6);
+    var planned=viewPlan(source.width,source.height,pageFrames),boxes=planned.boxes,baseCount=planned.baseCount;
     var urls=boxes.map(function(box,viewIndex){
       var sx=Math.round(box[0]*source.width),sy=Math.round(box[1]*source.height),sw=Math.min(source.width-sx,Math.round(box[2]*source.width)),sh=Math.min(source.height-sy,Math.round(box[3]*source.height));
       // Keep geometry tied to the actual rounded pixel crop.
@@ -130,6 +137,6 @@
       throw new Error('图片处理未完成，请重新选择');
     } finally {copy.width=copy.height=1;}
   }
-  root.ScorePaperScanViews={encode:encode,plan:plan,build:build,rows:rows,frames:frames,focusFrames:focusFrames,printedInk:printedInk};
+  root.ScorePaperScanViews={encode:encode,plan:plan,viewPlan:viewPlan,build:build,rows:rows,frames:frames,focusFrames:focusFrames,printedInk:printedInk};
   if(typeof module!=='undefined'&&module.exports)module.exports=root.ScorePaperScanViews;
 })(globalThis);

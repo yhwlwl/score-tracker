@@ -2,9 +2,9 @@ import { reviewSettings } from "./options.ts";
 // Bounded, evidence-first contract. AI output is untrusted data, never HTML or SQL.
 export const MAX_PAGES = 15;
 export const MAX_IMAGE_SIZE = 2800000;
-// Each page owns one source and at most six independently uploaded views.
-export const MAX_IMAGE_DATA = MAX_PAGES * 7 * MAX_IMAGE_SIZE;
-export const MAX_MATERIAL_BYTES = MAX_PAGES * 7 * 2100000;
+// Each page owns one source and at most ten independently uploaded views.
+export const MAX_IMAGE_DATA = MAX_PAGES * 11 * MAX_IMAGE_SIZE;
+export const MAX_MATERIAL_BYTES = MAX_PAGES * 11 * 2100000;
 export const MAX_BODY = 12500000;
 export const ROLES = ["paper", "work", "reference"];
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -21,7 +21,7 @@ function strings(value: any, max = 10) {
 // Only owner-checked storage metadata may use internal references. Public URLs remain forbidden.
 export function isStoredImage(value: any) { return typeof value === 'string' && /^stored:[a-zA-Z0-9_/-]+$/.test(value); }
 export function validateScanMetadata(p: any, viewCount: number) {
-  if (!Number.isInteger(viewCount) || viewCount < 0 || viewCount > 6) throw new Error('图片局部过多');
+  if (!Number.isInteger(viewCount) || viewCount < 0 || viewCount > 10) throw new Error('图片局部过多');
   let regionBoxes: any, regionRows: any, pageFrames: any, regionFocus: any;
   if (p.region_boxes !== undefined) {
     if (!Array.isArray(p.region_boxes) || p.region_boxes.length !== viewCount || !viewCount || p.region_boxes.some((b: any) => !Array.isArray(b) || b.length !== 4 || b.some((n: any) => typeof n !== 'number' || !Number.isFinite(n) || n < 0 || n > 1) || b[2] <= .01 || b[3] <= .01 || b[0] + b[2] > 1.000001 || b[1] + b[3] > 1.000001) || p.region_boxes[0].some((n: number, i: number) => n !== [0,0,1,1][i])) throw new Error('截图定位视图与坐标范围不一致');
@@ -43,7 +43,7 @@ export function validateScanMetadata(p: any, viewCount: number) {
 }
 export function validateImageRegions(value: any, internalSaved = false) {
   const regions = Array.isArray(value) ? value : [];
-  if (regions.length > 6) throw new Error('图片局部过多');
+  if (regions.length > 10) throw new Error('图片局部过多');
   for (const region of regions) {
     if (internalSaved && isStoredImage(region)) continue;
     if (typeof region !== 'string' || region.length > MAX_IMAGE_SIZE || !/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(region)) throw new Error('局部图片格式不正确');

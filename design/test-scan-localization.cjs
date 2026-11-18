@@ -1,4 +1,4 @@
-const assert=require('node:assert/strict'),{plan,rows,frames,focusFrames,printedInk}=require('../paper-scan-views.js'),{harness,input,rid}=require('./test-paper-review.cjs');
+const assert=require('node:assert/strict'),{plan,viewPlan,rows,frames,focusFrames,printedInk}=require('../paper-scan-views.js'),{harness,input,rid}=require('./test-paper-review.cjs');
 (async()=>{
  const pixels=new Uint8ClampedArray(100*100*4).fill(255);
  const ink=(x,y)=>{for(let c=0;c<3;c++)pixels[(y*100+x)*4+c]=0;};
@@ -21,10 +21,20 @@ const assert=require('node:assert/strict'),{plan,rows,frames,focusFrames,printed
  for(const y of [0,40,52,88,100,190])for(let x=10;x<=100;x++)mark(x,y);
  assert(frames(broken,300,200).some(f=>f[1]>=180&&f[3]<=520&&f[3]-f[1]<250),'unboxed horizontal answer bands are found between partial column frames');
  assert(focusFrames([[20,550,350,940],[350,50,670,960],[650,50,980,950]],3300,2300).some(f=>f[1]===550),'partial-height answer frames are included, not only full-height columns');
+ const frameSet=[[20,550,350,940],[350,50,670,960],[650,50,980,950]];
+ const large=viewPlan(3300,2300,frameSet),small=viewPlan(1800,1200,frameSet);
+ assert.equal(large.baseCount,4);assert.equal(small.baseCount,1);
+ assert(large.boxes.length<=10&&large.boxes.length>small.boxes.length,'large scans retain coverage alongside focused frames');
+ for(let y=0;y<=20;y++)for(let x=0;x<=20;x++)assert(large.boxes.slice(1,large.baseCount).some(([l,t,w,h])=>x/20>=l-1e-8&&x/20<=l+w+1e-8&&y/20>=t-1e-8&&y/20<=t+h+1e-8));
  const inkLayers=printedInk(new Uint8ClampedArray([0,0,0,255,240,20,30,255,30,50,240,255,200,200,200,255]));assert.deepEqual(Array.from(inkLayers.pixels),[0,0,0,255,255,255,255,255,255,255,255,255,200,200,200,255]);assert.equal(inkLayers.changed,2,'colored annotations can be hidden for label lookup while black and gray print remain intact');
  const h=harness();await h.init();const k=h.scope,boxes=plan(1807,1280),jpeg='data:image/jpeg;base64,/9j/AA==';
  const mapped=k.recognitionConfig({enabled:true,openrouter_api_key:'fixture',base_url:'https://provider.test/v1/chat/completions/',model:'configured-model'});assert.equal(mapped.baseUrl,'https://provider.test/v1');assert.equal(mapped.model,'configured-model');assert.equal(k.recognitionConfig({enabled:false,openrouter_api_key:'fixture'}).apiKey,'');assert.equal(k.normalizeBaseUrl('https://u:pw@provider.test'),null);
  const page={page:2,role:'work',url:input.pages[0].url,regions:boxes.map(()=>jpeg),region_boxes:boxes},normal={...input,work_on_paper:false,pages:[{page:1,role:'paper'},page]};
+ const largePaper={...page,role:'paper',regions:large.boxes.map((_,i)=>'view'+i),region_boxes:large.boxes,region_focus:large.boxes.map((_,i)=>i).slice(large.baseCount)};
+ const paperPrompt=k.scanContent(normal,largePaper,[]);const paperImages=paperPrompt.filter(p=>p.type==='image_url').map(p=>p.image_url.url);
+ assert.equal(paperImages.length,1+largePaper.region_focus.length);assert(!paperImages.includes('view1'),'coverage-only tiles are not sent during the paper pass');
+ assert.throws(()=>k.validateScanMetadata({region_boxes:Array.from({length:11},()=>[0,0,1,1])},11),/局部过多/);
+ assert.doesNotThrow(()=>k.validateScanMetadata({region_boxes:Array.from({length:10},()=>[0,0,1,1])},10));
  const raw={coordinate_system:'view_xyxy_1000',questions:[{label:'1',question_type:'单选题',confidence:'high',source_regions:[{kind:'work',view_id:'v2',bbox:[100,200,800,900]}]}],shared_regions:[{questions:['2','3','999'],kind:'work',view_id:'v1',bbox:[100,100,900,300]}]};
  const saved=[{questions:[{label:'1',question_type:'单选题'},{label:'2',question_type:'单选题'},{label:'3',question_type:'单选题'}]}];
  const result=k.normalizeScanPage(raw,page,normal,saved);assert.equal(result.questions.length,3);assert(result.questions[1].shared_work);assert(result.warnings.some(s=>s.includes('未确认题号')));
