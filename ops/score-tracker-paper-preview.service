@@ -1,0 +1,26 @@
+[Unit]
+Description=Score Tracker paper preview private upload and mirror
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=stpaperpreview
+Group=stpaperpreview
+ExecStart=/usr/bin/node /opt/score-tracker-paper-preview/paper-preview-relay.cjs
+Restart=always
+RestartSec=10s
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/score-tracker-paper-preview
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=180M
+CPUQuota=25%
+TasksMax=40
+LimitNOFILE=128
+
+[Install]
+WantedBy=multi-user.target

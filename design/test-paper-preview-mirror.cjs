@@ -1,0 +1,66 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const fsp=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
+const crypto=require('node:crypto');
+const http=require('node:http');
+const {PGlite}=require('@electric-sql/pglite');
+(async()=>{
+  const db=new PGlite();
+  await db.exec(`create role anon; create role authenticated; create role service_role;
+    create table public.score_tracker_paper_materials(request_id uuid primary key,user_id uuid not null,options jsonb not null,pages jsonb not null);`);
+  await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/20261119144358_paper_preview_ecs_mirror.sql'),'utf8'));
+  const user=crypto.randomUUID(), id=crypto.randomUUID();
+  await db.query('insert into public.score_tracker_paper_materials values ($1,$2,$3,$4)',[id,user,{},[]]);
+  assert.equal((await db.query('select * from public.score_tracker_paper_mirror_preview_jobs')).rows.length,0,'production rows must not enqueue');
+  await db.query("update public.score_tracker_paper_materials set options = '{\"ecs_mirror\":\"preview-v1\"}' where request_id=$1",[id]);
+  let job=(await db.query('select * from public.score_tracker_paper_mirror_preview_jobs')).rows[0];
+  assert.equal(job.operation,'sync');const old=job.generation;
+  await db.query("update public.score_tracker_paper_materials set pages = '[{\"page\":1}]' where request_id=$1",[id]);
+  job=(await db.query('select * from public.score_tracker_paper_mirror_preview_jobs')).rows[0];
+  assert.notEqual(job.generation,old,'new revision must invalidate old acknowledgements');
+  await db.query('delete from public.score_tracker_paper_mirror_preview_jobs where request_id=$1 and generation=$2',[id,old]);
+  assert.equal((await db.query('select * from public.score_tracker_paper_mirror_preview_jobs')).rows.length,1);
+  await db.query('delete from public.score_tracker_paper_materials where request_id=$1',[id]);
+  job=(await db.query('select * from public.score_tracker_paper_mirror_preview_jobs')).rows[0];
+  assert.equal(job.operation,'delete');assert.equal(job.user_id,user);
+  await db.close();
+  const root=await fsp.mkdtemp(path.join(os.tmpdir(),'paper-mirror-test-'));process.env.PAPER_MIRROR_ROOT=root;
+  // The CI scratch volume is smaller than the reserve on the actual server.
+  fsp.statfs=async()=>({bavail:10*1024*1024,bsize:1024});
+  const {seal,open,fileFor,processJob}=require('../ops/paper-preview-mirror.cjs');
+  const key=crypto.randomBytes(32),plain=Buffer.from('private image'),aad='a';
+  const encrypted=seal(key,aad,plain);assert(!encrypted.includes(plain));assert.deepEqual(open(key,aad,encrypted),plain);
+  const tampered=Buffer.from(encrypted);tampered[tampered.length-1]^=1;assert.throws(()=>open(key,aad,tampered));assert.throws(()=>open(key,'other',encrypted));
+  const pair=crypto.generateKeyPairSync('ed25519'),priv=pair.privateKey.export({format:'pem',type:'pkcs8'});
+  let calls=[],active=true;const data=Buffer.from('synthetic page');const request=crypto.randomUUID(),owner=crypto.randomUUID(),generation=crypto.randomUUID();
+  const asset={path:`${owner}/${request}/1-${crypto.randomUUID()}`,bytes:data.length,mime:'image/jpeg',url:'https://kdwpmcdxapwecbfrvqtm.supabase.co/storage/v1/object/sign/score-tracker-paper-scans/test?token=fake'};
+  global.fetch=async(url,opt)=>{
+    if(String(url).includes('/functions/v1/')){assert(crypto.verify(null,Buffer.from(opt.body),pair.publicKey,Buffer.from(opt.headers['x-mirror-signature'],'base64')));const b=JSON.parse(opt.body);calls.push(b.action);return Response.json(b.action==='check'?{current:active,operation:'sync',user_id:owner}:{ok:true});}
+    assert.equal(String(url),asset.url);return new Response(data);
+  };
+  const j={request_id:request,user_id:owner,generation,operation:'sync'};
+  await processJob(priv,key,{job:j,assets:[asset]});
+  const folder=path.join(root,owner,request),raw=await fsp.readFile(path.join(folder,fileFor(asset)));
+  assert(!raw.includes(data),'private image must be encrypted on disk');assert(calls.includes('ack'));
+  const manifest=open(key,`${owner}/${request}/manifest`,await fsp.readFile(path.join(folder,'manifest.enc')));
+  assert.equal(JSON.parse(manifest).assets[0].sha256,crypto.createHash('sha256').update(data).digest('hex'));
+  global.fetch=async(url,opt)=>{const b=JSON.parse(opt.body);calls.push(b.action);return Response.json(b.action==='check'?{current:true,operation:'delete',user_id:owner}:{ok:true});};
+  await processJob(priv,key,{job:{...j,operation:'delete'}});await assert.rejects(fsp.stat(folder));
+  const {start}=require('../ops/paper-preview-relay.cjs');let forwarded=0;
+  global.fetch=async(url,opt)=>{assert.equal(String(url),'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-paper-credits-preview');forwarded++;assert.equal(JSON.parse(opt.body).action,'upload_page');return Response.json({ok:true,page:1,source_path:'safe'});};
+  const relay=start();await new Promise(resolve=>relay.once('listening',resolve));
+  const post=(origin,body,method='POST',route='/paper-preview-upload')=>new Promise((resolve,reject)=>{
+    const req=http.request({host:'127.0.0.1',port:18765,path:route,method,headers:{Origin:origin,'Content-Type':'application/json'}},res=>{let out='';res.on('data',v=>out+=v);res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,body:out}));});req.on('error',reject);req.end(body);
+  });
+  const origin='https://feat-paper-entry-analysis-fl.score-tracker-d83.pages.dev';
+  assert.equal((await post('https://attacker.test',JSON.stringify({action:'upload_page',token:'fake'}))).status,403);
+  assert.equal((await post(origin,JSON.stringify({action:'delete',token:'fake'}))).status,400);
+  assert.equal((await post(origin,'','GET')).status,405);
+  const ok=await post(origin,JSON.stringify({action:'upload_page',token:'fake'}));assert.equal(ok.status,200);assert.equal(ok.headers['access-control-allow-origin'],origin);assert.equal(forwarded,1);
+  await new Promise(resolve=>relay.close(resolve));
+  await fsp.rm(root,{recursive:true,force:true});
+  console.log('paper preview mirror: queue isolation, stale ack, encryption, integrity, deletion and relay allowlists passed');
+})().catch(e=>{console.error(e);process.exitCode=1});

@@ -161,7 +161,8 @@ Deno.serve(async (req: Request) => {
     stage = action;
     if(action==='analyze_record'||action==='retry_scores'||action==='correct'&&body.reanalyze===true)throw new Failure('试卷分析暂未开放',403);
     if(action==='save_materials')body.options={...reviewSettings(body.options),config_version:2,purpose:'record',modules:[],use_account_history:false,review_before_analysis:false};
-    const workspace = await workspaceAction(db, user, body, ownedExam);
+    const previewMirror = new URL(req.url).pathname.replace(/\/$/, '').endsWith('/score-tracker-paper-credits-preview');
+    const workspace = await workspaceAction(db, user, body, ownedExam, previewMirror);
     if (workspace !== undefined) return out(workspace);
     if (body.action === "quota") {const account=await creditRpc(db,'score_tracker_ai_account',{p_user:user});return out({quota:{enabled:account.enabled,remaining:account.credits.available,limit:account.credits.monthly||account.credits.welcome,unit:'credits',global_available:account.budget_status!=='paused',account}});}
     if (['preview_types', 'sync_types'].includes(action)) return out(await recordTypesAction(db, user, body, await reportFor(user, body.request_id)));

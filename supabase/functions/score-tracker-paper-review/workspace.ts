@@ -36,7 +36,7 @@ export async function deleteMaterials(db: any, user: string, id: string) {
   if (m.pages.length) { const r = await db.storage.from(SCAN_BUCKET).remove(materialPaths(m.pages)); if (r.error) throw new WorkspaceError('扫描件删除未完成，请重试', 503); }
   await materialQuery(db.from(MATERIALS).delete().eq('request_id', id).eq('user_id', user));
 }
-export async function workspaceAction(db: any, user: string, body: any, ownedExam: (user: string, id: string) => Promise<any>) {
+export async function workspaceAction(db: any, user: string, body: any, ownedExam: (user: string, id: string) => Promise<any>, mirrorPreview = false) {
   const action = body.action, reviews = 'score_tracker_paper_reviews';
   if (action === 'list_all') {
     const offset = Math.max(0, Math.min(10000, Number.isInteger(body.offset) ? body.offset : 0));
@@ -69,20 +69,26 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
     const subject = text(body.subject, 40); if (!subject) throw new WorkspaceError('请选择科目');
     if (body.exam_id) await ownedExam(user, body.exam_id);
     if (!UUID.test(body.draft_id || '')) throw new WorkspaceError('草稿编号无效');
+    // This flag is set by the deployed function identity, never trusted from the browser.
+    const options = { ...reviewSettings(body.options), ...(mirrorPreview ? { ecs_mirror: 'preview-v1' } : {}) };
     if (!m) {
       if (!row && await materialQuery(db.from(reviews).select('request_id').eq('request_id', body.request_id).maybeSingle())) throw new WorkspaceError('分析编号已使用，请重新新建', 409);
       const drafts = await materialQuery(db.from(MATERIALS).select('request_id').eq('user_id', user).eq('submitted', false).limit(20));
       if (drafts.length >= 20) throw new WorkspaceError('先完成或删除已有草稿，再新建分析');
       // INSERT only: a colliding ID must never replace another account's material.
       await materialQuery(db.from(MATERIALS).insert({ request_id: body.request_id, user_id: user, draft_id: body.draft_id, exam_id: row?.exam_id || body.exam_id || null, subject: row?.subject || subject,
-        title: text(body.title, 100), options: reviewSettings(body.options), pages: [], submitted: !!row }));
+        title: text(body.title, 100), options, pages: [], submitted: !!row }));
     } else if (!row) {
       const count = body.page_count;
       const pages = Number.isInteger(count) && count >= 1 && count <= MAX_PAGES ? m.pages.slice(0, count) : m.pages;
-      const changed = await materialQuery(db.from(MATERIALS).update({ title: text(body.title, 100), subject, exam_id: body.exam_id || null, options: reviewSettings(body.options), pages, revision: m.revision + 1 }).eq('request_id', body.request_id).eq('user_id', user).eq('revision', m.revision).select('request_id').maybeSingle());
+      const changed = await materialQuery(db.from(MATERIALS).update({ title: text(body.title, 100), subject, exam_id: body.exam_id || null, options, pages, revision: m.revision + 1 }).eq('request_id', body.request_id).eq('user_id', user).eq('revision', m.revision).select('request_id').maybeSingle());
       if (!changed) throw new WorkspaceError('资料已在另一处更新，请刷新后重试', 409);
       const removed = m.pages.slice(pages.length);
       if (removed.length) await db.storage.from(SCAN_BUCKET).remove(materialPaths(removed));
+    } else if (mirrorPreview && m.options?.ecs_mirror !== 'preview-v1') {
+      // Opt an existing completed record in without changing its analysis settings.
+      const changed = await materialQuery(db.from(MATERIALS).update({ options: {...m.options, ecs_mirror:'preview-v1'}, revision:m.revision+1 }).eq('request_id',body.request_id).eq('user_id',user).eq('revision',m.revision).select('request_id').maybeSingle());
+      if (!changed) throw new WorkspaceError('资料已在另一处更新，请刷新后重试',409);
     }
     return { ok: true };
   }

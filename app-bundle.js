@@ -15399,6 +15399,7 @@ window.ScorePaperEntryOnly = true;
   function entryOnly() { return window.ScorePaperEntryOnly === true; }
   var support = window.ScorePaperSupport;
   var ENDPOINT = '/api/score-tracker-paper-review', MAX_PAGES = 15;
+  var PREVIEW_RELAY = 'https://assets.tantantan.tech/paper-preview-upload';
   var roleNames = { paper: '试卷', work: '答题卡 / 作答', reference: '参考答案' };
   var esc = function (v) { return escapeHtml(String(v == null ? '' : v)); };
   function number(v) { return v === '' || v == null || !Number.isFinite(Number(v)) ? null : Number(v); }
@@ -15419,10 +15420,22 @@ window.ScorePaperEntryOnly = true;
   async function api(ctx, action, payload) {
     if(entryOnly()&&(action==='analyze_record'||action==='retry_scores'||action==='correct'&&payload&&payload.reanalyze===true))throw new Error('试卷分析暂未开放');
     if (!current(ctx)) throw new Error('账号已切换，请重新打开考试');
-    var controller = new AbortController(), timer = setTimeout(function () { controller.abort(); }, 20000);
+    var useRelay = window.location.hostname === 'feat-paper-entry-analysis-fl.score-tracker-d83.pages.dev' && (action === 'upload_page' || action === 'upload_page_view');
+    var controller = new AbortController(), timer = setTimeout(function () { controller.abort(); }, useRelay ? 50000 : 20000);
     try {
-      var res = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
-        body: JSON.stringify(Object.assign({ action: action, token: ctx.token }, payload || {})) });
+      var body = JSON.stringify(Object.assign({ action: action, token: ctx.token }, payload || {}));
+      var res;
+      if (useRelay) {
+        var relayController = new AbortController(), relayTimer = setTimeout(function () { relayController.abort(); }, 25000);
+        try { res = await fetch(PREVIEW_RELAY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: relayController.signal, body: body }); }
+        catch (_) { /* Fall back to the regular endpoint if ECS is unreachable. */ }
+        finally { clearTimeout(relayTimer); }
+        if (res && [404, 405, 502, 503, 504].includes(res.status)) res = null;
+      }
+      if (!res) {
+        if (!current(ctx)) throw new Error('账号已切换，请重新打开考试');
+        res = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal, body: body });
+      }
       var data = await res.json().catch(function () { return {}; });
       if (!current(ctx)) throw new Error('账号已切换，请重新打开考试');
       if (!res.ok) { var err = new Error(data.error || '试卷分析服务暂不可用，请稍后重试'); err.status = res.status; throw err; }
