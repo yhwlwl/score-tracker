@@ -2,9 +2,9 @@
 
 仅固定分支预览域名使用 `https://assets.tantantan.tech/paper-preview-upload`；服务只允许该来源上传 `upload_page` 和 `upload_page_view`，账号和记录归属继续由预览 Edge Function 验证。其他请求、正式域名和其他分支沿用原路径。阿里云连接失败时浏览器退回原有同源接口。
 
-上传响应仍等待 Supabase 保存成功。材料事务通过预览专用标记写入同步队列，服务器后台拉取并加密存储第二份；服务器故障或重启不会丢失待同步任务。已启用同步的记录在旧客户端更新设置时保留标记，直到记录删除。队列采用 generation 防止旧任务确认覆盖新任务；替换和删除均同步，删除任务不受用户记录级联删除影响。同步是异步的，不应把上传响应理解为两份都已完成。历史记录不会批量迁移，预览中重新保存的记录会进入队列。
+预览 v2 以 ECS 为即时主副本：浏览器先向预览 Edge Function做小体积归属/页序校验，再把图片在 ECS 本机校验并 AES-256-GCM 加密落盘；数据库只登记随机资源编号、能力令牌散列对应的读取信息、摘要与规范化存储路径。落盘和登记成功后即可继续识别，不等待大图写入 Supabase。后台队列再使用短时 signed upload URL 把同一字节补写到 Supabase Storage；失败按 generation 重试，用户删除记录时同时清理 ECS 主副本和 Supabase 备份。旧 preview-v1 双副本记录仍按原来的 Supabase→ECS 镜像方式兼容。
 
-服务器以禁止登录的 `stpaperpreview` 用户运行，图片在 `/var/lib/score-tracker-paper-preview`，不在公开目录。每个对象使用 AES-256-GCM，密钥及签名私钥只在 `/etc/score-tracker-paper-preview`，目录不可供其他普通用户读取；切勿删除密钥，否则服务器副本无法解密。签名私钥用于服务器向 `score-tracker-paper-mirror-preview` 证明身份；用户会话和图片不写日志。域名静态路径仍只允许 GET/HEAD，新增入口限制请求大小、并发和来源。
+服务器以禁止登录的 `stpaperpreview` 用户运行，图片在 `/var/lib/score-tracker-paper-preview`，不在公开目录。每个对象使用 AES-256-GCM，密钥及签名私钥只在 `/etc/score-tracker-paper-preview`，目录不可供其他普通用户读取；切勿删除密钥，否则服务器副本无法解密。`/paper-preview-read` 只接受数据库生成的 request UUID、资源 UUID 与 256 位随机能力令牌，不接受文件路径、目录或用户输入 URL；能力令牌本身不以明文落盘。签名私钥仅用于服务器向 `score-tracker-paper-mirror-preview` 证明身份；用户会话和图片不写日志。
 
 维护检查：
 
