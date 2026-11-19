@@ -10,6 +10,7 @@ function ecsReadUrl(requestId: string, asset: any) {
 }
 function ecsMeta(value: any, path: string, detail = false) {
   if (!UUID.test(value?.ecs_ref || '') || !ECS_TOKEN.test(value?.ecs_read_token || '') || !SHA256.test(value?.sha256 || '') || !Number.isInteger(value?.bytes) || value.bytes < 1 || value.bytes > 2100000) throw new WorkspaceError('扫描件元数据无效');
+  if (detail && value?.mime !== 'image/jpeg') throw new WorkspaceError('局部图片格式无效');
   const mime = detail ? 'image/jpeg' : value.mime;
   if (!['image/jpeg','image/png','image/webp'].includes(mime)) throw new WorkspaceError('扫描件格式无效');
   return { path, mime, bytes:value.bytes, ecs_ref:value.ecs_ref, ecs_read_token:value.ecs_read_token, sha256:value.sha256 };
@@ -129,7 +130,7 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
       if (row && m.pages[n-1]) throw new WorkspaceError('已分析的原图保留原样，请追加扫描页',409);
       const separate=body.separate_views===true;
       let metadata:any={};
-      try { if(separate) metadata=validateScanMetadata(body,body.expected_views); else if(body.detail_count) metadata=validateScanMetadata(body,body.detail_count); } catch(e){ throw new WorkspaceError((e as Error).message); }
+      try { metadata=validateScanMetadata(body,separate?body.expected_views:(Number.isInteger(body.detail_count)?body.detail_count:0)); } catch(e){ throw new WorkspaceError((e as Error).message); }
       if(action==='authorize_ecs_page') return {ok:true,page:n};
       const main=ecsMeta(body.asset,`${user}/${body.request_id}/${n}-${body.asset?.ecs_ref}`);
       const detailValues=Array.isArray(body.detail_assets)?body.detail_assets:[];
