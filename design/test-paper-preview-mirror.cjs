@@ -11,7 +11,7 @@ const {PGlite}=require('@electric-sql/pglite');
   const db=new PGlite();
   await db.exec(`create role anon; create role authenticated; create role service_role;
     create table public.score_tracker_paper_materials(request_id uuid primary key,user_id uuid not null,options jsonb not null,pages jsonb not null);`);
-  for(const migration of ['20261119144358_paper_preview_ecs_mirror.sql','20261119151110_paper_preview_mirror_preserve_enrollment.sql','20261119163000_paper_preview_ecs_primary.sql'])
+  for(const migration of ['20261119144358_paper_preview_ecs_mirror.sql','20261119151110_paper_preview_mirror_preserve_enrollment.sql','20261119163000_paper_preview_ecs_primary.sql','20261119164500_paper_preview_primary_nonempty.sql'])
     await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/'+migration),'utf8'));
   const user=crypto.randomUUID(), id=crypto.randomUUID();
   await db.query('insert into public.score_tracker_paper_materials values ($1,$2,$3,$4)',[id,user,{},[]]);
@@ -20,10 +20,11 @@ const {PGlite}=require('@electric-sql/pglite');
   let job=(await db.query('select * from public.score_tracker_paper_mirror_preview_jobs')).rows[0];
   assert.equal(job.operation,'sync');const old=job.generation;
   await db.query("update public.score_tracker_paper_materials set options = '{\"ecs_mirror\":\"preview-v2-primary\"}' where request_id=$1",[id]);
-  job=(await db.query('select * from public.score_tracker_paper_mirror_preview_jobs')).rows[0];assert.equal(job.operation,'primary');
+  assert.equal((await db.query('select * from public.score_tracker_paper_mirror_preview_jobs')).rows.length,0,'empty v2 materials must not enqueue or prune local assets');
   await db.query("update public.score_tracker_paper_materials set options = '{}' where request_id=$1",[id]);
   let material=(await db.query('select options from public.score_tracker_paper_materials where request_id=$1',[id])).rows[0];
   assert.equal(material.options.ecs_mirror,'preview-v2-primary','old clients must preserve v2 enrollment');
+  assert.equal((await db.query('select * from public.score_tracker_paper_mirror_preview_jobs')).rows.length,0,'preserving an empty v2 record stays queue-free');
   await db.query("update public.score_tracker_paper_materials set pages = '[{\"page\":1}]' where request_id=$1",[id]);
   job=(await db.query('select * from public.score_tracker_paper_mirror_preview_jobs')).rows[0];assert.equal(job.operation,'primary');assert.notEqual(job.generation,old);
   await db.query('delete from public.score_tracker_paper_materials where request_id=$1',[id]);
