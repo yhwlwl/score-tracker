@@ -1,7 +1,19 @@
 import { UUID, validateStart, validateImageRegions, validateScanMetadata, text, number, MAX_PAGES, MAX_MATERIAL_BYTES } from './model.ts';
 import { reviewSettings, preferenceSettings, scanRegions } from './options.ts';
 const MATERIALS = 'score_tracker_paper_materials', SCAN_BUCKET = 'score-tracker-paper-scans';
-const materialPaths = (pages: any[]) => pages.flatMap(p => [p.path, ...(p.detail_images || []).map((r: any) => r.path)]);
+const ECS_PRIMARY = 'preview-v2-primary', ECS_READ = 'https://assets.tantantan.tech/paper-preview-read';
+const ECS_TOKEN = /^[A-Za-z0-9_-]{43}$/, SHA256 = /^[a-f0-9]{64}$/;
+const materialPaths = (pages: any[]) => pages.flatMap(p => [p.path, ...(p.detail_images || []).map((r: any) => r.path)]).filter(Boolean);
+function ecsReadUrl(requestId: string, asset: any) {
+  if (!UUID.test(requestId) || !UUID.test(asset?.ecs_ref || '') || !ECS_TOKEN.test(asset?.ecs_read_token || '')) throw new WorkspaceError('扫描件读取信息无效', 503);
+  return ECS_READ + '?request_id=' + encodeURIComponent(requestId) + '&asset=' + encodeURIComponent(asset.ecs_ref) + '&token=' + encodeURIComponent(asset.ecs_read_token);
+}
+function ecsMeta(value: any, path: string, detail = false) {
+  if (!UUID.test(value?.ecs_ref || '') || !ECS_TOKEN.test(value?.ecs_read_token || '') || !SHA256.test(value?.sha256 || '') || !Number.isInteger(value?.bytes) || value.bytes < 1 || value.bytes > 2100000) throw new WorkspaceError('扫描件元数据无效');
+  const mime = detail ? 'image/jpeg' : value.mime;
+  if (!['image/jpeg','image/png','image/webp'].includes(mime)) throw new WorkspaceError('扫描件格式无效');
+  return { path, mime, bytes:value.bytes, ecs_ref:value.ecs_ref, ecs_read_token:value.ecs_read_token, sha256:value.sha256 };
+}
 export class WorkspaceError extends Error { status: number; constructor(message: string, status = 400) { super(message); this.status = status; } }
 async function materialQuery(op: PromiseLike<any>) {
   const r = await op;
@@ -20,13 +32,27 @@ export async function storedPages(db: any, user: string, id: string, loadPages?:
   const m = await materialFor(db, user, id);
   if (!m?.pages?.length) throw new WorkspaceError('请先添加试卷图片');
   if (m.pages.some((p: any) => p.expected_views != null && p.expected_views !== (p.detail_images || []).length)) throw new WorkspaceError('局部图尚未上传完成，请继续保存扫描件', 409);
+  const primary = m.options?.ecs_mirror === ECS_PRIMARY;
+  const asData = async (bytes: Uint8Array, mime: string) => {
+    let binary = ''; for (let i = 0; i < bytes.length; i += 16384) binary += String.fromCharCode(...bytes.subarray(i, i + 16384));
+    return `data:${mime};base64,${btoa(binary)}`;
+  };
   const download = async (p: any, page: number) => {
     if (loadPages && !loadPages.includes(page)) return `stored:${p.path}`;
+    if (primary && p.ecs_ref && p.ecs_read_token) {
+      const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 18000);
+      try {
+        const response = await fetch(ecsReadUrl(id,p), { redirect:'error', signal:controller.signal, headers:{'Accept':'image/*'} });
+        if (response.ok) {
+          const type = (response.headers.get('content-type') || '').split(';')[0];
+          const bytes = new Uint8Array(await response.arrayBuffer());
+          if (type === p.mime && bytes.length === p.bytes) return asData(bytes,p.mime);
+        }
+      } catch (_) {} finally { clearTimeout(timer); }
+    }
     const { data, error } = await db.storage.from(SCAN_BUCKET).download(p.path);
-    if (error || !data) throw new WorkspaceError('扫描件读取未完成，请重试', 503);
-    const bytes = new Uint8Array(await data.arrayBuffer()); let binary = '';
-    for (let i = 0; i < bytes.length; i += 16384) binary += String.fromCharCode(...bytes.subarray(i, i + 16384));
-    return `data:${p.mime};base64,${btoa(binary)}`;
+    if (error || !data) throw new WorkspaceError(primary ? '境内扫描件暂时不可读，Supabase 备份仍在同步，请重试' : '扫描件读取未完成，请重试', 503);
+    return asData(new Uint8Array(await data.arrayBuffer()),p.mime);
   };
   return Promise.all(m.pages.map(async (p: any) => ({ role: p.role, page: p.page, url: await download(p, p.page), ...(p.page_frames ? {page_frames:p.page_frames} : {}), ...(p.region_focus ? {region_focus:p.region_focus} : {}),
     ...((p.detail_images || []).length ? { regions: await Promise.all(p.detail_images.map((d: any) => download(d, p.page))), ...(p.detail_images.every((d: any) => d.box) ? {region_boxes:p.detail_images.map((d: any) => d.box), ...(p.detail_images.every((d: any) => d.rows) ? {region_rows:p.detail_images.map((d: any) => d.rows)} : {})} : {}) } : {}) })));
@@ -59,7 +85,7 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
     const r = await materialQuery(db.from('score_tracker_paper_preferences').select('settings').eq('user_id', user).maybeSingle());
     return { settings: preferenceSettings(r?.settings) };
   }
-  if (!['save_materials','upload_page','upload_page_view','save_score_details','sources','save_regions','link','pause','confirm_input','delete_draft'].includes(action)) return undefined;
+  if (!['save_materials','upload_page','upload_page_view','authorize_ecs_page','prepare_ecs_page','authorize_ecs_page_view','prepare_ecs_page_view','save_score_details','sources','save_regions','link','pause','confirm_input','delete_draft'].includes(action)) return undefined;
   if (!UUID.test(body.request_id || '')) throw new WorkspaceError('分析编号无效');
   const row = await materialQuery(db.from(reviews).select('*').eq('request_id', body.request_id).eq('user_id', user).maybeSingle());
   const m = await materialFor(db, user, body.request_id);
@@ -70,7 +96,7 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
     if (body.exam_id) await ownedExam(user, body.exam_id);
     if (!UUID.test(body.draft_id || '')) throw new WorkspaceError('草稿编号无效');
     // This flag is set by the deployed function identity, never trusted from the browser.
-    const options = { ...reviewSettings(body.options), ...(mirrorPreview ? { ecs_mirror: 'preview-v1' } : {}) };
+    const options = { ...reviewSettings(body.options), ...(mirrorPreview ? { ecs_mirror: ECS_PRIMARY } : {}) };
     if (!m) {
       if (!row && await materialQuery(db.from(reviews).select('request_id').eq('request_id', body.request_id).maybeSingle())) throw new WorkspaceError('分析编号已使用，请重新新建', 409);
       const drafts = await materialQuery(db.from(MATERIALS).select('request_id').eq('user_id', user).eq('submitted', false).limit(20));
@@ -85,14 +111,51 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
       if (!changed) throw new WorkspaceError('资料已在另一处更新，请刷新后重试', 409);
       const removed = m.pages.slice(pages.length);
       if (removed.length) await db.storage.from(SCAN_BUCKET).remove(materialPaths(removed));
-    } else if (mirrorPreview && m.options?.ecs_mirror !== 'preview-v1') {
-      // Opt an existing completed record in without changing its analysis settings.
-      const changed = await materialQuery(db.from(MATERIALS).update({ options: {...m.options, ecs_mirror:'preview-v1'}, revision:m.revision+1 }).eq('request_id',body.request_id).eq('user_id',user).eq('revision',m.revision).select('request_id').maybeSingle());
+    } else if (mirrorPreview && m.options?.ecs_mirror !== ECS_PRIMARY) {
+      // Preview v2 makes ECS the immediate source; Supabase remains the asynchronous backup.
+      const changed = await materialQuery(db.from(MATERIALS).update({ options: {...m.options, ecs_mirror:ECS_PRIMARY}, revision:m.revision+1 }).eq('request_id',body.request_id).eq('user_id',user).eq('revision',m.revision).select('request_id').maybeSingle());
       if (!changed) throw new WorkspaceError('资料已在另一处更新，请刷新后重试',409);
     }
     return { ok: true };
   }
   if (!row && !m) throw new WorkspaceError('记录不存在或无权访问', 404);
+  if (['authorize_ecs_page','prepare_ecs_page','authorize_ecs_page_view','prepare_ecs_page_view'].includes(action)) {
+    if (!mirrorPreview || m?.options?.ecs_mirror !== ECS_PRIMARY) throw new WorkspaceError('当前入口不支持境内优先保存', 404);
+    if (!m || row?.status === 'running') throw new WorkspaceError('请先保存资料信息，或等待分析完成',409);
+    if (action === 'authorize_ecs_page' || action === 'prepare_ecs_page') {
+      const n=body.page;
+      if (!Number.isInteger(n)||n<1||n>MAX_PAGES||n>m.pages.length+1) throw new WorkspaceError(`请按页序上传，最多${MAX_PAGES}张`);
+      if (!['paper','work','reference'].includes(body.role)) throw new WorkspaceError('图片类别无效');
+      if (row && m.pages[n-1]) throw new WorkspaceError('已分析的原图保留原样，请追加扫描页',409);
+      const separate=body.separate_views===true;
+      let metadata:any={};
+      try { if(separate) metadata=validateScanMetadata(body,body.expected_views); else if(body.detail_count) metadata=validateScanMetadata(body,body.detail_count); } catch(e){ throw new WorkspaceError((e as Error).message); }
+      if(action==='authorize_ecs_page') return {ok:true,page:n};
+      const main=ecsMeta(body.asset,`${user}/${body.request_id}/${n}-${body.asset?.ecs_ref}`);
+      const detailValues=Array.isArray(body.detail_assets)?body.detail_assets:[];
+      if(detailValues.length>10 || separate&&detailValues.length) throw new WorkspaceError('局部图片元数据无效');
+      const details=detailValues.map((v:any,i:number)=>({ ...ecsMeta(v,`${main.path}-detail-${i}-${v.ecs_ref}`,true), ...(metadata.regionBoxes?{box:metadata.regionBoxes[i]}:{}), ...(metadata.regionRows?{rows:metadata.regionRows[i]}:{}) }));
+      if(!separate && body.detail_count!==details.length) throw new WorkspaceError('局部图片数量不一致');
+      const pages=[...m.pages],previous=pages[n-1];
+      pages[n-1]={page:n,role:body.role,...main,detail_images:details,...(metadata.pageFrames?{page_frames:metadata.pageFrames}:{}),...(metadata.regionFocus?{region_focus:metadata.regionFocus}:{}),...(separate?{expected_views:body.expected_views,view_boxes:metadata.regionBoxes,view_rows:metadata.regionRows}:{})};
+      if(pages.reduce((sum:number,p:any)=>sum+p.bytes+(p.detail_images||[]).reduce((v:number,d:any)=>v+d.bytes,0),0)>MAX_MATERIAL_BYTES) throw new WorkspaceError('本份资料较大，请压缩图片或减少页数');
+      const saved=await materialQuery(db.from(MATERIALS).update({pages,revision:m.revision+1}).eq('request_id',body.request_id).eq('user_id',user).eq('revision',m.revision).select('request_id').maybeSingle());
+      if(!saved) throw new WorkspaceError('资料已在另一处更新，请刷新后重试',409);
+      if(previous?.path) await db.storage.from(SCAN_BUCKET).remove(materialPaths([previous]));
+      return {ok:true,page:n,source_path:main.path};
+    }
+    const n=body.page,view=body.view,previous=m.pages.find((p:any)=>p.page===n);
+    if(!previous||!Number.isInteger(view)||!Number.isInteger(previous.expected_views)||view<0||view>=previous.expected_views||view>(previous.detail_images||[]).length||body.source_path!==previous.path) throw new WorkspaceError('扫描页已变化，请重新保存当前页',409);
+    if(action==='authorize_ecs_page_view') return {ok:true,page:n,view};
+    const meta=ecsMeta(body.asset,`${previous.path}-detail-${view}-${body.asset?.ecs_ref}`,true),details=[...(previous.detail_images||[])],old=details[view];
+    details[view]={...meta,...(previous.view_boxes?{box:previous.view_boxes[view]}:{}),...(previous.view_rows?{rows:previous.view_rows[view]}:{})};
+    const pages=m.pages.map((p:any)=>p.page===n?{...p,detail_images:details}:p);
+    if(pages.reduce((sum:number,p:any)=>sum+p.bytes+(p.detail_images||[]).reduce((v:number,d:any)=>v+d.bytes,0),0)>MAX_MATERIAL_BYTES) throw new WorkspaceError('本份扫描资料超过支持大小');
+    const saved=await materialQuery(db.from(MATERIALS).update({pages,revision:m.revision+1}).eq('request_id',body.request_id).eq('user_id',user).eq('revision',m.revision).select('request_id').maybeSingle());
+    if(!saved) throw new WorkspaceError('扫描页已更新，请重新保存当前页',409);
+    if(old?.path) await db.storage.from(SCAN_BUCKET).remove([old.path]);
+    return {ok:true,page:n,view};
+  }
   if (action === 'upload_page') {
     if (!m || row?.status === 'running') throw new WorkspaceError('请先保存资料信息，或等待分析完成', 409);
     const n = body.page; if (!Number.isInteger(n) || n < 1 || n > MAX_PAGES || n > m.pages.length + 1) throw new WorkspaceError(`请按页序上传，最多${MAX_PAGES}张`);
@@ -175,9 +238,12 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
     const sourceMaterial = m || (row?.result?.source_record?.request_id ? await materialFor(db, user, row.result.source_record.request_id) : null);
     let pages: any[] = [];
     if (sourceMaterial?.pages.length) {
-      const { data, error } = await db.storage.from(SCAN_BUCKET).createSignedUrls(sourceMaterial.pages.map((p: any) => p.path), 900);
-      if (error) throw new WorkspaceError('扫描件读取未完成，请重试', 503);
-      pages = sourceMaterial.pages.map((p: any, i: number) => ({ page: p.page, role: p.role, has_details: !!p.detail_images?.length, url: data[i]?.signedUrl }));
+      if (sourceMaterial.options?.ecs_mirror === ECS_PRIMARY) pages = sourceMaterial.pages.map((p:any)=>({page:p.page,role:p.role,has_details:!!p.detail_images?.length,url:ecsReadUrl(sourceMaterial.request_id,p)}));
+      else {
+        const { data, error } = await db.storage.from(SCAN_BUCKET).createSignedUrls(sourceMaterial.pages.map((p: any) => p.path), 900);
+        if (error) throw new WorkspaceError('扫描件读取未完成，请重试', 503);
+        pages = sourceMaterial.pages.map((p: any, i: number) => ({ page: p.page, role: p.role, has_details: !!p.detail_images?.length, url: data[i]?.signedUrl }));
+      }
     }
     return { pages, regions: sourceMaterial?.regions || {}, readonly: !!row?.result?.source_record, material: m ? { request_id: m.request_id, draft_id: m.draft_id, subject: m.subject, exam_id: m.exam_id, title: m.title, options: m.options } : null };
   }
