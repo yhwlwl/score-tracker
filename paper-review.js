@@ -488,7 +488,7 @@
       if (main.contains(message)) main.before(message);
       message.classList.remove('pr-action-message');
       if(ctx.onRecordChange)ctx.onRecordChange(r);
-      if(r.result && r.result.record_only && r.status==='succeeded' && ctx.onRecorded){var recorded=ctx.onRecorded;ctx.onRecorded=null;recorded(r);return;}
+      if (r.status === 'succeeded' && session.pending === r.request_id) { session.pending = null; session.payload = null; session.retrySubmission = false; session.pages = []; session.cloudReady = false; session.cloudDraftId = null; await support.uploads('delete', ctx.user, r.request_id); await support.uploads('delete', ctx.user, cacheScope); session.cacheId = null; restoredUploads = false; }\n      if(r.result && r.result.record_only && r.status==='succeeded' && ctx.onRecorded){var recorded=ctx.onRecorded;ctx.onRecorded=null;recorded(r);return;}
       if(main.paperBoardDispose)main.paperBoardDispose();
       main.paperBoardBeforeSave=null;
       selected = r; view = 'report'; dirty = false; if (ctx.onView) ctx.onView('report');
@@ -497,7 +497,7 @@
         main.innerHTML = runningReport(r) + button(r.pause_requested ? '完成当前步骤后暂停' : '暂停并保存进度', 'pause');
         clearTimeout(timer); timer = setTimeout(function () { load(r.request_id); }, 3000); return;
       }
-      if (r.status === 'succeeded' && session.pending === r.request_id) { session.pending = null; session.payload = null; session.retrySubmission = false; support.uploads('delete', ctx.user, r.request_id); support.uploads('delete', ctx.user, cacheScope); session.cacheId = null; }
+      
       if (r.status === 'failed' && !r.result) {
         var p = r.progress || {}, recovery = r.recovery || { available: p.version >= 2 && (p.resume_remaining == null || p.resume_remaining > 0), completed: p.completed_questions || 0, total: p.total_questions || 0, questions: [] };
         var matching = session.pending === r.request_id || session.cacheId === r.request_id;
