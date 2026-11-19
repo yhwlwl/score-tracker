@@ -116,18 +116,7 @@ async function processJob(privateKey, encKey, payload) {
     await control(privateKey,{action:'ack',...identity}); return;
   }
   if(!Array.isArray(assets)||assets.length>165)throw Error('invalid job');
-  if(job.operation==='primary'){
-    const refs=new Set(),uploaded=[];
-    for(const asset of assets){
-      if(typeof asset.path!=='string'||!asset.path.startsWith(`${job.user_id}/${job.request_id}/`)||!uuid.test(asset.ecs_ref||'')||!sha256.test(asset.sha256||'')||!Number.isInteger(asset.bytes)||asset.bytes<1||asset.bytes>2100000||!mimes.has(asset.mime)||refs.has(asset.ecs_ref))throw Error('invalid asset');
-      refs.add(asset.ecs_ref);const local=await readPrimaryAsset(job.request_id,asset.ecs_ref,(await readPrimaryMetaToken(job.request_id,asset.ecs_ref)));
-      if(local.bytes!==asset.bytes||local.mime!==asset.mime||local.sha256!==asset.sha256)throw Error('local mismatch');
-      const result=await uploadBackup(privateKey,job,asset,local.data);if(result.stale){await cleanupStale(privateKey,job.request_id,uploaded);return;}uploaded.push(result.path);
-    }
-    const still=await control(privateKey,{action:'check',...identity});
-    if(!still.current){await cleanupStale(privateKey,job.request_id,uploaded);return;}
-    await prunePrimary(job.request_id,refs);await control(privateKey,{action:'ack',...identity});return;
-  }
+  if(job.operation==='primary')throw Error('use primary worker');
   if(job.operation!=='sync')throw Error('invalid job');
   await fs.mkdir(base,{recursive:true,mode:0o700});
   const expected=new Set(), manifest=[];
