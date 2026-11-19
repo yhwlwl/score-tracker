@@ -55,7 +55,7 @@
       '<p class="pr-muted">'+(data.untyped?data.untyped+' 题未填题型，不纳入本次汇总。':'')+(data.unverified?(screenshot?'保存时将一并采用没有疑点的识别结果。':data.unverified+' 题尚未对照原卷核对。'):'')+'缺少得分或满分的题型保存为待补全，不参与统计。</p>'+
       (data.existing.length?'<details><summary>查看本科已有的 '+data.existing.length+' 项题型</summary><p>'+data.existing.map(function(r){return esc(r.name)+'：'+esc(r.score==null?'—':r.score)+' / '+esc(r.max==null?'—':r.max);}).join('；')+'</p></details><label class="pr-check"><input type="checkbox" data-replace-types>用上方汇总替换本科已有题型得分</label>':'')+
       (!linked?'<p>关联考试后，即可把这里的得分更新到题型分析。</p>':'')+
-      '<div class="pr-footer">'+(linked?'<button type="button" class="pr-button pr-primary" data-sync-types>保存并更新题型得分</button>':'')+'<button type="button" class="pr-button" data-pr="save">只保存试题</button></div><p role="status" data-sync-note></p>';
+      '<div class="pr-footer">'+(linked?'<button type="button" class="pr-button pr-primary" data-sync-types>更新题型并完成</button>':'')+'<button type="button" class="pr-button" data-pr="save">仅保存试卷</button></div><p role="status" data-sync-note></p>';
   }
   function decorate(main,row,ctx,api,note,hooks) {
     if(row.result.screenshot_only){
@@ -73,15 +73,15 @@
     function update(){
       var items=live(main,row),pending=items.filter(function(i){return !i.c.verified&&questionState(i.q,i.c,items,groupsFor(row)).reasons.length;}),verified=items.filter(function(i){return i.c.verified;}).length;
       var total=row.result.total||{};
-      overview.innerHTML='<div class="pr-check-metrics"><div><b>'+items.length+'</b><span>已识别题目</span></div><div><b>'+pending.length+'</b><span>处需要核对</span></div><div><b>'+verified+' / '+items.length+'</b><span>已对照原卷</span></div>'+(total.score!=null?'<div><b>'+esc(total.score)+(total.max!=null?' / '+esc(total.max):'')+'</b><span>卷面批改总分</span></div>':'')+'</div><p>'+ (pending.length?'先检查下方标出的缺失或冲突，其余题目也可展开查看。':'未发现明显缺失或冲突；仍请对照原卷确认后更新题型得分。')+'</p>';
+      overview.innerHTML='<div class="pr-check-metrics"><div><b>'+items.length+'</b><span>已识别题目</span></div><div><b>'+pending.length+'</b><span>处需要核对</span></div><div><b>'+verified+' / '+items.length+'</b><span>已对照原卷</span></div>'+(total.score!=null?'<div><b>'+esc(total.score)+(total.max!=null?' / '+esc(total.max):'')+'</b><span>卷面批改总分</span></div>':'')+'</div><p>'+ (pending.length?'只需处理标出的缺失或冲突；其余结果可直接采用。':'核对完成，可以直接完成录入。')+'</p>';
       var eligible=items.filter(function(i){return !i.c.verified&&!questionState(i.q,i.c,items,groupsFor(row)).reasons.length;});
-      overview.insertAdjacentHTML('beforeend','<div class="pr-bulk-actions"><button type="button" class="pr-button pr-primary" data-confirm-clean '+(!eligible.length?'disabled':'')+'>确认全部无异常题（'+eligible.length+'）</button>'+(pending.length?'<button type="button" class="pr-button" data-show-pending>查看需处理的 '+pending.length+' 题</button>':'')+(lastBatch.length?'<button type="button" class="pr-button" data-undo-batch>撤销本次批量确认</button>':'')+'</div><p class="pr-bulk-hint">快速浏览原题与作答截图后，可一次确认无缺失、冲突或识别疑点的题目。异常题仍需单独处理；确认后请保存。</p>');
+      overview.insertAdjacentHTML('beforeend','<div class="pr-bulk-actions"><button type="button" class="pr-button pr-primary" data-confirm-clean '+(!eligible.length?'disabled':'')+'>采用全部无异常题（'+eligible.length+'）</button>'+(pending.length?'<button type="button" class="pr-button" data-show-pending>查看需处理的 '+pending.length+' 题</button>':'')+(lastBatch.length?'<button type="button" class="pr-button" data-undo-batch>撤销本次操作</button>':'')+'</div><p class="pr-bulk-hint">没有疑点的识别结果可以直接采用，不需要逐题点确认。</p>');
       overview.querySelector('[data-confirm-clean]').onclick=function(){
         var current=live(main,row),chosen=current.filter(function(i){return !i.c.verified&&!questionState(i.q,i.c,current,groupsFor(row)).reasons.length;}),first;
         lastBatch=chosen.map(function(i){return String(i.q.id);});
         main.querySelectorAll('[data-question]').forEach(function(n){if(lastBatch.includes(n.dataset.question)){var box=n.querySelector('[data-field=verified]');box.checked=true;first=first||box;}});
         if(first)first.dispatchEvent(new Event('input',{bubbles:true}));
-        note('已批量确认 '+chosen.length+' 题；异常题保留待处理，确认结果尚未保存。');
+        note('已采用 '+chosen.length+' 题无异常结果；异常题仍需单独处理。');
         var filter=main.querySelector('[data-pr="filter:confirm"]');if(pending.length&&filter)filter.click();
         track('paper_confirm_clean',{count:chosen.length});
       };
@@ -114,7 +114,7 @@
           var savedTypes=await api(ctx,'sync_types',{request_id:saved.request_id,revision:saved.revision,exam_version:preview.exam_version,replace:accepted});
           [state.exams,state.allExams].forEach(function(list){(list||[]).forEach(function(e){if(e.id===savedTypes.exam_id)e.question_type_scores=savedTypes.question_type_scores;});});
           if(!main.isConnected)return;
-          main.querySelector('.pr-type-sync').innerHTML='<h3>试题与题型得分已保存</h3><p>已更新本场'+esc(row.subject)+'的 '+preview.rows.length+' 项题型。整科和总分保持原样。</p><button type="button" class="pr-button" data-view-types>查看题型分析</button>';
+          main.querySelector('.pr-type-sync').innerHTML='<h3>试题与题型得分已保存</h3><p>已更新本场'+esc(row.subject)+'的 '+preview.rows.length+' 项题型。整科和总分保持原样。</p><button type="button" class="pr-button" data-view-types>查看题型分析</button>';var board=main.querySelector('.pb-board');if(board){var done=board.querySelector('[data-pb-complete]'),finish=board.querySelector('[data-pb=finish]'),choice=board.querySelector('.pb-finish-choice');if(done){done.hidden=false;done.textContent='录入完成 · 题型得分已更新。';}if(finish)finish.hidden=true;if(choice)choice.hidden=true;}
           main.querySelector('[data-view-types]').onclick=function(){if(ctx.canLeave&&!ctx.canLeave())return;if(ctx.dispose)ctx.dispose();window.ScoreQuestionTypeAnalysis.open(row.subject);};
           note('试题与题型得分已保存');track('paper_type_sync',{types:preview.rows.length,replaced:preview.existing.length>0});
         }catch(e){if(main.isConnected){note('题型得分未更新：'+e.message,true);var active=main.querySelector('[data-sync-types]');if(active)active.disabled=false;}}
