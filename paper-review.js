@@ -488,7 +488,8 @@
       if (main.contains(message)) main.before(message);
       message.classList.remove('pr-action-message');
       if(ctx.onRecordChange)ctx.onRecordChange(r);
-      if (r.status === 'succeeded' && session.pending === r.request_id) { session.pending = null; session.payload = null; session.retrySubmission = false; session.pages = []; session.cloudReady = false; session.cloudDraftId = null; support.uploads('delete', ctx.user, r.request_id); support.uploads('delete', ctx.user, cacheScope); session.cacheId = null; restoredUploads = false; }\n      if(r.result && r.result.record_only && r.status==='succeeded' && ctx.onRecorded){var recorded=ctx.onRecorded;ctx.onRecorded=null;recorded(r);return;}
+      if (r.status === 'succeeded' && session.pending === r.request_id) { session.pending = null; session.payload = null; session.retrySubmission = false; session.pages = []; session.cloudReady = false; session.cloudDraftId = null; support.uploads('delete', ctx.user, r.request_id); support.uploads('delete', ctx.user, cacheScope); session.cacheId = null; restoredUploads = false; }
+      if(r.result && r.result.record_only && r.status==='succeeded' && ctx.onRecorded){var recorded=ctx.onRecorded;ctx.onRecorded=null;recorded(r);return;}
       if(main.paperBoardDispose)main.paperBoardDispose();
       main.paperBoardBeforeSave=null;
       selected = r; view = 'report'; dirty = false; if (ctx.onView) ctx.onView('report');
