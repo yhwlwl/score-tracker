@@ -2,26 +2,33 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 
 const db = createClient(Deno.env.get('SUPABASE_URL') || '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '', { auth: { persistSession: false, autoRefreshToken: false } });
-// Public key only; the corresponding private key is generated and retained on ECS.
 const PUBLIC_KEY = 'MCowBQYDK2VwAyEA7JtwHhWMyR/YVIk1XmeZtx/19Cq1LycLMd3FBTnksBE=';
 const JOBS = 'score_tracker_paper_mirror_preview_jobs', NONCES = 'score_tracker_paper_mirror_preview_nonces';
-const BUCKET = 'score-tracker-paper-scans';
+const BUCKET = 'score-tracker-paper-scans', PRIMARY = 'preview-v2-primary';
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const sha256 = /^[a-f0-9]{64}$/;
 const reply = (status: number, value: unknown) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
 const decode = (s: string) => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 async function query(op: PromiseLike<any>) { const {data,error} = await op; if (error) throw Error('db'); return data; }
+function flatAssets(material:any) { return (material?.pages || []).flatMap((p:any)=>[p,...(p.detail_images||[])]); }
+function safeAssets(material:any, user:string, requestId:string, primary=false) {
+  const prefix=`${user}/${requestId}/`;
+  const assets=flatAssets(material).map((p:any)=>({path:p.path,mime:p.mime,bytes:p.bytes,...(primary?{ecs_ref:p.ecs_ref,sha256:p.sha256}:{})}));
+  const valid=assets.length<=165 && assets.every((p:any)=>typeof p.path==='string'&&p.path.startsWith(prefix)&&!p.path.slice(prefix.length).includes('/')&&/^[A-Za-z0-9-]+$/.test(p.path.slice(prefix.length))&&['image/jpeg','image/png','image/webp'].includes(p.mime)&&Number.isInteger(p.bytes)&&p.bytes>=1&&p.bytes<=2100000&&(!primary||(uuid.test(p.ecs_ref||'')&&sha256.test(p.sha256||''))));
+  return valid?assets:null;
+}
+async function materialFor(job:any){ return query(db.from('score_tracker_paper_materials').select('request_id,user_id,options,pages').eq('request_id',job.request_id).eq('user_id',job.user_id).maybeSingle()); }
 
 Deno.serve(async (req: Request) => {
   try {
-    if (req.method !== 'POST' || Number(req.headers.get('content-length') || 0) > 4096) return reply(400,{error:'invalid'});
-    const raw = await req.text(); if (raw.length > 4096) return reply(400,{error:'invalid'});
+    if (req.method !== 'POST' || Number(req.headers.get('content-length') || 0) > 8192) return reply(400,{error:'invalid'});
+    const raw = await req.text(); if (raw.length > 8192) return reply(400,{error:'invalid'});
     const signature = req.headers.get('x-mirror-signature') || '';
     if (!/^[A-Za-z0-9+/]{86}==$/.test(signature)) return reply(401,{error:'unauthorized'});
     const key = await crypto.subtle.importKey('spki', decode(PUBLIC_KEY), {name:'Ed25519'}, false, ['verify']);
     if (!await crypto.subtle.verify('Ed25519', key, decode(signature), new TextEncoder().encode(raw))) return reply(401,{error:'unauthorized'});
     const body = JSON.parse(raw);
     if (!uuid.test(body.nonce || '') || !Number.isInteger(body.ts) || Math.abs(Date.now() / 1000 - body.ts) > 90) return reply(401,{error:'expired'});
-    // Keep the replay table bounded. A failed cleanup is harmless; a failed insert denies the request.
     if (Math.random() < .1) await db.from(NONCES).delete().lt('created_at', new Date(Date.now() - 300000).toISOString());
     const inserted = await db.from(NONCES).insert({nonce:body.nonce});
     if (inserted.error) return reply(401,{error:'replay'});
@@ -30,22 +37,49 @@ Deno.serve(async (req: Request) => {
       const rows = await query(db.from(JOBS).select('*').lte('available_at',new Date().toISOString()).order('available_at').order('updated_at').limit(1));
       const job = rows[0]; if (!job) return reply(200,{job:null});
       if (job.operation === 'delete') return reply(200,{job});
-      const material = await query(db.from('score_tracker_paper_materials').select('request_id,user_id,options,pages').eq('request_id',job.request_id).eq('user_id',job.user_id).maybeSingle());
-      if (!material || material.options?.ecs_mirror !== 'preview-v1' || !Array.isArray(material.pages)) return reply(200,{job,error:'changed'});
-      const assets = material.pages.flatMap((p: any) => [p,...(p.detail_images || [])]).map((p: any) => ({path:p.path,mime:p.mime,bytes:p.bytes}));
-      const prefix = `${job.user_id}/${job.request_id}/`;
-      if (assets.length > 165 || assets.some((p: any) => typeof p.path !== 'string' || !p.path.startsWith(prefix) || p.path.slice(prefix.length).includes('/') || !/^[A-Za-z0-9-]+$/.test(p.path.slice(prefix.length)) || !['image/jpeg','image/png','image/webp'].includes(p.mime) || !Number.isInteger(p.bytes) || p.bytes < 1 || p.bytes > 2100000)) return reply(200,{job,error:'metadata'});
-      let urls: any[] = [];
-      if (assets.length) {
-        const {data,error} = await db.storage.from(BUCKET).createSignedUrls(assets.map((p: any) => p.path), 900);
-        if (error || !data || data.length !== assets.length || data.some((p: any) => !p.signedUrl || p.error)) return reply(200,{job,error:'urls'});
-        urls = data;
+      const material = await materialFor(job);
+      if (!material || !Array.isArray(material.pages)) return reply(200,{job,error:'changed'});
+      if (job.operation === 'primary') {
+        if (material.options?.ecs_mirror !== PRIMARY) return reply(200,{job,error:'changed'});
+        const assets=safeAssets(material,job.user_id,job.request_id,true);
+        return assets ? reply(200,{job,assets}) : reply(200,{job,error:'metadata'});
       }
-      return reply(200,{job,assets:assets.map((p: any,i: number) => ({...p,url:urls[i].signedUrl}))});
+      if (material.options?.ecs_mirror !== 'preview-v1') return reply(200,{job,error:'changed'});
+      const assets=safeAssets(material,job.user_id,job.request_id,false);
+      if (!assets) return reply(200,{job,error:'metadata'});
+      let urls:any[]=[];
+      if(assets.length){
+        const {data,error}=await db.storage.from(BUCKET).createSignedUrls(assets.map((p:any)=>p.path),900);
+        if(error||!data||data.length!==assets.length||data.some((p:any)=>!p.signedUrl||p.error))return reply(200,{job,error:'urls'});
+        urls=data;
+      }
+      return reply(200,{job,assets:assets.map((p:any,i:number)=>({...p,url:urls[i].signedUrl}))});
     }
-    if (!uuid.test(body.request_id || '') || !uuid.test(body.generation || '')) return reply(400,{error:'invalid'});
+
+    if (!uuid.test(body.request_id || '')) return reply(400,{error:'invalid'});
+    if (body.action === 'cleanup_stale') {
+      const currentJob=await query(db.from(JOBS).select('*').eq('request_id',body.request_id).maybeSingle());
+      if(!currentJob)return reply(200,{ok:true});
+      const material=await materialFor(currentJob), currentPaths=new Set(flatAssets(material).map((p:any)=>p.path));
+      const prefix=`${currentJob.user_id}/${body.request_id}/`, paths=Array.isArray(body.paths)?body.paths:[];
+      if(paths.length>10||paths.some((p:any)=>typeof p!=='string'||!p.startsWith(prefix)||p.slice(prefix.length).includes('/')||currentPaths.has(p)))return reply(400,{error:'invalid'});
+      if(paths.length){const removed=await db.storage.from(BUCKET).remove(paths);if(removed.error)throw Error('storage');}
+      return reply(200,{ok:true});
+    }
+
+    if (!uuid.test(body.generation || '')) return reply(400,{error:'invalid'});
     const current = await query(db.from(JOBS).select('*').eq('request_id',body.request_id).eq('generation',body.generation).maybeSingle());
     if (!current) return reply(200,{current:false});
+    if (body.action === 'prepare_upload') {
+      if(current.operation!=='primary'||!uuid.test(body.ecs_ref||''))return reply(400,{error:'invalid'});
+      const material=await materialFor(current);
+      if(!material||material.options?.ecs_mirror!==PRIMARY)return reply(200,{current:false});
+      const assets=safeAssets(material,current.user_id,current.request_id,true),asset=assets?.find((p:any)=>p.ecs_ref===body.ecs_ref);
+      if(!asset)return reply(200,{current:false});
+      const {data,error}=await db.storage.from(BUCKET).createSignedUploadUrl(asset.path,{upsert:true});
+      if(error||!data?.token||!data?.signedUrl)throw Error('storage');
+      return reply(200,{current:true,path:asset.path,mime:asset.mime,bytes:asset.bytes,sha256:asset.sha256,signed_url:data.signedUrl,token:data.token});
+    }
     if (body.action === 'check') return reply(200,{current:true,operation:current.operation,user_id:current.user_id});
     if (body.action === 'ack') {
       await query(db.from(JOBS).delete().eq('request_id',body.request_id).eq('generation',body.generation));
