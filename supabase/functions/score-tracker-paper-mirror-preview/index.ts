@@ -42,7 +42,9 @@ Deno.serve(async (req: Request) => {
       if (job.operation === 'primary') {
         if (material.options?.ecs_mirror !== PRIMARY) return reply(200,{job,error:'changed'});
         const assets=safeAssets(material,job.user_id,job.request_id,true);
-        return assets ? reply(200,{job,assets}) : reply(200,{job,error:'metadata'});
+        if(!assets) return reply(200,{job,error:'metadata'});
+        if(!assets.length) return reply(200,{job,error:'empty'});
+        return reply(200,{job,assets});
       }
       if (material.options?.ecs_mirror !== 'preview-v1') return reply(200,{job,error:'changed'});
       const assets=safeAssets(material,job.user_id,job.request_id,false);
