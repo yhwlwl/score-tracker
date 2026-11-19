@@ -41,15 +41,19 @@ export async function storedPages(db: any, user: string, id: string, loadPages?:
   const download = async (p: any, page: number) => {
     if (loadPages && !loadPages.includes(page)) return `stored:${p.path}`;
     if (primary && p.ecs_ref && p.ecs_read_token) {
-      const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 18000);
+      const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 18000); let issue = 'unknown';
       try {
         const response = await fetch(ecsReadUrl(id,p), { redirect:'error', signal:controller.signal, headers:{'Accept':'image/*'} });
+        issue = 'http_' + response.status;
         if (response.ok) {
           const type = (response.headers.get('content-type') || '').split(';')[0];
           const bytes = new Uint8Array(await response.arrayBuffer());
-          if (type === p.mime && bytes.length === p.bytes) return asData(bytes,p.mime);
+          issue = type !== p.mime ? 'mime_' + type : bytes.length !== p.bytes ? 'bytes_' + bytes.length : 'ok';
+          if (issue === 'ok') return asData(bytes,p.mime);
         }
-      } catch (_) {} finally { clearTimeout(timer); }
+      } catch (e) { issue = 'fetch_' + String((e as any)?.name || 'error').slice(0,40); }
+      finally { clearTimeout(timer); }
+      console.warn('paper_ecs_read_failed', JSON.stringify({ request_id:id, page, issue }));
     }
     const { data, error } = await db.storage.from(SCAN_BUCKET).download(p.path);
     if (error || !data) throw new WorkspaceError(primary ? '境内扫描件暂时不可读，Supabase 备份仍在同步，请重试' : '扫描件读取未完成，请重试', 503);
