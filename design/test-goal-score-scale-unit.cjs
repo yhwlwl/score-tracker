@@ -5,7 +5,7 @@ const vm = require('node:vm');
 
 // Run the actual feature source; expose private rendering functions only in this test VM.
 const source = fs.readFileSync(path.join(__dirname, '../app-v33.js'), 'utf8')
-  .replace('window.__v33={', 'window.__goalTest={chipHtml:chipHtml,bestOf:bestOf,fillCalib:fillCalib};window.__v33={');
+  .replace('window.__v33={', 'window.__goalTest={chipHtml:chipHtml,goalSummaryHtml:goalSummaryHtml,bestOf:bestOf,fillCalib:fillCalib};window.__v33={');
 const context = {
   state: { subjectConfigs: [{ name: '数学', defaultMax: 130 }], exams: [] },
   document: { getElementById: () => ({}), querySelector: () => null, querySelectorAll: () => [] },
@@ -24,11 +24,17 @@ async function fixture(exams, configs, goal) {
   await context.__v33.reload();
 }
 const chip = () => context.__goalTest.chipHtml({ name: '数学', max: 130 });
+const summary = () => context.__goalTest.goalSummaryHtml(context.__v33.debug().rec);
 const calib = () => { const row = {}; context.__goalTest.fillCalib(row); return row.innerHTML; };
 (async () => {
   await fixture([exam(85, 100)]);
   assert.match(chip(), /<b>85%<\/b>/);
-  assert.match(chip(), /目标 85%/);
+  assert.match(chip(), /目标 85% · 110\.5\/130/);
+  assert.match(chip(), /实际 85\/100/);
+  assert.match(summary(), /原始 85\/100 分/);
+  assert.match(summary(), /110\.5\/130 分/);
+  assert.doesNotMatch(summary(), /折合|折算|变化/);
+  assert.equal((summary().match(/class="gh-summary-item"/g)||[]).length,2);
   assert.doesNotMatch(chip(), /折合|折算/);
   assert.match(chip(), /<em>已达标<\/em>/);
   assert.equal(context.__v33.debug().rec.rate, 85);
@@ -47,6 +53,9 @@ const calib = () => { const row = {}; context.__goalTest.fillCalib(row); return 
     assert.equal(context.__v33.debug().rec.comparison.gap, expected);
     assert.match(calib(), /最近总分/);
     assert.doesNotMatch(calib(), /%|百分点/);
+    assert.doesNotMatch(summary(), /%|百分点|折算/);
+    assert.match(summary(), new RegExp('>'+score+' 分<'));
+    assert.match(summary(), /110\.5\/130 分/);
   }
   await fixture([exam(85, 100), exam(0, 100, { is_hidden: true, exam_date: '2026-11-02' })]);
   assert.match(chip(), /<em>已达标<\/em>/);
@@ -72,12 +81,23 @@ const calib = () => { const row = {}; context.__goalTest.fillCalib(row); return 
   await fixture([exam(100, 150, { scores: { 数学: { actual: 100, max: 150 }, 英语: { actual: 110, max: 130 } } })]);
   assert.equal(context.__v33.debug().rec.asScore, false, 'matching aggregate maxima must not mask different subject scales');
   assert.match(calib(), /百分点/);
+  assert.match(summary(), /原始 210\/280 分/);
+  assert.match(summary(), /230\.5\/280 分/);
+  assert.doesNotMatch(summary(), /折算/);
   await fixture([exam(170, 200, { scores: { 数学: { actual: 170, max: 200 }, 英语: { actual: 120, max: 150 } } })]);
   assert(Math.abs(context.__v33.debug().rec.rate - 230.5 / 280 * 100) < 1e-10, 'changing an exam scale does not change the weighted rate');
+  assert.match(summary(), /原始 290\/350 分/);
+  assert.match(summary(), /82\.32%/);
+  assert.doesNotMatch(summary(), /折算|290\/280/);
   assert.match(calib(), /已达标/);
   await fixture([exam(85, 100)]);
   assert.equal(context.__v33.debug().rec.comparable, false, 'partial subjects must not be compared to a complete total target');
   assert.match(calib(), /待补成绩或有效满分/);
+  assert.match(summary(), /待补成绩或满分/);
+  assert.doesNotMatch(summary(), /原始 85\/100/);
+  await fixture([exam(110.5,130), {exam_date:'2026-10-01',scores:{英语:{actual:120,max:150}}}]);
+  assert.match(summary(), /各科最近/);
+  assert.doesNotMatch(summary(), /最近一次/);
   // Peak achievement must use rates even when the highest raw score came from a larger scale.
   await fixture([exam(100, 150), exam(85, 100, { exam_date: '2026-10-01' })]);
   assert.equal(context.__goalTest.bestOf('数学'), 85);
