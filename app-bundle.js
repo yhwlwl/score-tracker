@@ -15705,10 +15705,12 @@ window.ScorePaperEntryOnly = true;
   function show(ctx, subject, trigger) {
     if (!current(ctx) || !(ctx.host || ctx.modal).isConnected) return toast('请重新打开考试');
     if (ctx.dialog) return;
-    if (!ctx.draftId) ctx.draftId = draftFor(ctx.user, ctx.examId);
+    // Missing ids are always a fresh attempt. Resumption is explicit: the hub
+    // passes the saved draft id when the user chooses to continue a draft.
+    if (!ctx.draftId) ctx.draftId = crypto.randomUUID();
     var session = ctx.sessions[subject] || (ctx.sessions[subject] = { pages: [], workOnPaper: true, consent: false, pending: null });
     var dialog = document.createElement(ctx.host ? 'section' : 'dialog'); dialog.className = ctx.host ? 'pr-dialog pr-inline' : 'pr-dialog'; dialog.setAttribute('aria-labelledby', 'pr-title');
-    var busy = false, dirty = false, saving = false, closed = false, timer, selected = null, reviews = [], quota = null, view = 'upload', initialSection = ctx.initialSection;
+    var busy = false, dirty = false, saving = false, quietSave = false, closed = false, timer, selected = null, reviews = [], quota = null, view = 'upload', initialSection = ctx.initialSection, autoSaveTimer;
     var cacheScope = ctx.draftId + '|' + subject, cacheQueue = Promise.resolve(), restoredUploads = false;
     ctx.dialog = dialog;
     dialog.innerHTML = '<header class="pr-head"><div><span class="pr-eyebrow">' + esc(subject) + ' · BETA</span><h2 id="pr-title">' + (ctx.options && ctx.options.purpose==='record'?'试题与得分':'AI 分析') + '</h2></div>' + button(esc(ctx.closeLabel || (ctx.host ? '返回试卷列表' : '返回考试')), 'close') + '</header><div class="pr-content"><div class="pr-message" role="status" aria-live="polite"></div><div class="pr-tabs">' + button('上传资料', 'upload', 'is-active') + button('分析记录', 'history') + '</div><div class="pr-main"></div></div>';
@@ -15719,7 +15721,7 @@ window.ScorePaperEntryOnly = true;
     function alive() { return !closed && current(ctx) && (ctx.host ? ctx.host.isConnected && (ctx.isActive ? ctx.isActive() : state.page === 'stats' && ['ai','papers'].includes(state.analysisTab)) : ctx.modal.isConnected && state.modal === ctx.modal); }
     function close(force) {
       if (!force && dirty && !confirm('核对修改尚未保存，确定返回考试吗？')) return;
-      closed = true; clearTimeout(timer); cleanup.disconnect(); ctx.dialog = null;
+      closed = true; clearTimeout(timer); clearTimeout(autoSaveTimer); cleanup.disconnect(); ctx.dialog = null;
       if (dialog.close) dialog.close(); dialog.remove(); if (ctx.host && ctx.onClose && !force) ctx.onClose(); else if (trigger && trigger.isConnected) trigger.focus();
     }
     var cleanup = new MutationObserver(function () { if (!(ctx.host || ctx.modal).isConnected || (!ctx.host && state.modal !== ctx.modal) || !current(ctx)) close(true); });
@@ -15884,7 +15886,7 @@ window.ScorePaperEntryOnly = true;
       message.classList.remove('pr-action-message');
       if(ctx.onRecordChange)ctx.onRecordChange(r);
       if (r.status === 'succeeded' && session.pending === r.request_id) { session.pending = null; session.payload = null; session.retrySubmission = false; session.pages = []; session.cloudReady = false; session.cloudDraftId = null; support.uploads('delete', ctx.user, r.request_id); support.uploads('delete', ctx.user, cacheScope); session.cacheId = null; restoredUploads = false; }
-      if(r.result && r.result.record_only && r.status==='succeeded' && ctx.onRecorded){var recorded=ctx.onRecorded;ctx.onRecorded=null;recorded(r);return;}
+      if(r.result && r.result.record_only && r.status==='succeeded' && ctx.onRecorded){var recorded=ctx.onRecorded;ctx.onRecorded=null;Promise.resolve().then(function(){return Promise.allSettled([support.uploads('delete',ctx.user,r.request_id),support.uploads('delete',ctx.user,cacheScope)]);}).then(function(){recorded(r);});return;}
       if(main.paperBoardDispose)main.paperBoardDispose();
       main.paperBoardBeforeSave=null;
       selected = r; view = 'report'; dirty = false; if (ctx.onView) ctx.onView('report');
@@ -15930,12 +15932,43 @@ window.ScorePaperEntryOnly = true;
         var target=main.querySelector('[data-question="'+q.id+'"] .pr-edit .pr-fold-body');
         if(target){target.insertAdjacentHTML('afterbegin',window.ScorePaperRecords.fields(q,c));target.parentElement.open=false;target.parentElement.querySelector('summary').textContent='修改题型、文字或分数';}
       });
-      if(report.record_only && window.ScorePaperRecords)window.ScorePaperRecords.decorate(main,r,ctx,api,note,{save:save,isDirty:function(){return dirty;}});
+      async function finalizeEntry(choice) {
+        if (!selected || !selected.result || !selected.result.record_only) return null;
+        var fresh = await api(ctx, 'finalize_entry', { request_id: selected.request_id, revision: selected.revision, choice: choice || 'save' });
+        if (alive() && fresh && fresh.review) { Object.assign(selected, fresh.review); dirty = false; renderReport(selected); }
+        return fresh && fresh.review || selected;
+      }
+      function renderEntryCompletion() {
+        if (!report.record_only || !report.entry_completion) return;
+        var synced = report.entry_completion.choice === 'sync', showTypes = synced || !!report.exam_id || !!ctx.examId || !!(selected && selected.exam_id), card = document.createElement('section');
+        card.className = 'pr-entry-complete'; card.setAttribute('aria-label', '录入完成');
+        card.innerHTML = '<div class="pr-entry-complete-mark" aria-hidden="true">✓</div><div class="pr-entry-complete-copy"><h3>录入完成</h3><p>试题已保存；' + (synced ? '题型得分已更新。' : '本场已有题型得分未修改。') + '</p></div><div class="pr-entry-complete-actions">' + (showTypes ? '<button type="button" class="pr-button pr-primary" data-entry-types data-view-types>查看题型分析</button>' : '') + '<button type="button" class="pr-button" data-pr="history">返回所有试卷</button><button type="button" class="pr-button" data-entry-new>继续录入新试卷</button></div>';
+        var top = main.querySelector('.pr-result-top'); if (top) top.after(card); else main.prepend(card);
+        var board = main.querySelector('.pb-board');
+        if (board) {
+          var done = board.querySelector('[data-pb-complete]'), finish = board.querySelector('[data-pb=finish]'), choice = board.querySelector('.pb-finish-choice');
+          if (done) { done.hidden = false; done.textContent = synced ? '录入完成 · 题型得分已更新。' : '录入完成 · 试题已保存。'; }
+          if (finish) finish.hidden = true;
+          if (choice) choice.hidden = true;
+        }
+        var types = card.querySelector('[data-entry-types]');
+        if (types) types.onclick = function () { if (ctx.canLeave && !ctx.canLeave()) return; if (ctx.dispose) ctx.dispose(); if (window.ScoreQuestionTypeAnalysis) window.ScoreQuestionTypeAnalysis.open(report.subject); };
+        var newer = card.querySelector('[data-entry-new]');
+        if (newer) newer.onclick = function () { if (ctx.canLeave && !ctx.canLeave()) return; if (ctx.dispose) ctx.dispose(); if (ctx.onNewEntry) ctx.onNewEntry(); else if (ctx.onClose) ctx.onClose(); };
+      }
+      if(report.record_only && window.ScorePaperRecords)window.ScorePaperRecords.decorate(main,r,ctx,api,note,{save:save,isDirty:function(){return dirty;},finalize:finalizeEntry});
+      if (report.record_only) {
+        var legacySave = main.querySelector('[data-pr="save"]');
+        if (legacySave) { var legacyFooter = legacySave.closest('.pr-footer'); if (legacyFooter) legacyFooter.remove(); }
+        var saveNote = document.createElement('p'); saveNote.className = 'pr-muted pr-auto-save-note'; saveNote.textContent = '修改会自动保存；只需处理标出的异常。';
+        var questionSection = main.querySelector('[data-report-section="questions"]'); if (questionSection) questionSection.appendChild(saveNote);
+      }
       {(report.record_only?['materials']:['performance','insights','plan','materials']).forEach(function(id){var section=main.querySelector('[data-report-section="'+id+'"]');if(!section)return;var fold=document.createElement('details');fold.className='pr-report-extra';var title=section.querySelector('.pr-chapter h3');fold.innerHTML='<summary>'+esc(title?title.textContent:'更多内容')+'</summary>';section.before(fold);fold.appendChild(section);});}
-      losses(stats); support.renderMath(main); if (window.ScorePaperScans) window.ScorePaperScans.decorate(main, r, ctx, { api: api, load: load, note: note, save:save });
+      losses(stats); support.renderMath(main); if (window.ScorePaperScans) window.ScorePaperScans.decorate(main, r, ctx, { api: api, load: load, note: note, save:save, finalize:finalizeEntry });
+      renderEntryCompletion();
       if (updating) { main.querySelectorAll('input,textarea,select,[data-pr=save],[data-pr=delete]').forEach(function (el) { el.disabled = true; }); clearTimeout(timer); timer = setTimeout(function () { load(r.request_id); }, 3000); }
       if ((report.update_count || 0) >= 5) (main.querySelector('[data-pr-save-status]')||message).textContent = '5次分析更新已用完，可继续保存核对和订正记录';
-      main.querySelectorAll('.pr-question input,.pr-question textarea,.pr-question select').forEach(function (el) { el.addEventListener('input', function () { dirty = true; if (el.dataset.field === 'cause') { var detail = el.closest('[data-question]'), q = report.questions.find(function (q) { return q.id === detail.dataset.question; }); detail.querySelector('.pr-reflection-route').textContent = reflectionRoute(q, el.value); } (main.querySelector('[data-pr-save-status]')||message).textContent = '有未保存的核对修改'; }); });
+      main.querySelectorAll('.pr-question input,.pr-question textarea,.pr-question select').forEach(function (el) { el.addEventListener('input', function () { dirty = true; if (el.dataset.field === 'cause') { var detail = el.closest('[data-question]'), q = report.questions.find(function (q) { return q.id === detail.dataset.question; }); detail.querySelector('.pr-reflection-route').textContent = reflectionRoute(q, el.value); } (main.querySelector('[data-pr-save-status]')||message).textContent = '有未保存的核对修改'; if (report.record_only) { clearTimeout(autoSaveTimer); if (!['verified','accepted','corrected'].includes(el.dataset.field)) autoSaveTimer = setTimeout(function(){ if(!alive() || !dirty || saving) return; quietSave=true; save().catch(function(err){if(alive())note(err.message,true);}).finally(function(){quietSave=false;}); }, 850); } }); });
     }
     function losses(stats) {
       main.querySelector('[data-pr-losses]').innerHTML = stats.losses.length ? stats.losses.map(function (q) { return '<div class="pr-loss"><span>第 ' + esc(q.label) + ' 题</span><b>失 ' + Math.round(q.loss * 100) / 100 + ' 分</b></div>'; }).join('') : '<p class="pr-muted">' + (stats.scored ? '已核对的小题暂无失分。' : '核对小题得分后，在这里查看失分分布。') + '</p>';
@@ -16006,7 +16039,18 @@ window.ScorePaperEntryOnly = true;
       var controls=Array.from(main.querySelectorAll('input,textarea,select,button'));controls.forEach(function(el){el.dataset.wasDisabled=String(el.disabled);el.disabled=true;});
       try{
         var result=await api(ctx,'correct',{request_id:selected.request_id,revision:selected.revision,corrections:corrections,reanalyze:!selected.result.record_only && (selected.result.update_count||0)<5});
-        if(alive()){renderReport(result.review);note(result.review.status==='running'?'已保存，正在更新分析':'试题已保存');return result.review;}
+        if(alive()){
+          if (quietSave) {
+            var wasComplete = !!(selected.result && selected.result.entry_completion);
+            Object.assign(selected, result.review);
+            dirty = false;
+            if (ctx.onRecordChange) ctx.onRecordChange(selected);
+            if (wasComplete && !(selected.result && selected.result.entry_completion)) { renderReport(selected); return selected; }
+            note('修改已自动保存');
+            return selected;
+          }
+          renderReport(result.review);note(result.review.status==='running'?'已保存，正在更新分析':'试题已保存');return result.review;
+        }
       }finally{saving=false;controls.forEach(function(el){if(el.isConnected)el.disabled=el.dataset.wasDisabled==='true';});}
 
     }
@@ -16048,7 +16092,12 @@ window.ScorePaperEntryOnly = true;
       finally { busy = false; if (target.isConnected) target.disabled = false; }
     });
     if (ctx.initialReport) { load(ctx.initialReport); return; }
-    upload(); support.uploads('latest', ctx.user, cacheScope).then(function (saved) { if (alive() && !session.pages.length && !session.pending && !busy && fill(saved)) { if (session.pending) return load(session.pending).then(refresh); if (view === 'upload') upload(); } return refresh(); });
+    upload();
+    // Never hydrate a fresh upload from the previous local slot. Only an
+    // explicit draft/resume entry may restore cached images.
+    if (ctx.restoreDraft) {
+      support.uploads('latest', ctx.user, cacheScope).then(function (saved) { if (alive() && !session.pages.length && !session.pending && !busy && fill(saved)) { if (session.pending) return load(session.pending).then(refresh); if (view === 'upload') upload(); } return refresh(); });
+    } else refresh();
   }
 
   var beforeOpen = openExam;
@@ -16062,7 +16111,7 @@ window.ScorePaperEntryOnly = true;
       modal.querySelectorAll('.exam-subject-card-v10').forEach(function (card) {
         if (card.querySelector('.pr-entry')) return;
         var entry = document.createElement('button'); entry.type = 'button'; entry.className = 'pr-entry'; entry.textContent = '试题录入 / AI 分析';
-        entry.onclick = function () { var name = card.querySelector('.exam-subject-name-v10').value.trim(); if (name) { if (window.ScorePaperHub) { if (!ctx.draftId) ctx.draftId = draftFor(ctx.user, ctx.examId); window.ScorePaperHub.enter(ctx, name, formContext(ctx, name)); } else show(ctx, name, entry); } };
+        entry.onclick = function () { var name = card.querySelector('.exam-subject-name-v10').value.trim(); if (name) { if (window.ScorePaperHub) { window.ScorePaperHub.enter(ctx, name, formContext(ctx, name)); } else { ctx.draftId = crypto.randomUUID(); ctx.restoreDraft = false; show(ctx, name, entry); } } };
         card.appendChild(entry);
       });
     }
@@ -16117,7 +16166,7 @@ window.ScorePaperEntryOnly = true;
     @media(max-width:520px){.pr-dialog{width:100%;max-width:100%;max-height:100dvh;height:100dvh;margin:0;border-radius:0;border:0}.pr-head{padding:15px 16px}.pr-content{padding:0 16px 24px}.pr-pages{grid-template-columns:repeat(2,minmax(0,1fr))}.pr-intro,.pr-main .pr-result-top{padding:18px}.pr-head h2{font-size:18px}.pr-stats b{font-size:20px}.pr-main .pr-question>summary{padding:14px;gap:8px}.pr-main .pr-report-nav .pr-button{font-size:12px;padding:8px}.pr-main .pr-difficulty-table thead{display:none}.pr-main .pr-difficulty-table tbody{display:block}.pr-main .pr-difficulty-table tr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);border-radius:10px;margin:10px 0;padding:8px}.pr-main .pr-difficulty-table td{padding:4px;border:0}.pr-main .pr-difficulty-table td:nth-child(1)::before{content:'题号 ';color:var(--muted)}.pr-main .pr-difficulty-table td:nth-child(2)::before{content:'综合 ';color:var(--muted)}.pr-main .pr-difficulty-table td:nth-child(3)::before{content:'思考 ';color:var(--muted)}.pr-main .pr-difficulty-table td:nth-child(4)::before{content:'计算 ';color:var(--muted)}.pr-main .pr-difficulty-table td:last-child{grid-column:1/-1;border-top:1px solid var(--line);margin-top:6px;padding-top:8px;font-size:13px;line-height:1.8}}@media(prefers-reduced-motion:reduce){.pr-spinner{animation:none}}
   `;
   style.textContent += '.pr-action-message{flex:1 0 100%;min-width:0;margin:0 0 10px;box-sizing:border-box;line-height:1.7;overflow-wrap:anywhere}.pr-action-message:empty{display:none}.pr-footer:has(>.pr-action-message),.pr-upload-footer{flex-wrap:wrap}.pr-upload-footer>.pr-button{max-width:100%;white-space:normal}';
-  style.textContent += '.pr-main .pr-next-exam{margin:18px 0;padding:16px 18px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:12px;background:var(--panel-solid)}.pr-main .pr-next-exam>h4{margin:0 0 6px;font-size:16px}.pr-next-exam>ol{margin:14px 0 0;padding-left:22px}.pr-next-exam>ol>li{padding-left:3px;overflow-wrap:anywhere}.pr-next-exam>ol>li+li{margin-top:16px}.pr-next-exam>ol>li::marker{color:var(--accent);font-weight:650}.pr-main .pr-next-exam .pr-prose{font-size:13px}.pr-tip-sources{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-width:0}.pr-main .pr-tip-sources .pr-link{margin:0;white-space:normal;overflow-wrap:anywhere}';
+  style.textContent += '.pr-main .pr-next-exam{margin:18px 0;padding:16px 18px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:12px;background:var(--panel-solid)}.pr-main .pr-next-exam>h4{margin:0 0 6px;font-size:16px}.pr-next-exam>ol{margin:14px 0 0;padding-left:22px}.pr-next-exam>ol>li{padding-left:3px;overflow-wrap:anywhere}.pr-next-exam>ol>li+li{margin-top:16px}.pr-next-exam>ol>li::marker{color:var(--accent);font-weight:650}.pr-main .pr-next-exam .pr-prose{font-size:13px}.pr-tip-sources{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-width:0}.pr-main .pr-tip-sources .pr-link{margin:0;white-space:normal;overflow-wrap:anywhere}.pr-entry-complete{display:grid;grid-template-columns:auto 1fr;gap:10px 14px;align-items:center;margin:18px 0;padding:18px;border:1px solid var(--accent,#5d72e8);border-radius:14px;background:var(--accent-soft,#eef1ff)}.pr-entry-complete-mark{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--accent,#5d72e8);color:#fff;font-size:20px;font-weight:700}.pr-entry-complete-copy h3{margin:0 0 3px;font-size:18px}.pr-entry-complete-copy p{margin:0;color:var(--muted);font-size:13px}.pr-entry-complete-actions{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px}.pr-entry-complete-actions .pr-button{flex:1 1 140px}';
   document.head.appendChild(style);
 })();
 
@@ -16152,7 +16201,7 @@ window.ScorePaperEntryOnly = true;
   function collect(){entries=[];questions.forEach(function(q){allRegions(q).forEach(function(r,index){if(r.page!==page.page)return;var entry=entries.find(function(e){return same(e.region,r);});if(!entry){entry={region:{page:r.page,kind:r.kind,box:r.box.slice()},members:[],refs:[]};entries.push(entry);}if(!entry.members.includes(q))entry.members.push(q);entry.refs.push({q:q,index:index});});});}
   function groupFor(entry){return entry&&groups(row).find(function(g){return g.questions.length===entry.members.length&&entry.members.every(function(q){return g.questions.includes(q.label)&&val(q,'question_type')===g.label;});});}
   function chooseEntry(entry){active=entry;selected=entry.members.includes(selected)?selected:entry.members[0];groupMode=!!groupFor(entry)&&entry.members.every(function(q){return val(q,'teacher_score')==null;});}
-  board.innerHTML='<header class="pb-head"><div><h3>对照原图核对</h3><p>点题目框改分数；确认当前题时会自动保存并进入下一处。</p></div></header><nav class="pb-pages" aria-label="扫描图片"></nav><div class="pb-layout"><section class="pb-view"><div class="pb-view-head"><b data-pb-page-title></b><div><button type="button" class="pr-button" data-pb="zoom-out" aria-label="缩小图片">−</button><button type="button" class="pr-button" data-pb="zoom" aria-label="重置图片大小">100%</button><button type="button" class="pr-button" data-pb="zoom-in" aria-label="放大图片">＋</button></div></div><div class="pb-scroll"><div class="pb-stage"><img draggable="false" alt="扫描原图，题目框显示在图上"><div class="pb-boxes"></div></div></div><div class="pb-tools"><button type="button" class="pr-button" data-pb="adjust">调整范围</button><button type="button" class="pr-button" data-pb="add">补画框</button><button type="button" class="pr-button" data-pb="undo" disabled>撤销</button><select data-pb-kind aria-label="框内内容" hidden><option value="paper">原题</option><option value="work">作答</option><option value="reference">参考答案</option></select><span data-pb-tip>虚线框表示待核对。</span></div></section><aside class="pb-inspector"><div class="pb-title"><h4 data-pb-title></h4><span data-pb-state></span></div><label class="pb-picker">题目<select data-pb-question aria-label="选择题目"></select></label><div class="pb-pair"><button type="button" class="pr-button" data-pb="paper">原题</button><button type="button" class="pr-button" data-pb="work">作答</button></div><div class="pb-crop"><img alt="所选题目截图"></div><form class="pb-form"><label>题型<input data-pb-field="question_type" maxlength="40" placeholder="如：解答题"></label><div class="pb-scores"><label><span data-pb-score-label>批改得分</span><input data-pb-field="teacher_score" type="number" min="0" max="9999" step=".01" inputmode="decimal" placeholder="未读到"></label><span>/</span><label>满分<input data-pb-field="max_score" type="number" min=".01" max="9999" step=".01" inputmode="decimal" placeholder="待补充"></label></div><p class="pb-hint" data-pb-evidence></p><p class="pb-error" data-pb-error role="alert"></p><button class="pr-button pr-primary" type="submit">确认本题</button></form><button type="button" class="pr-button pb-next" data-pb="next">下一处待核对 →</button><p class="pb-message" data-pb-complete hidden>需要核对的内容已处理完。</p><p class="pb-message" data-pb-status role="status" aria-live="polite"></p></aside></div>';
+  board.innerHTML='<header class="pb-head"><div><h3>对照原图核对</h3><p>点题目框改分数；确认当前题时会自动保存并进入下一处。</p></div></header><nav class="pb-pages" aria-label="扫描图片"></nav><div class="pb-layout"><section class="pb-view"><div class="pb-view-head"><b data-pb-page-title></b><div><button type="button" class="pr-button" data-pb="zoom-out" aria-label="缩小图片">−</button><button type="button" class="pr-button" data-pb="zoom" aria-label="重置图片大小">100%</button><button type="button" class="pr-button" data-pb="zoom-in" aria-label="放大图片">＋</button></div></div><div class="pb-scroll"><div class="pb-stage"><img draggable="false" alt="扫描原图，题目框显示在图上"><div class="pb-boxes"></div></div></div><div class="pb-tools"><button type="button" class="pr-button" data-pb="adjust">调整范围</button><button type="button" class="pr-button" data-pb="add">补画框</button><button type="button" class="pr-button" data-pb="undo" disabled>撤销</button><select data-pb-kind aria-label="框内内容" hidden><option value="paper">原题</option><option value="work">作答</option><option value="reference">参考答案</option></select><span data-pb-tip>虚线框表示待核对。</span></div></section><aside class="pb-inspector"><div class="pb-title"><h4 data-pb-title></h4><span data-pb-state></span></div><label class="pb-picker">题目<select data-pb-question aria-label="选择题目"></select></label><div class="pb-pair"><button type="button" class="pr-button" data-pb="paper">原题</button><button type="button" class="pr-button" data-pb="work">作答</button></div><div class="pb-crop"><img alt="所选题目截图"></div><form class="pb-form"><label>题型<input data-pb-field="question_type" maxlength="40" placeholder="如：解答题"></label><div class="pb-scores"><label><span data-pb-score-label>批改得分</span><input data-pb-field="teacher_score" type="number" min="0" max="9999" step=".01" inputmode="decimal" placeholder="未读到"></label><span>/</span><label>满分<input data-pb-field="max_score" type="number" min=".01" max="9999" step=".01" inputmode="decimal" placeholder="待补充"></label></div><p class="pb-hint" data-pb-evidence></p><p class="pb-error" data-pb-error role="alert"></p><button class="pr-button pr-primary" type="submit">确认并下一处</button></form><button type="button" class="pr-button pb-next" data-pb="next">下一处待核对 →</button><p class="pb-message" data-pb-complete hidden>需要核对的内容已处理完。</p><p class="pb-message" data-pb-status role="status" aria-live="polite"></p></aside></div>';
   var complete=board.querySelector('[data-pb-complete]');complete.textContent='核对完成 · 0 处待处理，其余题目将采用识别结果。';
   var finish=document.createElement('button');finish.type='button';finish.className='pr-button pr-primary pb-finish';finish.dataset.pb='finish';finish.textContent='完成录入';finish.hidden=true;complete.after(finish);var finishChoice=document.createElement('div');finishChoice.className='pb-finish-choice';finishChoice.hidden=true;finishChoice.innerHTML='<p class="pb-message">本场已有题型得分，要用这次试卷结果更新吗？</p><button type="button" class="pr-button pr-primary" data-pb="finish-replace">更新并完成</button><button type="button" class="pr-button" data-pb="finish-only">仅保存试卷</button>';finish.after(finishChoice);
   var anchor=main.querySelector('.pr-record-overview')||main.querySelector('.pr-result-top');anchor.after(board);
@@ -16162,11 +16211,11 @@ window.ScorePaperEntryOnly = true;
   function paint(box,element){element.style.left=box[0]*100+'%';element.style.top=box[1]*100+'%';element.style.width=box[2]*100+'%';element.style.height=box[3]*100+'%';}
   function renderBoxes(){boxes.innerHTML=entries.map(function(e,i){var isActive=e===active,label=e.members.map(function(q){return q.label;}).join('、'),score=e.members.length===1?val(e.members[0],'teacher_score'):null,g=groupFor(e);if(e.members.length>4)label=e.members[0].label+'…'+e.members.at(-1).label;return '<div class="pb-box '+(e.members.some(needs)?'pb-pending ':'')+(isActive?'pb-selected':'')+'" data-pb-entry="'+i+'"><button type="button" data-pb-select="'+i+'" aria-label="第'+esc(label)+'题 '+roles[e.region.kind]+'" aria-pressed="'+isActive+'">'+esc(label)+'题'+(g?' · 合计 '+g.teacher_score:score!=null?' · '+score+'分':'')+'</button>'+(!readonly&&isActive&&mode==='adjust'?['nw','ne','sw','se'].map(function(c){return '<button type="button" class="pb-handle" data-pb-corner="'+c+'" aria-label="调整'+({nw:'左上',ne:'右上',sw:'左下',se:'右下'}[c])+'角"></button>';}).join(''):'')+'</div>';}).join('');entries.forEach(function(e,i){paint(e===active&&draft?draft.box:e.region.box,boxes.children[i]);});stage.classList.toggle('pb-editing',mode!=='view');}
   function crop(){var holder=$('.pb-crop'),img=holder.querySelector('img'),r=active?.region;if(!r){holder.hidden=true;return;}holder.hidden=false;img.src=page.url;var b=draft?.box||r.box;function size(){if(!img.naturalWidth)return;holder.style.aspectRatio=b[2]*img.naturalWidth/(b[3]*img.naturalHeight);img.style.cssText='width:'+100/b[2]+'%;max-width:none;left:'+(-b[0]/b[2]*100)+'%;top:'+(-b[1]/b[3]*100)+'%;';}img.onload=size;if(img.complete)size();}
-  function renderPending(){var next=nextPending(selected),button=$('[data-pb=next]'),remaining=questions.some(needs);button.hidden=true;button.textContent=next?'下一处：第 '+next.label+' 题 · '+info(next).reasons[0]+' →':'';$('[data-pb-complete]').hidden=remaining;$('[data-pb=finish]').hidden=remaining||readonly;if(remaining)$('.pb-finish-choice').hidden=true;}
+  function renderPending(){var button=$('[data-pb=next]'),remaining=questions.some(needs);if(button){button.hidden=true;button.textContent='';} $('[data-pb-complete]').hidden=remaining;$('[data-pb=finish]').hidden=remaining||readonly;if(remaining)$('.pb-finish-choice').hidden=true;}
   function renderEditor(){var available=groupFor(active),g=groupMode&&available,members=active?.members||[selected];$('.pb-picker').hidden=!!active&&members.length===1;$('[data-pb-question]').innerHTML=(available?'<option value="__group">'+esc(available.label)+'合计</option>':'')+members.map(function(q){return '<option value="'+esc(q.label)+'">第 '+esc(q.label)+' 题</option>';}).join('');if(!active)$('[data-pb-question]').innerHTML=questions.map(function(q){return '<option value="'+esc(q.label)+'">第 '+esc(q.label)+' 题</option>';}).join('');$('[data-pb-question]').value=g?'__group':selected.label;
    $('[data-pb-title]').textContent=g?g.label+'合计':'第 '+selected.label+' 题';$('[data-pb-state]').textContent=members.every(function(q){return val(q,'verified');})?'已核对':g?'保留合计':needs(selected)?'待核对':'可确认';
    $('[data-pb-field=question_type]').value=g?g.label:val(selected,'question_type')||'';$('[data-pb-field=question_type]').disabled=readonly||!!g;
-   $('[data-pb-field=teacher_score]').value=(g?g.teacher_score:val(selected,'teacher_score'))??'';$('[data-pb-field=max_score]').value=(g?g.max_score:val(selected,'max_score'))??'';$('[data-pb-score-label]').textContent=g?'题型合计':'批改得分';var next=nextPending(selected);$('.pb-form [type=submit]').textContent=g?(next?'确认合计并下一处':'确认合计'):(next?'确认并下一处':'确认本题');
+   $('[data-pb-field=teacher_score]').value=(g?g.teacher_score:val(selected,'teacher_score'))??'';$('[data-pb-field=max_score]').value=(g?g.max_score:val(selected,'max_score'))??'';$('[data-pb-score-label]').textContent=g?'题型合计':'批改得分';var next=nextPending(selected);$('.pb-form [type=submit]').textContent=g?(next?'确认合计并下一处':'确认并完成核对'):'确认并下一处';
    var reasons=(g?members.filter(needs).flatMap(function(q){return info(q).reasons;}):needs(selected)?info(selected).reasons:[]).filter(function(v,i,a){return a.indexOf(v)===i;});
    var evidence=!active?'本页尚未定位这道题，可补画框或切换原题 / 作答。':g?'共 '+g.questions.length+' 题，只记合计，不拆分。':selected.score_mark?.quote?'批改依据：'+selected.score_mark.quote:'未读到批改分时保持留空，0 分请填 0。';
    $('[data-pb-evidence]').textContent=(reasons.length?'需核对：'+reasons.join(' · ')+'。':'')+evidence;$('[data-pb-error]').textContent='';
@@ -16190,6 +16239,12 @@ window.ScorePaperEntryOnly = true;
     if(action==='next'){var q=nextPending(selected);if(!q){renderEditor();return;}await navigate(pageFor(q)||page,q);return;}
     if(action?.startsWith('zoom')){zoom=action==='zoom'?1:Math.max(1,Math.min(3,zoom+(action==='zoom-in' ? .5 : -.5)));stage.style.width=zoom*100+'%';$('[data-pb=zoom]').textContent=Math.round(zoom*100)+'%';}
    }catch(e){say(e.message,true);}};
+  async function finishEntry(choice){
+   if(busy)return;busy=true;finish.disabled=true;
+   try{var saved=await hooks.save();if(!saved)return;if(hooks.finalize){await hooks.finalize(choice||'save');return;}finish.hidden=true;finishChoice.hidden=true;complete.hidden=false;complete.textContent=choice==='sync'?'录入完成 · 题型得分已更新。':'录入完成 · 试题已保存。';say('录入完成');}
+   catch(e){say(e.message,true);}finally{busy=false;finish.disabled=false;render();}
+  }
+  board.addEventListener('click',function(e){var b=e.target.closest('[data-pb=finish],[data-pb=finish-replace],[data-pb=finish-only]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();var sync=main.querySelector('[data-sync-types]'),replace=main.querySelector('[data-replace-types]');if(b.dataset.pb==='finish'){if(sync){if(replace&&!replace.checked){finish.hidden=true;finishChoice.hidden=false;say('核对完成，请选择是否更新已有题型得分。');return;}if(!sync.disabled){sync.click();return;}}finishEntry('save');}else if(b.dataset.pb==='finish-replace'){if(replace){replace.checked=true;replace.dispatchEvent(new Event('change',{bubbles:true}));}if(sync&&!sync.disabled)sync.click();else say('还有题型信息需要补全，完成后即可录入。',true);}else finishEntry('save');},true);
   $('[data-pb-question]').onchange=async function(){try{await flush();groupMode=this.value==='__group';if(!groupMode)selected=questions.find(function(q){return q.label===this.value;});renderBoxes();renderEditor();remember();}catch(e){say(e.message,true);}};
   $('.pb-form').onsubmit=async function(e){e.preventDefault();e.stopPropagation();if(readonly||busy)return;try{for(var input of board.querySelectorAll('input[data-pb-field]'))if(!input.checkValidity())throw new Error('请输入有效分数，最多两位小数');var score=$('[data-pb-field=teacher_score]').value,max=$('[data-pb-field=max_score]').value;if(score!==''&&max!==''&&Number(score)>Number(max))throw new Error('得分不能超过满分');syncFields();await flush();var g=groupMode&&groupFor(active),targets=g?active.members:[selected];targets.forEach(function(q){write(q,'verified',true);});var next=nextPending(selected);if(next){var nextPage=pageFor(next)||page;ctx.paperBoardState||={};ctx.paperBoardState[row.request_id]={page:nextPage.page,label:next.label};}await hooks.save();}catch(err){$('[data-pb-error]').textContent=err.message;}};
   function point(e){var r=stage.getBoundingClientRect();return [Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))];}
@@ -16305,7 +16360,7 @@ window.ScorePaperEntryOnly = true;
       };
       render();
     });
-    if(window.ScorePaperBoard&&hooks.save)window.ScorePaperBoard.mount(main,r,ctx,source,{save:hooks.save,regions:async function(updates){await api('save_regions',{updates:updates});updates.forEach(function(u){var apply=controllers.get(u.label);if(apply)apply(u.regions);});}});
+    if(window.ScorePaperBoard&&hooks.save)window.ScorePaperBoard.mount(main,r,ctx,source,{save:hooks.save,finalize:hooks.finalize,regions:async function(updates){var saved=await api('save_regions',{updates:updates});updates.forEach(function(u){var apply=controllers.get(u.label);if(apply)apply(u.regions);});return saved;}});
     var syncPanel=main.querySelector('.pr-type-sync');if(syncPanel&&syncPanel.refresh)syncPanel.refresh();
   }
   window.ScorePaperScans = { decorate: decorate };
@@ -16392,9 +16447,10 @@ window.ScorePaperEntryOnly = true;
       g.reports.sort(function(a,b){return String(b.created_at).localeCompare(String(a.created_at));});
       var latest=g.reports[0],r=g.record||latest;
       var current=latest && ['running','paused','failed'].includes(latest.status)?latest:r;
-      var status=current.status==='draft'?'待识别':current.status==='running'?(isRecord(current)?'识别中':'分析中'):current.status==='paused'?'待继续':current.status==='failed'?'待恢复':latest?'分析已完成':'已录入';
+      var progress=current.entry_progress||current.result&&current.result.entry_progress||null;
+      var status=current.status==='draft'?'资料草稿':current.status==='running'?(isRecord(current)?'识别中':'分析中'):current.status==='paused'?'待继续':current.status==='failed'?'待恢复':(current.entry_completion||current.result&&current.result.entry_completion)?'录入完成':(progress&&progress.pending!=null?'待核对 · '+progress.pending+' 处':'待核对');
       var target=current.status==='draft'?current.request_id:latest?latest.request_id:r.request_id;
-      var action=current.status==='draft'?'继续上传':['running','paused','failed'].includes(current.status)?'查看进度 / 继续':latest?'查看报告':'核对试题';
+      var action=current.status==='draft'?'继续上传':['running','paused','failed'].includes(current.status)?'查看进度 / 继续':isRecord(current)?'查看试题':'查看报告';
       return {g:g,row:r,status:status,target:target,action:action,current:current};
     }).filter(function(c){return (!filters.status || c.current.status===filters.status) && (!filters.search || [c.row.title,c.row.subject,examName(c.row.exam_id)].join(' ').toLowerCase().includes(filters.search.toLowerCase()));});
     host.innerHTML = cards.length ? cards.map(function(c){var r=c.row;return '<article class="ph-card"><div class="ph-card-top"><span class="ph-subject">'+esc(r.subject)+'</span><span class="ph-status">'+esc(c.status)+'</span></div><h3>'+esc(r.title||examName(r.exam_id)+' · '+r.subject)+'</h3><p>'+esc(examName(r.exam_id))+'</p><small>'+esc(new Date(r.created_at).toLocaleString('zh-CN'))+(c.g.reports.length?' · '+c.g.reports.length+' 份已加载报告':'')+'</small>'+(c.current.progress && c.current.status!=='succeeded'?'<p class="ph-progress">'+esc(c.current.progress.message||'进度已保存')+'</p>':'')+'<footer>'+button(c.action,(c.current.status==='draft'?'draft:':'open:')+c.target,true)+(c.g.record && c.g.reports.length?button('试题与得分','open:'+c.g.record.request_id):'')+(r.status==='draft'?button('删除草稿','delete-draft:'+r.request_id):'')+'</footer></article>';}).join('') : '<div class="ph-empty"><h3>'+(filters.subject||filters.exam_id||filters.status||filters.search?'没有符合条件的试卷':'从一张试卷开始')+'</h3><p>上传试卷与作答，核对后可查看题型表现，也可以稍后再生成 AI 分析。</p>'+button('上传试卷','new',true)+'</div>';
@@ -16422,7 +16478,7 @@ window.ScorePaperEntryOnly = true;
     var gen=generation, data=draft || seed || {}, opts=Object.assign({},data.options || {}), selectedSubject=data.subject || '';
     selection=null;
     body().innerHTML='<div class="ph-create"><div class="ph-section-title"><div><h2>'+(draft?'继续试题录入':'上传试卷')+'</h2><p>先上传并识别，核对后可保存题型得分，也可以生成 AI 分析。</p></div>'+button('返回试卷列表','list')+'</div><form class="ph-basics">'+step('01','录入哪张试卷','可以先录入，之后再关联考试。')+'<div class="ph-form-grid"><label>科目<input name="subject" list="ph-subjects" maxlength="40" required placeholder="请选择或输入科目" value="'+esc(selectedSubject)+'"><datalist id="ph-subjects">'+subjects().map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist></label><label>关联考试<select name="exam_id">'+examOptions(data.exam_id || '',selectedSubject)+'</select></label></div><details class="ph-name"><summary>试卷名称 <span data-title-preview></span></summary><label>自定义名称<input name="title" maxlength="100" value="'+esc(data.title || '')+'" placeholder="按考试和科目自动命名"></label></details>'+(data.originDraft?'<p class="ph-hint">保存正在编辑的考试后，试题会自动关联。</p>':'')+'</form><div class="ph-editor ph-create-editor"></div></div>';
-    var basics=body().querySelector('form'), c=Object.assign(context(),{host:body().querySelector('.ph-editor'),draftId:data.draft_id || crypto.randomUUID(),sessions:{},setup:true,fresh:!draft&&!data.draft_id,onClose:list});
+    var basics=body().querySelector('form'), c=Object.assign(context(),{host:body().querySelector('.ph-editor'),draftId:data.draft_id || crypto.randomUUID(),restoreDraft:!!draft,sessions:{},setup:true,fresh:!draft,onClose:list});
     if(entryOnly())body().querySelector('.ph-section-title p').textContent='读取已有内容，确认识别结果后保存。';
     function update(){
       var subject=basics.elements.subject.value.trim();
@@ -16435,6 +16491,7 @@ window.ScorePaperEntryOnly = true;
     basics.elements.subject.onchange=function(){var id=basics.elements.exam_id.value;basics.elements.exam_id.innerHTML=examOptions(id,basics.elements.subject.value.trim());update();};
     c.beforeSubmit=async function(){if(!basics.reportValidity())throw new Error('请先选择科目');update();return basics.elements.subject.value.trim();};
     c.onUpload=function(){update();};c.onAnalyzeRecord=analyzeRecord;c.onRecorded=function(row){open(row.request_id).catch(function(e){note(e.message);});};
+    c.onNewEntry=function(){generation++;selection=null;seed=null;paper=null;shell();create().catch(function(e){note(e.message);});};
     c.onView=function(view){basics.hidden=view!=='upload';body().querySelector('.ph-section-title').hidden=view!=='upload';c.host.classList.toggle('ph-creating',view==='upload');};
     if(draft && !data.pages){
       note('正在恢复已保存的扫描件…');var source=await api('sources',{request_id:draft.request_id});
@@ -16485,7 +16542,8 @@ window.ScorePaperEntryOnly = true;
   }
   function enter(old, subject, examContext) {
     old.previousPage = state.page; origin = old; old.modal.style.display = 'none';
-    seed = { subject: subject, exam_id: old.exam && old.exam.scores && old.exam.scores[subject] ? old.examId : '', draft_id: old.draftId, examContext: examContext, title: (old.modal.querySelector('#examName').value || '考试') + ' · ' + subject, originDraft: !old.examId }; selection = null;
+    var freshDraft = crypto.randomUUID(); old.draftId = freshDraft;
+    seed = { subject: subject, exam_id: old.exam && old.exam.scores && old.exam.scores[subject] ? old.examId : '', draft_id: freshDraft, examContext: examContext, title: (old.modal.querySelector('#examName').value || '考试') + ' · ' + subject, originDraft: !old.examId }; selection = null;
     state.analysisTab = 'papers'; state.page = 'stats'; renderPage();
   }
   function render(node) {
@@ -16564,9 +16622,9 @@ window.ScorePaperEntryOnly = true;
   function drawSync(panel, data, linked, screenshot) {
     panel.innerHTML='<h3>本场题型得分</h3><p class="pr-muted">仅汇总你已确认的卷面批改分。</p>'+(data.rows.length?'<div class="pr-type-table"><table><thead><tr><th>题型</th><th>得分 / 满分</th><th>难度</th></tr></thead><tbody>'+data.rows.map(function(r){return '<tr><td>'+esc(r.name)+'</td><td>'+esc(r.score==null?'待补全':r.score)+' / '+esc(r.max==null?'待补全':r.max)+'</td><td>'+esc(ScoreQuestionTypeModel.difficulties[r.difficulty]||'未标注')+'</td></tr>';}).join('')+'</tbody></table></div>':'<p>填写题型名称后，这里会自动汇总。</p>')+
       '<p class="pr-muted">'+(data.untyped?data.untyped+' 题未填题型，不纳入本次汇总。':'')+(data.unverified?(screenshot?'保存时将一并采用没有疑点的识别结果。':data.unverified+' 题尚未对照原卷核对。'):'')+'缺少得分或满分的题型保存为待补全，不参与统计。</p>'+
-      (data.existing.length?'<details><summary>查看本科已有的 '+data.existing.length+' 项题型</summary><p>'+data.existing.map(function(r){return esc(r.name)+'：'+esc(r.score==null?'—':r.score)+' / '+esc(r.max==null?'—':r.max);}).join('；')+'</p></details><label class="pr-check"><input type="checkbox" data-replace-types>用上方汇总替换本科已有题型得分</label>':'')+
+      (data.existing.length?'<details><summary>查看本科已有的 '+data.existing.length+' 项题型</summary><p>'+data.existing.map(function(r){return esc(r.name)+'：'+esc(r.score==null?'—':r.score)+' / '+esc(r.max==null?'—':r.max);}).join('；')+'</p></details><label class="pr-check" style="display:none"><input type="checkbox" data-replace-types>用上方汇总替换本科已有题型得分</label>':'')+
       (!linked?'<p>关联考试后，即可把这里的得分更新到题型分析。</p>':'')+
-      '<div class="pr-footer">'+(linked?'<button type="button" class="pr-button pr-primary" data-sync-types>更新题型并完成</button>':'')+'<button type="button" class="pr-button" data-pr="save">仅保存试卷</button></div><p role="status" data-sync-note></p>';
+      '<div class="pr-footer">'+(linked?'<button type="button" class="pr-button pr-primary" data-sync-types style="display:none">更新题型并完成</button>':'')+'<button type="button" class="pr-button" data-pr="save" style="display:none">仅保存试卷</button></div><p role="status" data-sync-note></p>';
   }
   function decorate(main,row,ctx,api,note,hooks) {
     if(row.result.screenshot_only){
@@ -16627,6 +16685,7 @@ window.ScorePaperEntryOnly = true;
           if(!main.isConnected)return;
           main.querySelector('.pr-type-sync').innerHTML='<h3>试题与题型得分已保存</h3><p>已更新本场'+esc(row.subject)+'的 '+preview.rows.length+' 项题型。整科和总分保持原样。</p><button type="button" class="pr-button" data-view-types>查看题型分析</button>';var board=main.querySelector('.pb-board');if(board){var done=board.querySelector('[data-pb-complete]'),finish=board.querySelector('[data-pb=finish]'),choice=board.querySelector('.pb-finish-choice');if(done){done.hidden=false;done.textContent='录入完成 · 题型得分已更新。';}if(finish)finish.hidden=true;if(choice)choice.hidden=true;}
           main.querySelector('[data-view-types]').onclick=function(){if(ctx.canLeave&&!ctx.canLeave())return;if(ctx.dispose)ctx.dispose();window.ScoreQuestionTypeAnalysis.open(row.subject);};
+          if(hooks.finalize){await hooks.finalize('sync');return;}
           note('试题与题型得分已保存');track('paper_type_sync',{types:preview.rows.length,replaced:preview.existing.length>0});
         }catch(e){if(main.isConnected){note('题型得分未更新：'+e.message,true);var active=main.querySelector('[data-sync-types]');if(active)active.disabled=false;}}
       };

@@ -21,6 +21,35 @@ export function analysisFromRecord(row: any, body: any) {
   return { input, state };
 }
 
+// A paper-entry completion is deliberately narrower than “every question was
+// manually checked”. Clean, high-confidence recognition can be adopted; only
+// unresolved evidence must block finalization.
+export function entryProgress(row: any) {
+  const result = row?.result || row || {}, questions = Array.isArray(result.questions) ? result.questions : [];
+  const corrections = Array.isArray(row?.corrections) ? row.corrections : [];
+  const pending = questions.filter((q: any) => {
+    const c = corrections.find((v: any) => v.id === q.id) || {};
+    const value = (key: string) => Object.prototype.hasOwnProperty.call(c, key) ? c[key] : q[key];
+    if (c.verified === true || c.accepted === true) return false;
+    const regions = Array.isArray(value('source_regions')) ? value('source_regions') : (Array.isArray(q.source_regions) ? q.source_regions : []);
+    if (!q.screenshot_only && !String(value('stem') || '').trim()) return true;
+    if (q.screenshot_only && !regions.some((r: any) => r?.kind === 'paper')) return true;
+    if (q.screenshot_only && (q.work_expected || (q.work_pages || []).length) && !regions.some((r: any) => r?.kind === 'work')) return true;
+    const grouped = !!(q.type_total && value('question_type') === q.type_total.label && (value('type_total')?.score != null || q.type_total.score != null));
+    if (value('teacher_score') == null && (!q.screenshot_only || q.work_expected || (q.work_pages || []).length) && !grouped) return true;
+    if (value('max_score') == null && !grouped) return true;
+    const score = value('teacher_score'), max = value('max_score');
+    if (score != null && (!Number.isFinite(Number(score)) || Number(score) < 0)) return true;
+    if (max != null && (!Number.isFinite(Number(max)) || Number(max) <= 0)) return true;
+    if (score != null && max != null && Number(score) > Number(max)) return true;
+    if (q.score_verification === 'conflict' || q.review_status === 'teacher_conflict' || q.answer_verification === 'conflict') return true;
+    if (['low', 'medium'].includes(q.confidence) || q.analysis_mode === 'needs_confirmation' || q.status === 'unclear') return true;
+    if (['single_read', 'conflict'].includes(q.max_verification) || q.score_verification === 'single_read') return true;
+    return Array.isArray(q.uncertainties) && q.uncertainties.some((v: any) => String(v || '').trim());
+  }).length;
+  return { pending, total: questions.length };
+}
+
 export function recordTypeRows(row: any) {
   const groups = new Map<string, any[]>();
   let untyped = 0, unverified = 0;

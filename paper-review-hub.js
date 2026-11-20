@@ -74,9 +74,10 @@
       g.reports.sort(function(a,b){return String(b.created_at).localeCompare(String(a.created_at));});
       var latest=g.reports[0],r=g.record||latest;
       var current=latest && ['running','paused','failed'].includes(latest.status)?latest:r;
-      var status=current.status==='draft'?'待识别':current.status==='running'?(isRecord(current)?'识别中':'分析中'):current.status==='paused'?'待继续':current.status==='failed'?'待恢复':latest?'分析已完成':'已录入';
+      var progress=current.entry_progress||current.result&&current.result.entry_progress||null;
+      var status=current.status==='draft'?'资料草稿':current.status==='running'?(isRecord(current)?'识别中':'分析中'):current.status==='paused'?'待继续':current.status==='failed'?'待恢复':(current.entry_completion||current.result&&current.result.entry_completion)?'录入完成':(progress&&progress.pending!=null?'待核对 · '+progress.pending+' 处':'待核对');
       var target=current.status==='draft'?current.request_id:latest?latest.request_id:r.request_id;
-      var action=current.status==='draft'?'继续上传':['running','paused','failed'].includes(current.status)?'查看进度 / 继续':latest?'查看报告':'核对试题';
+      var action=current.status==='draft'?'继续上传':['running','paused','failed'].includes(current.status)?'查看进度 / 继续':isRecord(current)?'查看试题':'查看报告';
       return {g:g,row:r,status:status,target:target,action:action,current:current};
     }).filter(function(c){return (!filters.status || c.current.status===filters.status) && (!filters.search || [c.row.title,c.row.subject,examName(c.row.exam_id)].join(' ').toLowerCase().includes(filters.search.toLowerCase()));});
     host.innerHTML = cards.length ? cards.map(function(c){var r=c.row;return '<article class="ph-card"><div class="ph-card-top"><span class="ph-subject">'+esc(r.subject)+'</span><span class="ph-status">'+esc(c.status)+'</span></div><h3>'+esc(r.title||examName(r.exam_id)+' · '+r.subject)+'</h3><p>'+esc(examName(r.exam_id))+'</p><small>'+esc(new Date(r.created_at).toLocaleString('zh-CN'))+(c.g.reports.length?' · '+c.g.reports.length+' 份已加载报告':'')+'</small>'+(c.current.progress && c.current.status!=='succeeded'?'<p class="ph-progress">'+esc(c.current.progress.message||'进度已保存')+'</p>':'')+'<footer>'+button(c.action,(c.current.status==='draft'?'draft:':'open:')+c.target,true)+(c.g.record && c.g.reports.length?button('试题与得分','open:'+c.g.record.request_id):'')+(r.status==='draft'?button('删除草稿','delete-draft:'+r.request_id):'')+'</footer></article>';}).join('') : '<div class="ph-empty"><h3>'+(filters.subject||filters.exam_id||filters.status||filters.search?'没有符合条件的试卷':'从一张试卷开始')+'</h3><p>上传试卷与作答，核对后可查看题型表现，也可以稍后再生成 AI 分析。</p>'+button('上传试卷','new',true)+'</div>';
@@ -104,7 +105,7 @@
     var gen=generation, data=draft || seed || {}, opts=Object.assign({},data.options || {}), selectedSubject=data.subject || '';
     selection=null;
     body().innerHTML='<div class="ph-create"><div class="ph-section-title"><div><h2>'+(draft?'继续试题录入':'上传试卷')+'</h2><p>先上传并识别，核对后可保存题型得分，也可以生成 AI 分析。</p></div>'+button('返回试卷列表','list')+'</div><form class="ph-basics">'+step('01','录入哪张试卷','可以先录入，之后再关联考试。')+'<div class="ph-form-grid"><label>科目<input name="subject" list="ph-subjects" maxlength="40" required placeholder="请选择或输入科目" value="'+esc(selectedSubject)+'"><datalist id="ph-subjects">'+subjects().map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist></label><label>关联考试<select name="exam_id">'+examOptions(data.exam_id || '',selectedSubject)+'</select></label></div><details class="ph-name"><summary>试卷名称 <span data-title-preview></span></summary><label>自定义名称<input name="title" maxlength="100" value="'+esc(data.title || '')+'" placeholder="按考试和科目自动命名"></label></details>'+(data.originDraft?'<p class="ph-hint">保存正在编辑的考试后，试题会自动关联。</p>':'')+'</form><div class="ph-editor ph-create-editor"></div></div>';
-    var basics=body().querySelector('form'), c=Object.assign(context(),{host:body().querySelector('.ph-editor'),draftId:data.draft_id || crypto.randomUUID(),sessions:{},setup:true,fresh:!draft&&!data.draft_id,onClose:list});
+    var basics=body().querySelector('form'), c=Object.assign(context(),{host:body().querySelector('.ph-editor'),draftId:data.draft_id || crypto.randomUUID(),restoreDraft:!!draft,sessions:{},setup:true,fresh:!draft,onClose:list});
     if(entryOnly())body().querySelector('.ph-section-title p').textContent='读取已有内容，确认识别结果后保存。';
     function update(){
       var subject=basics.elements.subject.value.trim();
@@ -117,6 +118,7 @@
     basics.elements.subject.onchange=function(){var id=basics.elements.exam_id.value;basics.elements.exam_id.innerHTML=examOptions(id,basics.elements.subject.value.trim());update();};
     c.beforeSubmit=async function(){if(!basics.reportValidity())throw new Error('请先选择科目');update();return basics.elements.subject.value.trim();};
     c.onUpload=function(){update();};c.onAnalyzeRecord=analyzeRecord;c.onRecorded=function(row){open(row.request_id).catch(function(e){note(e.message);});};
+    c.onNewEntry=function(){generation++;selection=null;seed=null;paper=null;shell();create().catch(function(e){note(e.message);});};
     c.onView=function(view){basics.hidden=view!=='upload';body().querySelector('.ph-section-title').hidden=view!=='upload';c.host.classList.toggle('ph-creating',view==='upload');};
     if(draft && !data.pages){
       note('正在恢复已保存的扫描件…');var source=await api('sources',{request_id:draft.request_id});
@@ -167,7 +169,8 @@
   }
   function enter(old, subject, examContext) {
     old.previousPage = state.page; origin = old; old.modal.style.display = 'none';
-    seed = { subject: subject, exam_id: old.exam && old.exam.scores && old.exam.scores[subject] ? old.examId : '', draft_id: old.draftId, examContext: examContext, title: (old.modal.querySelector('#examName').value || '考试') + ' · ' + subject, originDraft: !old.examId }; selection = null;
+    var freshDraft = crypto.randomUUID(); old.draftId = freshDraft;
+    seed = { subject: subject, exam_id: old.exam && old.exam.scores && old.exam.scores[subject] ? old.examId : '', draft_id: freshDraft, examContext: examContext, title: (old.modal.querySelector('#examName').value || '考试') + ' · ' + subject, originDraft: !old.examId }; selection = null;
     state.analysisTab = 'papers'; state.page = 'stats'; renderPage();
   }
   function render(node) {

@@ -310,10 +310,12 @@
   function show(ctx, subject, trigger) {
     if (!current(ctx) || !(ctx.host || ctx.modal).isConnected) return toast('请重新打开考试');
     if (ctx.dialog) return;
-    if (!ctx.draftId) ctx.draftId = draftFor(ctx.user, ctx.examId);
+    // Missing ids are always a fresh attempt. Resumption is explicit: the hub
+    // passes the saved draft id when the user chooses to continue a draft.
+    if (!ctx.draftId) ctx.draftId = crypto.randomUUID();
     var session = ctx.sessions[subject] || (ctx.sessions[subject] = { pages: [], workOnPaper: true, consent: false, pending: null });
     var dialog = document.createElement(ctx.host ? 'section' : 'dialog'); dialog.className = ctx.host ? 'pr-dialog pr-inline' : 'pr-dialog'; dialog.setAttribute('aria-labelledby', 'pr-title');
-    var busy = false, dirty = false, saving = false, closed = false, timer, selected = null, reviews = [], quota = null, view = 'upload', initialSection = ctx.initialSection;
+    var busy = false, dirty = false, saving = false, quietSave = false, closed = false, timer, selected = null, reviews = [], quota = null, view = 'upload', initialSection = ctx.initialSection, autoSaveTimer;
     var cacheScope = ctx.draftId + '|' + subject, cacheQueue = Promise.resolve(), restoredUploads = false;
     ctx.dialog = dialog;
     dialog.innerHTML = '<header class="pr-head"><div><span class="pr-eyebrow">' + esc(subject) + ' · BETA</span><h2 id="pr-title">' + (ctx.options && ctx.options.purpose==='record'?'试题与得分':'AI 分析') + '</h2></div>' + button(esc(ctx.closeLabel || (ctx.host ? '返回试卷列表' : '返回考试')), 'close') + '</header><div class="pr-content"><div class="pr-message" role="status" aria-live="polite"></div><div class="pr-tabs">' + button('上传资料', 'upload', 'is-active') + button('分析记录', 'history') + '</div><div class="pr-main"></div></div>';
@@ -324,7 +326,7 @@
     function alive() { return !closed && current(ctx) && (ctx.host ? ctx.host.isConnected && (ctx.isActive ? ctx.isActive() : state.page === 'stats' && ['ai','papers'].includes(state.analysisTab)) : ctx.modal.isConnected && state.modal === ctx.modal); }
     function close(force) {
       if (!force && dirty && !confirm('核对修改尚未保存，确定返回考试吗？')) return;
-      closed = true; clearTimeout(timer); cleanup.disconnect(); ctx.dialog = null;
+      closed = true; clearTimeout(timer); clearTimeout(autoSaveTimer); cleanup.disconnect(); ctx.dialog = null;
       if (dialog.close) dialog.close(); dialog.remove(); if (ctx.host && ctx.onClose && !force) ctx.onClose(); else if (trigger && trigger.isConnected) trigger.focus();
     }
     var cleanup = new MutationObserver(function () { if (!(ctx.host || ctx.modal).isConnected || (!ctx.host && state.modal !== ctx.modal) || !current(ctx)) close(true); });
@@ -489,7 +491,7 @@
       message.classList.remove('pr-action-message');
       if(ctx.onRecordChange)ctx.onRecordChange(r);
       if (r.status === 'succeeded' && session.pending === r.request_id) { session.pending = null; session.payload = null; session.retrySubmission = false; session.pages = []; session.cloudReady = false; session.cloudDraftId = null; support.uploads('delete', ctx.user, r.request_id); support.uploads('delete', ctx.user, cacheScope); session.cacheId = null; restoredUploads = false; }
-      if(r.result && r.result.record_only && r.status==='succeeded' && ctx.onRecorded){var recorded=ctx.onRecorded;ctx.onRecorded=null;recorded(r);return;}
+      if(r.result && r.result.record_only && r.status==='succeeded' && ctx.onRecorded){var recorded=ctx.onRecorded;ctx.onRecorded=null;Promise.resolve().then(function(){return Promise.allSettled([support.uploads('delete',ctx.user,r.request_id),support.uploads('delete',ctx.user,cacheScope)]);}).then(function(){recorded(r);});return;}
       if(main.paperBoardDispose)main.paperBoardDispose();
       main.paperBoardBeforeSave=null;
       selected = r; view = 'report'; dirty = false; if (ctx.onView) ctx.onView('report');
@@ -535,12 +537,43 @@
         var target=main.querySelector('[data-question="'+q.id+'"] .pr-edit .pr-fold-body');
         if(target){target.insertAdjacentHTML('afterbegin',window.ScorePaperRecords.fields(q,c));target.parentElement.open=false;target.parentElement.querySelector('summary').textContent='修改题型、文字或分数';}
       });
-      if(report.record_only && window.ScorePaperRecords)window.ScorePaperRecords.decorate(main,r,ctx,api,note,{save:save,isDirty:function(){return dirty;}});
+      async function finalizeEntry(choice) {
+        if (!selected || !selected.result || !selected.result.record_only) return null;
+        var fresh = await api(ctx, 'finalize_entry', { request_id: selected.request_id, revision: selected.revision, choice: choice || 'save' });
+        if (alive() && fresh && fresh.review) { Object.assign(selected, fresh.review); dirty = false; renderReport(selected); }
+        return fresh && fresh.review || selected;
+      }
+      function renderEntryCompletion() {
+        if (!report.record_only || !report.entry_completion) return;
+        var synced = report.entry_completion.choice === 'sync', showTypes = synced || !!report.exam_id || !!ctx.examId || !!(selected && selected.exam_id), card = document.createElement('section');
+        card.className = 'pr-entry-complete'; card.setAttribute('aria-label', '录入完成');
+        card.innerHTML = '<div class="pr-entry-complete-mark" aria-hidden="true">✓</div><div class="pr-entry-complete-copy"><h3>录入完成</h3><p>试题已保存；' + (synced ? '题型得分已更新。' : '本场已有题型得分未修改。') + '</p></div><div class="pr-entry-complete-actions">' + (showTypes ? '<button type="button" class="pr-button pr-primary" data-entry-types data-view-types>查看题型分析</button>' : '') + '<button type="button" class="pr-button" data-pr="history">返回所有试卷</button><button type="button" class="pr-button" data-entry-new>继续录入新试卷</button></div>';
+        var top = main.querySelector('.pr-result-top'); if (top) top.after(card); else main.prepend(card);
+        var board = main.querySelector('.pb-board');
+        if (board) {
+          var done = board.querySelector('[data-pb-complete]'), finish = board.querySelector('[data-pb=finish]'), choice = board.querySelector('.pb-finish-choice');
+          if (done) { done.hidden = false; done.textContent = synced ? '录入完成 · 题型得分已更新。' : '录入完成 · 试题已保存。'; }
+          if (finish) finish.hidden = true;
+          if (choice) choice.hidden = true;
+        }
+        var types = card.querySelector('[data-entry-types]');
+        if (types) types.onclick = function () { if (ctx.canLeave && !ctx.canLeave()) return; if (ctx.dispose) ctx.dispose(); if (window.ScoreQuestionTypeAnalysis) window.ScoreQuestionTypeAnalysis.open(report.subject); };
+        var newer = card.querySelector('[data-entry-new]');
+        if (newer) newer.onclick = function () { if (ctx.canLeave && !ctx.canLeave()) return; if (ctx.dispose) ctx.dispose(); if (ctx.onNewEntry) ctx.onNewEntry(); else if (ctx.onClose) ctx.onClose(); };
+      }
+      if(report.record_only && window.ScorePaperRecords)window.ScorePaperRecords.decorate(main,r,ctx,api,note,{save:save,isDirty:function(){return dirty;},finalize:finalizeEntry});
+      if (report.record_only) {
+        var legacySave = main.querySelector('[data-pr="save"]');
+        if (legacySave) { var legacyFooter = legacySave.closest('.pr-footer'); if (legacyFooter) legacyFooter.remove(); }
+        var saveNote = document.createElement('p'); saveNote.className = 'pr-muted pr-auto-save-note'; saveNote.textContent = '修改会自动保存；只需处理标出的异常。';
+        var questionSection = main.querySelector('[data-report-section="questions"]'); if (questionSection) questionSection.appendChild(saveNote);
+      }
       {(report.record_only?['materials']:['performance','insights','plan','materials']).forEach(function(id){var section=main.querySelector('[data-report-section="'+id+'"]');if(!section)return;var fold=document.createElement('details');fold.className='pr-report-extra';var title=section.querySelector('.pr-chapter h3');fold.innerHTML='<summary>'+esc(title?title.textContent:'更多内容')+'</summary>';section.before(fold);fold.appendChild(section);});}
-      losses(stats); support.renderMath(main); if (window.ScorePaperScans) window.ScorePaperScans.decorate(main, r, ctx, { api: api, load: load, note: note, save:save });
+      losses(stats); support.renderMath(main); if (window.ScorePaperScans) window.ScorePaperScans.decorate(main, r, ctx, { api: api, load: load, note: note, save:save, finalize:finalizeEntry });
+      renderEntryCompletion();
       if (updating) { main.querySelectorAll('input,textarea,select,[data-pr=save],[data-pr=delete]').forEach(function (el) { el.disabled = true; }); clearTimeout(timer); timer = setTimeout(function () { load(r.request_id); }, 3000); }
       if ((report.update_count || 0) >= 5) (main.querySelector('[data-pr-save-status]')||message).textContent = '5次分析更新已用完，可继续保存核对和订正记录';
-      main.querySelectorAll('.pr-question input,.pr-question textarea,.pr-question select').forEach(function (el) { el.addEventListener('input', function () { dirty = true; if (el.dataset.field === 'cause') { var detail = el.closest('[data-question]'), q = report.questions.find(function (q) { return q.id === detail.dataset.question; }); detail.querySelector('.pr-reflection-route').textContent = reflectionRoute(q, el.value); } (main.querySelector('[data-pr-save-status]')||message).textContent = '有未保存的核对修改'; }); });
+      main.querySelectorAll('.pr-question input,.pr-question textarea,.pr-question select').forEach(function (el) { el.addEventListener('input', function () { dirty = true; if (el.dataset.field === 'cause') { var detail = el.closest('[data-question]'), q = report.questions.find(function (q) { return q.id === detail.dataset.question; }); detail.querySelector('.pr-reflection-route').textContent = reflectionRoute(q, el.value); } (main.querySelector('[data-pr-save-status]')||message).textContent = '有未保存的核对修改'; if (report.record_only) { clearTimeout(autoSaveTimer); if (!['verified','accepted','corrected'].includes(el.dataset.field)) autoSaveTimer = setTimeout(function(){ if(!alive() || !dirty || saving) return; quietSave=true; save().catch(function(err){if(alive())note(err.message,true);}).finally(function(){quietSave=false;}); }, 850); } }); });
     }
     function losses(stats) {
       main.querySelector('[data-pr-losses]').innerHTML = stats.losses.length ? stats.losses.map(function (q) { return '<div class="pr-loss"><span>第 ' + esc(q.label) + ' 题</span><b>失 ' + Math.round(q.loss * 100) / 100 + ' 分</b></div>'; }).join('') : '<p class="pr-muted">' + (stats.scored ? '已核对的小题暂无失分。' : '核对小题得分后，在这里查看失分分布。') + '</p>';
@@ -611,7 +644,18 @@
       var controls=Array.from(main.querySelectorAll('input,textarea,select,button'));controls.forEach(function(el){el.dataset.wasDisabled=String(el.disabled);el.disabled=true;});
       try{
         var result=await api(ctx,'correct',{request_id:selected.request_id,revision:selected.revision,corrections:corrections,reanalyze:!selected.result.record_only && (selected.result.update_count||0)<5});
-        if(alive()){renderReport(result.review);note(result.review.status==='running'?'已保存，正在更新分析':'试题已保存');return result.review;}
+        if(alive()){
+          if (quietSave) {
+            var wasComplete = !!(selected.result && selected.result.entry_completion);
+            Object.assign(selected, result.review);
+            dirty = false;
+            if (ctx.onRecordChange) ctx.onRecordChange(selected);
+            if (wasComplete && !(selected.result && selected.result.entry_completion)) { renderReport(selected); return selected; }
+            note('修改已自动保存');
+            return selected;
+          }
+          renderReport(result.review);note(result.review.status==='running'?'已保存，正在更新分析':'试题已保存');return result.review;
+        }
       }finally{saving=false;controls.forEach(function(el){if(el.isConnected)el.disabled=el.dataset.wasDisabled==='true';});}
 
     }
@@ -653,7 +697,12 @@
       finally { busy = false; if (target.isConnected) target.disabled = false; }
     });
     if (ctx.initialReport) { load(ctx.initialReport); return; }
-    upload(); support.uploads('latest', ctx.user, cacheScope).then(function (saved) { if (alive() && !session.pages.length && !session.pending && !busy && fill(saved)) { if (session.pending) return load(session.pending).then(refresh); if (view === 'upload') upload(); } return refresh(); });
+    upload();
+    // Never hydrate a fresh upload from the previous local slot. Only an
+    // explicit draft/resume entry may restore cached images.
+    if (ctx.restoreDraft) {
+      support.uploads('latest', ctx.user, cacheScope).then(function (saved) { if (alive() && !session.pages.length && !session.pending && !busy && fill(saved)) { if (session.pending) return load(session.pending).then(refresh); if (view === 'upload') upload(); } return refresh(); });
+    } else refresh();
   }
 
   var beforeOpen = openExam;
@@ -667,7 +716,7 @@
       modal.querySelectorAll('.exam-subject-card-v10').forEach(function (card) {
         if (card.querySelector('.pr-entry')) return;
         var entry = document.createElement('button'); entry.type = 'button'; entry.className = 'pr-entry'; entry.textContent = '试题录入 / AI 分析';
-        entry.onclick = function () { var name = card.querySelector('.exam-subject-name-v10').value.trim(); if (name) { if (window.ScorePaperHub) { if (!ctx.draftId) ctx.draftId = draftFor(ctx.user, ctx.examId); window.ScorePaperHub.enter(ctx, name, formContext(ctx, name)); } else show(ctx, name, entry); } };
+        entry.onclick = function () { var name = card.querySelector('.exam-subject-name-v10').value.trim(); if (name) { if (window.ScorePaperHub) { window.ScorePaperHub.enter(ctx, name, formContext(ctx, name)); } else { ctx.draftId = crypto.randomUUID(); ctx.restoreDraft = false; show(ctx, name, entry); } } };
         card.appendChild(entry);
       });
     }
@@ -722,6 +771,6 @@
     @media(max-width:520px){.pr-dialog{width:100%;max-width:100%;max-height:100dvh;height:100dvh;margin:0;border-radius:0;border:0}.pr-head{padding:15px 16px}.pr-content{padding:0 16px 24px}.pr-pages{grid-template-columns:repeat(2,minmax(0,1fr))}.pr-intro,.pr-main .pr-result-top{padding:18px}.pr-head h2{font-size:18px}.pr-stats b{font-size:20px}.pr-main .pr-question>summary{padding:14px;gap:8px}.pr-main .pr-report-nav .pr-button{font-size:12px;padding:8px}.pr-main .pr-difficulty-table thead{display:none}.pr-main .pr-difficulty-table tbody{display:block}.pr-main .pr-difficulty-table tr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);border-radius:10px;margin:10px 0;padding:8px}.pr-main .pr-difficulty-table td{padding:4px;border:0}.pr-main .pr-difficulty-table td:nth-child(1)::before{content:'题号 ';color:var(--muted)}.pr-main .pr-difficulty-table td:nth-child(2)::before{content:'综合 ';color:var(--muted)}.pr-main .pr-difficulty-table td:nth-child(3)::before{content:'思考 ';color:var(--muted)}.pr-main .pr-difficulty-table td:nth-child(4)::before{content:'计算 ';color:var(--muted)}.pr-main .pr-difficulty-table td:last-child{grid-column:1/-1;border-top:1px solid var(--line);margin-top:6px;padding-top:8px;font-size:13px;line-height:1.8}}@media(prefers-reduced-motion:reduce){.pr-spinner{animation:none}}
   `;
   style.textContent += '.pr-action-message{flex:1 0 100%;min-width:0;margin:0 0 10px;box-sizing:border-box;line-height:1.7;overflow-wrap:anywhere}.pr-action-message:empty{display:none}.pr-footer:has(>.pr-action-message),.pr-upload-footer{flex-wrap:wrap}.pr-upload-footer>.pr-button{max-width:100%;white-space:normal}';
-  style.textContent += '.pr-main .pr-next-exam{margin:18px 0;padding:16px 18px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:12px;background:var(--panel-solid)}.pr-main .pr-next-exam>h4{margin:0 0 6px;font-size:16px}.pr-next-exam>ol{margin:14px 0 0;padding-left:22px}.pr-next-exam>ol>li{padding-left:3px;overflow-wrap:anywhere}.pr-next-exam>ol>li+li{margin-top:16px}.pr-next-exam>ol>li::marker{color:var(--accent);font-weight:650}.pr-main .pr-next-exam .pr-prose{font-size:13px}.pr-tip-sources{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-width:0}.pr-main .pr-tip-sources .pr-link{margin:0;white-space:normal;overflow-wrap:anywhere}';
+  style.textContent += '.pr-main .pr-next-exam{margin:18px 0;padding:16px 18px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:12px;background:var(--panel-solid)}.pr-main .pr-next-exam>h4{margin:0 0 6px;font-size:16px}.pr-next-exam>ol{margin:14px 0 0;padding-left:22px}.pr-next-exam>ol>li{padding-left:3px;overflow-wrap:anywhere}.pr-next-exam>ol>li+li{margin-top:16px}.pr-next-exam>ol>li::marker{color:var(--accent);font-weight:650}.pr-main .pr-next-exam .pr-prose{font-size:13px}.pr-tip-sources{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-width:0}.pr-main .pr-tip-sources .pr-link{margin:0;white-space:normal;overflow-wrap:anywhere}.pr-entry-complete{display:grid;grid-template-columns:auto 1fr;gap:10px 14px;align-items:center;margin:18px 0;padding:18px;border:1px solid var(--accent,#5d72e8);border-radius:14px;background:var(--accent-soft,#eef1ff)}.pr-entry-complete-mark{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--accent,#5d72e8);color:#fff;font-size:20px;font-weight:700}.pr-entry-complete-copy h3{margin:0 0 3px;font-size:18px}.pr-entry-complete-copy p{margin:0;color:var(--muted);font-size:13px}.pr-entry-complete-actions{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px}.pr-entry-complete-actions .pr-button{flex:1 1 140px}';
   document.head.appendChild(style);
 })();

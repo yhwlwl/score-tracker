@@ -2,7 +2,7 @@ import { recognitionConfig } from "../_shared/recognition-config.ts";
 import { reviewSettings } from "./options.ts";
 import { startAiTask, finishAiTask, creditRpc, AiBudgetError } from '../_shared/ai-credits.ts';
 import { aiReleaseCapabilities } from '../_shared/ai-release.ts';
-import { analysisFromRecord, recordTypesAction } from './records.ts';
+import { analysisFromRecord, recordTypesAction, entryProgress } from './records.ts';
 import { workspaceAction, WorkspaceError, materialFor, storedPages, deleteMaterials } from "./workspace.ts";
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
@@ -74,6 +74,7 @@ async function reportFor(user: string, id: string) {
   if(report.status==='succeeded'){
     const saved=await query(()=>db.from(TABLE).select('analysis_state').eq('request_id',id).eq('user_id',user).maybeSingle());
     await finishAiTask(db,user,saved?.analysis_state?.billing_task_id||id,true);
+    if (report.result?.record_only) report.result = { ...report.result, entry_progress: entryProgress(report) };
   }
   return report;
 }
@@ -154,7 +155,7 @@ Deno.serve(async (req: Request) => {
       background(runReviewStage(db, input, row.user_id, config, row, body.claim, claim => dispatchStage(input, claim, req.url)));
       return out({ accepted: true }, 202);
     }
-    action = ["start", "analyze_record", "preview_types", "sync_types", "resume", "retry_scores", "get", "list", "attach", "correct", "delete", "quota", "list_all", "preferences", "save_materials", "upload_page", "upload_page_view", "authorize_ecs_page", "prepare_ecs_page", "authorize_ecs_page_view", "prepare_ecs_page_view", "save_score_details", "sources", "save_regions", "link", "pause", "confirm_input", "delete_draft"].includes(body.action) ? body.action : "unknown";
+    action = ["start", "analyze_record", "preview_types", "sync_types", "finalize_entry", "resume", "retry_scores", "get", "list", "attach", "correct", "delete", "quota", "list_all", "preferences", "save_materials", "upload_page", "upload_page_view", "authorize_ecs_page", "prepare_ecs_page", "authorize_ecs_page_view", "prepare_ecs_page_view", "save_score_details", "sources", "save_regions", "link", "pause", "confirm_input", "delete_draft"].includes(body.action) ? body.action : "unknown";
     if (UUID.test(body.request_id || "")) requestId = body.request_id;
     stage = "authentication";
     const user = await userFor(body.token);
@@ -166,6 +167,21 @@ Deno.serve(async (req: Request) => {
     if (workspace !== undefined) return out(workspace);
     if (body.action === "quota") {const account=await creditRpc(db,'score_tracker_ai_account',{p_user:user});return out({quota:{enabled:account.enabled,remaining:account.credits.available,limit:account.credits.monthly||account.credits.welcome,unit:'credits',global_available:account.budget_status!=='paused',account}});}
     if (['preview_types', 'sync_types'].includes(action)) return out(await recordTypesAction(db, user, body, await reportFor(user, body.request_id)));
+    if (action === 'finalize_entry') {
+      const report = await reportFor(user, body.request_id);
+      if (!report.result?.record_only || report.status !== 'succeeded') throw new Failure('请先完成试题识别', 409);
+      if (body.revision !== report.revision) throw new Failure('题目已更新，请重新核对后完成录入', 409);
+      const choice = body.choice === 'sync' ? 'sync' : 'save';
+      const progress = entryProgress(report);
+      if (progress.pending > 0) throw new Failure('还有 ' + progress.pending + ' 处需要核对', 409);
+      const existing = report.result.entry_completion;
+      if (existing?.choice === choice) return out({ review: report });
+      const completion = { completed_at: new Date().toISOString(), choice };
+      const result = { ...report.result, entry_progress: progress, entry_completion: completion };
+      const changed = await query(() => db.from(TABLE).update({ result, completed_at: completion.completed_at, revision: report.revision + 1, progress: { phase: 'completed', message: '录入完成' } }).eq('request_id', report.request_id).eq('user_id', user).eq('revision', report.revision).eq('status', 'succeeded').select('*').maybeSingle());
+      if (!changed) throw new Failure('录入状态已更新，请重新打开试卷', 409);
+      return out({ review: Object.fromEntries(PUBLIC_FIELDS.split(',').filter(k => k in changed).map(k => [k, changed[k]])) });
+    }
     if (action === 'analyze_record') {
       const source = await reportFor(user, body.source_request_id);
       const { input, state } = analysisFromRecord(source, body);
@@ -353,6 +369,9 @@ Deno.serve(async (req: Request) => {
         patch.result.questions = report.result.questions.map((q: any) => ({ ...q, ...state.evidence.questions.find((f: any) => f.label === q.label) }));
         patch.result.score_check = state.evidence.score_check;
         patch.result.analysis_stale = false;
+        patch.result.entry_completion = null;
+        patch.result.entry_progress = entryProgress({ result: patch.result, corrections });
+        if (report.result.entry_completion) patch.completed_at = null;
       }
       if (!reanalyse && report.status === "failed") Object.assign(patch, { status: "succeeded", analysis_state: {}, error_message: null, error_code: null, error_stage: null, progress: { phase: "completed", message: "核对已保存" } });
       if (reanalyse) patch.result.original_readings = report.result.original_readings || report.result.questions.map((q: any) => ({ label: q.label, answer: q.answer, subparts: q.subparts || [], teacher_score: q.teacher_score, max_score: q.max_score, score_mark: q.score_mark || null }));

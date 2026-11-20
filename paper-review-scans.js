@@ -94,7 +94,7 @@
       };
       render();
     });
-    if(window.ScorePaperBoard&&hooks.save)window.ScorePaperBoard.mount(main,r,ctx,source,{save:hooks.save,regions:async function(updates){await api('save_regions',{updates:updates});updates.forEach(function(u){var apply=controllers.get(u.label);if(apply)apply(u.regions);});}});
+    if(window.ScorePaperBoard&&hooks.save)window.ScorePaperBoard.mount(main,r,ctx,source,{save:hooks.save,finalize:hooks.finalize,regions:async function(updates){var saved=await api('save_regions',{updates:updates});updates.forEach(function(u){var apply=controllers.get(u.label);if(apply)apply(u.regions);});return saved;}});
     var syncPanel=main.querySelector('.pr-type-sync');if(syncPanel&&syncPanel.refresh)syncPanel.refresh();
   }
   window.ScorePaperScans = { decorate: decorate };

@@ -53,9 +53,9 @@
   function drawSync(panel, data, linked, screenshot) {
     panel.innerHTML='<h3>本场题型得分</h3><p class="pr-muted">仅汇总你已确认的卷面批改分。</p>'+(data.rows.length?'<div class="pr-type-table"><table><thead><tr><th>题型</th><th>得分 / 满分</th><th>难度</th></tr></thead><tbody>'+data.rows.map(function(r){return '<tr><td>'+esc(r.name)+'</td><td>'+esc(r.score==null?'待补全':r.score)+' / '+esc(r.max==null?'待补全':r.max)+'</td><td>'+esc(ScoreQuestionTypeModel.difficulties[r.difficulty]||'未标注')+'</td></tr>';}).join('')+'</tbody></table></div>':'<p>填写题型名称后，这里会自动汇总。</p>')+
       '<p class="pr-muted">'+(data.untyped?data.untyped+' 题未填题型，不纳入本次汇总。':'')+(data.unverified?(screenshot?'保存时将一并采用没有疑点的识别结果。':data.unverified+' 题尚未对照原卷核对。'):'')+'缺少得分或满分的题型保存为待补全，不参与统计。</p>'+
-      (data.existing.length?'<details><summary>查看本科已有的 '+data.existing.length+' 项题型</summary><p>'+data.existing.map(function(r){return esc(r.name)+'：'+esc(r.score==null?'—':r.score)+' / '+esc(r.max==null?'—':r.max);}).join('；')+'</p></details><label class="pr-check"><input type="checkbox" data-replace-types>用上方汇总替换本科已有题型得分</label>':'')+
+      (data.existing.length?'<details><summary>查看本科已有的 '+data.existing.length+' 项题型</summary><p>'+data.existing.map(function(r){return esc(r.name)+'：'+esc(r.score==null?'—':r.score)+' / '+esc(r.max==null?'—':r.max);}).join('；')+'</p></details><label class="pr-check" style="display:none"><input type="checkbox" data-replace-types>用上方汇总替换本科已有题型得分</label>':'')+
       (!linked?'<p>关联考试后，即可把这里的得分更新到题型分析。</p>':'')+
-      '<div class="pr-footer">'+(linked?'<button type="button" class="pr-button pr-primary" data-sync-types>更新题型并完成</button>':'')+'<button type="button" class="pr-button" data-pr="save">仅保存试卷</button></div><p role="status" data-sync-note></p>';
+      '<div class="pr-footer">'+(linked?'<button type="button" class="pr-button pr-primary" data-sync-types style="display:none">更新题型并完成</button>':'')+'<button type="button" class="pr-button" data-pr="save" style="display:none">仅保存试卷</button></div><p role="status" data-sync-note></p>';
   }
   function decorate(main,row,ctx,api,note,hooks) {
     if(row.result.screenshot_only){
@@ -116,6 +116,7 @@
           if(!main.isConnected)return;
           main.querySelector('.pr-type-sync').innerHTML='<h3>试题与题型得分已保存</h3><p>已更新本场'+esc(row.subject)+'的 '+preview.rows.length+' 项题型。整科和总分保持原样。</p><button type="button" class="pr-button" data-view-types>查看题型分析</button>';var board=main.querySelector('.pb-board');if(board){var done=board.querySelector('[data-pb-complete]'),finish=board.querySelector('[data-pb=finish]'),choice=board.querySelector('.pb-finish-choice');if(done){done.hidden=false;done.textContent='录入完成 · 题型得分已更新。';}if(finish)finish.hidden=true;if(choice)choice.hidden=true;}
           main.querySelector('[data-view-types]').onclick=function(){if(ctx.canLeave&&!ctx.canLeave())return;if(ctx.dispose)ctx.dispose();window.ScoreQuestionTypeAnalysis.open(row.subject);};
+          if(hooks.finalize){await hooks.finalize('sync');return;}
           note('试题与题型得分已保存');track('paper_type_sync',{types:preview.rows.length,replaced:preview.existing.length>0});
         }catch(e){if(main.isConnected){note('题型得分未更新：'+e.message,true);var active=main.querySelector('[data-sync-types]');if(active)active.disabled=false;}}
       };
