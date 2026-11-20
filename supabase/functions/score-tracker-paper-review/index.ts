@@ -292,8 +292,13 @@ Deno.serve(async (req: Request) => {
       const useHistory = input.options?.use_account_history !== false;
       input.exam_context = useHistory ? examContext(body.exam_context) : undefined;
       if (input.exam_id) {
-        const owned = await ownedExam(user, input.exam_id, !useHistory);
-        const score = await query(() => db.from("score_tracker_scores").select(useHistory ? "id,actual_score,max_score,raw_score,raw_max_score,target_score,rank_position,participant_count,class_rank_position,class_participant_count" : "id").eq("exam_id", input.exam_id).eq("user_id", user).eq("subject", input.subject).maybeSingle());
+        // These reads do not depend on each other. Keep the ownership check
+        // and subject-score lookup in parallel so the start request does not
+        // pay two Supabase round trips back to back.
+        const [owned, score] = await Promise.all([
+          ownedExam(user, input.exam_id, !useHistory),
+          query(() => db.from("score_tracker_scores").select(useHistory ? "id,actual_score,max_score,raw_score,raw_max_score,target_score,rank_position,participant_count,class_rank_position,class_participant_count" : "id").eq("exam_id", input.exam_id).eq("user_id", user).eq("subject", input.subject).maybeSingle())
+        ]);
         if (!score) throw new Failure("请先保存新增科目，再关联试卷");
         if (useHistory) input.exam_context = examContext({ score: score.actual_score, max: score.max_score, raw_score: score.raw_score, raw_max: score.raw_max_score, target: score.target_score,
           year_rank: score.rank_position, year_count: score.participant_count || owned.total_participants, class_rank: score.class_rank_position, class_count: score.class_participant_count || owned.total_class_participants,
