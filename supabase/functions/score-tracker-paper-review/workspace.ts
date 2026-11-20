@@ -138,10 +138,16 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
     const r = await materialQuery(db.from('score_tracker_paper_preferences').select('settings').eq('user_id', user).maybeSingle());
     return { settings: preferenceSettings(r?.settings) };
   }
-  if (!['save_materials','upload_page','upload_page_view','authorize_ecs_page','prepare_ecs_page','authorize_ecs_page_view','prepare_ecs_page_view','save_score_details','sources','save_regions','link','pause','confirm_input','delete_draft'].includes(action)) return undefined;
+  if (!['save_materials','upload_page','upload_page_view','authorize_ecs_page','prepare_ecs_page','authorize_ecs_page_view','prepare_ecs_page_view','register_ecs_materials','material_status','save_score_details','sources','save_regions','link','pause','confirm_input','delete_draft'].includes(action)) return undefined;
   if (!UUID.test(body.request_id || '')) throw new WorkspaceError('分析编号无效');
   const row = await materialQuery(db.from(reviews).select('*').eq('request_id', body.request_id).eq('user_id', user).maybeSingle());
   const m = await materialFor(db, user, body.request_id);
+  if (action === 'material_status') {
+    const expected = Number.isInteger(body.page_count) ? Math.max(0, Math.min(MAX_PAGES, body.page_count)) : 0;
+    const savedPages = Array.isArray(m?.pages) ? m.pages : [];
+    const ready = !!m && expected > 0 && savedPages.length >= expected && savedPages.slice(0, expected).every((p: any) => p && (!Number.isInteger(p.expected_views) || p.expected_views === (p.detail_images || []).length));
+    return { ready, saved_pages: savedPages.length, expected_pages: expected, storage: m?.options?.ecs_mirror === ECS_PRIMARY ? 'aliyun_primary' : 'supabase' };
+  }
   if (action === 'save_materials') {
     if (row?.status === 'running') throw new WorkspaceError('分析进行中，完成后可补充扫描件', 409);
     if (body.consent !== true) throw new WorkspaceError('请确认保存扫描件并发送给 AI 识别');
@@ -172,6 +178,33 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
     return { ok: true };
   }
   if (!row && !m) throw new WorkspaceError('记录不存在或无权访问', 404);
+  if (action === 'register_ecs_materials') {
+    if (!mirrorPreview || m?.options?.ecs_mirror !== ECS_PRIMARY) throw new WorkspaceError('当前入口不支持境内优先保存', 404);
+    if (row?.status === 'running') throw new WorkspaceError('分析已开始，不能再登记扫描件', 409);
+    const incoming = Array.isArray(body.pages) ? body.pages.slice(0, MAX_PAGES) : [];
+    if (!incoming.length || incoming.length > MAX_PAGES || incoming.some((p: any) => !Number.isInteger(p?.page) || p.page < 1 || p.page > MAX_PAGES || !['paper','work','reference'].includes(p.role))) throw new WorkspaceError('扫描件登记信息无效');
+    const pages = [...(m?.pages || [])];
+    for (const spec of incoming.sort((a: any, b: any) => a.page - b.page)) {
+      const n = spec.page;
+      if (n > pages.length + 1 && !pages[n - 1]) throw new WorkspaceError('请按页序登记扫描件', 409);
+      const separate = spec.separate_views === true;
+      const detailValues = Array.isArray(spec.detail_assets) ? spec.detail_assets : [];
+      const expected = separate ? spec.expected_views : detailValues.length;
+      let metadata: any;
+      try { metadata = validateScanMetadata(spec, Number.isInteger(expected) ? expected : 0); } catch (e) { throw new WorkspaceError((e as Error).message); }
+      const main = ecsMeta(spec.asset, `${user}/${body.request_id}/${n}-${spec.asset?.ecs_ref}`);
+      const details = detailValues.map((v: any, i: number) => ({ ...ecsMeta(v, `${main.path}-detail-${i}-${v.ecs_ref}`, true), ...(metadata.regionBoxes ? { box: metadata.regionBoxes[i] } : {}), ...(metadata.regionRows ? { rows: metadata.regionRows[i] } : {}) }));
+      if (!separate && detailValues.length !== expected) throw new WorkspaceError('局部图片数量不一致');
+      if (separate && detailValues.length > expected) throw new WorkspaceError('局部图片元数据无效');
+      const previous = pages[n - 1];
+      if (previous && previous.ecs_ref !== main.ecs_ref && row) throw new WorkspaceError('已分析的原图保留原样，请追加扫描页', 409);
+      pages[n - 1] = { page:n, role:spec.role, ...main, detail_images:details, ...(metadata.pageFrames ? { page_frames:metadata.pageFrames } : {}), ...(metadata.regionFocus ? { region_focus:metadata.regionFocus } : {}), ...(separate ? { expected_views:spec.expected_views, view_boxes:metadata.regionBoxes, view_rows:metadata.regionRows } : {}) };
+    }
+    if (pages.reduce((sum: number, p: any) => sum + p.bytes + (p.detail_images || []).reduce((v: number, d: any) => v + d.bytes, 0), 0) > MAX_MATERIAL_BYTES) throw new WorkspaceError('本份资料较大，请压缩图片或减少页数');
+    const saved = await materialQuery(db.from(MATERIALS).update({ pages, revision: m.revision + 1 }).eq('request_id', body.request_id).eq('user_id', user).eq('revision', m.revision).select('request_id').maybeSingle());
+    if (!saved) throw new WorkspaceError('资料已在后台更新，请稍后重试', 409);
+    return { ok:true, pages:pages.length, storage:'aliyun_primary', sync_pending:false };
+  }
   if (['authorize_ecs_page','prepare_ecs_page','authorize_ecs_page_view','prepare_ecs_page_view'].includes(action)) {
     if (!mirrorPreview || m?.options?.ecs_mirror !== ECS_PRIMARY) throw new WorkspaceError('当前入口不支持境内优先保存', 404);
     if (!m || row?.status === 'running') throw new WorkspaceError('请先保存资料信息，或等待分析完成',409);
@@ -183,7 +216,7 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
       const separate=body.separate_views===true;
       let metadata:any={};
       try { metadata=validateScanMetadata(body,separate?body.expected_views:(Number.isInteger(body.detail_count)?body.detail_count:0)); } catch(e){ throw new WorkspaceError((e as Error).message); }
-      if(action==='authorize_ecs_page') return {ok:true,page:n};
+      if(action==='authorize_ecs_page') return {ok:true,page:n,user_id:user};
       const main=ecsMeta(body.asset,`${user}/${body.request_id}/${n}-${body.asset?.ecs_ref}`);
       const detailValues=Array.isArray(body.detail_assets)?body.detail_assets:[];
       if(detailValues.length>10 || separate&&detailValues.length) throw new WorkspaceError('局部图片元数据无效');
@@ -199,7 +232,7 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
     }
     const n=body.page,view=body.view,previous=m.pages.find((p:any)=>p.page===n);
     if(!previous||!Number.isInteger(view)||!Number.isInteger(previous.expected_views)||view<0||view>=previous.expected_views||view>(previous.detail_images||[]).length||body.source_path!==previous.path) throw new WorkspaceError('扫描页已变化，请重新保存当前页',409);
-    if(action==='authorize_ecs_page_view') return {ok:true,page:n,view};
+      if(action==='authorize_ecs_page_view') return {ok:true,page:n,view,user_id:user};
     const meta=ecsMeta(body.asset,`${previous.path}-detail-${view}-${body.asset?.ecs_ref}`,true),details=[...(previous.detail_images||[])],old=details[view];
     details[view]={...meta,...(previous.view_boxes?{box:previous.view_boxes[view]}:{}),...(previous.view_rows?{rows:previous.view_rows[view]}:{})};
     const pages=m.pages.map((p:any)=>p.page===n?{...p,detail_images:details}:p);

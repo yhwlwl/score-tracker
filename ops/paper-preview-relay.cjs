@@ -4,12 +4,14 @@ const http=require('node:http');
 const crypto=require('node:crypto');
 const {run,savePrimaryAsset,readPrimaryAsset,withPrimaryLock,signBridgeAsset}=require('./paper-preview-mirror.cjs');
 const ORIGIN='https://feat-paper-entry-analysis-fl.score-tracker-d83.pages.dev';
+const IMMUTABLE_ORIGIN=/^https:\/\/[0-9a-f]{8}\.score-tracker-d83\.pages\.dev$/i;
 const UPSTREAM='https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-paper-credits-preview';
 const MAX=3900000, ASSET_MAX=2100000;
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const token=/^[A-Za-z0-9_-]{43}$/;
 const base={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
 const safeMeta=['request_id','page','role','separate_views','expected_views','region_boxes','region_rows','page_frames','region_focus','source_path','view'];
+const pendingPages=new Map();
 function pick(body,extra={}){const out={token:body.token};for(const k of safeMeta)if(body[k]!==undefined)out[k]=body[k];return {...out,...extra};}
 function validMagic(mime,buf){return mime==='image/jpeg'?buf.length>=3&&buf[0]===0xff&&buf[1]===0xd8&&buf[2]===0xff:mime==='image/png'?buf.length>=8&&buf.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])):mime==='image/webp'?buf.length>=12&&buf.subarray(0,4).toString()==='RIFF'&&buf.subarray(8,12).toString()==='WEBP':false;}
 function decodeImage(value,detail=false){
@@ -39,18 +41,28 @@ async function handleUpload(body){
     const main=decodeImage(body.url),regions=Array.isArray(body.regions)?body.regions:[];
     if(regions.length>10)throw Object.assign(Error('图片局部过多'),{status:400});
     const details=regions.map(v=>decodeImage(v,true)),separate=body.separate_views===true;
-    await upstream(pick(body,{action:'authorize_ecs_page',detail_count:details.length}));
+    const authorized=await upstream(pick(body,{action:'authorize_ecs_page',detail_count:details.length}));
+    if(!uuid.test(authorized.user_id||''))throw Object.assign(Error('保存权限校验未完成'),{status:503});
     const mainAsset=await persistAsset(body.request_id,main),detailAssets=[];
     for(const img of details)detailAssets.push(await persistAsset(body.request_id,img));
-    // A timeout can occur after the database committed. Keep local assets until
-    // a later generation proves they are unreferenced.
-    return upstream(pick(body,{action:'prepare_ecs_page',asset:mainAsset,detail_assets:detailAssets,detail_count:details.length,separate_views:separate}));
+    // ECS is the user-visible save boundary. Database registration is batched
+    // by the browser in the background, so image saving never waits for the
+    // second Supabase round trip.
+    const sourcePath=`${authorized.user_id}/${body.request_id}/${body.page}-${mainAsset.ecs_ref}`;
+    pendingPages.set(`${body.request_id}:${body.page}`,{user_id:authorized.user_id,source_path:sourcePath,expected_views:separate?body.expected_views:details.length,expires:Date.now()+30*60*1000});
+    while(pendingPages.size>200)pendingPages.delete(pendingPages.keys().next().value);
+    return {ok:true,page:body.page,source_path:sourcePath,assets:[mainAsset,...detailAssets],sync_pending:true,storage:'aliyun_primary',separate_views:separate,expected_views:separate?body.expected_views:details.length};
   }
   if(body.action==='upload_page_view'){
     if(!Array.isArray(body.regions)||body.regions.length!==1)throw Object.assign(Error('请逐张上传局部图'),{status:400});
     const image=decodeImage(body.regions[0],true);
-    await upstream(pick(body,{action:'authorize_ecs_page_view'}));
-    const saved=await persistAsset(body.request_id,image);return upstream(pick(body,{action:'prepare_ecs_page_view',asset:saved}));
+    const pending=pendingPages.get(`${body.request_id}:${body.page}`);
+    const authorized=pending&&pending.expires>Date.now()&&pending.source_path===body.source_path&&Number.isInteger(pending.expected_views)&&body.view>=0&&body.view<pending.expected_views
+      ? {user_id:pending.user_id}
+      : await upstream(pick(body,{action:'authorize_ecs_page_view'}));
+    if(!uuid.test(authorized.user_id||''))throw Object.assign(Error('保存权限校验未完成'),{status:503});
+    const saved=await persistAsset(body.request_id,image);
+    return {ok:true,page:body.page,view:body.view,asset:saved,sync_pending:true,storage:'aliyun_primary'};
   }
   throw Object.assign(Error('请求格式不正确'),{status:400});
   });
@@ -67,9 +79,10 @@ function start(){
         if(req.method==='HEAD')return res.end();return res.end(asset.data);
       }catch(_){res.writeHead(404,{...base,'Content-Type':'text/plain; charset=utf-8'});return res.end('not found');}
     }
-    const headers={...base,'Access-Control-Allow-Origin':ORIGIN,'Vary':'Origin'};
-    function end(status,data){res.writeHead(status,{...headers,'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(data));}
-    if((req.url||'').split('?')[0]!=='/paper-preview-upload' || req.headers.origin!==ORIGIN)return end(403,{error:'无权访问'});
+    const origin=req.headers.origin===ORIGIN||IMMUTABLE_ORIGIN.test(req.headers.origin||'')?req.headers.origin:'';
+    const headers={...base,'Access-Control-Allow-Origin':origin,'Vary':'Origin'};
+    function end(status,data){res.writeHead(status,{...headers,'Content-Type':'application/json; charset=utf-8','X-Score-Storage':'aliyun-primary','X-Score-Sync':'background'});res.end(JSON.stringify(data));}
+    if((req.url||'').split('?')[0]!=='/paper-preview-upload' || !origin)return end(403,{error:'无权访问'});
     if(req.method==='OPTIONS') {res.writeHead(204,{...headers,'Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Headers':'content-type','Access-Control-Max-Age':'600'});return res.end();}
     if(req.method!=='POST' || !String(req.headers['content-type']||'').toLowerCase().startsWith('application/json'))return end(405,{error:'请求格式不正确'});
     if(Number(req.headers['content-length']||0)>MAX)return end(413,{error:'上传内容过大'});

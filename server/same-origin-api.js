@@ -1,7 +1,8 @@
 const UPSTREAM_ROOT = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/';
-// This fixed Pages branch alias serves the paper-entry preview. Other hosts,
-// including production and other preview branches, keep their own routes.
-const CREDITS_PREVIEW_HOST = 'feat-paper-entry-analysis-fl.score-tracker-d83.pages.dev';
+// The paper-entry preview can be opened through either its stable branch alias
+// or an immutable eight-character Pages deployment URL. Keep the allow-list
+// shape-specific so a lookalike host can never select the credits backend.
+const CREDITS_PREVIEW_HOST = /^(?:feat-paper-entry-analysis-fl|[0-9a-f]{8})\.score-tracker-d83\.pages\.dev$/i;
 const CREDITS_PREVIEW_ENDPOINTS = Object.freeze({
   'score-tracker-data-api': 'score-tracker-data-api-credits-preview',
   'score-tracker-vision-preview': 'score-tracker-vision-credits-preview',
@@ -125,7 +126,7 @@ export async function proxyApi(request, options = {}) {
 
   try {
     // Buffer neither images nor credentials; forward the existing request body unchanged.
-    const upstreamEndpoint = url.hostname.toLowerCase() === CREDITS_PREVIEW_HOST && Object.hasOwn(CREDITS_PREVIEW_ENDPOINTS, endpoint)
+    const upstreamEndpoint = CREDITS_PREVIEW_HOST.test(url.hostname) && Object.hasOwn(CREDITS_PREVIEW_ENDPOINTS, endpoint)
       ? CREDITS_PREVIEW_ENDPOINTS[endpoint] : endpoint;
     const upstream = await (options.fetch || fetch)(UPSTREAM_ROOT + upstreamEndpoint, {
       method: 'POST', headers: upstreamHeaders, body: request.body,

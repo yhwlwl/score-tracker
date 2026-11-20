@@ -155,7 +155,7 @@ Deno.serve(async (req: Request) => {
       background(runReviewStage(db, input, row.user_id, config, row, body.claim, claim => dispatchStage(input, claim, req.url)));
       return out({ accepted: true }, 202);
     }
-    action = ["start", "analyze_record", "preview_types", "sync_types", "finalize_entry", "resume", "retry_scores", "get", "list", "attach", "correct", "delete", "quota", "list_all", "preferences", "save_materials", "upload_page", "upload_page_view", "authorize_ecs_page", "prepare_ecs_page", "authorize_ecs_page_view", "prepare_ecs_page_view", "save_score_details", "sources", "save_regions", "link", "pause", "confirm_input", "delete_draft"].includes(body.action) ? body.action : "unknown";
+    action = ["start", "analyze_record", "preview_types", "sync_types", "finalize_entry", "resume", "retry_scores", "get", "list", "attach", "correct", "delete", "quota", "list_all", "preferences", "save_materials", "upload_page", "upload_page_view", "authorize_ecs_page", "prepare_ecs_page", "authorize_ecs_page_view", "prepare_ecs_page_view", "register_ecs_materials", "material_status", "save_score_details", "sources", "save_regions", "link", "pause", "confirm_input", "delete_draft"].includes(body.action) ? body.action : "unknown";
     if (UUID.test(body.request_id || "")) requestId = body.request_id;
     stage = "authentication";
     const user = await userFor(body.token);

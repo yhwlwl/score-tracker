@@ -5,8 +5,35 @@
   var support = window.ScorePaperSupport;
   var ENDPOINT = '/api/score-tracker-paper-review', MAX_PAGES = 15;
   var PREVIEW_RELAY = 'https://assets.tantantan.tech/paper-preview-upload';
+  var PREVIEW_HOST = /^(?:feat-paper-entry-analysis-fl|[0-9a-f]{8})\.score-tracker-d83\.pages\.dev$/i;
   var roleNames = { paper: '试卷', work: '答题卡 / 作答', reference: '参考答案' };
   var esc = function (v) { return escapeHtml(String(v == null ? '' : v)); };
+  var paperDebug = { enabled: false, events: [] };
+  try {
+    var debugQuery = new URLSearchParams(window.location.search || '');
+    paperDebug.enabled = PREVIEW_HOST.test(window.location.hostname) || debugQuery.get('paper_debug') === '1' || window.localStorage.getItem('score_paper_debug') === '1';
+  } catch (_) { paperDebug.enabled = PREVIEW_HOST.test(window.location.hostname); }
+  window.__scorePaperDebug = paperDebug;
+  function debugChanged() {
+    if (!paperDebug.enabled) return;
+    try { window.dispatchEvent(new CustomEvent('score-paper-debug')); } catch (_) {}
+  }
+  function debugEvent(value) {
+    if (!paperDebug.enabled) return;
+    paperDebug.events.push(Object.assign({ at: Date.now() }, value));
+    if (paperDebug.events.length > 40) paperDebug.events.splice(0, paperDebug.events.length - 40);
+    debugChanged();
+  }
+  function debugNow() { return window.performance && window.performance.now ? window.performance.now() : Date.now(); }
+  function debugDuration(ms) { return ms < 1000 ? Math.round(ms) + ' ms' : (ms / 1000).toFixed(2) + ' s'; }
+  function debugHtml() {
+    if (!paperDebug.enabled) return '';
+    var rows = paperDebug.events.slice(-10).reverse().map(function (e) {
+      return '<tr><td>' + esc(e.action || e.stage || '') + '</td><td>' + esc(e.route || '') + '</td><td>' + esc(e.status == null ? '—' : e.status) + '</td><td>' + esc(debugDuration(e.ms || 0)) + '</td><td>' + esc(e.note || (e.bytes ? Math.round(e.bytes / 1024) + ' KB' : '')) + '</td></tr>';
+    }).join('');
+    var route = PREVIEW_HOST.test(window.location.hostname) ? '预览：支持阿里云优先保存' : '当前入口：未启用阿里云优先保存';
+    return '<details class="pr-debug" data-pr-debug open><summary>上传调试信息（仅此预览显示）</summary><p><b>' + esc(route) + '</b> · 页面：' + esc(window.location.hostname) + '</p><p class="pr-muted">阿里云只负责图片快速落盘；Supabase 负责登记与后台备份。若出现“回退”，说明本次没有走阿里云。</p><div class="pr-debug-scroll"><table><thead><tr><th>动作</th><th>路径</th><th>状态</th><th>耗时</th><th>请求大小 / 说明</th></tr></thead><tbody>' + (rows || '<tr><td colspan="5">还没有网络动作</td></tr>') + '</tbody></table></div></details>';
+  }
   function number(v) { return v === '' || v == null || !Number.isFinite(Number(v)) ? null : Number(v); }
   // Calibrated from completed screenshot-entry records; individual layouts and
   // additional reads vary considerably, so this is a range rather than a fee.
@@ -25,27 +52,39 @@
   async function api(ctx, action, payload) {
     if(entryOnly()&&(action==='analyze_record'||action==='retry_scores'||action==='correct'&&payload&&payload.reanalyze===true))throw new Error('试卷分析暂未开放');
     if (!current(ctx)) throw new Error('账号已切换，请重新打开考试');
-    var useRelay = window.location.hostname === 'feat-paper-entry-analysis-fl.score-tracker-d83.pages.dev' && (action === 'upload_page' || action === 'upload_page_view');
+    var useRelay = PREVIEW_HOST.test(window.location.hostname) && (action === 'upload_page' || action === 'upload_page_view');
     var controller = new AbortController(), timer = setTimeout(function () { controller.abort(); }, useRelay ? 50000 : 20000);
     try {
       var body = JSON.stringify(Object.assign({ action: action, token: ctx.token }, payload || {}));
+      var requestStarted = debugNow();
       var res;
       if (useRelay) {
         var relayController = new AbortController(), relayTimer = setTimeout(function () { relayController.abort(); }, 25000);
-        try { res = await fetch(PREVIEW_RELAY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: relayController.signal, body: body }); }
-        catch (_) { /* Fall back to the regular endpoint if ECS is unreachable. */ }
+        var relayStarted = debugNow();
+        try {
+          res = await fetch(PREVIEW_RELAY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: relayController.signal, body: body });
+          debugEvent({ action: action, route: '阿里云', status: res.status, ms: debugNow() - relayStarted, bytes: body.length, note: res.headers && res.headers.get ? (res.headers.get('x-score-sync') || '') : '' });
+        }
+        catch (e) {
+          debugEvent({ action: action, route: '阿里云→回退', status: '网络失败', ms: debugNow() - relayStarted, bytes: body.length, note: e && e.name === 'AbortError' ? '阿里云中转超时' : '无法连接阿里云中转' });
+        }
         finally { clearTimeout(relayTimer); }
-        if (res && [404, 405, 502, 503, 504].includes(res.status)) res = null;
+        if (res && [404, 405, 502, 503, 504].includes(res.status)) {
+          debugEvent({ action: action, route: '阿里云→回退', status: res.status, ms: 0, note: '中转不可用，改走同源接口' });
+          res = null;
+        }
       }
       if (!res) {
         if (!current(ctx)) throw new Error('账号已切换，请重新打开考试');
+        var fallbackStarted = debugNow();
         res = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal, body: body });
+        debugEvent({ action: action, route: useRelay ? 'Supabase回退' : 'Supabase', status: res.status, ms: debugNow() - fallbackStarted, bytes: body.length, note: useRelay ? '本次未使用阿里云图片落盘' : '' });
       }
       var data = await res.json().catch(function () { return {}; });
       if (!current(ctx)) throw new Error('账号已切换，请重新打开考试');
       if (!res.ok) { var err = new Error(data.error || '试卷分析服务暂不可用，请稍后重试'); err.status = res.status; throw err; }
       return data;
-    } catch (e) { if (e.name === 'AbortError') throw new Error('连接超时，请稍后查看分析记录'); throw e; }
+    } catch (e) { debugEvent({ action: action, route: useRelay ? '阿里云/回退' : 'Supabase', status: '异常', ms: debugNow() - requestStarted, note: e.message || '请求失败' }); if (e.name === 'AbortError') throw new Error('连接超时，请稍后查看分析记录'); throw e; }
     finally { clearTimeout(timer); }
   }
   function prepare(file) {
@@ -322,11 +361,21 @@
     (ctx.host || document.body).appendChild(dialog);
     if (dialog.showModal) dialog.showModal(); else dialog.setAttribute('open', '');
     var main = dialog.querySelector('.pr-main'), message = dialog.querySelector('.pr-message');
+    var debugListener = function () {
+      if (!paperDebug.enabled) return;
+      var node = main.querySelector('[data-pr-debug]');
+      if (!node) return;
+      var open = node.open;
+      node.outerHTML = debugHtml();
+      var replacement = main.querySelector('[data-pr-debug]');
+      if (replacement) replacement.open = open;
+    };
+    if (paperDebug.enabled) window.addEventListener('score-paper-debug', debugListener);
     function note(text, error) { message.textContent = text || ''; message.classList.toggle('is-error', !!error); }
     function alive() { return !closed && current(ctx) && (ctx.host ? ctx.host.isConnected && (ctx.isActive ? ctx.isActive() : state.page === 'stats' && ['ai','papers'].includes(state.analysisTab)) : ctx.modal.isConnected && state.modal === ctx.modal); }
     function close(force) {
       if (!force && dirty && !confirm('核对修改尚未保存，确定返回考试吗？')) return;
-      closed = true; clearTimeout(timer); clearTimeout(autoSaveTimer); cleanup.disconnect(); ctx.dialog = null;
+      closed = true; clearTimeout(timer); clearTimeout(autoSaveTimer); cleanup.disconnect(); if (paperDebug.enabled) window.removeEventListener('score-paper-debug', debugListener); ctx.dialog = null;
       if (dialog.close) dialog.close(); dialog.remove(); if (ctx.host && ctx.onClose && !force) ctx.onClose(); else if (trigger && trigger.isConnected) trigger.focus();
     }
     var cleanup = new MutationObserver(function () { if (!(ctx.host || ctx.modal).isConnected || (!ctx.host && state.modal !== ctx.modal) || !current(ctx)) close(true); });
@@ -344,7 +393,39 @@
     }
     function snapshot() {
       var payload = session.payload && Object.assign({}, session.payload); if (payload) delete payload.pages;
-      return { scope: cacheScope, pages: session.pages, workOnPaper: session.workOnPaper, workLocation: session.workLocation, consent: session.consent, pending: session.pending, payload: payload, retrySubmission: !!session.retrySubmission, cloudDraftId: session.cloudDraftId, cloudReady: session.cloudReady };
+      return { scope: cacheScope, pages: session.pages, workOnPaper: session.workOnPaper, workLocation: session.workLocation, consent: session.consent, pending: session.pending, payload: payload, retrySubmission: !!session.retrySubmission, cloudDraftId: session.cloudDraftId, cloudReady: session.cloudReady, cloudSync: session.cloudSync || null };
+    }
+    var cloudSyncTask = null;
+    function ecsManifest(id) {
+      return session.pages.map(function (scan, i) {
+        var upload = scan.cloud_upload, assets = upload && Array.isArray(upload.assets) ? upload.assets.filter(Boolean) : [];
+        return { page: i + 1, role: scan.role, asset: assets[0], detail_assets: assets.slice(1), separate_views: upload && upload.separate_views === true, expected_views: upload && upload.separate_views === true ? (upload.expected_views || (scan.regions || []).length) : undefined, region_boxes: scan.region_boxes, region_rows: scan.region_rows, page_frames: scan.page_frames, region_focus: scan.region_focus };
+      });
+    }
+    function hasPendingEcsUpload() {
+      return session.pages.some(function (scan) { return scan.cloud_upload && scan.cloud_upload.sync_pending === true; });
+    }
+    async function registerEcsMaterials(id) {
+      if (!hasPendingEcsUpload()) return null;
+      if (cloudSyncTask && cloudSyncTask.id === id) return cloudSyncTask.promise;
+      session.cloudSync = { request_id: id, page_count: session.pages.length, status: 'pending' };
+      session.cloudReady = false;
+      var promise = api(ctx, 'register_ecs_materials', { request_id: id, pages: ecsManifest(id) }).then(function (result) {
+        session.cloudReady = true;
+        session.cloudSync = { request_id: id, page_count: session.pages.length, status: 'ready', storage: result.storage || 'aliyun_primary' };
+        session.pages.forEach(function (scan) { if (scan.cloud_upload) scan.cloud_upload.sync_pending = false; });
+        persist();
+        debugEvent({ action: '后台登记', route: 'Supabase', status: 200, ms: 0, note: '阿里云图片已登记，可开始识别' });
+        return result;
+      }).catch(function (error) {
+        session.cloudReady = false;
+        session.cloudSync = { request_id: id, page_count: session.pages.length, status: 'failed', error: error.message };
+        persist();
+        debugEvent({ action: '后台登记', route: 'Supabase', status: error.status || '异常', ms: 0, note: error.message || '后台登记失败' });
+        throw error;
+      });
+      cloudSyncTask = { id: id, promise: promise };
+      return promise;
     }
     async function saveCloud(id) {
       if (ctx.options && ctx.options.config_version===2) ctx.options.work_location=session.workLocation || (session.workOnPaper?'paper':session.pages.some(function(p){return p.role==='work';})?'separate':'none');
@@ -364,16 +445,29 @@
             if(combined)pagePayload.regions=regions;
             else {pagePayload.separate_views=true;pagePayload.expected_views=regions.length;}
             var saved=await api(ctx,'upload_page',pagePayload);
-            uploaded=scan.cloud_upload={request_id:id,page:pi+1,role:scan.role,source_path:saved.source_path,views:combined?regions.length:0};await persist();
+            uploaded=scan.cloud_upload={request_id:id,page:pi+1,role:scan.role,source_path:saved.source_path,views:combined?regions.length:0,separate_views:!combined,expected_views:!combined?regions.length:undefined,assets:Array.isArray(saved.assets)?saved.assets:[],sync_pending:saved.sync_pending===true};await persist();
           }
           for(var vi=uploaded.views;vi<regions.length;vi++){
             note('正在保存第 ' + (pi + 1) + ' / ' + session.pages.length + ' 页 · 局部图 ' + (vi+1) + ' / ' + regions.length);
-            await api(ctx,'upload_page_view',{request_id:id,page:pi+1,view:vi,source_path:uploaded.source_path,regions:[regions[vi]]});
+            var viewSaved=await api(ctx,'upload_page_view',{request_id:id,page:pi+1,view:vi,source_path:uploaded.source_path,regions:[regions[vi]]});
+            if (viewSaved.asset) uploaded.assets[vi + 1] = viewSaved.asset;
+            if (viewSaved.sync_pending === true) uploaded.sync_pending = true;
             uploaded.views=vi+1;await persist();
           }
         } catch (e) { if(e.status===409){delete scan.cloud_upload;await persist();} e.message = '第 ' + (pi + 1) + ' 张扫描件保存失败：' + e.message; throw e; }
       }
-      session.cloudReady = true; session.cloudDraftId = id;
+      session.cloudDraftId = id;
+      if (hasPendingEcsUpload()) {
+        session.cloudReady = false;
+        session.cloudSync = { request_id: id, page_count: session.pages.length, status: 'pending' };
+        // The image is already on ECS. Registration is deliberately detached
+        // from the save button; start() can await the same promise if needed.
+        registerEcsMaterials(id).catch(function () {});
+      } else {
+        session.cloudReady = true;
+        session.cloudSync = null;
+      }
+      await persist();
     }
     function persist() {
       var id = session.pending || session.cacheId || cacheScope, value = snapshot(); session.cacheId = id;
@@ -384,6 +478,7 @@
       if (!saved || saved.scope !== cacheScope || !Array.isArray(saved.pages)) return false;
       session.pages = saved.pages; session.workOnPaper = saved.workOnPaper; session.workLocation = saved.workLocation; session.consent = saved.consent;
       session.cloudDraftId = saved.cloudDraftId; session.cloudReady = saved.cloudReady;
+      session.cloudSync = saved.cloudSync || null;
       session.pending = saved.pending; session.cacheId = saved.id; session.retrySubmission = saved.retrySubmission;
       session.payload = saved.payload && Object.assign({}, saved.payload, { pages: saved.pages.map(function (p) { return { role: p.role, url: p.url, regions: p.regions || [],region_boxes:p.region_boxes,region_rows:p.region_rows,page_frames:p.page_frames,region_focus:p.region_focus }; }) });
       restoredUploads = true; return true;
@@ -411,7 +506,7 @@
       var quotaText = quota ? (quota.enabled ? (quota.unit==='credits'?'可用 '+Math.floor(quota.remaining)+' AI 积分':'剩余 '+quota.remaining+' 次') : '试题识别暂未开放') : '正在读取 AI 额度…';
       var location = session.workLocation || (session.workOnPaper ? 'paper' : session.pages.some(function(p){return p.role==='work';}) ? 'separate' : 'none');
       var estimate=quota?.unit==='credits'?creditEstimate(session.pages,location):'';
-      main.innerHTML = (restoredUploads ? '<p class="pr-message">已自动回填上次的图片、顺序和设置。</p>' : '') + '<section class="pr-intro"><h3>添加试卷与作答</h3><p>按页序添加清晰图片，试卷、答题卡与参考答案合计最多 15 张。</p><div class="pr-quota">' + esc(quotaText) + '</div></section><fieldset class="pr-work-location"><legend>作答写在哪里？</legend>' + [['paper','写在试卷上','上传带作答的试卷即可。'],['separate','在答题卡上','分别添加试卷和答题卡。'],['none','仅上传题目','只识别题目与印刷分值，不生成分析。']].map(function(x){return '<label><input type="radio" name="pr_location" value="'+x[0]+'" '+(location===x[0]?'checked':'')+'><span><strong>'+x[1]+'</strong><small>'+x[2]+'</small></span></label>';}).join('') + '</fieldset>' +
+      main.innerHTML = (restoredUploads ? '<p class="pr-message">已自动回填上次的图片、顺序和设置。</p>' : '') + '<section class="pr-intro"><h3>添加试卷与作答</h3><p>按页序添加清晰图片，试卷、答题卡与参考答案合计最多 15 张。</p><div class="pr-quota">' + esc(quotaText) + '</div></section>' + debugHtml() + '<fieldset class="pr-work-location"><legend>作答写在哪里？</legend>' + [['paper','写在试卷上','上传带作答的试卷即可。'],['separate','在答题卡上','分别添加试卷和答题卡。'],['none','仅上传题目','只识别题目与印刷分值，不生成分析。']].map(function(x){return '<label><input type="radio" name="pr_location" value="'+x[0]+'" '+(location===x[0]?'checked':'')+'><span><strong>'+x[1]+'</strong><small>'+x[2]+'</small></span></label>';}).join('') + '</fieldset>' +
         Object.keys(roleNames).map(function (role) {
           var pages = session.pages.filter(function (p) { return p.role === role; });
           return '<section class="pr-upload-group" data-upload-role="' + role + '" ' + (role==='work' && location!=='separate' && !pages.length ? 'hidden' : '') + '><div class="pr-section-head"><h3>' + roleNames[role] + '<small>' + (role === 'paper' ? '必选' : '补充资料') + '</small></h3><label class="pr-button pr-file-label">＋ 添加图片<input type="file" accept="image/jpeg,image/png,image/webp" multiple data-role="' + role + '" ' + (busy ? 'disabled' : '') + '></label></div><p>' + ({ paper: '按题目顺序上传，作答写在试卷上也可以。', work: '作答在单独的答题卡上时，请补充上传。', reference: '补充参考答案或评分细则，可以更准确地核对答案和得分步骤。' })[role] + '</p><div class="pr-pages">' + pages.map(function (p) {
@@ -440,7 +535,11 @@
         busy = true; note('正在处理图片…'); upload();
         try {
           var added = [];
-          for (var file of files) { var p = await prepare(file); p.role = input.dataset.role; added.push(p); }
+          for (var file of files) {
+            var prepareStarted = debugNow();
+            var p = await prepare(file); p.role = input.dataset.role; added.push(p);
+            debugEvent({ action: '本机处理图片', route: '本机', status: '完成', ms: debugNow() - prepareStarted, bytes: file.size, note: '压缩与局部图切分' });
+          }
           var all = session.pages.concat(added);
           // Each source/view is bounded during preparation; the 15-page cap bounds the total.
           session.pages = all; session.cloudReady = false; restoredUploads = false; var saved = await persist(); note(saved ? '图片已保存，可检查方向和页序' : '图片已添加，请保持页面打开直到题目和作答读取完成。');
@@ -607,6 +706,10 @@
         await support.uploads('delete', ctx.user, cacheScope);
         if (ctx.host && (!session.cloudReady || ctx.setup)) {
           await saveCloud(id);
+          if (session.cloudSync && session.cloudSync.request_id === id && session.cloudSync.status !== 'ready') {
+            note('图片已快速保存到阿里云，正在完成后台登记…');
+            await registerEcsMaterials(id);
+          }
         }
         submitted = true;
         var data = await api(ctx, 'start', ctx.host ? Object.assign({}, session.payload, { pages: undefined, use_saved: true }) : session.payload);
@@ -771,6 +874,7 @@
     @media(max-width:520px){.pr-dialog{width:100%;max-width:100%;max-height:100dvh;height:100dvh;margin:0;border-radius:0;border:0}.pr-head{padding:15px 16px}.pr-content{padding:0 16px 24px}.pr-pages{grid-template-columns:repeat(2,minmax(0,1fr))}.pr-intro,.pr-main .pr-result-top{padding:18px}.pr-head h2{font-size:18px}.pr-stats b{font-size:20px}.pr-main .pr-question>summary{padding:14px;gap:8px}.pr-main .pr-report-nav .pr-button{font-size:12px;padding:8px}.pr-main .pr-difficulty-table thead{display:none}.pr-main .pr-difficulty-table tbody{display:block}.pr-main .pr-difficulty-table tr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);border-radius:10px;margin:10px 0;padding:8px}.pr-main .pr-difficulty-table td{padding:4px;border:0}.pr-main .pr-difficulty-table td:nth-child(1)::before{content:'题号 ';color:var(--muted)}.pr-main .pr-difficulty-table td:nth-child(2)::before{content:'综合 ';color:var(--muted)}.pr-main .pr-difficulty-table td:nth-child(3)::before{content:'思考 ';color:var(--muted)}.pr-main .pr-difficulty-table td:nth-child(4)::before{content:'计算 ';color:var(--muted)}.pr-main .pr-difficulty-table td:last-child{grid-column:1/-1;border-top:1px solid var(--line);margin-top:6px;padding-top:8px;font-size:13px;line-height:1.8}}@media(prefers-reduced-motion:reduce){.pr-spinner{animation:none}}
   `;
   style.textContent += '.pr-action-message{flex:1 0 100%;min-width:0;margin:0 0 10px;box-sizing:border-box;line-height:1.7;overflow-wrap:anywhere}.pr-action-message:empty{display:none}.pr-footer:has(>.pr-action-message),.pr-upload-footer{flex-wrap:wrap}.pr-upload-footer>.pr-button{max-width:100%;white-space:normal}';
+  style.textContent += '.pr-debug{margin:12px 0 18px;padding:10px 12px;border:1px dashed var(--line,#dfe3ea);border-radius:10px;background:var(--panel-solid,#fff);font-size:11px}.pr-debug summary{cursor:pointer;font-weight:650}.pr-debug p{margin:6px 0;line-height:1.6}.pr-debug-scroll{overflow:auto;max-height:230px}.pr-debug table{width:100%;border-collapse:collapse;white-space:nowrap}.pr-debug th,.pr-debug td{padding:5px 6px;text-align:left;border-bottom:1px solid var(--line,#e8ebf0);font-size:10px}.pr-debug th{color:var(--muted,#788392);font-weight:600}.pr-debug td:last-child{white-space:normal;min-width:120px}';
   style.textContent += '.pr-main .pr-next-exam{margin:18px 0;padding:16px 18px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:12px;background:var(--panel-solid)}.pr-main .pr-next-exam>h4{margin:0 0 6px;font-size:16px}.pr-next-exam>ol{margin:14px 0 0;padding-left:22px}.pr-next-exam>ol>li{padding-left:3px;overflow-wrap:anywhere}.pr-next-exam>ol>li+li{margin-top:16px}.pr-next-exam>ol>li::marker{color:var(--accent);font-weight:650}.pr-main .pr-next-exam .pr-prose{font-size:13px}.pr-tip-sources{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-width:0}.pr-main .pr-tip-sources .pr-link{margin:0;white-space:normal;overflow-wrap:anywhere}.pr-entry-complete{display:grid;grid-template-columns:auto 1fr;gap:10px 14px;align-items:center;margin:18px 0;padding:18px;border:1px solid var(--accent,#5d72e8);border-radius:14px;background:var(--accent-soft,#eef1ff)}.pr-entry-complete-mark{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--accent,#5d72e8);color:#fff;font-size:20px;font-weight:700}.pr-entry-complete-copy h3{margin:0 0 3px;font-size:18px}.pr-entry-complete-copy p{margin:0;color:var(--muted);font-size:13px}.pr-entry-complete-actions{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px}.pr-entry-complete-actions .pr-button{flex:1 1 140px}';
   document.head.appendChild(style);
 })();

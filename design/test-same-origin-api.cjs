@@ -21,11 +21,12 @@ async function run() {
   const logs = [], warn = console.warn;
   console.warn = (...args) => logs.push(args.join(' '));
   try {
-    for (const hostname of ['feat-paper-entry-analysis-fl.score-tracker-d83.pages.dev', 'score-tracker-d83.pages.dev', 'other-preview.score-tracker-d83.pages.dev', 'feat-paper-entry-analysis-fl.score-tracker-d83.pages.dev.attacker.test']) {
+    for (const hostname of ['feat-paper-entry-analysis-fl.score-tracker-d83.pages.dev', '649d0811.score-tracker-d83.pages.dev', 'score-tracker-d83.pages.dev', 'other-preview.score-tracker-d83.pages.dev', 'feat-paper-entry-analysis-fl.score-tracker-d83.pages.dev.attacker.test']) {
       for (const endpoint of ['score-tracker-data-api', 'score-tracker-paper-review', 'score-tracker-vision-preview', 'score-tracker-setup']) {
         const request = new Request('https://' + hostname + '/api/' + endpoint, {method:'POST',headers:{'content-type':'application/json'},body:privateBody});
         const response = await proxyApi(request, { fetch: async url => {
-          const expected = hostname === 'feat-paper-entry-analysis-fl.score-tracker-d83.pages.dev' && endpoint !== 'score-tracker-setup'
+          const previewHost = /^(?:feat-paper-entry-analysis-fl|[0-9a-f]{8})\.score-tracker-d83\.pages\.dev$/i.test(hostname);
+          const expected = previewHost && endpoint !== 'score-tracker-setup'
             ? endpoint.replace('score-tracker-data-api', 'score-tracker-data-api-credits-preview')
               .replace('score-tracker-paper-review', 'score-tracker-paper-credits-preview')
               .replace('score-tracker-vision-preview', 'score-tracker-vision-credits-preview')
@@ -36,7 +37,7 @@ async function run() {
         assert.equal(response.status, 200);
       }
     }
-    console.log('PASS: the exact Cloudflare branch alias uses the isolated credits APIs; production, other branches and lookalike hosts do not');
+    console.log('PASS: the branch alias and immutable Cloudflare deployment use the isolated credits APIs; production, other branches and lookalike hosts do not');
     for (const endpoint of API_ENDPOINTS) {
       let calls = 0;
       const response = await proxyApi(post(endpoint), { fetch: async (url, init) => {

@@ -79,7 +79,8 @@ const {PGlite}=require('@electric-sql/pglite');
   global.fetch=async(url,opt)=>{
     assert.equal(String(url),'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-paper-credits-preview');
     const body=JSON.parse(opt.body);actions.push(body.action);
-    if(body.action==='prepare_ecs_page'){captured=body.asset;return Response.json({ok:true,page:1,source_path:`${owner}/${body.request_id}/1-${body.asset.ecs_ref}`});}
+    if(body.action==='authorize_ecs_page')return Response.json({ok:true,user_id:owner,page:1});
+    if(body.action==='authorize_ecs_page_view')return Response.json({ok:true,user_id:owner,page:1,view:0});
     return Response.json({ok:true});
   };
   const relay=start();await new Promise(resolve=>relay.once('listening',resolve));
@@ -92,17 +93,18 @@ const {PGlite}=require('@electric-sql/pglite');
   assert.equal((await post(origin,JSON.stringify({action:'delete',token:'fake'}))).status,400);
   assert.equal((await post(origin,'','GET')).status,405);
   const ok=await post(origin,JSON.stringify({action:'upload_page',token:'fake',request_id:relayRequest,page:1,role:'paper',url:jpg,regions:[]}));
-  assert.equal(ok.status,200);assert.deepEqual(actions,['authorize_ecs_page','prepare_ecs_page']);assert(captured&&captured.ecs_ref&&captured.ecs_read_token);
+  assert.equal(ok.status,200);const upload=JSON.parse(ok.body);captured=upload.assets[0];assert.deepEqual(actions,['authorize_ecs_page']);assert(captured&&captured.ecs_ref&&captured.ecs_read_token);assert.equal(upload.sync_pending,true);assert.equal(upload.storage,'aliyun_primary');
   const read=await get('/paper-preview-read?request_id='+relayRequest+'&asset='+captured.ecs_ref+'&token='+captured.ecs_read_token);
   assert.equal(read.status,200);assert.deepEqual(read.body,data);assert.equal(read.headers['access-control-allow-origin'],origin);
   assert(crypto.verify(null,Buffer.from(`scoretracker-paper-bridge-v1\n${relayRequest}\n${captured.ecs_ref}\n${captured.ecs_read_token}`),pair.publicKey,Buffer.from(captured.ecs_bridge_sig,'base64url')));
   assert.equal((await get('/paper-preview-read?request_id='+relayRequest+'&asset='+captured.ecs_ref+'&token='+crypto.randomBytes(32).toString('base64url'))).status,404);
-  // A lost response can follow a successful metadata commit; the only copy must survive.
+  // A lost response is now limited to the small background registration call;
+  // the ECS copy is already acknowledged to the user and remains readable.
   let lost;
-  global.fetch=async(url,opt)=>{const b=JSON.parse(opt.body);if(b.action==='prepare_ecs_page'){lost=b.asset;throw Error('response lost after commit');}return Response.json({ok:true});};
+  global.fetch=async(url,opt)=>{const b=JSON.parse(opt.body);if(b.action==='authorize_ecs_page')return Response.json({ok:true,user_id:owner,page:1});return Response.json({ok:true});};
   const lostRequest=crypto.randomUUID();
   const uncertain=await post(origin,JSON.stringify({action:'upload_page',token:'fake',request_id:lostRequest,page:1,role:'paper',url:jpg,regions:[]}));
-  assert.equal(uncertain.status,503);assert(lost);
+  assert.equal(uncertain.status,200);lost=JSON.parse(uncertain.body).assets[0];assert(lost);
   await mirror.prunePrimary(lostRequest,new Set());
   assert.deepEqual((await readPrimaryAsset(lostRequest,lost.ecs_ref,lost.ecs_read_token)).data,data,'an uncertain committed upload must not be pruned');
   const fallback={path:`${owner}/${request}/2-${crypto.randomUUID()}`,bytes:legacyData.length,mime:'image/jpeg',url:'https://kdwpmcdxapwecbfrvqtm.supabase.co/storage/v1/object/sign/score-tracker-paper-scans/fallback?token=fake'};
