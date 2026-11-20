@@ -13,6 +13,18 @@ const base={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
 const safeMeta=['request_id','page','role','separate_views','expected_views','region_boxes','region_rows','page_frames','region_focus','source_path','view'];
 const pendingPages=new Map();
 function pick(body,extra={}){const out={token:body.token};for(const k of safeMeta)if(body[k]!==undefined)out[k]=body[k];return {...out,...extra};}
+function sessionTokenHash(value){return crypto.createHash('sha256').update(String(value)).digest('hex');}
+function pendingSession(requestId,tokenValue,nextPage){
+  const now=Date.now(),hash=sessionTokenHash(tokenValue);let latest=null;
+  for(const [key,value] of pendingPages){
+    if(!key.startsWith(`${requestId}:`))continue;
+    if(value.expires<=now){pendingPages.delete(key);continue;}
+    const page=Number(key.slice(requestId.length+1));
+    if(!Number.isInteger(page)||value.token_hash!==hash)continue;
+    if(!latest||page>latest.page)latest={...value,page};
+  }
+  return latest&&Number(nextPage)===latest.page+1?latest:null;
+}
 function validMagic(mime,buf){return mime==='image/jpeg'?buf.length>=3&&buf[0]===0xff&&buf[1]===0xd8&&buf[2]===0xff:mime==='image/png'?buf.length>=8&&buf.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])):mime==='image/webp'?buf.length>=12&&buf.subarray(0,4).toString()==='RIFF'&&buf.subarray(8,12).toString()==='WEBP':false;}
 function decodeImage(value,detail=false){
   if(typeof value!=='string'||value.length>MAX)throw Object.assign(Error('图片格式不正确'),{status:400});
@@ -41,7 +53,11 @@ async function handleUpload(body){
     const main=decodeImage(body.url),regions=Array.isArray(body.regions)?body.regions:[];
     if(regions.length>10)throw Object.assign(Error('图片局部过多'),{status:400});
     const details=regions.map(v=>decodeImage(v,true)),separate=body.separate_views===true;
-    const authorized=await upstream(pick(body,{action:'authorize_ecs_page',detail_count:details.length}));
+    // The first page is authorized against Supabase. Subsequent sequential
+    // pages reuse that short-lived, token-bound relay session so background
+    // registration cannot make page 2 look like an out-of-order upload.
+    const session=pendingSession(body.request_id,body.token,body.page);
+    const authorized=session?{user_id:session.user_id}:await upstream(pick(body,{action:'authorize_ecs_page',detail_count:details.length}));
     if(!uuid.test(authorized.user_id||''))throw Object.assign(Error('保存权限校验未完成'),{status:503});
     const mainAsset=await persistAsset(body.request_id,main),detailAssets=[];
     for(const img of details)detailAssets.push(await persistAsset(body.request_id,img));
@@ -49,7 +65,7 @@ async function handleUpload(body){
     // by the browser in the background, so image saving never waits for the
     // second Supabase round trip.
     const sourcePath=`${authorized.user_id}/${body.request_id}/${body.page}-${mainAsset.ecs_ref}`;
-    pendingPages.set(`${body.request_id}:${body.page}`,{user_id:authorized.user_id,source_path:sourcePath,expected_views:separate?body.expected_views:details.length,expires:Date.now()+30*60*1000});
+    pendingPages.set(`${body.request_id}:${body.page}`,{user_id:authorized.user_id,token_hash:sessionTokenHash(body.token),source_path:sourcePath,expected_views:separate?body.expected_views:details.length,expires:Date.now()+30*60*1000});
     while(pendingPages.size>200)pendingPages.delete(pendingPages.keys().next().value);
     return {ok:true,page:body.page,source_path:sourcePath,assets:[mainAsset,...detailAssets],sync_pending:true,storage:'aliyun_primary',separate_views:separate,expected_views:separate?body.expected_views:details.length};
   }
@@ -57,7 +73,7 @@ async function handleUpload(body){
     if(!Array.isArray(body.regions)||body.regions.length!==1)throw Object.assign(Error('请逐张上传局部图'),{status:400});
     const image=decodeImage(body.regions[0],true);
     const pending=pendingPages.get(`${body.request_id}:${body.page}`);
-    const authorized=pending&&pending.expires>Date.now()&&pending.source_path===body.source_path&&Number.isInteger(pending.expected_views)&&body.view>=0&&body.view<pending.expected_views
+    const authorized=pending&&pending.expires>Date.now()&&pending.token_hash===sessionTokenHash(body.token)&&pending.source_path===body.source_path&&Number.isInteger(pending.expected_views)&&body.view>=0&&body.view<pending.expected_views
       ? {user_id:pending.user_id}
       : await upstream(pick(body,{action:'authorize_ecs_page_view'}));
     if(!uuid.test(authorized.user_id||''))throw Object.assign(Error('保存权限校验未完成'),{status:503});
