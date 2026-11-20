@@ -555,7 +555,7 @@ function cityLineV33(exam){
   var c=citySourceV33(exam),parts=[];
   if(c.cityRank)parts.push("市排 "+c.cityRank+(c.cityParticipants?"/"+c.cityParticipants:""));
   if(c.districtRank)parts.push("区排 "+c.districtRank+(c.districtParticipants?"/"+c.districtParticipants:""));
-  return parts.length?'<div style="font-size:11px;color:var(--muted,#788392);padding:5px 2px 0;font-variant-numeric:tabular-nums">'+esc(parts.join(" · "))+"</div>":"";
+  return parts.length?'<div class="record-city-v33" style="font-size:11px;color:var(--muted,#788392);padding:5px 2px 0;font-variant-numeric:tabular-nums">'+esc(parts.join(" · "))+"</div>":"";
 }
 function watchExamModal(){
   if(cityObs||typeof MutationObserver!=="function")return;

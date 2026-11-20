@@ -98,27 +98,27 @@
       function enabled(){if(submit)submit.disabled=!data.rows.length||(row.result.screenshot_only?pending.length>0:data.unverified>0)||!!replace&&!replace.checked;}
       if(replace)replace.onchange=enabled;enabled();
       if(submit)submit.onclick=async function(){
-        var accepted=!!replace&&replace.checked;submit.disabled=true;
+        var accepted=!!replace&&replace.checked;submit.disabled=true;var finishStatus=main.paperBoardFinishStatus;var failure='';if(finishStatus)finishStatus(true,'正在保存试题和题型得分…');note('正在保存试题和题型得分…');
         try{
           if(row.result.screenshot_only){
             var current=live(main,row),first;
             current.forEach(function(item){if(item.c.verified||item.c.accepted||questionState(item.q,item.c,current,groupsFor(row)).reasons.length)return;var box=main.querySelector('[data-question="'+item.q.id+'"] [data-field=accepted]');if(box){box.checked=true;first=first||box;}});
             if(first)first.dispatchEvent(new Event('input',{bubbles:true}));
           }
-          var saved=await hooks.save();if(!saved)return;
+          var saved=await hooks.save();if(!saved)throw new Error('保存尚未完成，请重试');
           var preview=await api(ctx,'preview_types',{request_id:saved.request_id,revision:saved.revision});
           if(!main.isConnected)return;
           var active=main.querySelector('.pr-type-sync');
-          if(preview.existing.length&&!accepted){[state.exams,state.allExams].forEach(function(list){(list||[]).forEach(function(e){if(e.id===row.exam_id){e.question_type_scores=e.question_type_scores||{};e.question_type_scores[row.subject]=preview.existing;}});});if(active.refresh)active.refresh();active.querySelector('[data-sync-note]').textContent='试题已保存；本科题型已发生变化，请重新核对后确认替换。';return;}
+          if(preview.existing.length&&!accepted){[state.exams,state.allExams].forEach(function(list){(list||[]).forEach(function(e){if(e.id===row.exam_id){e.question_type_scores=e.question_type_scores||{};e.question_type_scores[row.subject]=preview.existing;}});});if(active.refresh)active.refresh();active.querySelector('[data-sync-note]').textContent='试题已保存；本科题型已发生变化，请重新核对后确认替换。';failure='已有题型得分发生变化，请重新选择是否替换。';note(failure,true);return;}
           if(preview.unverified)throw new Error('请先对照原卷核对已分类题目');
           var savedTypes=await api(ctx,'sync_types',{request_id:saved.request_id,revision:saved.revision,exam_version:preview.exam_version,replace:accepted});
           [state.exams,state.allExams].forEach(function(list){(list||[]).forEach(function(e){if(e.id===savedTypes.exam_id)e.question_type_scores=savedTypes.question_type_scores;});});
           if(!main.isConnected)return;
+          if(hooks.finalize){await hooks.finalize('sync');return;}
           main.querySelector('.pr-type-sync').innerHTML='<h3>试题与题型得分已保存</h3><p>已更新本场'+esc(row.subject)+'的 '+preview.rows.length+' 项题型。整科和总分保持原样。</p><button type="button" class="pr-button" data-view-types>查看题型分析</button>';var board=main.querySelector('.pb-board');if(board){var done=board.querySelector('[data-pb-complete]'),finish=board.querySelector('[data-pb=finish]'),choice=board.querySelector('.pb-finish-choice');if(done){done.hidden=false;done.textContent='录入完成 · 题型得分已更新。';}if(finish)finish.hidden=true;if(choice)choice.hidden=true;}
           main.querySelector('[data-view-types]').onclick=function(){if(ctx.canLeave&&!ctx.canLeave())return;if(ctx.dispose)ctx.dispose();window.ScoreQuestionTypeAnalysis.open(row.subject);};
-          if(hooks.finalize){await hooks.finalize('sync');return;}
           note('试题与题型得分已保存');track('paper_type_sync',{types:preview.rows.length,replaced:preview.existing.length>0});
-        }catch(e){if(main.isConnected){note('题型得分未更新：'+e.message,true);var active=main.querySelector('[data-sync-types]');if(active)active.disabled=false;}}
+        }catch(e){failure='保存未完成：'+e.message;if(main.isConnected){note(failure,true);var active=main.querySelector('[data-sync-types]');if(active)active.disabled=false;}}finally{if(finishStatus&&main.paperBoardFinishStatus===finishStatus)finishStatus(false,failure||'录入完成',!!failure);}
       };
       var activeFilter=main.querySelector('[data-pr^="filter:"][aria-pressed=true]');if(activeFilter)activeFilter.click();
     }

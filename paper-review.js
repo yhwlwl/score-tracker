@@ -371,11 +371,12 @@
       if (replacement) replacement.open = open;
     };
     if (paperDebug.enabled) window.addEventListener('score-paper-debug', debugListener);
-    function note(text, error) { message.textContent = text || ''; message.classList.toggle('is-error', !!error); }
+    var floatingNote=document.createElement('div'), floatingTimer;floatingNote.className='pr-floating-note';floatingNote.setAttribute('aria-hidden','true');floatingNote.hidden=true;dialog.appendChild(floatingNote);
+    function note(text, error) { message.textContent = text || ''; message.classList.toggle('is-error', !!error);clearTimeout(floatingTimer);floatingNote.hidden=true;if(!text)return;var rect=message.getBoundingClientRect(),offscreen=rect.top<0||rect.bottom>window.innerHeight||!rect.height;if(view==='report'||offscreen||error){floatingNote.textContent=text;floatingNote.classList.toggle('is-error',!!error);floatingNote.hidden=false;if(!error&&!/正在|请稍候|保存中/.test(text))floatingTimer=setTimeout(function(){floatingNote.hidden=true;},2600);} }
     function alive() { return !closed && current(ctx) && (ctx.host ? ctx.host.isConnected && (ctx.isActive ? ctx.isActive() : state.page === 'stats' && ['ai','papers'].includes(state.analysisTab)) : ctx.modal.isConnected && state.modal === ctx.modal); }
     function close(force) {
       if (!force && dirty && !confirm('核对修改尚未保存，确定返回考试吗？')) return;
-      closed = true; clearTimeout(timer); clearTimeout(autoSaveTimer); cleanup.disconnect(); if (paperDebug.enabled) window.removeEventListener('score-paper-debug', debugListener); ctx.dialog = null;
+      closed = true; clearTimeout(timer); clearTimeout(autoSaveTimer); clearTimeout(floatingTimer); cleanup.disconnect(); if (paperDebug.enabled) window.removeEventListener('score-paper-debug', debugListener); ctx.dialog = null;
       if (dialog.close) dialog.close(); dialog.remove(); if (ctx.host && ctx.onClose && !force) ctx.onClose(); else if (trigger && trigger.isConnected) trigger.focus();
     }
     var cleanup = new MutationObserver(function () { if (!(ctx.host || ctx.modal).isConnected || (!ctx.host && state.modal !== ctx.modal) || !current(ctx)) close(true); });
@@ -639,7 +640,7 @@
       async function finalizeEntry(choice) {
         if (!selected || !selected.result || !selected.result.record_only) return null;
         var fresh = await api(ctx, 'finalize_entry', { request_id: selected.request_id, revision: selected.revision, choice: choice || 'save' });
-        if (alive() && fresh && fresh.review) { Object.assign(selected, fresh.review); dirty = false; renderReport(selected); }
+        if (alive() && fresh && fresh.review) { Object.assign(selected, fresh.review); dirty = false; renderReport(selected);note('录入完成');var card=main.querySelector('.pr-entry-complete');if(card){card.tabIndex=-1;card.focus({preventScroll:true});card.scrollIntoView({block:'nearest'});} }
         return fresh && fresh.review || selected;
       }
       function renderEntryCompletion() {
@@ -732,6 +733,7 @@
     }
     async function save() {
       if(saving)return null;
+      clearTimeout(autoSaveTimer);
       if(main.paperBoardBeforeSave)await main.paperBoardBeforeSave();
       if(!dirty){note('试题已保存');return selected;}
       var corrections = [];
@@ -748,13 +750,13 @@
       try{
         var result=await api(ctx,'correct',{request_id:selected.request_id,revision:selected.revision,corrections:corrections,reanalyze:!selected.result.record_only && (selected.result.update_count||0)<5});
         if(alive()){
-          if (quietSave) {
+          if (quietSave || (selected.result.record_only && selected.result.screenshot_only && main.querySelector('.pb-board'))) {
             var wasComplete = !!(selected.result && selected.result.entry_completion);
             Object.assign(selected, result.review);
             dirty = false;
             if (ctx.onRecordChange) ctx.onRecordChange(selected);
             if (wasComplete && !(selected.result && selected.result.entry_completion)) { renderReport(selected); return selected; }
-            note('修改已自动保存');
+            if(!quietSave)note('本题已保存');else note('修改已自动保存');
             return selected;
           }
           renderReport(result.review);note(result.review.status==='running'?'已保存，正在更新分析':'试题已保存');return result.review;
@@ -873,7 +875,7 @@
     .pr-question-filters{display:flex;gap:7px;flex-wrap:wrap;margin:14px 0}.pr-question-filters [aria-pressed=true]{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}.pr-main .pr-question[hidden],.pr-main [hidden]{display:none!important}.pr-main .pr-question{background:var(--panel-solid);overflow:hidden;scroll-margin-top:120px}.pr-main .pr-question>summary{padding:16px;font-size:14px;min-height:48px;list-style:none}.pr-main .pr-question>summary::-webkit-details-marker{display:none}.pr-main .pr-question>summary>span:first-child{flex:1;min-width:0;overflow-wrap:anywhere}.pr-main .pr-question summary small{font-size:11px;line-height:1.65;margin-top:4px}.pr-main .pr-badge{font-size:12px;flex:none}.pr-chevron{font-size:0;width:7px;height:7px;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:rotate(45deg);margin:0 3px 4px;flex:none}.pr-question[open]>summary>.pr-chevron{transform:rotate(225deg);margin-top:6px}.pr-main .pr-question[open]>summary{border-bottom:1px solid var(--line)}.pr-main .pr-question-body{padding:16px}.pr-main .pr-question-body h4{font-size:14px}.pr-main .pr-first-issue{margin:0 0 18px;padding:14px;border-left:3px solid #d99a57}.pr-main .pr-first-issue h4:first-child{margin-top:0}.pr-main .pr-full-credit{font-size:14px;font-weight:600}.pr-main .pr-source{margin-top:20px}.pr-main .pr-link{min-height:36px;padding:6px 12px}.pr-main .pr-check{font-size:12px}.pr-main .pr-context{padding:12px 0}.pr-main .pr-context>summary{cursor:pointer;font-weight:600}.pr-main .pr-report-meta .pr-insight{margin-bottom:18px}.pr-main .katex-error{overflow-wrap:anywhere}
     @media(max-width:520px){.pr-dialog{width:100%;max-width:100%;max-height:100dvh;height:100dvh;margin:0;border-radius:0;border:0}.pr-head{padding:15px 16px}.pr-content{padding:0 16px 24px}.pr-pages{grid-template-columns:repeat(2,minmax(0,1fr))}.pr-intro,.pr-main .pr-result-top{padding:18px}.pr-head h2{font-size:18px}.pr-stats b{font-size:20px}.pr-main .pr-question>summary{padding:14px;gap:8px}.pr-main .pr-report-nav .pr-button{font-size:12px;padding:8px}.pr-main .pr-difficulty-table thead{display:none}.pr-main .pr-difficulty-table tbody{display:block}.pr-main .pr-difficulty-table tr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);border-radius:10px;margin:10px 0;padding:8px}.pr-main .pr-difficulty-table td{padding:4px;border:0}.pr-main .pr-difficulty-table td:nth-child(1)::before{content:'题号 ';color:var(--muted)}.pr-main .pr-difficulty-table td:nth-child(2)::before{content:'综合 ';color:var(--muted)}.pr-main .pr-difficulty-table td:nth-child(3)::before{content:'思考 ';color:var(--muted)}.pr-main .pr-difficulty-table td:nth-child(4)::before{content:'计算 ';color:var(--muted)}.pr-main .pr-difficulty-table td:last-child{grid-column:1/-1;border-top:1px solid var(--line);margin-top:6px;padding-top:8px;font-size:13px;line-height:1.8}}@media(prefers-reduced-motion:reduce){.pr-spinner{animation:none}}
   `;
-  style.textContent += '.pr-action-message{flex:1 0 100%;min-width:0;margin:0 0 10px;box-sizing:border-box;line-height:1.7;overflow-wrap:anywhere}.pr-action-message:empty{display:none}.pr-footer:has(>.pr-action-message),.pr-upload-footer{flex-wrap:wrap}.pr-upload-footer>.pr-button{max-width:100%;white-space:normal}';
+  style.textContent += '.pr-floating-note{position:fixed;z-index:9999;bottom:calc(78px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);max-width:min(90vw,480px);padding:11px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel-solid,#fff);color:var(--text,#18212f);font-size:13px;line-height:1.5;box-shadow:0 6px 24px #18212f25;pointer-events:none;overflow-wrap:anywhere}.pr-floating-note[hidden]{display:none!important}.pr-floating-note.is-error{color:var(--danger,#a74944)}.pr-action-message{flex:1 0 100%;min-width:0;margin:0 0 10px;box-sizing:border-box;line-height:1.7;overflow-wrap:anywhere}.pr-action-message:empty{display:none}.pr-footer:has(>.pr-action-message),.pr-upload-footer{flex-wrap:wrap}.pr-upload-footer>.pr-button{max-width:100%;white-space:normal}';
   style.textContent += '.pr-debug{margin:12px 0 18px;padding:10px 12px;border:1px dashed var(--line,#dfe3ea);border-radius:10px;background:var(--panel-solid,#fff);font-size:11px}.pr-debug summary{cursor:pointer;font-weight:650}.pr-debug p{margin:6px 0;line-height:1.6}.pr-debug-scroll{overflow:auto;max-height:230px}.pr-debug table{width:100%;border-collapse:collapse;white-space:nowrap}.pr-debug th,.pr-debug td{padding:5px 6px;text-align:left;border-bottom:1px solid var(--line,#e8ebf0);font-size:10px}.pr-debug th{color:var(--muted,#788392);font-weight:600}.pr-debug td:last-child{white-space:normal;min-width:120px}';
   style.textContent += '.pr-main .pr-next-exam{margin:18px 0;padding:16px 18px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:12px;background:var(--panel-solid)}.pr-main .pr-next-exam>h4{margin:0 0 6px;font-size:16px}.pr-next-exam>ol{margin:14px 0 0;padding-left:22px}.pr-next-exam>ol>li{padding-left:3px;overflow-wrap:anywhere}.pr-next-exam>ol>li+li{margin-top:16px}.pr-next-exam>ol>li::marker{color:var(--accent);font-weight:650}.pr-main .pr-next-exam .pr-prose{font-size:13px}.pr-tip-sources{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-width:0}.pr-main .pr-tip-sources .pr-link{margin:0;white-space:normal;overflow-wrap:anywhere}.pr-entry-complete{display:grid;grid-template-columns:auto 1fr;gap:10px 14px;align-items:center;margin:18px 0;padding:18px;border:1px solid var(--accent,#5d72e8);border-radius:14px;background:var(--accent-soft,#eef1ff)}.pr-entry-complete-mark{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--accent,#5d72e8);color:#fff;font-size:20px;font-weight:700}.pr-entry-complete-copy h3{margin:0 0 3px;font-size:18px}.pr-entry-complete-copy p{margin:0;color:var(--muted);font-size:13px}.pr-entry-complete-actions{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px}.pr-entry-complete-actions .pr-button{flex:1 1 140px}';
   document.head.appendChild(style);
