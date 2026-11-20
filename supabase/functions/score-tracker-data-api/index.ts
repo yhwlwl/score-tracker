@@ -1,6 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { examReflection } from "./reflection.ts";
+import { aiReleaseCapabilities } from '../_shared/ai-release.ts';
+import "../_shared/question-types.js";
 
 const db = createClient(
   Deno.env.get("SUPABASE_URL") ?? "",
@@ -222,7 +224,7 @@ async function list(user: any) {
     db
       .from("score_tracker_exams")
       .select(
-        "id,name,exam_date,end_date,total_rank,total_participants,total_class_rank,total_class_participants,total_year_position_percent,total_class_position_percent,total_actual_score,total_raw_score,is_hidden,grade_level,created_at,updated_at,city_rank,city_participants,district_rank,district_participants,averages,reflection,reflection_revision,reflection_updated_at"
+        "id,name,exam_date,end_date,total_rank,total_participants,total_class_rank,total_class_participants,total_year_position_percent,total_class_position_percent,total_actual_score,total_raw_score,is_hidden,grade_level,created_at,updated_at,city_rank,city_participants,district_rank,district_participants,averages,reflection,reflection_revision,reflection_updated_at,question_type_scores"
       )
       .eq("user_id", user.id)
       .order("exam_date")
@@ -531,6 +533,23 @@ async function saveExam(uid: string, exam: any) {
     try { averages = await cleanAverages(uid, exam, rows); }
     catch (e) { return { error: e instanceof Error ? e.message : "均分格式不正确", status: 400 }; }
   }
+  let questionTypes: any;
+  if (hasKey("question_type_scores")) {
+    const input = exam.question_type_scores;
+    if (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).length > 40) return {error:"题型得分格式不正确",status:400};
+    questionTypes = Object.create(null);
+    try {
+      const model = (globalThis as any).ScoreQuestionTypeModel;
+      for (const [subject, types] of Object.entries(input)) {
+        const row = rows.find((r) => r.subject === subject);
+        if (!row) throw new Error(`题型「${subject}」须属于本次考试的科目`);
+        const cleaned = model.clean(types, subject);
+        const rawScore = row.raw_score ?? (row.raw_max_score === row.max_score ? row.actual_score : null);
+        model.validate(cleaned, row.raw_max_score, rawScore);
+        if (cleaned.length) questionTypes[subject] = cleaned;
+      }
+    } catch (e) { return {error: e instanceof Error ? e.message : "题型得分格式不正确",status:400}; }
+  }
   const values: any = {
     name,
     exam_date: date,
@@ -554,6 +573,8 @@ async function saveExam(uid: string, exam: any) {
   if (hasKey("end_date")) values.end_date = endDate;
   // Older clients omit this optional field; their saves must preserve existing references.
   if (hasKey("averages")) values.averages = averages;
+  // Omission preserves data from older clients; an explicit {} clears it.
+  if (hasKey("question_type_scores")) values.question_type_scores = questionTypes;
   if (id) {
     const owned = await db.from("score_tracker_exams").select("id").eq("id", id).eq("user_id", uid).maybeSingle();
     if (owned.error) throw owned.error;
@@ -635,7 +656,7 @@ async function loginV2(body: any) {
 async function getGoal(uid: string) {
   const r = await db
     .from("score_tracker_user_goals")
-    .select("subject_goals,total_goal,dream_school,exam_date,date_name,updated_at")
+    .select("subject_goals,total_goal,target_rank,dream_school,exam_date,date_name,updated_at")
     .eq("user_id", uid)
     .maybeSingle();
   if (r.error) throw r.error;
@@ -645,6 +666,7 @@ async function getGoal(uid: string) {
     goal: {
       subjects: g.subject_goals ?? {},
       totalGoal: g.total_goal === null || g.total_goal === undefined ? null : Number(g.total_goal),
+      targetRank: g.target_rank == null ? null : Number(g.target_rank),
       school: g.dream_school ?? "",
       date: g.exam_date ?? "",
       dateName: g.date_name ?? "",
@@ -665,10 +687,22 @@ async function saveGoal(uid: string, raw: any) {
     }
   }
   const total = score(raw?.totalGoal);
+  const rankPatch: Record<string, number | null> = {};
+  if (Object.prototype.hasOwnProperty.call(raw || {}, "targetRank")) {
+    const rank = raw.targetRank == null || raw.targetRank === "" ? null : Number(raw.targetRank);
+    if (rank !== null && (!Number.isInteger(rank) || rank < 1 || rank > 10000000)) return { error: "目标名次请输入正整数", status: 400 };
+    rankPatch.target_rank = rank;
+  }
   const school = text(raw?.school, 40);
   const date = /^\d{4}-\d{2}-\d{2}$/.test(String(raw?.date ?? "")) ? String(raw.date) : null;
   const dateName = text(raw?.dateName, 20);
-  const hasAny = Object.keys(subjects).length > 0 || total !== null || !!school || !!date;
+  // Older clients omit targetRank. Preserve its stored value when editing scores.
+  if (!("target_rank" in rankPatch)) {
+    const existing = await db.from("score_tracker_user_goals").select("target_rank").eq("user_id", uid).maybeSingle();
+    if (existing.error) throw existing.error;
+    rankPatch.target_rank = existing.data?.target_rank ?? null;
+  }
+  const hasAny = Object.keys(subjects).length > 0 || total !== null || rankPatch.target_rank !== null || !!school || !!date;
   const now = new Date().toISOString();
   if (!hasAny) {
     const del = await db.from("score_tracker_user_goals").delete().eq("user_id", uid);
@@ -676,7 +710,7 @@ async function saveGoal(uid: string, raw: any) {
     return { ok: true, cleared: true };
   }
   const r = await db.from("score_tracker_user_goals").upsert(
-    { user_id: uid, subject_goals: subjects, total_goal: total, dream_school: school, exam_date: date, date_name: dateName, updated_at: now },
+    { user_id: uid, subject_goals: subjects, total_goal: total, ...rankPatch, dream_school: school, exam_date: date, date_name: dateName, updated_at: now },
     { onConflict: "user_id" }
   );
   if (r.error) throw r.error;
@@ -751,11 +785,16 @@ async function submitFeatureVote(uid: string, rawIds: any, rawCustom: any) {
   return { ok: true, addedVotes, suggestionId, overview: await featureVoteOverview(uid) };
 }
 
+async function refreshGrowth(uid:string){
+  // Growth must never make saving a student's grades fail.
+  try{await db.from('score_tracker_growth_accounts').update({last_refresh_at:null}).eq('user_id',uid);const r=await db.rpc('score_tracker_growth_refresh',{p_user:uid});if(r.error)console.error('growth_refresh_failed',r.error.code);}catch(_){console.error('growth_refresh_failed');}
+}
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return out({ error: "Method not allowed" }, 405);
   try {
     const body = await req.json().catch(() => ({}));
+    if(body.action==='release_capabilities'){const c=await aiReleaseCapabilities(db);return out(c,c.migration_ready?200:503);}
     if (String(body.action ?? "") === "login_v2") {
       const r = await loginV2(body);
       return r.error ? out({ error: r.error }, r.status ?? 401) : out(r);
@@ -763,8 +802,15 @@ Deno.serve(async (req: Request) => {
     const user = await auth(String(body.token ?? ""));
     if (!user) return out({ error: "登录已失效，请重新登录", code: "UNAUTHORIZED" }, 401);
     const action = String(body.action ?? "");
+    if(action==='account_status'){
+      const r=await db.rpc('score_tracker_ai_account',{p_user:user.id});if(r.error)return out({error:'成长与AI额度服务暂不可用',code:'account_benefits_unavailable'},503);return out({account:r.data});
+    }
+    if(action==='account_usage'){
+      const r=await db.from('score_tracker_ai_tasks').select('id,feature,status,charged_credits,created_at,finished_at').eq('user_id',user.id).order('created_at',{ascending:false}).limit(20);if(r.error)throw r.error;return out({usage:r.data||[]});
+    }
     if (action === "get_exam_reflection" || action === "save_exam_reflection") {
       const result = await examReflection(db, user.id, body);
+      if(action==='save_exam_reflection'&&result.status<400)await refreshGrowth(user.id);
       return out(result.data, result.status);
     }
     if (action === "save_participant_defaults") {
@@ -797,6 +843,8 @@ Deno.serve(async (req: Request) => {
       try { defaults = body.participantDefaults ? participantPatch(body.participantDefaults) : {}; }
       catch (e) { return out({ error: e instanceof Error ? e.message : "默认人数格式不正确" }, 400); }
       const r = await saveExam(user.id, body.exam ?? {});
+      if(!r.error&&body.quick_entry===true){const growth=await db.rpc('score_tracker_growth_observe',{p_user:user.id,p_event:'quick_entry_saved',p_metadata:{exam_id:r.id},p_at:new Date().toISOString()});if(growth.error)console.error('quick_growth_failed',growth.error.code);}
+      if(!r.error)await refreshGrowth(user.id);
       if (!r.error && r.created && Object.keys(defaults).length) {
         try { return out({ ...r, participantDefaults: await saveParticipantDefaults(user.id, defaults, true) }); }
         catch (e) {
@@ -813,6 +861,7 @@ Deno.serve(async (req: Request) => {
     if (action === "get_goal") return out(await getGoal(user.id));
     if (action === "save_goal") {
       const r = await saveGoal(user.id, body.goal ?? {});
+      if(!r.error)await refreshGrowth(user.id);
       return r.error ? out({ error: r.error }, r.status) : out(r);
     }
     if (action === "toggle_exam_hidden") {

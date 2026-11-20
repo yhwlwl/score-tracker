@@ -6,6 +6,10 @@ const crypto = require("crypto");
 
 const ROOT = path.resolve(__dirname, "..");
 const ORDER = require("./bundle-order.json");
+// The Edge report and the scores page use the same difficulty model source.
+const sharedRoot = path.join(ROOT, "supabase/functions/_shared");
+fs.mkdirSync(sharedRoot, { recursive: true });
+fs.copyFileSync(path.join(ROOT, "score-worth-model.js"), path.join(sharedRoot, "score-worth-model.js"));
 
 const missing = ORDER.filter((f) => !fs.existsSync(path.join(ROOT, f)));
 if (missing.length) {
@@ -38,6 +42,8 @@ html = html.replace(/(href="\.\/pwa-install\.css)\?v=[^"\s]+/g, (match, prefix) 
 html = html.replace(/(href="\.\/appearance-studio\.css)\?v=[^"\s]+/g, '$1?v=' + crypto.createHash('md5').update(fs.readFileSync(path.join(ROOT,'appearance-studio.css'))).digest('hex').slice(0,10));
 const typeHash = crypto.createHash('md5').update(fs.readFileSync(path.join(ROOT, 'typography.css'))).digest('hex').slice(0, 10);
 html = html.replace(/(href="\.\/typography\.css)\?v=[^"\s]+/g, '$1?v=' + typeHash);
+const setupCssHash = crypto.createHash('md5').update(fs.readFileSync(path.join(ROOT, 'first-run-setup.css'))).digest('hex').slice(0, 10);
+html = html.replace(/(href="\.\/first-run-setup\.css)\?v=[^"\s]+/g, '$1?v=' + setupCssHash);
 const adminPath = path.join(ROOT, 'api/mg-ui.js');
 fs.writeFileSync(adminPath, fs.readFileSync(adminPath, 'utf8').replace(/(href="\/typography\.css)\?v=[^"\s]+/g, '$1?v=' + typeHash));
 fs.writeFileSync(htmlPath, html);

@@ -26,7 +26,7 @@
     } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
   }
   function blocked() {
-    return state.onboarding || document.visibilityState !== 'visible' || document.querySelector('.modal-backdrop,.rn-back,.fv36-back,.st-fb-back,.pwa-back,.gmodal-backdrop.open');
+    return state.onboarding || state.setupGuideLoading || document.visibilityState !== 'visible' || document.querySelector('.modal-backdrop,.rn-back,.fv36-back,.st-fb-back,.pwa-back,.gmodal-backdrop.open');
   }
   function refreshCard() { if (state.user && state.page === 'account') renderPage(); }
   async function load(u) {
@@ -48,7 +48,7 @@
     }
     if (!u) return;
     if (!loaded && !fetching && Date.now() >= retryAt) { load(u); return; }
-    if (!loaded || claiming || modal || blocked() || profile?.school) return;
+    if (!loaded || claiming || modal || blocked() || profile?.school || window.ScoreSetupGuide) return;
     if (claimed) { open(u, true); return; }
     if (profile?.school_prompted_at || profile?.completed_at || profile?.step === 6 || Date.now() < retryAt) return;
     claiming = true;

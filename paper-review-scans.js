@@ -1,0 +1,107 @@
+/* Per-question scan regions and editable OCR records; no generated HTML is trusted. */
+(function () {
+  'use strict';
+  var esc = function (s) { return escapeHtml(String(s == null ? '' : s)); };
+  var roles = { paper: '原题', work: '作答', reference: '参考答案' };
+  function validRegion(r,pages){return r&&roles[r.kind]&&pages.some(function(p){return p.page===r.page;})&&Array.isArray(r.box)&&r.box.length===4&&r.box.every(function(n){return typeof n==='number'&&Number.isFinite(n)&&n>=0&&n<=1;})&&r.box[2]>.01&&r.box[3]>.01&&r.box[0]+r.box[2]<=1.001&&r.box[1]+r.box[3]<=1.001;}
+  function layoutCrop(img,box){function layout(){if(!img.naturalWidth||!img.naturalHeight)return;img.parentElement.style.aspectRatio=(box[2]*img.naturalWidth)/(box[3]*img.naturalHeight);img.style.cssText='width:'+(100/box[2])+'%;max-width:none;left:'+(-box[0]/box[2]*100)+'%;top:'+(-box[1]/box[3]*100)+'%';}img.onload=layout;if(img.complete)layout();}
+  function enlarge(region,page,opener){var modal=document.createElement('dialog');modal.className='ps-enlarge';modal.innerHTML='<header><strong>'+roles[region.kind]+'截图 · 第 '+region.page+' 页</strong><button type="button" class="pr-button" data-close-crop>关闭</button></header><div class="ps-crop"><img alt="'+roles[region.kind]+'截图放大"></div><p class="pr-muted">显示的是已保存扫描件的对应区域，未调用 AI。</p>';document.body.appendChild(modal);window.ScorePaperSupport.useFallbackImages(modal,[page]);var image=modal.querySelector('img');image.src=page.url;layoutCrop(image,region.box);modal.querySelector('[data-close-crop]').onclick=function(){modal.close();};modal.onclick=function(e){if(e.target===modal)modal.close();};modal.onclose=function(){modal.remove();if(opener&&opener.isConnected)opener.focus();};modal.showModal();}
+  function btn(s, action) { return '<button type="button" class="pr-button" data-scan="' + action + '">' + s + '</button>'; }
+  function cropEditor(parent, pages, current, save) {
+    var editor = document.createElement('section'); editor.className = 'ps-editor';
+    var page = pages.find(function (p) { return current && p.page === current.page; }) || pages[0], box = current ? current.box.slice() : [0,0,1,1], kind = current ? current.kind : page.role;
+    editor.innerHTML = '<div class="ps-controls"><label>来源页<select data-page>' + pages.map(function (p) { return '<option value="' + p.page + '" ' + (p === page ? 'selected' : '') + '>第 ' + p.page + ' 页 · ' + roles[p.role] + '</option>'; }).join('') + '</select></label><label>区域内容<select data-kind>' + Object.keys(roles).map(function (k) { return '<option value="' + k + '" ' + (k === kind ? 'selected' : '') + '>' + roles[k] + '</option>'; }).join('') + '</select></label></div><p class="pr-muted">在图片上拖动框选完整题目或作答；也可以调整下面的百分比。跨页内容可继续添加区域。</p><div class="ps-stage"><img alt="待框选的扫描页" draggable="false"><div class="ps-selection"></div></div><div class="ps-coordinates">' + ['左边距','上边距','宽度','高度'].map(function (n, i) { return '<label>' + n + ' %<input type="number" min="0" max="100" step="0.1" data-coordinate="' + i + '"></label>'; }).join('') + '</div><div class="ps-actions">' + btn('整页','full') + btn('保存区域','save') + btn('取消','cancel') + '</div><p class="ps-error" role="status"></p>';
+    parent.appendChild(editor); var stage = editor.querySelector('.ps-stage'), img = stage.querySelector('img'), selection = stage.querySelector('.ps-selection'), start;
+    function paint() { selection.style.cssText = 'left:' + box[0]*100 + '%;top:' + box[1]*100 + '%;width:' + box[2]*100 + '%;height:' + box[3]*100 + '%'; editor.querySelectorAll('[data-coordinate]').forEach(function (el, i) { el.value = Math.round(box[i]*1000)/10; }); }
+    img.src = page.url; paint();
+    editor.querySelector('[data-page]').onchange = function (e) { page = pages.find(function (p) { return String(p.page) === e.target.value; }); img.src = page.url; box = [0,0,1,1]; paint(); };
+    editor.querySelector('[data-kind]').onchange = function (e) { kind = e.target.value; };
+    function point(e) { var r = stage.getBoundingClientRect(); return [Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))]; }
+    stage.onpointerdown = function (e) { if (!img.complete) return; e.preventDefault(); start = point(e); stage.setPointerCapture(e.pointerId); };
+    stage.onpointermove = function (e) { if (!start) return; var end = point(e); box = [Math.min(start[0],end[0]),Math.min(start[1],end[1]),Math.max(.001,Math.abs(end[0]-start[0])),Math.max(.001,Math.abs(end[1]-start[1]))]; paint(); };
+    stage.onpointerup = stage.onpointercancel = function () { start = null; };
+    editor.querySelectorAll('[data-coordinate]').forEach(function (el, i) { el.onchange = function () { box[i] = Math.max(0,Math.min(1,Number(el.value)/100)); box[2] = Math.min(box[2],1-box[0]); box[3] = Math.min(box[3],1-box[1]); paint(); }; });
+    editor.onclick = async function (e) { var b = e.target.closest('[data-scan]'); if (!b) return; e.stopPropagation();
+      if (b.dataset.scan === 'cancel') editor.remove();
+      if (b.dataset.scan === 'full') { box = [0,0,1,1]; paint(); }
+      if (b.dataset.scan === 'save') { b.disabled = true; try { box=Array.from(editor.querySelectorAll('[data-coordinate]')).map(function(el){return Number(el.value)/100;});if(box.some(function(n){return !Number.isFinite(n)||n<0||n>1;})||box[0]+box[2]>1.001||box[1]+box[3]>1.001)throw new Error('请在图片范围内框选');if (box[2] <= .01 || box[3] <= .01) throw new Error('请框选更完整的区域'); await save({ page: page.page, kind: kind, box: box.slice() }); editor.remove(); } catch (err) { editor.querySelector('.ps-error').textContent = err.message; } finally { b.disabled = false; } }
+    };
+    editor.scrollIntoView && editor.scrollIntoView({ block: 'nearest' });
+  }
+  function regionCard(region, page, index, shared) {
+    return '<figure class="ps-region" data-index="' + index + '" data-region-kind="'+region.kind+'"><figcaption>' + (region.kind==='paper'?'原题截图':region.kind==='work'?(shared?'作答截图 · 共用填涂区':'答题卡 / 作答截图'):'参考答案截图') + ' · 第 ' + region.page + ' 页</figcaption><button type="button" class="ps-preview" data-scan="zoom:'+index+'" aria-label="放大'+roles[region.kind]+'截图"><div class="ps-crop"><img loading="lazy" src="' + esc(page.url) + '" alt="' + roles[region.kind] + '扫描区域"></div></button><div>' + btn('放大','zoom:' + index) + btn('调整','edit:' + index) + btn('移除区域','remove:' + index) + '</div></figure>';
+  }
+  async function decorate(main, r, ctx, hooks) {
+    var generation = String(Number(main.dataset.scanGeneration || 0) + 1); main.dataset.scanGeneration = generation;
+    var isPaused = r.status === 'paused', qs = r.result ? r.result.questions : r.recovery && r.recovery.questions || [];
+    if (!qs.length) return;
+    var api = function (action, payload) { return hooks.api(ctx, action, Object.assign({ request_id: r.request_id }, payload || {})); };
+    if (isPaused) {
+      var form = document.createElement('form'); form.className = 'ps-verify';
+      form.innerHTML = '<h3>核对题目与作答</h3><p class="pr-muted">保留原有错误写法；修正识别文字和批改分，分析会使用保存后的内容。</p>' + qs.map(function (q, i) { return '<details class="pr-question" data-ocr="' + i + '"><summary>第 ' + esc(q.label) + ' 题</summary><div class="pr-question-body"><label>题目<textarea name="stem' + i + '" rows="4" maxlength="4500" required>' + esc(q.stem) + '</textarea></label><label>考试时的作答<textarea name="answer' + i + '" rows="4" maxlength="4000">' + esc(q.answer) + '</textarea></label><div class="pr-score-fields"><label>批改得分<input name="score' + i + '" type="number" min="0" max="9999" step=".01" value="' + esc(q.teacher_score) + '"></label><label>满分<input name="max' + i + '" type="number" min="0" max="9999" step=".01" value="' + esc(q.max_score) + '"></label></div></div></details>'; }).join('') + '<button class="pr-button pr-primary" type="submit">保存核对并继续</button>';
+      var selection = r.input_selection || r.options || {};
+      if (selection.config_version === 2 && selection.purpose !== 'record') {
+        var picker=document.createElement('fieldset');picker.className='ps-scope';
+        picker.innerHTML='<legend>哪些题需要详细分析？</legend><label>分析范围<select name="analysis_scope"><option value="all">全部适用题目</option><option value="losses">失分题优先</option><option value="selected">我选择的题目</option></select></label><p class="pr-muted">整体概览仍覆盖已上传题目，未选中的题保留简短结论。</p><div class="ps-question-picks">'+qs.map(function(q){return '<label class="pr-check"><input type="checkbox" name="detail_questions" value="'+esc(q.label)+'" '+((selection.selected_questions||[]).includes(q.label)?'checked':'')+'>第 '+esc(q.label)+' 题'+(q.teacher_score!=null?' · '+q.teacher_score+(q.max_score!=null?' / '+q.max_score:'')+' 分':'')+'</label>';}).join('')+'</div>';
+        form.querySelector('button[type=submit]').before(picker);picker.querySelector('select').value=selection.analysis_scope||'all';
+        function togglePicks(){picker.querySelector('.ps-question-picks').hidden=picker.querySelector('select').value!=='selected';}picker.onchange=togglePicks;togglePicks();
+      }
+      main.appendChild(form);
+      form.onsubmit = async function (e) { e.preventDefault(); var b = form.querySelector('[type=submit]'); b.disabled = true;
+        try { var questions = qs.map(function (q, i) { function value(k) { return form.elements[k+i].value; } return { label: q.label, stem: value('stem'), answer: value('answer'), teacher_score: value('score') === '' ? null : Number(value('score')), max_score: value('max') === '' ? null : Number(value('max')) }; }); var scope=form.elements.analysis_scope?{analysis_scope:form.elements.analysis_scope.value,selected_questions:Array.from(form.querySelectorAll('[name=detail_questions]:checked')).map(function(x){return x.value;})}:undefined; if(scope && scope.analysis_scope==='selected' && !scope.selected_questions.length)throw new Error('请选择至少一道需要详细分析的题目'); await api('confirm_input', { questions: questions, analysis_selection:scope }); await api('resume', { mode: 'saved' }); await hooks.load(r.request_id); } catch (err) { hooks.note(err.message, true); } finally { if (b.isConnected) b.disabled = false; }
+      };
+      if (r.input_review) main.querySelector('[data-pr=resume]').hidden = true;
+    }
+    var source;
+    try { source = await api('sources'); } catch (err) { if (main.isConnected) hooks.note(err.message, true); return; }
+    if (!main.isConnected || main.dataset.scanGeneration !== generation) return;
+    var pages = source.pages || [], regions = source.regions || {}, panel = document.createElement('details'); panel.className = 'ps-library';
+    if(main.paperFallbackDispose)main.paperFallbackDispose();
+    main.paperFallbackDispose=window.ScorePaperSupport.useFallbackImages(main,pages);
+    panel.innerHTML = '<summary>扫描件 · ' + pages.length + ' 页</summary><p class="pr-muted">扫描件保存在当前账号。关联分析共用原始扫描件；原录入删除后，分析仍保留已保存的题目文字。</p><div class="ps-pages">' + pages.map(function (p) { return '<a target="_blank" rel="noopener" href="' + esc(p.url) + '"><img loading="lazy" src="' + esc(p.url) + '" alt="第' + p.page + '页扫描件"><span>第' + p.page + '页 · ' + roles[p.role] + '</span></a>'; }).join('') + '</div>' + (r.status !== 'running' && !source.readonly ? '<label>补充扫描件类别<select data-add-kind><option value="paper">原题</option><option value="work">作答</option><option value="reference">参考答案</option></select></label><label class="pr-check"><input type="checkbox" data-scan-consent>同意在账号中保存补充扫描件；裁掉姓名、考号等无关信息</label><label class="pr-button pr-file-label">补充扫描件<input type="file" accept="image/jpeg,image/png,image/webp" data-add-page></label>' : '') + '<p class="ps-upload-note" role="status"></p>';
+    var materials = main.querySelector('.pr-materials'); if (materials) materials.appendChild(panel); else main.prepend(panel);
+    var file = panel.querySelector('[data-add-page]'); if (file) file.onchange = async function () {
+      if (!file.files.length) return; var message = panel.querySelector('.ps-upload-note'); file.disabled = true;
+      try {
+        if (!panel.querySelector('[data-scan-consent]').checked) throw new Error('请先确认保存扫描件');
+        if (pages.length >= 15) throw new Error('本份报告已保存15张扫描件');
+        message.textContent = '正在保存扫描件…'; var p = await window.ScorePaperReview.prepare(file.files[0]);
+        await api('save_materials', { consent: true, subject: r.subject, draft_id: r.draft_id, exam_id: r.exam_id, title: r.title, options: r.options });
+        await api('upload_page', { page: pages.length+1, role: panel.querySelector('[data-add-kind]').value, url: p.url });
+        await hooks.load(r.request_id);
+      } catch (err) { message.textContent = err.message; } finally { file.disabled = false; file.value = ''; }
+    };
+    var controllers=new Map();
+    qs.forEach(function (q, i) {
+      var target = isPaused ? main.querySelector('[data-ocr="' + i + '"] .pr-question-body') : main.querySelector('[data-question="' + q.id + '"] [data-scan-host]');
+      if (!target) return;
+      var zone = document.createElement('section'); zone.className = 'ps-question'; target.prepend(zone);
+      var current = Object.prototype.hasOwnProperty.call(regions,q.label) ? regions[q.label] : q.source_regions || [];
+      current = current.filter(function (r) { return validRegion(r,pages); });
+      function render() {
+        q.source_regions=current;
+        var kinds=['paper','work','reference'],cards=kinds.map(function(kind){var found=current.map(function(region,index){return {region:region,index:index};}).filter(function(item){return item.region.kind===kind;});if(found.length)return found.map(function(item){return regionCard(item.region,pages.find(function(p){return p.page===item.region.page;}),item.index,q.shared_work);}).join('');var ids=kind==='paper'?q.pages||[]:kind==='work'?q.work_pages||[]:q.reference_pages||[],known=pages.filter(function(p){return ids.includes(p.page);});if(!known.length&&kind==='paper')known=pages.filter(function(p){return p.role==='paper';});if(!known.length&&kind==='work'&&q.work_expected)known=pages.filter(function(p){return p.role===(r.result&&r.result.work_on_paper?'paper':'work');});return (known.length||kind==='paper'||kind==='work'&&q.work_expected)?'<div class="ps-unlocated"><b>'+roles[kind]+'截图尚未定位</b><p>尚未关联完整截图；可能缺少扫描页，可补充页面后框选。</p>'+known.map(function(p){return '<a href="'+esc(p.url)+'" target="_blank" rel="noopener">查看第 '+p.page+' 页</a>';}).join(' · ')+'</div>':'';}).join('');
+        zone.innerHTML = '<h4>原题与作答截图</h4>' + (pages.length ? '<div class="ps-regions">' + cards + '</div>' + (!source.readonly?btn('＋ 框选扫描区域','add'):'') + (!current.length ? '<p class="pr-muted">没有可靠定位时保留原页；可分别框选原题与作答，也支持跨页。</p>' : '') : '<p class="pr-muted">本题暂无可用扫描件，可在资料区补充原卷或答题卡。</p>');
+        zone.querySelectorAll('.ps-region').forEach(function(card){var region=current[Number(card.dataset.index)];layoutCrop(card.querySelector('.ps-crop img'),region.box);});
+        if(source.readonly)zone.querySelectorAll('[data-scan^="edit:"],[data-scan^="remove:"]').forEach(function(b){b.remove();});
+      }
+      controllers.set(q.label,function(next){current=next;regions[q.label]=next;render();});
+      async function persist(next) { await api('save_regions', { label: q.label, regions: next }); current = next;regions[q.label]=next;render();var item=Array.from(main.querySelectorAll('[data-question]')).find(function(n){return n.dataset.question===String(q.id);}),check=item&&item.querySelector('[data-field=verified]'),accepted=item&&item.querySelector('[data-field=accepted]');if(accepted)accepted.checked=false;if(check){check.checked=false;check.dispatchEvent(new Event('input',{bubbles:true}));}hooks.note('截图区域已保存，请确认本题对应位置。'); }
+      zone.onclick = async function (e) { var b = e.target.closest('[data-scan]'); if (!b || b.closest('.ps-editor')) return; e.preventDefault(); e.stopPropagation();
+        var a = b.dataset.scan, index = Number(a.split(':')[1]);
+        try { if(a.startsWith('zoom:')){var region=current[index];if(region)enlarge(region,pages.find(function(p){return p.page===region.page;}),b);}
+          else if(!source.readonly&&(a === 'add' || a.startsWith('edit:'))) { var old = zone.querySelector('.ps-editor'); if (old) old.remove(); cropEditor(zone,pages,a === 'add' ? null : current[index],async function (r) { var next = current.slice(); if (a === 'add') next.push(r); else next[index] = r; await persist(next); }); }
+          else if (!source.readonly&&a.startsWith('remove:')) await persist(current.filter(function (_, j) { return j !== index; }));
+        } catch (err) { hooks.note(err.message,true); }
+      };
+      render();
+    });
+    if(window.ScorePaperBoard&&hooks.save)window.ScorePaperBoard.mount(main,r,ctx,source,{save:hooks.save,finalize:hooks.finalize,regions:async function(updates){var saved=await api('save_regions',{updates:updates});updates.forEach(function(u){var apply=controllers.get(u.label);if(apply)apply(u.regions);});return saved;}});
+    var syncPanel=main.querySelector('.pr-type-sync');if(syncPanel&&syncPanel.refresh)syncPanel.refresh();
+  }
+  window.ScorePaperScans = { decorate: decorate };
+  var style = document.createElement('style'); style.textContent = `.ps-library{padding:16px;border:1px solid var(--line);border-radius:12px;margin-bottom:18px}.ps-library summary{font-weight:700;cursor:pointer}.ps-pages{display:flex;gap:12px;overflow:auto;padding:15px 0}.ps-pages a{flex:none;width:90px;font-size:11px;color:var(--text);text-decoration:none}.ps-pages img{width:90px;height:110px;object-fit:contain;border:1px solid var(--line);border-radius:8px;display:block}.ps-library>label{display:block;margin:12px 0}.ps-library .pr-check{display:flex}.ps-library .pr-file-label{display:inline-block}.ps-library select{display:block}.ps-question{padding:12px 0;border-bottom:1px solid var(--line);margin-bottom:15px}.ps-regions{display:grid;grid-template-columns:1fr 1fr;gap:12px}.ps-region{margin:8px 0;border:1px solid var(--line);border-radius:10px;padding:10px;min-width:0}.ps-region figcaption{font-size:12px;color:var(--muted);margin-bottom:8px}.ps-crop{position:relative;overflow:hidden;background:#fff;aspect-ratio:1;max-height:600px}.ps-crop img{position:absolute;height:auto;display:block}.ps-region .pr-button{font-size:11px;padding:5px 8px;margin:10px 4px 0 0}.ps-editor{margin:15px 0;padding:12px;border:1px solid var(--accent);border-radius:12px}.ps-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ps-controls select{width:100%;padding:8px}.ps-stage{position:relative;touch-action:none;user-select:none;margin:12px auto;max-width:600px;line-height:0}.ps-stage>img{width:100%;height:auto;display:block}.ps-selection{position:absolute;box-sizing:border-box;border:2px solid #5264e8;background:#5264e820;pointer-events:none}.ps-coordinates{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.ps-coordinates input{width:100%}.ps-actions{display:flex;gap:8px;margin-top:12px}.ps-error{color:var(--danger)}.ps-verify{margin-top:20px}.ps-upload-note{font-size:12px;color:var(--muted)}@media(max-width:520px){.ps-regions{grid-template-columns:1fr}.ps-coordinates{grid-template-columns:1fr 1fr}}`;
+  style.textContent += '.ps-scope{border:1px solid var(--line);border-radius:12px;padding:16px;margin:24px 0}.ps-scope legend{font-size:16px;font-weight:600}.ps-scope select{display:block;padding:10px;width:100%;margin:8px 0;background:var(--panel-solid);color:var(--text);border:1px solid var(--line);border-radius:8px}.ps-question-picks{display:flex;flex-wrap:wrap;gap:8px 20px}.ps-question-picks[hidden]{display:none}.ps-verify>h3{font-size:22px}';
+  document.head.appendChild(style);
+  var cropStyle=document.createElement('style');cropStyle.textContent='.ps-region{margin:0}.ps-preview{display:block;width:100%;padding:0;border:0;background:white;cursor:zoom-in;text-align:left;border-radius:6px;overflow:hidden}.ps-crop{max-height:none}.ps-region figcaption{font-weight:600}.ps-unlocated{padding:14px;border:1px dashed var(--line);border-radius:10px;font-size:12px;color:var(--muted)}.ps-unlocated a{color:var(--accent)}.ps-unlocated p{line-height:1.7}.ps-enlarge{box-sizing:border-box;width:min(960px,94vw);max-height:90vh;overflow:auto;padding:18px;border:1px solid var(--line);border-radius:14px;background:var(--panel-solid,#fff);color:var(--text)}.ps-enlarge::backdrop{background:#17203399}.ps-enlarge header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;position:sticky;top:-18px;padding:10px 0;background:var(--panel-solid,#fff);z-index:1}.ps-enlarge .ps-crop{max-height:none}.ps-enlarge .pr-button{flex:none}@media(max-width:520px){.ps-region{padding:9px}.ps-enlarge{padding:12px}.ps-enlarge header{top:-12px}}';document.head.appendChild(cropStyle);
+})();

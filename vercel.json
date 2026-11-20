@@ -3,12 +3,26 @@
   "trailingSlash": false,
   "rewrites": [
     {
+      "source": "/api/score-tracker-paper-review",
+      "has": [{"type":"host","value":"score-tracker-git-feat-paper-entry-analysis-flow-yhwls-projects.vercel.app"}],
+      "destination": "https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-paper-credits-preview"
+    },
+    {
+      "source": "/api/score-tracker-paper-review",
+      "destination": "https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-paper-review"
+    },
+    {
       "source": "/mg",
       "destination": "/api/mg"
     },
     {
       "source": "/api/score-tracker-api",
       "destination": "https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-api"
+    },
+    {
+      "source": "/api/score-tracker-data-api",
+      "has": [{"type":"host","value":"score-tracker-git-feat-paper-entry-analysis-flow-yhwls-projects.vercel.app"}],
+      "destination": "https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-data-api-credits-preview"
     },
     {
       "source": "/api/score-tracker-data-api",
@@ -37,6 +51,11 @@
     {
       "source": "/api/score-tracker-setup",
       "destination": "https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-setup"
+    },
+    {
+      "source": "/api/score-tracker-vision-preview",
+      "has": [{"type":"host","value":"score-tracker-git-feat-paper-entry-analysis-flow-yhwls-projects.vercel.app"}],
+      "destination": "https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-vision-credits-preview"
     },
     {
       "source": "/api/score-tracker-vision-preview",

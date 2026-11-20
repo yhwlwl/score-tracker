@@ -51,9 +51,22 @@
   "community.js",
   "participant-defaults.js",
   "exam-averages.js",
+  "supabase/functions/_shared/question-types.js",
+  "question-type-scores.js",
+  "question-type-analysis-model.js",
+  "question-type-analysis.js",
   "exam-changes.js",
   "exam-reflection.js",
+  "entry-rollout.js",
+  "paper-review-support.js",
+  "paper-scan-views.js",
+  "paper-review.js",
+  "paper-review-board.js",
+  "paper-review-scans.js",
+  "paper-review-hub.js",
+  "paper-records.js",
   "exam-detail.js",
   "supabase/functions/_shared/backup-format.js",
-  "backup-import.js"
+  "backup-import.js",
+  "account-growth.js"
 ]

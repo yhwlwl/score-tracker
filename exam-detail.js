@@ -123,7 +123,7 @@
   function changeText(point, recent) { return Math.abs(point.x) < 0.005 ? '基本持平' : (point.x > 0 ? '进步 ' : '退步 ') + fmtChange(Math.abs(point.x)) + (recent ? ' 个百分点 / 场' : ' 个百分点'); }
   function metric(label, value, sub) { return '<div class="ed-metric"><span>' + esc(label) + '</span><strong>' + esc(value) + '</strong><small>' + esc(sub || '') + '</small></div>'; }
   function header(exam) {
-    return '<div class="ed-top">' + button('← 返回考试记录', 'back') + button('编辑 / 补录', 'edit') + '</div><header class="ed-heading"><span class="ed-eyebrow">单次考试详情</span><h1 tabindex="-1">' + esc(exam.name) + '</h1><p>' + esc(fmtYearDate(exam.exam_date) + (exam.end_date && exam.end_date !== exam.exam_date ? ' — ' + fmtYearDate(exam.end_date) : '') + ' · ' + (exam.grade_level || '未分类')) + (exam.is_hidden ? ' · 已从趋势图隐藏，仍可查看完整记录' : '') + '</p></header>';
+    return '<div class="ed-top">' + button(view && view.returnPage === 'stats' ? '← 返回题型分析' : '← 返回考试记录', 'back') + button('编辑 / 补录', 'edit') + '</div><header class="ed-heading"><span class="ed-eyebrow">单次考试详情</span><h1 tabindex="-1">' + esc(exam.name) + '</h1><p>' + esc(fmtYearDate(exam.exam_date) + (exam.end_date && exam.end_date !== exam.exam_date ? ' — ' + fmtYearDate(exam.end_date) : '') + ' · ' + (exam.grade_level || '未分类')) + (exam.is_hidden ? ' · 已从趋势图隐藏，仍可查看完整记录' : '') + '</p></header>';
   }
   function overview(exam, m) {
     var totalLabel = m.manual ? '已录入总分' : m.complete ? '本次总分' : '已录入科目小计';
@@ -157,7 +157,7 @@
           cell('原始分', r.raw === null ? '—' : fmt(r.raw) + ' / ' + fmt(r.rawMax)) + cell('得分率', r.rate === null ? '—' : fmt(r.rate) + '%') +
           cell('目标', r.target === null ? '未设置' : fmt(r.target) + (r.actual !== null ? '<small>' + (r.actual === r.target ? '已达标' : signed(r.actual - r.target) + ' 分') + '</small>' : '')) +
           cell('年级排名', rankCell(r.year)) + cell('班级排名', rankCell(r.class)) + (hasAverages ? cell('平均分', averageCell(exam, r)) : '') + '</tr>';
-      }).join('') + '</tbody></table></div>' : '<p class="ed-empty">还没有科目数据，点击“编辑 / 补录”添加成绩。</p>') + combinations(exam, m) + '</section>';
+      }).join('') + '</tbody></table></div>' : '<p class="ed-empty">还没有科目数据，点击“编辑 / 补录”添加成绩。</p>') + (window.ScoreQuestionTypes ? window.ScoreQuestionTypes.detail(exam) : '') + combinations(exam, m) + '</section>';
   }
   function combinations(exam, m) {
     var selected = (state.modulesV18 || []).filter(function (mod) { return (exam.moduleIds || []).includes(mod.id); });
@@ -343,8 +343,8 @@
       if (action === 'back') {
         if (!leave()) return;
         track('exam_detail_closed', { reason: 'back' });
-        var scroll = v.scroll; view = null; render(); window.scrollTo(0, scroll);
-        var original = Array.from(document.querySelectorAll('[data-exam-detail]')).find(function (b) { return b.dataset.examDetail === exam.id; }); if (original) original.focus({ preventScroll: true });
+        var scroll = v.scroll; state.page = v.returnPage || 'records'; view = null; render(); window.scrollTo(0, scroll);
+        var original = Array.from(document.querySelectorAll('[data-exam-detail],[data-qta-exam]')).find(function (b) { return (b.dataset.examDetail || b.dataset.qtaExam) === exam.id; }); if (original) original.focus({ preventScroll: true });
       } else if (action === 'edit') {
         track('exam_detail_edit_opened');
         if (editor) { if (!leave()) return; v.report = null; renderPage(); }
@@ -368,7 +368,7 @@
   }
   function open(id) {
     var exam = allExams().find(function (e) { return e.id === id; }); if (!exam || !leave()) return;
-    view = { id: id, user: owner(), token: state.token, scroll: window.scrollY || 0, papers: null, offset: 0, more: false, loading: false, subject: '', chartMode: 'movement', trendWindow: 'previous', sameCategory: false };
+    view = { id: id, returnPage: state.page === 'stats' && window.ScoreQuestionTypeAnalysis && window.ScoreQuestionTypeAnalysis.active() ? 'stats' : 'records', user: owner(), token: state.token, scroll: window.scrollY || 0, papers: null, offset: 0, more: false, loading: false, subject: '', chartMode: 'movement', trendWindow: 'previous', sameCategory: false };
     track('exam_detail_opened', { source: 'records' });
     state.page = 'records'; render(); window.scrollTo(0, 0);
     var heading = document.querySelector('.ed-heading h1'); if (heading) heading.focus({ preventScroll: true });

@@ -216,7 +216,7 @@
   }
 
   function hasBlockingModal() {
-    try { if (state && state.onboarding) return true; } catch (e) {}
+    try { if (state && (state.onboarding || state.setupGuideLoading)) return true; } catch (e) {}
     return !!document.querySelector('.modal-backdrop,.rn-back,.st-fb-back,.pwa-back,.school-back,.gmodal-backdrop.open');
   }
   function queueAutoCheck(delay) {

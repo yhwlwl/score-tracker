@@ -1,0 +1,251 @@
+[
+  {
+    "subject": "数学",
+    "total_score": "42",
+    "total_max": "60",
+    "questions": [
+      {
+        "confidence": "high",
+        "uncertainties": [],
+        "score_verification": "matched",
+        "answer_verification": "matched",
+        "evidence_verified": false,
+        "label": "1",
+        "kind": "single_choice",
+        "stem": "集合 A={1,2,3}，B={2,3,4}，则 A∩B 为（ ） A.{2,3} B.{1,4} C.{1,2,3,4} D.∅",
+        "answer": "A",
+        "teacher_score": 5,
+        "max_score": 5,
+        "provided_reference": "A"
+      },
+      {
+        "confidence": "high",
+        "uncertainties": [],
+        "score_verification": "matched",
+        "answer_verification": "matched",
+        "evidence_verified": false,
+        "label": "2",
+        "kind": "single_choice",
+        "stem": "方程 x²−5x+6=0 的两根之和为（ ） A.2 B.3 C.5 D.6",
+        "answer": "D",
+        "teacher_score": 0,
+        "max_score": 5,
+        "provided_reference": "C"
+      },
+      {
+        "confidence": "high",
+        "uncertainties": [],
+        "score_verification": "matched",
+        "answer_verification": "matched",
+        "evidence_verified": false,
+        "label": "3",
+        "kind": "single_choice",
+        "stem": "一个袋子内有3个红球、2个蓝球，随机取出1个球，取到红球的概率为（ ） A.2/5 B.3/5 C.1/2 D.1/5",
+        "answer": "B",
+        "teacher_score": 5,
+        "max_score": 5,
+        "provided_reference": "B"
+      },
+      {
+        "confidence": "high",
+        "uncertainties": [],
+        "score_verification": "matched",
+        "answer_verification": "matched",
+        "evidence_verified": false,
+        "label": "4",
+        "kind": "single_choice",
+        "stem": "在直角三角形中，锐角α的对边长为3，斜边长为5，则sinα等于（ ） A.3/4 B.4/5 C.3/5 D.5/3",
+        "answer": "C",
+        "teacher_score": 5,
+        "max_score": 5,
+        "provided_reference": "C"
+      },
+      {
+        "confidence": "high",
+        "uncertainties": [],
+        "score_verification": "matched",
+        "answer_verification": "matched",
+        "evidence_verified": false,
+        "label": "5",
+        "kind": "multiple_choice",
+        "stem": "下列函数中，在实数范围内为偶函数的是（ ） A.y=x² B.y=cos x C.y=x³ D.y=|x|",
+        "answer": "AB",
+        "teacher_score": 3,
+        "max_score": 6,
+        "provided_reference": "ABD"
+      },
+      {
+        "confidence": "high",
+        "uncertainties": [],
+        "score_verification": "matched",
+        "answer_verification": "matched",
+        "evidence_verified": false,
+        "label": "6",
+        "kind": "written",
+        "question_type": "填空题",
+        "stem": "等差数列的首项为2，公差为3，则第10项为____。",
+        "answer": "29",
+        "teacher_score": 6,
+        "max_score": 6,
+        "provided_reference": "29"
+      },
+      {
+        "confidence": "high",
+        "uncertainties": [
+          "示例：本题批改分未读取清楚，请手动补充，不能按满分填入。"
+        ],
+        "score_verification": "missing",
+        "answer_verification": "matched",
+        "evidence_verified": false,
+        "label": "7",
+        "kind": "written",
+        "stem": "已知函数 f(x)=x²−4x+3。（1）求零点；（2）求函数的最小值。",
+        "answer": "（1）x=1或3。（2）f(x)=(x−2)²−1，最小值为−1。",
+        "teacher_score": null,
+        "max_score": 12,
+        "provided_reference": "零点为1、3；x=2时最小值为−1。"
+      },
+      {
+        "confidence": "high",
+        "uncertainties": [],
+        "score_verification": "matched",
+        "answer_verification": "matched",
+        "evidence_verified": false,
+        "label": "8",
+        "kind": "written",
+        "stem": "已知函数 f(x)=x³−3x。（1）求导数；（2）求单调区间。",
+        "answer": "f′(x)=3x²−3。令导数为0，得x=±1。在(−∞,−1)与(1,+∞)上递增，在(−1,1)上递减。",
+        "teacher_score": 10,
+        "max_score": 16,
+        "provided_reference": "f′(x)=3x²−3。增区间(−∞,−1)、(1,+∞)，减区间(−1,1)。"
+      }
+    ],
+    "tested_on": "2026-11-14"
+  },
+  {
+    "subject": "物理",
+    "total_score": "40",
+    "total_max": "60",
+    "questions": [
+      {
+        "confidence": "high",
+        "uncertainties": [],
+        "score_verification": "matched",
+        "answer_verification": "matched",
+        "evidence_verified": false,
+        "label": "1",
+        "kind": "single_choice",
+        "stem": "物体由静止开始做匀加速直线运动，加速度为2m/s²，3s后的速度为（ ） A.2m/s B.3m/s C.6m/s D.9m/s",
+        "answer": "C",
+        "teacher_score": 4,
+        "max_score": 4,
+        "provided_reference": "C"
+      },
+      {
+        "confidence": "high",
+        "uncertainties": [],
+        "score_verification": "matched",
+        "answer_verification": "matched",
+        "evidence_verified": false,
+        "label": "2",
+        "kind": "single_choice",
+        "stem": "质量为2kg的物体受到大小为6N的水平合力，则加速度为（ ） A.2m/s² B.3m/s² C.6m/s² D.12m/s²",
+        "answer": "D",
+        "teacher_score": 0,
+        "max_score": 4,
+        "provided_reference": "B"
+      },
+      {
+        "confidence": "high",
+        "uncertainties": [],
+        "score_verification": "matched",
+        "answer_verification": "matched",
+        "evidence_verified": false,
+        "label": "3",
+        "kind": "multiple_choice",
+        "stem": "关于机械能，下列说法正确的是（ ） A.动能与速率平方成正比 B.重力势能与零势能面选择无关 C.只有重力做功时机械能守恒 D.摩擦力一定使系统机械能增加",
+        "answer": "A",
+        "teacher_score": 3,
+        "max_score": 6,
+        "provided_reference": "AC"
+      },
+      {
+        "confidence": "high",
+        "uncertainties": [
+          "示例：选项C的填涂不清楚，保留歧义，不自动替用户选择。"
+        ],
+        "score_verification": "matched",
+        "answer_verification": "conflict",
+        "evidence_verified": false,
+        "label": "4",
+        "kind": "multiple_choice",
+        "stem": "关于匀速圆周运动，下列说法正确的是（ ） A.速率不变 B.速度不变 C.向心力指向圆心 D.加速度为零",
+        "answer": "选项读取存在歧义，请核对",
+        "teacher_score": 6,
+        "max_score": 6,
+        "provided_reference": "AC"
+      },
+      {
+        "confidence": "high",
+        "uncertainties": [],
+        "score_verification": "matched",
+        "answer_verification": "matched",
+        "evidence_verified": false,
+        "label": "5",
+        "kind": "written",
+        "question_type": "实验题",
+        "stem": "用打点计时器研究匀变速直线运动，两个计数点间的时间间隔为0.10s，相邻两段位移分别为4.0cm和6.0cm，求加速度。",
+        "answer": "a=(0.06−0.04)/(0.10)²=2.0m/s²。",
+        "teacher_score": 4,
+        "max_score": 8,
+        "provided_reference": "2.0m/s²"
+      },
+      {
+        "confidence": "high",
+        "uncertainties": [
+          "示例：没有单独的教师得分记录，暂不填入。"
+        ],
+        "score_verification": "missing",
+        "answer_verification": "matched",
+        "evidence_verified": false,
+        "label": "6",
+        "kind": "written",
+        "question_type": "实验题",
+        "stem": "伏安法测电阻时，电压表读数为3.0V，电流表读数为0.20A，求待测电阻。",
+        "answer": "R=U/I=15Ω。",
+        "teacher_score": null,
+        "max_score": 8,
+        "provided_reference": "15Ω"
+      },
+      {
+        "confidence": "high",
+        "uncertainties": [],
+        "score_verification": "matched",
+        "answer_verification": "matched",
+        "evidence_verified": false,
+        "label": "7",
+        "kind": "written",
+        "stem": "质量为1kg的物体从距地面5m处由静止落下，不计空气阻力，取g=10m/s²。（1）求落地速度；（2）求落地前动能。",
+        "answer": "v²=2gh=100，v=10m/s；动能为50J。",
+        "teacher_score": 7,
+        "max_score": 10,
+        "provided_reference": "10m/s，50J。"
+      },
+      {
+        "confidence": "high",
+        "uncertainties": [],
+        "score_verification": "matched",
+        "answer_verification": "matched",
+        "evidence_verified": false,
+        "label": "8",
+        "kind": "written",
+        "stem": "质量为2kg的物体在水平面上运动，初速度为4m/s，受到大小为4N的恒定阻力。（1）求停止时间；（2）求滑行距离。",
+        "answer": "a=F/m=2m/s²，t=v₀/a=2s；s=v₀t−at²/2=4m。",
+        "teacher_score": 10,
+        "max_score": 14,
+        "provided_reference": "停止时间2s，滑行距离4m。"
+      }
+    ],
+    "tested_on": "2026-11-14"
+  }
+]

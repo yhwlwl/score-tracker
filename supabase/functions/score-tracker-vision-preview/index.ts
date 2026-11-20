@@ -1,3 +1,6 @@
+import { recognitionConfig } from "../_shared/recognition-config.ts";
+import { creditRpc, startAiTask, finishAiTask, meteredModelFetch, AiBudgetError } from '../_shared/ai-credits.ts';
+import { aiReleaseCapabilities } from '../_shared/ai-release.ts';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { OUTPUT_TOKENS, readDatabase, requestOptions, recognizeWithRecovery, safeMessage } from "./reliability.ts";
@@ -9,22 +12,8 @@ const db = createClient(
   { auth: { persistSession: false, autoRefreshToken: false } },
 );
 
-const DEFAULT_VISION_MODEL = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free";
-const DEFAULT_VISION_BASE_URL = "https://openrouter.ai/api/v1";
 const DATABASE_TIMEOUT_MS = 8000;
 const CACHE_TTL_MS = 30000;
-
-function normalizeBaseUrl(value: unknown) {
-  const raw = String(value ?? DEFAULT_VISION_BASE_URL).trim().replace(/\/+$/, "");
-  if (!raw) return null;
-  let parsed: URL;
-  try { parsed = new URL(raw); } catch (_) { return null; }
-  if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.search || parsed.hash) return null;
-  let path = parsed.pathname.replace(/\/+$/, "");
-  path = path.replace(/\/(?:chat\/completions|models)$/i, "");
-  parsed.pathname = path || "/";
-  return parsed.toString().replace(/\/+$/, "");
-}
 
 function isOpenRouterBase(baseUrl: string) {
   try {
@@ -76,15 +65,7 @@ async function visionConfig() {
   );
   if (result.error) throw result.error;
 
-  const row: any = result.data;
-  const value = {
-    apiKey: row?.enabled === false ? "" : String(row?.openrouter_api_key || Deno.env.get("OPENROUTER_API_KEY") || "").trim(),
-    baseUrl: normalizeBaseUrl(row?.base_url || Deno.env.get("OPENROUTER_BASE_URL") || DEFAULT_VISION_BASE_URL),
-    model: String(row?.model || DEFAULT_VISION_MODEL).trim() || DEFAULT_VISION_MODEL,
-    configured: !!row?.openrouter_api_key || !!Deno.env.get("OPENROUTER_API_KEY"),
-    disabled: row?.enabled === false,
-    betaOnly: row?.beta_only !== false,
-  };
+  const value = recognitionConfig(result.data);
   visionConfigCache = { expiresAt: now + CACHE_TTL_MS, value };
   return value;
 }
@@ -140,12 +121,8 @@ async function isVisionBetaUser(username: unknown) {
 }
 
 async function visionQuota(userId: string, consume = false) {
-  const result = await readDatabase(() => db.rpc("score_tracker_vision_quota", {
-    p_user_id: userId,
-    p_consume: consume,
-  }));
-  if (result.error) throw result.error;
-  return result.data ?? null;
+  const account=await creditRpc(db,'score_tracker_ai_account',{p_user:userId});
+  return {service_enabled:account.enabled,allowed:account.enabled&&account.credits.available>=13&&account.budget_status!=='paused',remaining:account.credits.available,limit:account.credits.monthly||account.credits.welcome,unit:'credits',period:'month',global_remaining:account.budget_status==='paused'?0:1,account};
 }
 
 function cleanText(value: unknown, max = 80) {
@@ -308,7 +285,8 @@ Deno.serve(async (req) => {
   let requestId = crypto.randomUUID();
   const startedAt = Date.now();
   let quota: any = null, user: any = null, config: any = null;
-  let auditStarted = false, connectivityReserved = false, phase = "request_received", action = "recognize";
+  let auditStarted = false, connectivityReserved = false, billingStarted=false, callNumber=0, phase = "request_received", action = "recognize";
+  const billedFetch:typeof fetch=(url,init)=>meteredModelFetch(db,user.id,requestId,`${requestId}:vision:${callNumber++}`,String(url),init);
   let images: string[] = [], parts: any[] = [], stats: any[] = [], attempts: any[] = [], rawOutput = "";
   const timings: any[] = [];
   let auditDiagnostics: Record<string, unknown> = {};
@@ -324,6 +302,11 @@ Deno.serve(async (req) => {
     console.log("vision_timing", JSON.stringify({ request_id: requestId, action, phase, elapsed_ms: Date.now() - startedAt, ...extra }));
   };
   const reply = async (body: Record<string, any>, status = 200) => {
+    if(billingStarted){
+      const settlement=await finishAiTask(db,user.id,requestId,status<400&&(Array.isArray(body.subjects)||action==='connectivity_test'));
+      billingStarted=false;body.credits_charged=settlement.charged||0;body.quota_refunded=status>=400;
+      try{quota=await visionQuota(user.id);}catch(_){quota=null;}
+    }
     const elapsed = Date.now() - startedAt;
     if (status >= 400) console.error("vision_failure", JSON.stringify({ request_id: requestId, action, stage: phase,
       code: body.code || "vision_service_error", http_status: status, upstream_status: body.upstream_status ?? null,
@@ -346,11 +329,11 @@ Deno.serve(async (req) => {
     if (auditStarted) {
       const succeeded = status < 400 && Array.isArray(body.subjects);
       const record = { status: succeeded ? "succeeded" : quota?.consumed || status >= 500 ? "failed" : "rejected", http_status: status,
-        error_code: status >= 400 ? body.code || "vision_service_error" : null, error_stage: status >= 400 ? phase : null,
+        error_code: status >= 400 ? body.code || "vision_service_error" : null, error_stage: status >= 400 ? phase : null,quota_refunded:!succeeded&&body.quota_refunded===true,
         error_message: status >= 400 ? safeMessage(body.upstream_message || body.error) : null,
         duration_ms: elapsed, upstream_status: body.upstream_status ?? (succeeded ? 200 : null), attempts,
         result: succeeded ? body : null, raw_output: rawOutput || null, storage_status: succeeded ? "pending" : "not_requested" };
-      Object.assign(record, { diagnostics: { ...auditDiagnostics, timings } });
+      Object.assign(record, { diagnostics: { ...auditDiagnostics, credit_billing:true, timings } });
       try {
         const refunded = await withTimeout(finishAudit(db, requestId, record), 5000, "audit_write_timeout");
         if (refunded) {
@@ -371,6 +354,7 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     if (!body || typeof body !== "object" || Array.isArray(body)) return reply({error:"请求内容不完整，请重新选择图片",code:"invalid_request_body"},400);
+    if(body.action==='release_capabilities'){const c=await aiReleaseCapabilities(db);return json(c,c.migration_ready?200:503);}
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.request_id || "")) requestId = body.request_id;
     action = body.action || "recognize";
     mark("request_received");
@@ -434,7 +418,6 @@ Deno.serve(async (req) => {
       }
 
       quota = await withTimeout(visionQuota(user.id), DATABASE_TIMEOUT_MS, "rate_limit_timeout");
-      if (!quota?.allowed) return reply({ error: "暂时无法识别，请查看剩余额度或稍后重试", code: "ai_rate_limited", retry_after_seconds: quota?.retry_after_seconds || 0 }, 429);
       // Automatic preflight is free of upstream requests; recognition tests the model itself.
       if (body.action === "readiness") {
         mark("readiness_ready");
@@ -462,6 +445,7 @@ Deno.serve(async (req) => {
           retry_after_seconds: Number(probe?.retry_after_seconds || 0), connectivity_quota: probe }, duplicate ? 409 : 429);
       }
       connectivityReserved = true;
+      await startAiTask(db,user.id,requestId,'probe',0,0);billingStarted=true;
       const openRouter = isOpenRouterBase(config.baseUrl);
       const headers: Record<string, string> = { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" };
       if (openRouter) {
@@ -470,6 +454,7 @@ Deno.serve(async (req) => {
       }
       mark("connectivity_start");
       const outcome = await recognizeWithRecovery({
+        fetcher:billedFetch,
         url: config.baseUrl + "/chat/completions", headers, requestId,
         body: { model: config.model, messages: [{ role: "user", content: '只返回 JSON：{"ok":true}' }],
           temperature: 0, max_tokens: 32, ...requestOptions(config.model, openRouter),
@@ -535,13 +520,11 @@ Deno.serve(async (req) => {
     }
     auditStarted = true;
     try {
-      const claimed = await withTimeout(readDatabase(() => db.rpc("score_tracker_vision_reserve", {
-        p_user_id: user.id, p_request_id: requestId,
-      })), DATABASE_TIMEOUT_MS, "rate_limit_timeout");
-      if (claimed.error) throw claimed.error;
-      quota = claimed.data;
+      const claimed=await startAiTask(db,user.id,requestId,'vision',13,150);billingStarted=true;
+      quota={...await visionQuota(user.id),allowed:true,consumed:true,approved:claimed.approved};
       mark("quota_checked");
     } catch (error) {
+      if(error instanceof AiBudgetError)throw error;
       console.error("vision_quota_check_failed", JSON.stringify({request_id:requestId,...diagnose(error)}));
       return reply({ error: "识别服务限流检查暂不可用，请稍后再试", code: "rate_limit_unavailable", request_status: 0 }, 503);
     }
@@ -590,6 +573,7 @@ Deno.serve(async (req) => {
 
     mark("upstream_start", { image_count: images.length, source_image_count: new Set(parts.map(p => p.source_index)).size, image_chars: totalSize, image_detail: "high", max_output_tokens: OUTPUT_TOKENS });
     const outcome = await recognizeWithRecovery({
+      fetcher:billedFetch,
       url: config.baseUrl + "/chat/completions", headers: requestHeaders, body: requestBody, requestId, mark,
       budgetMs: Math.max(1, Math.min(body.client_protocol === 2 ? 90000 : 45000, (body.client_protocol === 2 ? 103000 : 50000) - (Date.now() - startedAt))),
       attemptTimeoutMs: body.client_protocol === 2 ? 60000 : 35000,
@@ -610,12 +594,12 @@ Deno.serve(async (req) => {
     const message = safeMessage((error as any)?.message || error) || "识别失败，请稍后再试";
     const isServiceError = error instanceof VisionServiceError;
     diagnose(error);
-    const status = message === "request_id_conflict" ? 409 : isServiceError ? error.status : 500;
-    const code = isServiceError ? error.code : "vision_handler_error";
+    const status = message === "request_id_conflict" ? 409 : error instanceof AiBudgetError ? error.status : isServiceError ? error.status : 500;
+    const code = error instanceof AiBudgetError ? error.code : isServiceError ? error.code : "vision_handler_error";
     mark("handler_error", { status });
     console.error("vision handler error", JSON.stringify({ request_id: requestId, message }));
     return reply({
-      error: isServiceError ? "识别服务暂不可用，请稍后再试" : "识别失败，请稍后再试",
+      error: error instanceof AiBudgetError ? error.message : isServiceError ? "识别服务暂不可用，请稍后再试" : "识别失败，请稍后再试",
       code,
       request_status: 0,
       upstream_status: 0,

@@ -1,4 +1,13 @@
 const UPSTREAM_ROOT = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/';
+// The paper-entry preview can be opened through either its stable branch alias
+// or an immutable eight-character Pages deployment URL. Keep the allow-list
+// shape-specific so a lookalike host can never select the credits backend.
+const CREDITS_PREVIEW_HOST = /^(?:feat-paper-entry-analysis-fl|[0-9a-f]{8})\.score-tracker-d83\.pages\.dev$/i;
+const CREDITS_PREVIEW_ENDPOINTS = Object.freeze({
+  'score-tracker-data-api': 'score-tracker-data-api-credits-preview',
+  'score-tracker-vision-preview': 'score-tracker-vision-credits-preview',
+  'score-tracker-paper-review': 'score-tracker-paper-credits-preview',
+});
 export const API_ENDPOINTS = Object.freeze([
   'score-tracker-api',
   'score-tracker-data-api',
@@ -10,6 +19,7 @@ export const API_ENDPOINTS = Object.freeze([
   'score-tracker-trajectories',
   'score-tracker-setup',
   'score-tracker-vision-preview',
+  'score-tracker-paper-review',
 ]);
 
 const NO_STORE = 'private, no-store, max-age=0';
@@ -116,7 +126,9 @@ export async function proxyApi(request, options = {}) {
 
   try {
     // Buffer neither images nor credentials; forward the existing request body unchanged.
-    const upstream = await (options.fetch || fetch)(UPSTREAM_ROOT + endpoint, {
+    const upstreamEndpoint = CREDITS_PREVIEW_HOST.test(url.hostname) && Object.hasOwn(CREDITS_PREVIEW_ENDPOINTS, endpoint)
+      ? CREDITS_PREVIEW_ENDPOINTS[endpoint] : endpoint;
+    const upstream = await (options.fetch || fetch)(UPSTREAM_ROOT + upstreamEndpoint, {
       method: 'POST', headers: upstreamHeaders, body: request.body,
       signal: controller.signal, redirect: 'manual', duplex: 'half',
     });

@@ -1,24 +1,26 @@
 const assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path'), vm = require('node:vm');
 const {webcrypto} = require('node:crypto');
-const ts = require('typescript');
+const {stripTypeScriptTypes} = require('node:module');
 const source = fs.readFileSync(path.join(__dirname,'../supabase/functions/score-tracker-setup/index.ts'),'utf8');
-const code = ts.transpile(source.replace(/^import .*;\n/gm,''),{target:ts.ScriptTarget.ES2022});
+const code = stripTypeScriptTypes(source.replace(/^import .*;\n/gm,''));
 const records = new Map(); let handler, expired=false, writes=0;
 const db = {
   from(table) {
-    let row, filter;
-    const q={select(){return q},eq(k,v){filter=[k,v];return q},upsert(value){row=value;writes++;return q},update(value){row=value;writes++;return q},
+    let row, filters=[], op='read';
+    const q={select(){return q},eq(k,v){filters.push([k,v]);return q},upsert(value){row=value;op='upsert';writes++;return q},update(value){row=value;op='update';writes++;return q},
       async maybeSingle(){
         if(table==='score_tracker_users') {
           const digest=await webcrypto.subtle.digest('SHA-256',new TextEncoder().encode('fixture-token'));
           const hash=Buffer.from(digest).toString('hex');
-          return {data:filter[1]===hash ? {id:'fixture-user',session_expires_at:expired?'2000-01-01':'2099-01-01'} : null,error:null};
+          return {data:filters.some(([key,value])=>key==='session_token_hash'&&value===hash) ? {id:'fixture-user',session_expires_at:expired?'2000-01-01':'2099-01-01'} : null,error:null};
         }
-        if(row) records.set(filter[1],{...records.get(filter[1]),...row});
-        return {data:records.get(filter[1])||null,error:null};
+        const userId=filters.find(([key])=>key==='user_id')?.[1],current=records.get(userId);
+        const matches=current&&filters.every(([key,value])=>key==='user_id'?current.user_id===value:key==='preference_guide_version'?current.preference_guide_version===value:true);
+        if(op==='update'&&row&&matches){records.set(userId,{...current,...row});return {data:records.get(userId),error:null};}
+        return {data:op==='update'?null:current||null,error:null};
       },
-      async single(){records.set(row.user_id,{step:0,selected_subjects:[],...records.get(row.user_id),...row});return {data:records.get(row.user_id),error:null}},
-      then(resolve){if(row&&!records.has(row.user_id))records.set(row.user_id,{...row});return Promise.resolve({error:null}).then(resolve)}
+      async single(){const userId=row.user_id;records.set(userId,{step:0,selected_subjects:[],...records.get(userId),...row});return {data:records.get(userId),error:null}},
+      then(resolve){if(row&&op==='upsert'&&!records.has(row.user_id))records.set(row.user_id,{...row});return Promise.resolve({error:null}).then(resolve)}
     }; return q;
   },
   async rpc(name,params){
@@ -44,10 +46,19 @@ async function call(action,payload={},token='fixture-token') {return handler(new
   response=await call('school_save',{school:{name:'目录学校',province:'浙江省',city:'杭州市',area:'区',source:'github'}});assert.equal((await response.json()).profile.school.source,'github');
   assert.equal((await(await call('school_prompt_claim')).json()).claimed,false);
   records.clear();assert.equal((await(await call('school_prompt_claim')).json()).claimed,true);assert.equal((await(await call('school_prompt_claim')).json()).claimed,false);
+  records.clear();let claim=await call('guide_claim');assert.equal(claim.status,200);let claimedProfile=await claim.json();assert.equal(claimedProfile.claimed,true);assert.equal(claimedProfile.profile.preference_guide_version,1);claim=await call('guide_claim');assert.equal((await claim.json()).claimed,false,'a second tab cannot claim the guide again');
   records.clear();response=await call('school_save',{school:{name:'首次直接保存'}});assert.equal(response.status,200);assert.equal((await response.json()).profile.step,0);
   assert.equal((await call('school_search',{query:'x'.repeat(101)})).status,400);assert.equal((await call('school_search',{province:[]})).status,400);
   assert.deepEqual((await(await call('school_search',{query:'测试'})).json()).schools,[['测试中学','浙江省','杭州市','测试区']]);
   assert.deepEqual((await(await call('school_regions')).json()).regions,[['浙江省','杭州市']]);
   assert.equal((await call('get')).status,200);assert.equal((await call('unknown')).status,400);
-  console.log('School API: session authentication, validation, profile preservation, first save, claims and directory shapes passed.');
+  records.clear();response=await call('start',{guide_only:true});assert.equal(response.status,200);p=(await response.json()).profile;assert.equal(p.step,6);assert.equal(p.preference_guide_version,0);assert(p.completed_at);
+  response=await call('save',{preference_guide_version:1});assert.equal(response.status,200);assert.equal((await response.json()).profile.preference_guide_version,1);
+  assert.equal((await call('save',{preference_guide_version:2})).status,200);assert.equal(records.get('fixture-user').privacy_acknowledged_at,undefined);
+  response=await call('save',{guide_step:9,current_grade:'初二',privacy_notice_version:1});assert.equal(response.status,200);p=(await response.json()).profile;assert.equal(p.current_grade,'初二');assert(p.privacy_acknowledged_at);
+  response=await call('save',{preference_guide_version:2});assert.equal(response.status,200);
+  response=await call('save',{selected_subjects:['体育']});assert.equal(response.status,200);assert.deepEqual((await response.json()).profile.selected_subjects,['体育']);
+  assert.equal((await call('save',{selected_subjects:['体育','体育']})).status,400);
+  for(const payload of [{guide_step:10},{guide_step:-1},{privacy_notice_version:2},{current_grade:'x'.repeat(21)},{current_grade:123},{preference_guide_version:3}])assert.equal((await call('save',payload)).status,400);
+  console.log('School API: session authentication, validation, profile preservation, one-time guide state, claims and directory shapes passed.');
 })().catch(e=>{console.error(e);process.exit(1)});

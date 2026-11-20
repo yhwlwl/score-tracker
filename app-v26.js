@@ -42,6 +42,25 @@
         .record-action-btn-v10.record-action-btn-v10{width:auto;min-width:0;padding:6px 10px!important}
         .order-btn-v25.order-btn-v25{width:28px!important;height:28px!important}
       }
+      /* iPad/medium viewport: title, full-width scores, then ranks and actions. */
+      @media (min-width:621px) and (max-width:1180px), (min-width:621px) and (max-width:1600px) and (pointer:coarse){
+        .records-card .record.record:has(>.record-scores-v26){display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;grid-template-areas:"date date" "scores scores" "city actions"!important;align-items:start!important;column-gap:12px!important;row-gap:10px!important;padding:15px 0!important;min-width:0}
+        .record:has(>.record-scores-v26)>.record-date{grid-area:date;min-width:0}
+        .record:has(>.record-scores-v26)>.record-date b{margin-top:3px;overflow-wrap:anywhere}
+        .record:has(>.record-scores-v26)>.record-scores-v26{grid-area:scores;width:100%}
+        .record:has(>.record-scores-v26)>.record-city-v33{grid-area:city;align-self:center;min-width:0;padding:0!important;overflow-wrap:anywhere}
+        .record:has(>.record-scores-v26)>.record-actions.record-actions-v10{grid-area:actions;display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;justify-content:flex-end!important;align-items:center!important;width:auto!important;max-width:none!important;min-width:0;gap:6px!important}
+        .record:has(>.record-scores-v26) .record-action-btn-v10{width:auto!important;min-width:0!important;padding:7px 10px!important}
+        .record:has(>.record-scores-v26) .score-grid-v26{grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+        .record:has(>.record-scores-v26) .score-cell-v26{padding:9px 11px}
+      }
+      @media (min-width:1040px) and (max-width:1600px){
+        .record:has(>.record-scores-v26) .score-grid-v26:has(>.score-cell-v26:nth-child(6):last-child){grid-template-columns:repeat(6,minmax(0,1fr))}
+      }
+      @media(max-width:620px){
+        .record.record:has(>.record-city-v33){grid-template-areas:"date" "scores" "city" "actions"!important}
+        .record-city-v33{grid-area:city;padding:0!important}
+      }
       @media(max-width:420px){
         .record.record{gap:10px 8px!important}
         .record-action-btn-v10.record-action-btn-v10{padding:6px 9px!important}

@@ -1,5 +1,5 @@
 /*! app-bundle.js · 自动生成,勿手改 —— 改源码后运行: node design/build-bundles.js
-   来源顺序: public-assets.js, compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js, score-worth-model.js, score-worth.js, release-notices.js, account-recovery.js, trajectory-forecast.js, similar-trajectories.js, school-settings.js, announcement-settings.js, announcement-replies.js, author-support.js, community.js, participant-defaults.js, exam-averages.js, exam-changes.js, exam-reflection.js, exam-detail.js, supabase/functions/_shared/backup-format.js, backup-import.js */
+   来源顺序: public-assets.js, compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js, score-worth-model.js, score-worth.js, release-notices.js, account-recovery.js, trajectory-forecast.js, similar-trajectories.js, school-settings.js, announcement-settings.js, announcement-replies.js, author-support.js, community.js, participant-defaults.js, exam-averages.js, supabase/functions/_shared/question-types.js, question-type-scores.js, question-type-analysis-model.js, question-type-analysis.js, exam-changes.js, exam-reflection.js, entry-rollout.js, paper-review-support.js, paper-scan-views.js, paper-review.js, paper-review-board.js, paper-review-scans.js, paper-review-hub.js, paper-records.js, exam-detail.js, supabase/functions/_shared/backup-format.js, backup-import.js, account-growth.js */
 /* ===== public-assets.js ===== */
 /* Public artwork only. Private uploads and application requests never use this host. */
 (function () {
@@ -5679,6 +5679,25 @@ saveExam=async function saveExamV21(id,modal){
         .record-action-btn-v10.record-action-btn-v10{width:auto;min-width:0;padding:6px 10px!important}
         .order-btn-v25.order-btn-v25{width:28px!important;height:28px!important}
       }
+      /* iPad/medium viewport: title, full-width scores, then ranks and actions. */
+      @media (min-width:621px) and (max-width:1180px), (min-width:621px) and (max-width:1600px) and (pointer:coarse){
+        .records-card .record.record:has(>.record-scores-v26){display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;grid-template-areas:"date date" "scores scores" "city actions"!important;align-items:start!important;column-gap:12px!important;row-gap:10px!important;padding:15px 0!important;min-width:0}
+        .record:has(>.record-scores-v26)>.record-date{grid-area:date;min-width:0}
+        .record:has(>.record-scores-v26)>.record-date b{margin-top:3px;overflow-wrap:anywhere}
+        .record:has(>.record-scores-v26)>.record-scores-v26{grid-area:scores;width:100%}
+        .record:has(>.record-scores-v26)>.record-city-v33{grid-area:city;align-self:center;min-width:0;padding:0!important;overflow-wrap:anywhere}
+        .record:has(>.record-scores-v26)>.record-actions.record-actions-v10{grid-area:actions;display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;justify-content:flex-end!important;align-items:center!important;width:auto!important;max-width:none!important;min-width:0;gap:6px!important}
+        .record:has(>.record-scores-v26) .record-action-btn-v10{width:auto!important;min-width:0!important;padding:7px 10px!important}
+        .record:has(>.record-scores-v26) .score-grid-v26{grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+        .record:has(>.record-scores-v26) .score-cell-v26{padding:9px 11px}
+      }
+      @media (min-width:1040px) and (max-width:1600px){
+        .record:has(>.record-scores-v26) .score-grid-v26:has(>.score-cell-v26:nth-child(6):last-child){grid-template-columns:repeat(6,minmax(0,1fr))}
+      }
+      @media(max-width:620px){
+        .record.record:has(>.record-city-v33){grid-template-areas:"date" "scores" "city" "actions"!important}
+        .record-city-v33{grid-area:city;padding:0!important}
+      }
       @media(max-width:420px){
         .record.record{gap:10px 8px!important}
         .record-action-btn-v10.record-action-btn-v10{padding:6px 9px!important}
@@ -6512,8 +6531,13 @@ saveExam=async function saveExamV21(id,modal){
     var card=document.createElement('div');
     card.className='card account-card appearance-card-v29';
     card.id='appearanceCardV29';
-    var cur=currentThemeV29();
-    card.innerHTML='<div class="appearance-heading-v29"><div><h3 class="card-title">外观</h3><p class="card-sub">选择你喜欢的配色和阅读方式，设置保存在当前设备。</p></div><button type="button" class="appearance-reset-v29" data-appearance-reset-v29>恢复默认</button></div>'
+    card.innerHTML=appearanceSettingsHtmlV29();
+    grid.appendChild(card);
+    bindAppearanceSettingsV29(card);
+  }
+  function appearanceSettingsHtmlV29(theme){
+    var cur=theme||currentThemeV29();
+    return '<div class="appearance-heading-v29"><div><h3 class="card-title">外观</h3><p class="card-sub">选择你喜欢的配色和阅读方式，设置保存在当前设备。</p></div><button type="button" class="appearance-reset-v29" data-appearance-reset-v29>恢复默认</button></div>'
       +'<section class="appearance-section-v29" aria-labelledby="themeLabelV29"><h4 id="themeLabelV29">配色主题</h4><div class="theme-opts-v29">'+THEMES_V29.map(function(t){
         return '<button type="button" class="theme-opt-v29'+(t.id===cur?' on':'')+'" data-theme-opt-v29="'+t.id+'" aria-pressed="'+(t.id===cur)+'" title="'+t.name+'"><span class="theme-swatch-v29" aria-hidden="true" style="--swatch-bg:'+t.meta+';--swatch-panel:'+(t.id==='night'?'#1d2533':'#ffffff')+';--swatch-accent:'+t.dot+'"><i></i><span></span><b></b></span><span>'+t.name.split(' · ')[0]+'</span><span class="appearance-check-v29" aria-hidden="true">✓</span></button>';
       }).join('')+'</div></section>'
@@ -6524,14 +6548,18 @@ saveExam=async function saveExamV21(id,modal){
         return '<button type="button" class="appearance-size-v29'+(p.id===readingV29.size?' on':'')+'" data-reading-size-v29="'+p.id+'" aria-pressed="'+(p.id===readingV29.size)+'"><b>'+p.name+'</b><span>'+p.px+'</span></button>';
       }).join('')+'</div></section>'
       +'<section class="appearance-preview-v29" aria-label="当前字体与字号效果预览"><span class="appearance-preview-label-v29">效果预览</span><p>看见每一次进步，也记录真实的起伏。</p><div><span>数学 · 阶段检测</span><strong>128.5 <small>/ 150</small></strong></div></section>';
-    grid.appendChild(card);
+  }
+  function bindAppearanceSettingsV29(card,options){
+    options=options||{};
     card.addEventListener('click',function(e){
       var b=e.target.closest('[data-theme-opt-v29]');
-      if(b)applyThemeV29(b.getAttribute('data-theme-opt-v29'));
+      if(b)applyThemeV29(b.getAttribute('data-theme-opt-v29'),!!options.silent,options.persist);
       var font=e.target.closest('[data-reading-font-v29]'),size=e.target.closest('[data-reading-size-v29]');
-      if(font)applyReadingV29(font.dataset.readingFontV29,readingV29.size);
-      if(size)applyReadingV29(readingV29.font,size.dataset.readingSizeV29);
-      if(e.target.closest('[data-appearance-reset-v29]')){applyReadingV29('system','standard');applyThemeV29('sunny');}
+      if(font)applyReadingV29(font.dataset.readingFontV29,readingV29.size,options.persist);
+      if(size)applyReadingV29(readingV29.font,size.dataset.readingSizeV29,options.persist);
+      var reset=e.target.closest('[data-appearance-reset-v29]');
+      if(reset){applyReadingV29('system','standard',options.persist);applyThemeV29('sunny',!!options.silent,options.persist);}
+      if((b||font||size||reset)&&options.onChange)options.onChange({theme:reset?'sunny':b?b.dataset.themeOptV29:options.theme, font:readingV29.font,size:readingV29.size});
     });
   }
 
@@ -6615,6 +6643,9 @@ saveExam=async function saveExamV21(id,modal){
 
   /* 测试钩子 */
   window.__v29={
+    logoSvg:LOGO_SVG_V29,
+    appearanceHtml:appearanceSettingsHtmlV29,
+    bindAppearance:bindAppearanceSettingsV29,
     THEMES:THEMES_V29,
     THEME_CSS:THEME_CSS,
     applyTheme:applyThemeV29,
@@ -6703,7 +6734,7 @@ function csvCellV30(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.repl
 function buildCsvV30(exams,scopeLabel){
   var subjects=subjectsUnionV30(exams),mods=modulesV30();
   var head=['日期','考试名称','分类','结束日期'];
-  subjects.forEach(function(s){head.push(s+' 目标',s+' 最终分',s+' 最终满分',s+' 原始分',s+' 原始满分',s+' 年排',s+' 年级人数',s+' 班排',s+' 班级人数',s+' 年位比%',s+' 班位比%',s+' 不计总分',s+' 班级均分',s+' 年级均分');});
+  subjects.forEach(function(s){head.push(s+' 目标',s+' 最终分',s+' 最终满分',s+' 原始分',s+' 原始满分',s+' 年排',s+' 年级人数',s+' 班排',s+' 班级人数',s+' 年位比%',s+' 班位比%',s+' 不计总分',s+' 班级均分',s+' 年级均分',s+' 题型得分（原始分）');});
   head.push('总分','原始总分','总排名(年)','年级人数(总)','总班排','班级人数(总)','总年位比%','总班位比%','总分班级均分','总分年级均分');
   mods.forEach(function(m){head.push(m.name+' 年排',m.name+' 年人数',m.name+' 班排',m.name+' 班人数',m.name+' 班级均分',m.name+' 年级均分');});
   var lines=[head.map(csvCellV30).join(',')];
@@ -6713,6 +6744,7 @@ function buildCsvV30(exams,scopeLabel){
       var r=(ex.scores||{})[s]||{};
       row.push(fmtV30(numV30(r.target)),fmtV30(numV30(r.actual)),r.max===''||r.max==null?'':fmtV30(numV30(r.max)),fmtV30(numV30(r.raw)),r.rawMax===''||r.rawMax==null?'':fmtV30(numV30(r.rawMax)),fmtV30(numV30(r.rank)),fmtV30(numV30(r.participants)),fmtV30(numV30(r.classRank)),fmtV30(numV30(r.classParticipants)),fmtV30(numV30(r.yearPositionPercent)),fmtV30(numV30(r.classPositionPercent)),r.excludeFromTotal?'是':'');
       row.push(averageV30(ex,'s:'+s,'class'),averageV30(ex,'s:'+s,'year'));
+      row.push(window.ScoreQuestionTypes ? window.ScoreQuestionTypes.text(ex,s) : '');
     });
     row.push(fmtV30(sumTotalV30(ex,'actual')),fmtV30(sumTotalV30(ex,'raw')),
       fmtV30(numV30(ex.total_rank)),fmtV30(numV30(ex.total_participants)),fmtV30(numV30(ex.total_class_rank)),fmtV30(numV30(ex.total_class_participants)),fmtV30(numV30(ex.total_year_position_percent)),fmtV30(numV30(ex.total_class_position_percent)));
@@ -6761,6 +6793,7 @@ function buildTxtV30(exams,scopeLabel){
       if(r.excludeFromTotal)seg.push('不计入总分');
       var avg=averageTextV30(ex,'s:'+s);if(avg)seg.push(avg);
       out.push('  '+seg.join(' ｜ '));
+      var types=window.ScoreQuestionTypes&&window.ScoreQuestionTypes.text(ex,s);if(types)out.push('    题型（原始分）：'+types);
     });
     var ranks=ex.moduleRanks||{};
     modulesV30().forEach(function(mo){
@@ -7006,12 +7039,13 @@ function buildPrintHtmlV30(exams,scopeLabel){
   /* —— 逐考试明细块 —— */
   function subjectRow(s,r,ex){
     var a=numV30(r.actual),m=numV30(r.max);
-    if(a===null&&numV30(r.target)===null&&numV30(r.rank)===null&&numV30(r.classRank)===null)return '';
+    var types=window.ScoreQuestionTypes&&window.ScoreQuestionTypes.text(ex,s);
+    if(a===null&&numV30(r.target)===null&&numV30(r.rank)===null&&numV30(r.classRank)===null&&!types)return '';
     var p=pctTextV30(a,m);
     var reached=(a!==null&&numV30(r.target)!==null)?a>=numV30(r.target):null;
     var fill=reached===null?'#5d72e8':(reached?'#2f9d76':'#e59b45');
     return '<tr>'
-      +'<td class="s-name"><b>'+escV30(s)+'</b>'+(r.excludeFromTotal?'<span class="dim">（不计总分）</span>':'')+(averageTextV30(ex,'s:'+s)?'<br><small class="dim">'+escV30(averageTextV30(ex,'s:'+s))+'</small>':'')+'</td>'
+      +'<td class="s-name"><b>'+escV30(s)+'</b>'+(r.excludeFromTotal?'<span class="dim">（不计总分）</span>':'')+(averageTextV30(ex,'s:'+s)?'<br><small class="dim">'+escV30(averageTextV30(ex,'s:'+s))+'</small>':'')+(types?'<br><small class="dim">题型（原始分）：'+escV30(types)+'</small>':'')+'</td>'
       +'<td class="num">'+(fmtV30(numV30(r.target))||'—')+(reached!==null?(reached?' <i class="ok">达标</i>':' <i class="miss">差'+fmtV30(numV30(r.target)-a)+'</i>'):'')+'</td>'
       +'<td class="num strong">'+(a!==null?a:'—')+'<span class="dim">'+(m!==null?'/'+m:'')+'</span></td>'
       +'<td class="rate">'+(p?'<span class="track"><span class="fill" style="width:'+p+'%;background:'+fill+'"></span></span><span class="lab">'+p+'%</span>':'—')+'</td>'
@@ -9104,6 +9138,8 @@ function moduleRanksForExamV32(e,modId){
   return null;
 }
 function routeStatsV32(){
+  if(window.ScorePaperHub && ["ai","papers"].includes(state.analysisTab)){window.ScorePaperHub.render(document.getElementById("content"));return;}
+  if(window.ScoreQuestionTypeAnalysis && window.ScoreQuestionTypeAnalysis.active()){window.ScoreQuestionTypeAnalysis.render();return;}
   try{window.__stTrack&&window.__stTrack("stats_open",{});}catch(e){}
   var cfg=(typeof state!=="undefined"&&state.sv31)||(state.sv31={scope:"__all__",mode:"rank"});
   var exams=scopeFilterV32(visibleExamsV32(cfg.includeHidden),cfg.scope);
@@ -9116,10 +9152,10 @@ function routeStatsV32(){
   try{document.body.classList.toggle("mode-score",cfg.mode==="score");}catch(e){}
   var c=document.getElementById("content");if(!c)return;
   var sy=window.pageYOffset||0;
-  c.innerHTML=statsPageV32(f);
-  try{bindStatsV32(f,c.firstElementChild);}catch(e){}
-  if(window.__stScoreWorth)window.__stScoreWorth.bind(c.firstElementChild,f);
-  if(window.__stTrajectories)window.__stTrajectories.bind(c.firstElementChild,f);
+  c.innerHTML=(window.ScoreQuestionTypeAnalysis ? window.ScoreQuestionTypeAnalysis.tabs() : "")+statsPageV32(f);
+  try{bindStatsV32(f,c.querySelector(".sv31-page"));}catch(e){}
+  if(window.__stScoreWorth)window.__stScoreWorth.bind(c.querySelector(".sv31-page"),f);
+  if(window.__stTrajectories)window.__stTrajectories.bind(c.querySelector(".sv31-page"),f);
   /* 渲染后让 v29 图例取色/显隐对统计页图表生效(图二/图三换色与勾选显示) */
   try{if(window.__v29&&window.__v29.afterRender)window.__v29.afterRender();}catch(e){}
   window.scrollTo(0,sy);
@@ -9269,7 +9305,7 @@ var G={data:null,loaded:false};
 function hasGoal(){
   var d=G.data;if(!d)return false;
   var n=0;for(var k in (d.subjects||{}))n++;
-  return !!(n>0||d.totalGoal!=null||d.school||d.date);
+  return !!(n>0||d.totalGoal!=null||d.targetRank!=null||d.school||d.date);
 }
 function goalSubjects(){return G.data&&G.data.subjects?G.data.subjects:{}}
 /* 顶层 const state 不会挂到 window 上,必须经词法作用域安全取用 */
@@ -9373,6 +9409,7 @@ function applyGoalResponse(r){
   G.data=g?{
     subjects:g.subjects||{},
     totalGoal:g.totalGoal!=null?Number(g.totalGoal):null,
+    targetRank:g.targetRank!=null?Number(g.targetRank):null,
     school:g.school||g.dream_school||"",
     date:g.date||g.exam_date||"",
     dateName:g.dateName||g.date_name||""
@@ -9392,6 +9429,7 @@ function persistGoal(){
   var d=G.data||{};
   return apiCall("save_goal",{goal:{
     subjects:d.subjects||{},totalGoal:d.totalGoal??null,
+    targetRank:d.targetRank??null,
     school:d.school||"",date:d.date||"",dateName:d.dateName||""
   }});
 }
@@ -9496,6 +9534,7 @@ function renderHomeCard(mount){
       :'<div class="gh-cd"><small>'+esc(G.data.dateName||"目标")+"倒计时</small><b>"+dl+" 天</b></div>";
   }
   if(G.data.school)side+='<div class="gh-school">理想学校<b>'+esc(G.data.school)+"</b></div>";
+  if(G.data.targetRank!=null)side+='<div class="gh-school">目标年级名次<b>'+esc(G.data.targetRank)+"</b></div>";
   var card=document.createElement("div");card.id="goalHeroV33";card.className="goal-hero-v33";
   card.onclick=function(e){if(e.target&&e.target.closest&&e.target.closest('.gh-chips'))return;openEditor("card")};
   card.innerHTML='<div class="gh-main-v33"><div class="gh-title-row"><span class="gh-title">我的目标 · '+esc(G.data.name||"本学期")
@@ -9593,13 +9632,15 @@ function openEditor(via){
     +'<p class="gm-hint" id="gv33Hint"></p>'
     +'<div style="display:flex;gap:8px;margin-bottom:10px"><button class="gm-mini" id="gv33Auto">自动求和</button><button class="gm-mini" id="gv33Manu">手动指定</button>'
     +'<input class="gm-input" id="gv33Manual" style="display:none;max-width:140px" inputmode="decimal" placeholder="如 675"/></div>'
-    +'<input class="gm-input" id="gv33School" style="width:100%" maxlength="40" placeholder="理想学校（选填），例如 浙江大学"/>'
+    +'<label class="gm-label" for="gv33TargetRank">目标年级名次</label><input class="gm-input" id="gv33TargetRank" type="number" min="1" max="10000000" inputmode="numeric" placeholder="选填"/>'
+    +'<input class="gm-input" id="gv33School" style="width:100%;margin-top:12px" maxlength="40" placeholder="理想学校（选填），例如 浙江大学"/>'
     +'<div class="gm-label">③ 目标日期 <span>用于首页倒计时，可不填</span></div>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap"><select class="gm-input" id="gv33DateName" style="max-width:150px">'+dateOpts+'</select>'
     +'<input class="gm-input" id="gv33Custom" style="display:none;max-width:150px" maxlength="20" placeholder="名称，如 一模"/>'
     +'<input class="gm-input" id="gv33Date" type="date" style="max-width:190px"/></div>'
     +'<div class="gm-foot"><button class="gm-clear" id="gv33Clear">清除全部目标</button><button class="gm-save" id="gv33Save">保存</button></div>';
   $("#gv33School").value=d.school||"";
+  $("#gv33TargetRank").value=d.targetRank??"";
   $("#gv33Date").value=d.date||"";
   EDIT.mode=d.totalGoal!=null?"manu":"auto";
   $("#gv33Manual").value=d.totalGoal==null?"":d.totalGoal;
@@ -9656,11 +9697,15 @@ function saveEditor(){
   var before=G.data?{
     subjects:Object.assign({},G.data.subjects||{}),
     totalGoal:G.data.totalGoal??null,
+    targetRank:G.data.targetRank??null,
     school:G.data.school||"",
     date:G.data.date||"",
     dateName:G.data.dateName||""
   }:null;
   var d=G.data=G.data||{};
+  var rankText=$("#gv33TargetRank").value.trim(),rankValue=rankText?Number(rankText):null;
+  if(rankValue!==null&&(!Number.isInteger(rankValue)||rankValue<1||rankValue>10000000)){try{toast("目标名次请输入正整数");}catch(_){}return;}
+  d.targetRank=rankValue;
   d.subjects=collectInputs();
   var school=$("#gv33School").value.trim();
   var date=$("#gv33Date").value||"";
@@ -9684,7 +9729,7 @@ function saveEditor(){
 }
 function clearEditor(){
   track("goal_cleared");
-  G.data={subjects:{},totalGoal:null,school:"",date:"",dateName:""};
+  G.data={subjects:{},totalGoal:null,targetRank:null,school:"",date:"",dateName:""};
   persistGoal().then(function(){refreshGoalUI()}).catch(function(){});
   closeEditor();refreshGoalUI();
 }
@@ -9796,7 +9841,7 @@ function cityLineV33(exam){
   var c=citySourceV33(exam),parts=[];
   if(c.cityRank)parts.push("市排 "+c.cityRank+(c.cityParticipants?"/"+c.cityParticipants:""));
   if(c.districtRank)parts.push("区排 "+c.districtRank+(c.districtParticipants?"/"+c.districtParticipants:""));
-  return parts.length?'<div style="font-size:11px;color:var(--muted,#788392);padding:5px 2px 0;font-variant-numeric:tabular-nums">'+esc(parts.join(" · "))+"</div>":"";
+  return parts.length?'<div class="record-city-v33" style="font-size:11px;color:var(--muted,#788392);padding:5px 2px 0;font-variant-numeric:tabular-nums">'+esc(parts.join(" · "))+"</div>":"";
 }
 function watchExamModal(){
   if(cityObs||typeof MutationObserver!=="function")return;
@@ -12278,7 +12323,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
     document.head.appendChild(st);
   }
   function pageIsStats() {
-    try { return state.page === "stats"; } catch (e) { return false; }
+    try { return state.page === "stats" && state.analysisTab !== "ai" && !!document.querySelector("#content .sv31-page"); } catch (e) { return false; }
   }
   /* ---------- 可见性埋点:只在板块/隐私说明真正进入视口时触发 ---------- */
   var deepBetaViewTracked = false;
@@ -12348,6 +12393,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
     disconnectVisibilityObservers();
   }
   function mountIfMissing() {
+    if(window.ScoreQuestionTypeAnalysis && window.ScoreQuestionTypeAnalysis.active()) { resetVisibilityTrackingIfOutsideStats(); return; }
     if (!pageIsStats()) { resetVisibilityTrackingIfOutsideStats(); return; }
     var c = document.getElementById("content");
     if (!c) return;
@@ -12363,6 +12409,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
     observeSectionVisibility($("#dsbRoot", c));
   }
   function refresh() {
+    if (!pageIsStats()) return;
     var root = $("#dsbRoot");
     if (!root) { mountIfMissing(); return; }
     root.outerHTML = sectionHtml();
@@ -12559,7 +12606,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
 
 /* ===== score-worth-model.js ===== */
 /* A retrospective, personal score/rank scale. Not population test equating. */
-(function () {
+(function (window) {
   'use strict';
   var cache = new WeakMap();
   function present(v) { return v != null && !(typeof v === 'string' && v.trim() === ''); }
@@ -12717,7 +12764,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     }); return result;
   }
   window.__stScoreWorthModel = { observation: observation, compare: compare, cells: cells, fit: fit, context: context, day: day, key: key, difficultyIndex: difficultyIndex };
-})();
+})(typeof window === 'undefined' ? globalThis : window);
 
 /* ===== score-worth.js ===== */
 (function () {
@@ -13527,7 +13574,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
   }
   function blocked() {
-    return state.onboarding || document.visibilityState !== 'visible' || document.querySelector('.modal-backdrop,.rn-back,.fv36-back,.st-fb-back,.pwa-back,.gmodal-backdrop.open');
+    return state.onboarding || state.setupGuideLoading || document.visibilityState !== 'visible' || document.querySelector('.modal-backdrop,.rn-back,.fv36-back,.st-fb-back,.pwa-back,.gmodal-backdrop.open');
   }
   function refreshCard() { if (state.user && state.page === 'account') renderPage(); }
   async function load(u) {
@@ -13549,7 +13596,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     }
     if (!u) return;
     if (!loaded && !fetching && Date.now() >= retryAt) { load(u); return; }
-    if (!loaded || claiming || modal || blocked() || profile?.school) return;
+    if (!loaded || claiming || modal || blocked() || profile?.school || window.ScoreSetupGuide) return;
     if (claimed) { open(u, true); return; }
     if (profile?.school_prompted_at || profile?.completed_at || profile?.step === 6 || Date.now() < retryAt) return;
     claiming = true;
@@ -14496,6 +14543,392 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   document.head.appendChild(style);
 })();
 
+/* ===== supabase/functions/_shared/question-types.js ===== */
+/* Shared by the browser bundle and Edge handlers. All breakdowns use raw marks. */
+(function (root) {
+  'use strict';
+  function number(value) {
+    if (value === null || value === undefined || value === '') return null;
+    if (!['number', 'string'].includes(typeof value) || (typeof value === 'string' && !value.trim())) return NaN;
+    var n = Number(value);
+    return Number.isFinite(n) && n >= 0 && n <= 99999 && Math.abs(n * 100 - Math.round(n * 100)) < 0.000001 ? n : NaN;
+  }
+  var difficulties = {easy:'基础',medium:'中等',hard:'较难'};
+  var causes = {knowledge:'知识不熟',method:'思路受阻',careless:'审题/计算疏漏',time:'时间不足'};
+  function key(row) { return JSON.stringify([String(row.name || '').trim(), String(row.position || '').trim()]); }
+  function label(row) { return row.name + (row.position ? ' · ' + row.position : ''); }
+  function clean(rows, subject) {
+    if (!Array.isArray(rows) || rows.length > 30) throw new Error((subject || '') + '题型须为列表，每科最多 30 项');
+    var seen = new Set();
+    var cleaned = rows.filter(function (r) { return !(r && r.name === '' && (r.score == null || r.score === '') && (r.max == null || r.max === '') && !r.position && !r.difficulty && !r.cause); }).map(function (r) {
+      if (!r || typeof r !== 'object' || Array.isArray(r)) throw new Error('题型条目格式不正确');
+      var name = typeof r.name === 'string' ? r.name.trim() : '';
+      if (!name || name.length > 40) throw new Error('题型名称请填写 1～40 个字符');
+      if (r.position != null && typeof r.position !== 'string') throw new Error('题号/位置须为文字');
+      var position = (r.position || '').trim();
+      if (position.length > 24) throw new Error('题号/位置最多 24 个字符');
+      var identity = key({name:name,position:position});
+      if (seen.has(identity)) throw new Error('题型「' + name + '」重复了，请合并或区分题号/位置');
+      seen.add(identity);
+      var score = number(r.score), max = number(r.max);
+      if (Number.isNaN(score) || Number.isNaN(max) || max === 0) throw new Error(name + '的得分须为非负数、满分须大于 0，最多两位小数');
+      if (max !== null && score !== null && score > max) throw new Error(name + '的得分不能超过满分');
+      var result = { name: name, score: score, max: max };
+      if (position) result.position = position;
+      [['difficulty',difficulties],['cause',causes]].forEach(function (pair) {
+        var v = r[pair[0]];
+        if (v == null || v === '') return;
+        if (typeof v !== 'string' || !Object.prototype.hasOwnProperty.call(pair[1],v)) throw new Error(name + '的难度或失分原因选项不正确');
+        result[pair[0]] = v;
+      });
+      return result;
+    });
+    cleaned.forEach(function (r) {
+      if (!r.position && cleaned.some(function (other) { return other.name === r.name && other.position; })) throw new Error(r.name + '不能同时录入题型合计和分题得分，请保留一种口径');
+    });
+    return cleaned;
+  }
+  function sum(rows) {
+    var score = 0, max = 0, scored = 0, complete = rows.length > 0;
+    rows.forEach(function (r) { if (r.score !== null) { score += r.score; scored++; } if (r.max !== null) max += r.max; if (r.score === null || r.max === null) complete = false; });
+    return { score: Math.round(score * 100) / 100, max: Math.round(max * 100) / 100, scored: scored, complete: complete };
+  }
+  function validate(rows, rawMax, rawScore) {
+    var s = sum(rows);
+    if (rawMax != null && s.max > rawMax + 0.000001) throw new Error('题型满分合计超过卷面原始满分，请检查是否重复录入');
+    if (rawMax != null && s.score > rawMax + 0.000001) throw new Error('题型得分合计超过卷面原始满分');
+    if (rawScore != null && s.score > rawScore + 0.000001) throw new Error('题型得分合计超过原始分，请核对后保存');
+    return s;
+  }
+  var api = { number: number, clean: clean, sum: sum, validate: validate, key:key, label:label, difficulties:difficulties, causes:causes };
+  root.ScoreQuestionTypeModel = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(globalThis);
+
+/* ===== question-type-scores.js ===== */
+/* Optional per-subject raw-score breakdowns, never counted again in exam totals. */
+(function () {
+  'use strict';
+  var model = window.ScoreQuestionTypeModel;
+  var presets = {
+    '英语': ['听力', '阅读理解', '七选五', '完形填空', '语法填空', '短文改错', '应用文', '读后续写', '作文'],
+    '语文': ['现代文阅读', '文言文阅读', '古诗词鉴赏', '名篇名句默写', '语言文字运用', '作文'],
+    '数学': ['单项选择题', '多项选择题', '填空题', '解答题'],
+    '物理': ['单项选择题', '多项选择题', '实验题', '计算题'],
+    '化学': ['选择题', '实验题', '原理综合题', '有机推断题'],
+    '生物': ['选择题', '非选择题'], '政治': ['选择题', '材料分析题'], '历史': ['选择题', '材料分析题', '论述题'], '地理': ['选择题', '综合题']
+  };
+  function esc(v) { return escapeHtml(String(v == null ? '' : v)); }
+  function fmt(v) { return v == null ? '—' : String(v); }
+  function cardName(card) { return card.querySelector('.exam-subject-name-v10').value.trim(); }
+  function value(card, selector) { var input = card.querySelector(selector); return model.number(input ? input.value : null); }
+  function rawScore(card) { var raw = value(card, '.raw-v16'); return raw === null && value(card, '.rawmax-v16') === value(card, '.max-v16') ? value(card, '.actual-v16') : raw; }
+  function track(event, metadata) { if (window.__scoreTrackerTrack) window.__scoreTrackerTrack(event, metadata, 'record'); }
+  function metadata(r, i, subject) {
+    var prefix = esc(subject) + '题型' + (i + 1);
+    function select(field, title, options) { return '<label><span>' + title + '</span><select data-qt-field="' + field + '" aria-label="' + prefix + title + '"><option value="">未标注</option>' + Object.keys(options).map(function (k) { return '<option value="' + k + '"' + (r[field] === k ? ' selected' : '') + '>' + options[k] + '</option>'; }).join('') + '</select></label>'; }
+    return '<details class="qt-meta"' + (r.position || r.difficulty || r.cause ? ' open' : '') + '><summary>位置、难度与原因 <small>选填</small></summary><div><label><span>题号 / 位置</span><input data-qt-field="position" maxlength="24" value="' + esc(r.position) + '" aria-label="' + prefix + '题号位置" placeholder="如：第 21 题 / 阅读 A"></label>' + select('difficulty','难度',model.difficulties) + select('cause','主要失分原因',model.causes) + '</div><p class="qt-help">按本题实际情况填写；难度不确定可以留空，得分低不一定代表题目难。</p></details>';
+  }
+  function mount(modal, card) {
+    if (card.querySelector('.qt-editor')) return;
+    var name = cardName(card); if (!name) return;
+    var draft = modal._questionTypeDraft;
+    if (!Object.prototype.hasOwnProperty.call(draft, name)) draft[name] = [];
+    var box = document.createElement('details'); box.className = 'qt-editor'; box.open = draft[name].length > 0;
+    box.innerHTML = '<summary><span>题型得分 <small>选填</small></span><span class="qt-summary"></span></summary><div class="qt-body"><p class="qt-help">按卷面原始分记录，可只填部分题型。可填题型合计，或用题号区分同一题型的小题；同一部分不要重复录入。</p><div class="qt-rows"></div><div class="qt-toolbar"><label><span class="qt-sr">添加常用题型</span><select class="qt-preset" aria-label="' + esc(name) + '添加常用题型"><option value="">＋ 常用题型</option>' + (presets[name] || ['选择题','填空题','解答题']).map(function (n) { return '<option>' + esc(n) + '</option>'; }).join('') + '</select></label><button type="button" class="qt-add">＋ 自定义题型</button></div><div class="qt-status" aria-live="polite"></div><button type="button" class="qt-use" hidden>用合计填入原始分</button></div>';
+    card.appendChild(box);
+    var rows = box.querySelector('.qt-rows'), status = box.querySelector('.qt-status');
+    function update() {
+      box.querySelector('.qt-summary').textContent = draft[name].length ? draft[name].length + ' 项' : '展开录入';
+      var use = box.querySelector('.qt-use'); use.hidden = true; status.classList.remove('qt-error');
+      try {
+        var clean = model.clean(draft[name]), sum = model.sum(clean), max = value(card,'.rawmax-v16');
+        model.validate(clean, max, null);
+        use.hidden = !(sum.complete && max !== null && Math.abs(sum.max - max) < 0.000001);
+        status.textContent = clean.length ? '已录得分 ' + sum.score + ' 分 · ' + sum.scored + '/' + clean.length + ' 项已填得分' + (sum.complete && sum.max === max ? ' · 已覆盖卷面满分' : ' · 仅统计已录题型') : '可从常用题型开始，也可以直接添加自己的题型。';
+        var raw = rawScore(card);
+        if (raw !== null && sum.score > raw) { status.textContent += '。合计超过当前原始分，请核对。'; status.classList.add('qt-error'); }
+        else if (sum.complete && sum.max === max && raw !== null && sum.score !== raw) status.textContent += '。与当前原始分相差 ' + Math.round((sum.score - raw)*100)/100 + ' 分，请核对。';
+      } catch (e) { status.textContent = e.message; status.classList.add('qt-error'); }
+    }
+    function draw() {
+      rows.innerHTML = draft[name].map(function (r,i) { return '<div class="qt-row"><label class="qt-name"><span>题型</span><input data-qt-field="name" maxlength="40" value="' + esc(r.name) + '" aria-label="' + esc(name) + '题型' + (i+1) + '名称" placeholder="如：完形填空"></label><label><span>得分</span><input data-qt-field="score" type="number" min="0" max="99999" step="0.01" inputmode="decimal" value="' + esc(r.score) + '" aria-label="' + esc(name) + '题型' + (i+1) + '得分" placeholder="待补"></label><label><span>满分</span><input data-qt-field="max" type="number" min="0.01" max="99999" step="0.01" inputmode="decimal" value="' + esc(r.max) + '" aria-label="' + esc(name) + '题型' + (i+1) + '满分" placeholder="待补"></label><button type="button" class="qt-remove" aria-label="删除题型' + (i+1) + '">×</button>' + metadata(r,i,name) + '</div>'; }).join('');
+      rows.querySelectorAll('.qt-row').forEach(function (row,i) {
+        row.querySelectorAll('input,select').forEach(function (input) { input.oninput = input.onchange = function () { draft[name][i][input.dataset.qtField] = input.validity.badInput ? 'invalid' : input.value; update(); }; });
+        row.querySelector('button').onclick = function () { draft[name].splice(i,1); draw(); };
+      }); update();
+    }
+    function add(label) {
+      if (draft[name].length >= 30) return toast('每科最多记录 30 个题型');
+      if (label && draft[name].some(function (r) { return r.name.trim() === label; })) return toast('这个题型已添加');
+      draft[name].push({name:label,score:null,max:null}); draw();
+      var added = rows.lastElementChild; added.querySelector(label ? '[data-qt-field="score"]' : 'input').focus();
+    }
+    box.querySelector('.qt-add').onclick = function () { add(''); };
+    box.querySelector('.qt-preset').onchange = function () { var label = this.value; this.value = ''; if (label) add(label); };
+    box.querySelector('.qt-use').onclick = function () {
+      try {
+        var sum = model.validate(model.clean(draft[name]),value(card,'.rawmax-v16'),null);
+        if (!sum.complete || Math.abs(sum.max - value(card,'.rawmax-v16')) > 0.000001) return;
+        var input = card.querySelector('.raw-v16'); input.value = sum.score; input.dispatchEvent(new Event('input',{bubbles:true}));
+        if (value(card,'.max-v16') === sum.max && value(card,'.actual-v16') === null) { var final = card.querySelector('.actual-v16'); final.value = sum.score; final.dispatchEvent(new Event('input',{bubbles:true})); }
+        update();
+      } catch (e) { toast(e.message); }
+    };
+    card.addEventListener('input',function (e) { if (!box.contains(e.target)) update(); });
+    box._refresh = draw; draw();
+  }
+  function decorate(modal) { modal.querySelectorAll('.exam-subject-card-v10').forEach(function (card) { mount(modal,card); }); }
+  var beforeOpen = openExam;
+  openExam = function (exam) {
+    var result = beforeOpen.apply(this,arguments), modal = state.modal;
+    if (!modal || !modal.querySelector('#examSubjectsV16') || modal._questionTypeDraft) return result;
+    modal._questionTypeDraft = Object.assign(Object.create(null), JSON.parse(JSON.stringify(exam && exam.question_type_scores || {})));
+    modal._questionTypeExam = String(exam && exam.id || ''); modal._questionTypeOwner = state.token;
+    decorate(modal);
+    var observer = new MutationObserver(function () { if (!modal.isConnected) { observer.disconnect(); return; } decorate(modal); });
+    observer.observe(modal.querySelector('#examSubjectsV16'),{childList:true,subtree:true});
+    return result;
+  };
+  var beforeApi = dataApiV7;
+  dataApiV7 = function (action,payload) {
+    var modal = state.modal;
+    if (action === 'save_exam' && payload && payload.exam && modal && modal._questionTypeDraft && modal._questionTypeExam === String(payload.exam.id || '')) {
+      if (modal._questionTypeOwner !== state.token) throw new Error('账号已切换，请重新打开考试');
+      var map = Object.create(null), count = 0;
+      modal.querySelectorAll('.exam-subject-card-v10').forEach(function (card) {
+        var name = cardName(card);
+        try {
+          var rows = model.clean(modal._questionTypeDraft[name] || [],name);
+          model.validate(rows,value(card,'.rawmax-v16'),rawScore(card));
+          if (rows.length) { map[name] = rows; count += rows.length; }
+        } catch (e) { var box = card.querySelector('.qt-editor'); box.open = true; box.querySelector('.qt-status').textContent = e.message; box.querySelector('.qt-status').classList.add('qt-error'); box.scrollIntoView({block:'center'}); throw e; }
+      });
+      payload = Object.assign({},payload,{exam:Object.assign({},payload.exam,{question_type_scores:map})});
+      return Promise.resolve(beforeApi.call(this,action,payload)).then(function (r) { if (count) track('question_type_scores_saved',{subject_count:Object.keys(map).length,type_count:count}); return r; });
+    }
+    return beforeApi.call(this,action,payload);
+  };
+  function apply(modal, card, rows) {
+    if (!modal._questionTypeDraft || modal._questionTypeOwner !== state.token) throw new Error('请重新打开考试录入表');
+    var name = cardName(card), incoming = model.clean(rows,name), current = JSON.parse(JSON.stringify(modal._questionTypeDraft[name] || []));
+    // Recognition fills missing cells only; existing manual marks always win.
+    incoming.forEach(function (r) { var found = current.find(function (x) { return model.key(x) === model.key(r); }); if (!found) current.push(r); else ['score','max','position','difficulty','cause'].forEach(function (key) { if (found[key] == null || found[key] === '') if (r[key] != null) found[key] = r[key]; }); });
+    if (current.length > 30) throw new Error('合并后题型超过 30 项，请分批核对');
+    modal._questionTypeDraft[name] = current; mount(modal,card); var box = card.querySelector('.qt-editor'); box.open = true; box._refresh();
+    return incoming.length;
+  }
+  function text(exam, subject) { return ((exam.question_type_scores || {})[subject] || []).map(function (r) { return model.label(r) + ' ' + fmt(r.score) + '/' + fmt(r.max) + (r.difficulty ? '（' + model.difficulties[r.difficulty] + '）' : '') + (r.cause ? ' · ' + model.causes[r.cause] : ''); }).join('；'); }
+  function detail(exam) {
+    var map = exam.question_type_scores || {}, names = Object.keys(exam.scores || {}).filter(function (name) { return Array.isArray(map[name]) && map[name].length; });
+    if (!names.length) return '';
+    return '<div class="qt-detail"><h3>题型得分</h3><p class="qt-help">卷面原始分 · 只统计已录入的题型</p><div class="qt-detail-grid">' + names.map(function (name) { return '<article><h4>' + esc(name) + '</h4>' + map[name].map(function (r) { var rate = r.score != null && r.max > 0 ? Math.round(r.score/r.max*1000)/10 : null; return '<div class="qt-detail-row"><span>' + esc(model.label(r)) + (r.difficulty ? '<small class="qt-difficulty">' + model.difficulties[r.difficulty] + '</small>' : '') + '</span><b>' + esc(fmt(r.score)) + ' <small>/ ' + esc(fmt(r.max)) + '</small></b><small>' + (rate == null ? '待补全' : rate + '%') + '</small></div>'; }).join('') + '</article>'; }).join('') + '</div></div>';
+  }
+  window.ScoreQuestionTypes = { apply:apply, detail:detail, text:text };
+  var style = document.createElement('style');
+  style.textContent = '.qt-editor{border-top:1px solid var(--line);margin-top:16px;padding-top:4px}.qt-editor summary{display:flex;justify-content:space-between;gap:12px;cursor:pointer;padding:13px 0;font-size:14px;list-style:none}.qt-editor summary::-webkit-details-marker{display:none}.qt-editor summary small,.qt-summary{color:var(--muted);font-size:12px;font-weight:400}.qt-editor summary small{margin-left:6px}.qt-editor summary:after{content:"＋";color:var(--muted)}.qt-editor[open]>summary:after{content:"−"}.qt-summary{margin-left:auto}.qt-help{font-size:13px!important;color:var(--muted);line-height:1.7;margin:0 0 14px}.qt-rows{display:grid;gap:12px}.qt-row{display:grid;grid-template-columns:minmax(100px,1.5fr) minmax(65px,1fr) minmax(65px,1fr) 32px;gap:9px;align-items:end}.qt-row label{min-width:0;display:grid;gap:5px;font-size:12px;color:var(--muted)}.qt-row input,.qt-toolbar select{box-sizing:border-box;width:100%;min-width:0;border:1px solid var(--line);border-radius:9px;background:var(--input-bg,var(--panel-solid,#fff));color:var(--text);font:inherit;font-size:14px;min-height:42px;padding:9px}.qt-row button,.qt-toolbar button,.qt-use{font:inherit;font-size:13px;min-height:40px;border:1px solid var(--line);border-radius:9px;background:var(--panel-solid,#fff);color:var(--text);padding:8px 10px;cursor:pointer}.qt-row .qt-remove{padding:0;color:var(--muted);font-size:20px}.qt-toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.qt-toolbar label{flex:1;min-width:130px}.qt-toolbar button{flex:1;white-space:nowrap}.qt-status{font-size:12px;line-height:1.7;color:var(--muted);margin-top:13px}.qt-error{color:var(--danger)!important}.qt-use{margin-top:10px;color:var(--accent)}.qt-use[hidden]{display:none!important}.qt-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}.qt-editor :focus-visible{outline:2px solid var(--accent);outline-offset:2px}.qt-detail{margin-top:26px;padding-top:22px;border-top:1px solid var(--line)}.qt-detail h3{font-size:18px;margin:0 0 8px}.qt-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}.qt-detail h4{font-size:15px;margin:0 0 6px}.qt-detail-row{display:grid;grid-template-columns:minmax(0,1fr) auto 64px;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px;font-variant-numeric:tabular-nums}.qt-detail-row>span{overflow-wrap:anywhere}.qt-detail-row b{font-weight:600}.qt-detail-row small{font-size:12px;color:var(--muted)}.qt-detail-row>small{text-align:right}@media(max-width:620px){.qt-detail-grid{grid-template-columns:1fr}.qt-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 36px;gap:9px}.qt-row .qt-name{grid-column:1/3}.qt-row .qt-remove{grid-column:3;grid-row:1/3;align-self:center}.qt-row{padding-bottom:14px;border-bottom:1px solid var(--line)}.qt-row label:nth-child(2){grid-column:1;grid-row:2}.qt-row label:nth-child(3){grid-column:2;grid-row:2}.qt-row input{font-size:16px}}';
+  style.textContent += '.qt-row select{width:100%;min-width:0;box-sizing:border-box;min-height:42px;padding:8px;border:1px solid var(--line);border-radius:9px;background:var(--input-bg,var(--panel-solid,#fff));color:var(--text);font:inherit;font-size:13px}.qt-row .qt-meta{grid-column:1/-1}.qt-meta>summary{padding:4px 0 10px;font-size:12px;color:var(--muted);justify-content:flex-start}.qt-meta>summary:after{margin-left:auto;content:"＋"}.qt-meta[open]>summary:after{content:"−"}.qt-meta>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.qt-meta .qt-help{margin:8px 0 0;font-size:12px!important}.qt-difficulty{display:block;margin-top:3px}@media(max-width:620px){.qt-meta>div{grid-template-columns:repeat(2,minmax(0,1fr))}.qt-meta>div>label:first-child{grid-column:1/-1}.qt-row .qt-meta label{grid-column:auto;grid-row:auto}.qt-row select{font-size:16px}}';
+  document.head.appendChild(style);
+})();
+
+/* ===== question-type-analysis-model.js ===== */
+/* Deterministic, inspectable statistics over optional raw-score breakdowns. */
+(function (root) {
+  'use strict';
+  function num(v) { if (v == null || v === '' || !['number','string'].includes(typeof v) || (typeof v === 'string' && !v.trim())) return null; var n=Number(v); return Number.isFinite(n) && n >= 0 ? n : null; }
+  function ratio(points) { var max=points.reduce(function(s,p){return s+p.max;},0); return max ? points.reduce(function(s,p){return s+p.score;},0)/max : null; }
+  function chronological(a,b) { return String(a.exam_date||'').localeCompare(String(b.exam_date||'')) || String(a.created_at||'').localeCompare(String(b.created_at||'')) || String(a.id||'').localeCompare(String(b.id||'')); }
+  function subjectMark(e, subject) {
+    var r=(e.scores||{})[subject]||{}, max=num(r.rawMax), score=num(r.raw);
+    if (max===null) max=num(r.max);
+    if (score===null && max===num(r.max)) score=num(r.actual);
+    return max>0 && score!==null && score<=max ? {score:score,max:max} : null;
+  }
+  function groupKey(r, group) { return JSON.stringify([r.name.trim(), group==='position' ? (r.position||'').trim() : '']); }
+  function analyze(source, options) {
+    var o=options||{}, subject=o.subject, seen=new Set();
+    var exams=(source||[]).filter(function(e){
+      if (!e || !Object.prototype.hasOwnProperty.call(e.scores||{},subject) || (!o.includeHidden && e.is_hidden)) return false;
+      if (o.category != null && o.category!=='*' && (e.grade_level||'')!==o.category) return false;
+      if(e.id && seen.has(String(e.id)))return false;if(e.id)seen.add(String(e.id));return true;
+    }).slice().sort(chronological);
+    if (Number(o.limit)>0) exams=exams.slice(-Number(o.limit));
+    var groups=new Map(), incomplete=0, invalid=0, recorded=0, coverageMax=0, subjectMax=0, coverageExams=0;
+    exams.forEach(function(e,index){
+      var rows=(e.question_type_scores||{})[subject], cells=new Map();
+      if(!Array.isArray(rows))rows=[];
+      if(rows.length)recorded++;
+      var identities=new Set(), namesWithTotal=new Set(rows.filter(function(r){return r&&typeof r.name==='string'&&!r.position;}).map(function(r){return r.name.trim();}));
+      rows.forEach(function(r){
+        if(!r || typeof r.name!=='string' || !r.name.trim() || (r.position!=null&&typeof r.position!=='string')){invalid++;return;}
+        var id=groupKey(r,'position');
+        if(identities.has(id) || (r.position && namesWithTotal.has(r.name.trim()))){invalid++;return;}identities.add(id);
+        var key=groupKey(r,o.group), name=r.name.trim();
+        if(!groups.has(key))groups.set(key,{key:key,name:name,position:o.group==='position'?(r.position||'').trim():'',cells:new Array(exams.length).fill(null)});
+        if(!cells.has(key))cells.set(key,{score:0,max:0,complete:true,difficulties:[],causes:[],parts:0});
+        var c=cells.get(key), score=num(r.score), max=num(r.max);
+        c.parts++;
+        var valid=score!==null&&max>0&&score<=max;
+        if(!valid){c.complete=false;incomplete++;}else{c.score+=score;c.max+=max;}
+        if(['easy','medium','hard'].includes(r.difficulty))c.difficulties.push(r.difficulty);
+        if(['knowledge','method','careless','time'].includes(r.cause))c.causes.push(r.cause);
+      });
+      cells.forEach(function(c,key){c.rate=c.complete?c.score/c.max:null;c.index=index;groups.get(key).cells[index]=c;});
+      var r=(e.scores||{})[subject]||{}, rawMax=num(r.rawMax);if(rawMax===null)rawMax=num(r.max);
+      if(rawMax>0){coverageExams++;subjectMax+=rawMax;coverageMax+=Math.min(rawMax,Array.from(cells.values()).filter(function(c){return c.complete;}).reduce(function(s,c){return s+c.max;},0));}
+    });
+    var rows=Array.from(groups.values()), totalLost=0, totalScore=0, totalMax=0;
+    rows.forEach(function(g){
+      var valid=g.cells.filter(function(c){return c&&c.complete;}), last=valid.slice(-3), half=Math.min(3,Math.floor(valid.length/2));
+      g.count=valid.length;g.score=valid.reduce(function(s,c){return s+c.score;},0);g.max=valid.reduce(function(s,c){return s+c.max;},0);
+      g.lost=g.max-g.score;g.rate=g.max?g.score/g.max:null;g.lossRate=g.rate===null?null:1-g.rate;
+      g.lossCount=valid.filter(function(c){return c.score<c.max-0.000001;}).length;g.frequency=g.count?g.lossCount/g.count:null;
+      g.recentRate=ratio(last);g.recentLossCount=last.filter(function(c){return c.score<c.max-0.000001;}).length;
+      g.latest=valid.at(-1)||null;
+      // At least two observations in each non-overlapping window; missing entries do not become zeroes.
+      g.trendCount=valid.length>=4?half:0;
+      g.trendRate=g.trendCount?ratio(valid.slice(-half)):null;
+      g.previousRate=g.trendCount?ratio(valid.slice(-half*2,-half)):null;
+      g.change=g.trendCount?g.trendRate-g.previousRate:null;
+      g.minRate=valid.length?Math.min(...valid.map(function(c){return c.rate;})):null;
+      g.maxRate=valid.length?Math.max(...valid.map(function(c){return c.rate;})):null;
+      var dif=last.flatMap(function(c){return c.difficulties;}), cause=last.flatMap(function(c){return c.causes;});
+      var distinct=Array.from(new Set(dif));g.difficulty=distinct.length===1?distinct[0]:distinct.length?'mixed':null;
+      g.difficultyCount=dif.length;g.difficultyComplete=last.length>0&&dif.length===last.reduce(function(s,c){return s+c.parts;},0);
+      // Never turn an unlabelled portion into a confirmed easy/hard recommendation.
+      g.rankDifficulty=g.difficultyComplete?g.difficulty:null;
+      g.causeCounts=Object.fromEntries(Array.from(new Set(cause)).map(function(c){return [c,cause.filter(function(v){return v===c;}).length];}));
+      g.cause=cause.length?cause.sort(function(a,b){return cause.filter(function(c){return c===b;}).length-cause.filter(function(c){return c===a;}).length;})[0]:null;
+      totalLost+=g.lost;totalScore+=g.score;totalMax+=g.max;
+    });
+    var marks=exams.slice(-5).map(function(e){return subjectMark(e,subject);}).filter(Boolean), levelRate=ratio(marks), target=num(o.targetRate);
+    if(target!==null&&(target<=0||target>100))target=null;
+    var latestSubject=exams.length?(exams.at(-1).scores||{})[subject]:null;
+    if(target===null&&latestSubject){var t=num(latestSubject.target), m=num(latestSubject.max), rm=num(latestSubject.rawMax);if(t!==null&&m>0&&t<=m&&(rm===null||rm===m))target=t/m*100;}
+    var level=['foundation','balanced','advanced'].includes(o.level)?o.level:levelRate===null?'unknown':levelRate>=0.85?'advanced':levelRate<0.7?'foundation':'balanced';
+    var maxLoss=Math.max(1,...rows.map(function(g){return g.count?g.lost/g.count:0;}));
+    rows.forEach(function(g){
+      g.contribution=g.count&&totalLost>0?g.lost/totalLost:null;
+      if(!g.count||g.lost<=0){g.priority={quick:0,breakthrough:0,all:0};return;}
+      var loss=g.lost/g.count/maxLoss, freq=0.5+0.5*g.frequency, recent=0.4+0.6*(1-g.recentRate), falling=g.change!==null&&g.change<-.03?1.15:1;
+      var d=g.rankDifficulty, easy={easy:1,medium:.65,hard:level==='advanced'?.3:.12}[d]||.35, hard={hard:1,medium:.55,easy:.15}[d]||.3;
+      var readiness=level==='foundation'?.65:level==='advanced'?1.2:1;
+      if(target!==null&&target>=90)readiness*=1.1;
+      g.priority={quick:loss*easy*freq*recent*falling,breakthrough:hard*Math.sqrt(loss)*freq*(.6+.4*g.recentRate)*readiness,all:loss*freq*recent*falling};
+    });
+    return {exams:exams,rows:rows,subject:subject,recorded:recorded,incomplete:incomplete,invalid:invalid,totalLost:totalLost,rate:totalMax?totalScore/totalMax:null,coverage:subjectMax?coverageMax/subjectMax:null,coverageExams:coverageExams,level:level,levelRate:levelRate,levelCount:marks.length,targetRate:target,recommended:level==='advanced'||(target>=90&&level!=='foundation')?'breakthrough':level==='foundation'?'quick':'all'};
+  }
+  function ranked(result,view){return result.rows.slice().sort(function(a,b){return (b.priority[view]||0)-(a.priority[view]||0)||b.lost-a.lost||a.name.localeCompare(b.name);});}
+  var api={analyze:analyze,ranked:ranked,num:num,subjectMark:subjectMark,groupKey:groupKey};root.ScoreQuestionTypeAnalysisModel=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
+})(globalThis);
+
+/* ===== question-type-analysis.js ===== */
+/* Longitudinal question-type analysis, isolated from overall score/rank statistics. */
+(function () {
+  'use strict';
+  var M=window.ScoreQuestionTypeAnalysisModel, Q=window.ScoreQuestionTypeModel;
+  var views={quick:'快速提分',breakthrough:'高分突破',all:'全面分析'};
+  var cfg, account;
+  var esc=function(v){return escapeHtml(String(v==null?'':v));};
+  var fmt=function(v){return v==null?'—':String(Math.round(v*10)/10);};
+  var pct=function(v){return v==null?'—':fmt(v*100)+'%';};
+  var levels={foundation:'巩固基础',balanced:'稳步提升',advanced:'冲刺高分',unknown:'暂缺完整科目成绩'};
+  function settings() {
+    var owner=String(state.user&&state.user.id||'')+':'+String(state.token||'');
+    if(account!==owner){account=owner;cfg={tab:'overview',subject:'',category:'*',limit:10,group:'type',includeHidden:false,view:'all',viewChosen:false,level:'auto',goals:Object.create(null),selected:'',end:0};}
+    return cfg;
+  }
+  function source(){return Array.isArray(state.allExams)?state.allExams:(state.exams||[]);}
+  function subjects(){var s=new Set();(state.subjectConfigs||[]).forEach(function(r){s.add(r.name||r);});source().forEach(function(e){Object.keys(e.scores||{}).forEach(function(n){s.add(n);});});return Array.from(s).filter(Boolean);}
+  function tabs(){if(window.ScorePaperHub)return window.ScorePaperHub.navigation();var c=settings();return '<nav class="qta-tabs" aria-label="分析分类"><button type="button" data-qta-tab="overview" aria-pressed="'+(c.tab==='overview')+'">成绩分析</button><button type="button" data-qta-tab="types" aria-pressed="'+(c.tab==='types')+'">题型分析</button></nav>';}
+  function option(v,label,chosen){return '<option value="'+esc(v)+'"'+(String(v)===String(chosen)?' selected':'')+'>'+esc(label)+'</option>';}
+  function field(key,label,options){return '<label><span>'+label+'</span><select data-qta-filter="'+key+'">'+options+'</select></label>';}
+  function title(g){return g.name+(g.position?' · '+g.position:cfg.group==='position'?' · 未标位置':'');}
+  function difficulty(g){return g.difficulty==='mixed'?'难度不一':g.difficulty?Q.difficulties[g.difficulty]+(g.difficultyComplete?'':'（部分标注）'):'难度待标注';}
+  function change(g){return g.change==null?'至少 4 场后比较趋势':Math.abs(g.change)<.005?'近期基本持平':(g.change>0?'提升 ':'下降 ')+fmt(Math.abs(g.change)*100)+' 个百分点';}
+  function interpretation(g){
+    if(!g.count)return '尚无完整记录。';
+    if(g.change===null)return '目前 '+g.count+' 场有效记录，至少 4 场后比较近期变化。';
+    return '最近 '+g.trendCount+' 场得分率 '+pct(g.trendRate)+'，此前 '+g.trendCount+' 场为 '+pct(g.previousRate)+'；'+change(g)+'。';
+  }
+  function annotations(g){
+    var labels=Object.keys(g.causeCounts||{}).map(function(k){return Q.causes[k]+' '+g.causeCounts[k]+' 条';});
+    return labels.length?labels.join('、'):'未标注失分原因';
+  }
+  function opportunities(r,ordered){
+    var eligible=ordered.filter(function(g){return g.count&&g.lost>0&&(cfg.view==='quick'?['easy','medium'].includes(g.rankDifficulty):cfg.view==='breakthrough'?g.rankDifficulty==='hard':true);});
+    var candidates=eligible.slice(0,3),lead={quick:'查看基础、中等难度题的失分，按场均失分、反复程度与近期表现排序。',breakthrough:'查看已标为较难的题型，小分值失分也会纳入排序。',all:'综合长期失分、出现频次与近期变化，展示当前最突出的三项。'}[cfg.view];
+    var split=cfg.group==='type'&&r.rows.some(function(g){return g.difficulty==='mixed';});
+    var empty=r.rows.some(function(g){return g.count&&g.lost>0;})?(split?'同一题型包含不同难度的位置，分开后可查看各题表现。':'本视角暂无难度标注完整且有失分的题型，全部数据仍可在下方查看。'):r.rows.some(function(g){return g.count;})?'已录的完整题型没有失分。':'补全得分与满分后显示数据解读。';
+    return '<section class="qta-card"><div class="qta-section-heading"><div><h2>重点数据解读</h2><p>'+lead+'</p></div><span class="qta-tag">'+views[cfg.view]+'</span></div>'+(candidates.length?'<div class="qta-opportunities">'+candidates.map(function(g,i){return '<article><span class="qta-index">0'+(i+1)+'</span><h3>'+esc(title(g))+'</h3><div class="qta-tags"><span>'+difficulty(g)+'</span><span>'+g.count+' 场有效记录</span></div><dl class="qta-key-metrics"><div><dt>场均失分</dt><dd>'+fmt(g.lost/g.count)+'<small> 分</small></dd></div><div><dt>占已录失分</dt><dd>'+pct(g.contribution)+'</dd></div></dl><p class="qta-reading">'+interpretation(g)+'</p><p class="qta-evidence">'+g.lossCount+' / '+g.count+' 场有失分 · 累计失分 '+fmt(g.lost)+' 分<br>历次得分率 '+pct(g.minRate)+'–'+pct(g.maxRate)+'</p><details class="qta-annotations"><summary>查看最近标注</summary><p>最近最多 3 场有效记录：'+esc(annotations(g))+'。标注是录入信息，不代表系统已确认原因。</p></details><button type="button" data-qta-select="'+esc(g.key)+'">查看历次得分 <span aria-hidden="true">↗</span></button></article>';}).join('')+'</div>':'<div class="qta-empty"><p>'+empty+'</p>'+(split?'<button type="button" data-qta-position>按题型 + 位置查看</button>':'')+'</div>')+'<p class="qta-note">仅解读已录数据；场均失分是历史平均值，不等于可提分数。出现失分的场次不等于错题数。</p></section>';
+  }
+  function plot(g,r,compact){
+    if(!g)return '<p class="qta-empty">选择一个题型，查看得分率变化。</p>';
+    var offset=Math.max(0,r.exams.length-12), cells=g.cells.slice(offset), n=cells.length, width=compact?320:640,height=compact?210:230,left=40,right=20,top=20,bottom=42;
+    var x=function(i){return left+(n===1?.5:i/(n-1))*(width-left-right);}, y=function(rate){return top+(1-rate)*(height-top-bottom);}, body='';
+    [0,.25,.5,.75,1].forEach(function(v){body+='<line x1="'+left+'" y1="'+y(v)+'" x2="'+(width-right)+'" y2="'+y(v)+'" class="qta-grid"/><text x="'+(left-8)+'" y="'+(y(v)+4)+'" text-anchor="end">'+(v*100)+'%</text>';});
+    var prev=null;
+    cells.forEach(function(c,i){
+      var e=r.exams[offset+i],valid=c&&c.complete;
+      if(valid){if(prev)body+='<line x1="'+prev.x+'" y1="'+prev.y+'" x2="'+x(i)+'" y2="'+y(c.rate)+'" class="qta-line"/>';prev={x:x(i),y:y(c.rate)};body+='<circle cx="'+x(i)+'" cy="'+y(c.rate)+'" r="4.5" class="qta-point"><title>'+esc(e.name)+' · '+esc(e.exam_date)+'：'+fmt(c.score)+'/'+fmt(c.max)+'（'+pct(c.rate)+'）</title></circle>';}
+      else{prev=null;body+='<text x="'+x(i)+'" y="'+y(.03)+'" text-anchor="middle">—</text>';}
+      if(n<=(compact?4:6)||i%(compact?3:2)===0||i===n-1)body+='<text x="'+x(i)+'" y="'+(height-17)+'" text-anchor="middle">'+esc((e.exam_date||'无日期').slice(5)||'无日期')+'</text>';
+    });
+    return '<svg class="qta-chart" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="'+esc(title(g))+' 最近'+n+'场得分率趋势；具体分数见下方历史表">'+body+'</svg>';
+  }
+  function history(r,ordered){
+    var selected=r.rows.find(function(g){return g.key===cfg.selected;})||ordered[0];if(selected)cfg.selected=selected.key;
+    var end=cfg.end>0?Math.min(cfg.end,r.exams.length):r.exams.length,start=Math.max(0,end-6), exams=r.exams.slice(start,end);
+    return '<section class="qta-card" id="qta-history"><div class="qta-section-heading"><div><h2>历次得分</h2><p>同科同名题型对齐；满分变化时看得分率。位置相同不代表试题难度相同。</p></div></div><div class="qta-history-controls">'+field('group','比较口径',option('type','按题型汇总',cfg.group)+option('position','按题型 + 位置',cfg.group))+field('selected','趋势题型',ordered.map(function(g){return option(g.key,title(g),cfg.selected);}).join(''))+'</div><div class="qta-chart-wide">'+plot(selected,r,false)+'</div><div class="qta-chart-compact">'+plot(selected,r,true)+'</div><p class="qta-note">折线显示最近最多 12 场；缺失处断开。'+(selected?change(selected)+'（最近与之前各最多 3 场有效记录比较）。':'')+'</p><div class="qta-table-scroll" tabindex="0" role="region" aria-label="题型历次得分表，可横向滚动"><table class="qta-history"><caption>每格为得分 / 满分与得分率；— 为未录入，待补全不参与统计</caption><thead><tr><th scope="col">题型 / 位置</th>'+exams.map(function(e){return '<th scope="col"><button type="button" data-qta-exam="'+esc(e.id)+'" title="查看考试详情">'+esc(e.name||'未命名考试')+'</button><small>'+esc(e.exam_date||'无日期')+'</small></th>';}).join('')+'</tr></thead><tbody>'+ordered.map(function(g){return '<tr'+(g.key===cfg.selected?' class="qta-selected"':'')+'><th scope="row"><button type="button" data-qta-select="'+esc(g.key)+'" aria-pressed="'+(g.key===cfg.selected)+'">'+esc(title(g))+'</button></th>'+g.cells.slice(start,end).map(function(c){return c&&c.complete?'<td><span class="qta-cell '+(c.rate<.6?'qta-low':c.rate>=.85?'qta-high':'qta-mid')+'"><b>'+fmt(c.score)+' <em>/ '+fmt(c.max)+'</em></b><small>'+pct(c.rate)+'</small></span></td>':'<td class="qta-missing">'+(c?'待补全':'—')+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table></div><div class="qta-pagination"><button type="button" data-qta-window="'+start+'"'+(!start?' disabled':'')+'>← 更早</button><span>'+(r.exams.length?(start+1)+'–'+end:'0')+' / '+r.exams.length+' 场</span><button type="button" data-qta-window="'+Math.min(r.exams.length,end+6)+'"'+(end===r.exams.length?' disabled':'')+'>更新 →</button></div></section>';
+  }
+  function structure(r,ordered){
+    return '<section class="qta-card"><div class="qta-section-heading"><div><h2>失分结构与长期表现</h2><p>哪些题型占了更多失分？百分比以当前范围内完整题型的累计失分为分母。</p></div></div>'+(r.totalLost>0?'<div class="qta-bars">'+r.rows.filter(function(g){return g.lost>0;}).sort(function(a,b){return b.lost-a.lost;}).map(function(g){return '<div class="qta-bar-row"><span>'+esc(title(g))+'</span><div class="qta-bar-track"><i style="width:'+Math.max(0,Math.min(100,g.contribution*100))+'%"></i></div><b>'+pct(g.contribution)+'</b></div>';}).join('')+'</div>':'<p class="qta-empty">'+(r.rate===null?'补齐得分与满分后显示失分结构。':'已录题型没有失分。')+'</p>')+'<details class="qta-metric-details"><summary>查看全部题型指标</summary><div class="qta-table-scroll" tabindex="0" role="region" aria-label="各题型统计指标"><table class="qta-metrics"><thead><tr><th scope="col">题型</th><th scope="col">得分率 / 失分率</th><th scope="col">占已录失分</th><th scope="col">场均失分</th><th scope="col">失分频次</th><th scope="col">难度标注</th><th scope="col">近期变化</th></tr></thead><tbody>'+ordered.map(function(g){return '<tr><th scope="row">'+esc(title(g))+'</th><td>'+pct(g.rate)+' / '+pct(g.lossRate)+'</td><td>'+pct(g.contribution)+'</td><td>'+fmt(g.count?g.lost/g.count:null)+' 分</td><td>'+g.lossCount+' / '+g.count+' 场</td><td>'+difficulty(g)+'</td><td>'+change(g)+'</td></tr>';}).join('')+'</tbody></table></div></details></section>';
+  }
+  function render(){
+    var c=settings(), names=subjects();
+    if(!names.includes(c.subject)){c.subject=names.find(function(n){return source().some(function(e){return (e.question_type_scores||{})[n]&&e.question_type_scores[n].length;});})||names[0]||'';}
+    var r=M.analyze(source(),Object.assign({},c,{targetRate:c.goals[c.subject]}));
+    if(r.exams.length&&typeof trackUsage==='function')trackUsage('question_type_analysis_viewed',{exam_id:r.exams[r.exams.length-1].id});
+    if(!c.viewChosen)c.view=r.recommended;
+    var ordered=M.ranked(r,c.view), cats=Array.from(new Set(source().map(function(e){return e.grade_level||'';})));
+    var showcase=String(state.user&&state.user.username||'').toLowerCase()==='showcase';
+    if(showcase&&!c.demoSelected&&cats.includes('题型演示')){c.category='题型演示';c.demoSelected=true;return render();}
+    var filters=field('subject','科目',names.map(function(n){return option(n,n,c.subject);}).join(''))+field('category','考试分类',option('*','全部分类',c.category)+cats.map(function(n){return option(n,n||'未分类',c.category);}).join(''))+field('limit','时间范围',option(5,'最近 5 场',c.limit)+option(10,'最近 10 场',c.limit)+option(0,'全部考试',c.limit));
+    var demo=showcase?'<p class="qta-notice"><b>showcase 演示账号</b> · 「题型演示」分类中的考试为合成数据。英语有起伏与阅读回落，物理有基础题反复失分；数学按「题型 + 位置」查看难题小问。切换「专项小测」可看不同满分、隐藏和待补全记录。</p>':'';
+    var intro='<div class="qta-heading"><div><span class="qta-eyebrow">看清每一分</span><h1>题型分析</h1><p>看清失分分布、历次变化与不同难度下的表现。</p></div><button type="button" data-qta-add>＋ 录入考试</button></div>';
+    var profile='<details class="qta-profile"><summary>水平与目标 <span>'+levels[r.level]+(r.targetRate!==null?' · 目标得分率 '+fmt(r.targetRate)+'%':'')+'</span></summary><div>'+field('level','当前侧重点',option('auto','根据近期原始分判断',c.level)+option('foundation','巩固基础',c.level)+option('balanced','稳步提升',c.level)+option('advanced','冲刺高分',c.level))+'<label><span>本科目标得分率（%）</span><input data-qta-goal type="number" min="1" max="100" step="0.1" inputmode="decimal" value="'+esc(c.goals[c.subject])+'" placeholder="'+(r.targetRate!==null?fmt(r.targetRate):'选填')+'"><small>留空时使用最近考试中可比的科目目标。</small></label></div><p class="qta-note">'+(r.levelRate===null?'缺少完整科目的原始成绩，可手动选择侧重点。':'当前范围最近 5 场中 '+r.levelCount+' 场原始成绩可用，加权得分率 '+pct(r.levelRate)+'。自动分组：低于 70% 巩固基础，85% 起冲刺高分。')+' 仅用于选择默认分析视角，可随时调整。</p></details>';
+    var summary='<div class="qta-summary"><div><span>有题型记录</span><strong>'+r.recorded+' <small>/ '+r.exams.length+' 场</small></strong></div><div><span>已录题型得分率</span><strong>'+pct(r.rate)+'</strong></div><div><span>卷面覆盖率</span><strong>'+pct(r.coverage)+'</strong></div><div><span>已录部分累计失分</span><strong>'+fmt(r.totalLost)+' <small>分</small></strong></div></div>';
+    var view='<div class="qta-perspectives" role="group" aria-label="分析视角">'+Object.keys(views).map(function(k){return '<button type="button" data-qta-view="'+k+'" aria-pressed="'+(c.view===k)+'">'+views[k]+(k===r.recommended?'<small>当前默认视角</small>':'')+'</button>';}).join('')+'</div>';
+    var status=r.incomplete||r.invalid?'<p class="qta-notice">'+(r.incomplete?r.incomplete+' 项得分或满分待补全。':'')+(r.invalid?r.invalid+' 项重复或格式异常记录已排除。':'')+'不完整的题型汇总不参与统计。</p>':'';
+    var empty='<section class="qta-card qta-empty"><h2>从一个题型开始</h2><p>在新建或编辑考试时，展开科目下的「题型得分」，填入得分与满分。<br>也可以在「试题录入」中识别并核对试卷，再同步到这里。</p><button type="button" data-qta-records>去考试记录补录</button></section>';
+    var method='<details class="qta-method"><summary>指标说明与排序口径</summary><ul><li>得分率＝有效记录得分之和 ÷ 对应满分之和；失分率＝1 − 得分率。原始分与赋分不混用。</li><li>失分贡献只在当前筛选范围的已录题型之间计算，不代表整张试卷。覆盖率以有卷面满分的考试为分母，未录题型不会当成零分。</li><li>失分频次为完整记录中出现失分的考试次数，不是错题数。难度与原因来自录入或图片中的明确标注，未标注时不作确定判断。</li><li>快速提分综合场均失分、失分频次、近期表现与难度，原因标注仅作补充信息；高分突破更重视已标注难题，并弱化分值大小的影响；全面分析侧重反复失分与近期下降。</li><li>视角只改变数据的查看重点，不给出具体学习建议。少于 3 场只作初步观察；趋势至少需要 4 场有效记录。不同题型覆盖、考试难度和学习阶段会影响比较。</li><li>按题型汇总会合计同名题型下已录的位置；分题覆盖变化时请切换到「题型 + 位置」。同名、同位置才对齐，位置请保持一致。</li></ul></details>';
+    var host=document.getElementById('content');if(!host)return;
+    host.innerHTML=tabs()+'<div class="qta-page">'+intro+demo+'<section class="qta-card qta-controls"><div class="qta-filters">'+filters+'</div><label class="qta-hidden-toggle"><input type="checkbox" data-qta-hidden'+(c.includeHidden?' checked':'')+'> 包含隐藏考试</label>'+profile+'</section>'+summary+status+view+(r.rows.length?opportunities(r,ordered)+history(r,ordered)+structure(r,ordered):empty)+method+'</div>';
+    bind(host,r);return r;
+  }
+  function rerender(focus){render();if(focus){var node=document.querySelector(focus);if(node)node.focus({preventScroll:true});}}
+  function bind(host,r){
+    host.querySelectorAll('[data-qta-filter]').forEach(function(el){el.onchange=function(){var key=el.dataset.qtaFilter;cfg[key]=el.value;if(key!=='selected')cfg.end=0;if(key==='group'||key==='subject')cfg.selected='';rerender('[data-qta-filter="'+key+'"]');};});
+    host.querySelector('[data-qta-hidden]').onchange=function(){cfg.includeHidden=this.checked;cfg.end=0;rerender('[data-qta-hidden]');};
+    host.querySelector('[data-qta-goal]').onchange=function(){if(this.value&&!this.checkValidity()){this.reportValidity();return;}cfg.goals[cfg.subject]=this.value;rerender('[data-qta-goal]');};
+    host.querySelectorAll('[data-qta-view]').forEach(function(b){b.onclick=function(){cfg.view=b.dataset.qtaView;cfg.viewChosen=true;rerender('[data-qta-view="'+cfg.view+'"]');};});
+    host.querySelectorAll('[data-qta-select]').forEach(function(b){b.onclick=function(){cfg.selected=b.dataset.qtaSelect;render();var h=document.querySelector('#qta-history');h.scrollIntoView({block:'start',behavior:'smooth'});h.querySelector('[data-qta-filter="selected"]').focus({preventScroll:true});};});
+    host.querySelectorAll('[data-qta-window]').forEach(function(b){b.onclick=function(){cfg.end=Number(b.dataset.qtaWindow);render();document.querySelector('#qta-history').scrollIntoView({block:'start'});};});
+    host.querySelectorAll('[data-qta-exam]').forEach(function(b){b.onclick=function(){if(window.ScoreExamDetail)window.ScoreExamDetail.open(b.dataset.qtaExam);};});
+    var positions=host.querySelector('[data-qta-position]');if(positions)positions.onclick=function(){cfg.group='position';cfg.selected='';cfg.end=0;rerender('[data-qta-filter="group"]');};
+    host.querySelector('[data-qta-add]').onclick=function(){openExam();};
+    var records=host.querySelector('[data-qta-records]');if(records)records.onclick=function(){state.page='records';renderPage();bindNav();};
+  }
+  document.addEventListener('click',function(e){var b=e.target.closest('[data-qta-tab]');if(!b)return;settings().tab=b.dataset.qtaTab;state.analysisTab=b.dataset.qtaTab==='types'?'types':'stats';renderPage();var active=document.querySelector('[data-qta-tab="'+cfg.tab+'"]');if(active)active.focus({preventScroll:true});});
+  window.ScoreQuestionTypeAnalysis={active:function(){return window.ScorePaperHub ? state.analysisTab==='types' : settings().tab==='types';},tabs:tabs,render:render,open:function(subject){var c=settings();c.tab='types';state.analysisTab='types';if(subject)c.subject=subject;state.page='stats';renderPage();bindNav();}};
+  var style=document.createElement('style');style.textContent=`
+.qta-tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin:0 0 24px;padding-bottom:10px}.qta-tabs button,.qta-page button{font:inherit;color:var(--text);cursor:pointer;border:1px solid var(--line);border-radius:9px;background:var(--panel-solid,#fff);min-height:40px;padding:9px 14px;font-size:13px}.qta-tabs button{border-color:transparent;background:transparent;font-size:14px}.qta-tabs [aria-pressed=true],.qta-perspectives [aria-pressed=true]{background:var(--accent-soft);color:var(--accent);border-color:var(--accent);font-weight:650}.qta-page{max-width:1180px;margin:auto auto 60px;color:var(--text);min-width:0}.qta-heading{display:flex;justify-content:space-between;gap:18px;align-items:center;margin-bottom:25px}.qta-eyebrow{font-size:12px;color:var(--accent);font-weight:650}.qta-heading h1{font-size:30px;margin:8px 0;line-height:1.35}.qta-heading p,.qta-section-heading p{font-size:13px;color:var(--muted);line-height:1.75;margin:6px 0 0}.qta-heading button{white-space:nowrap}.qta-card{padding:24px;border:1px solid var(--line);background:var(--panel-solid,#fff);border-radius:16px;margin-bottom:22px;min-width:0}.qta-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.qta-page label{display:grid;gap:7px;font-size:12px;color:var(--muted);min-width:0}.qta-page select,.qta-page input[type=number]{width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--line);border-radius:9px;background:var(--input-bg,var(--panel-solid,#fff));color:var(--text);min-height:42px;padding:9px 11px;font:inherit;font-size:14px}.qta-page label small{font-size:11px;line-height:1.6}.qta-hidden-toggle{display:flex!important;align-items:center;gap:7px!important;margin:15px 0 0;width:fit-content}.qta-hidden-toggle input{margin:0}.qta-profile{border-top:1px solid var(--line);padding-top:15px;margin-top:18px}.qta-profile summary{font-size:13px;cursor:pointer;line-height:1.8}.qta-profile summary span{color:var(--muted);margin-left:12px;font-size:12px}.qta-profile>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:15px}.qta-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin:26px 0}.qta-summary>div{padding:4px 18px;border-left:2px solid var(--line);display:grid;gap:10px;min-width:0}.qta-summary span{color:var(--muted);font-size:12px}.qta-summary strong{font-size:26px;font-weight:650;font-variant-numeric:tabular-nums}.qta-summary small{font-size:13px;font-weight:400;color:var(--muted)}.qta-perspectives{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:24px 0 18px}.qta-perspectives button{font-size:14px;min-height:54px}.qta-perspectives small{display:block;font-size:10px;font-weight:400;margin-top:4px}.qta-section-heading{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:22px}.qta-section-heading h2,.qta-empty h2{font-size:20px;line-height:1.5;margin:0}.qta-tag{font-size:12px;color:var(--accent);background:var(--accent-soft);padding:5px 9px;border-radius:6px;white-space:nowrap}.qta-opportunities{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.qta-opportunities article{padding:20px;border:1px solid var(--line);border-radius:12px;min-width:0;display:flex;flex-direction:column;align-items:flex-start}.qta-index{font-size:12px;color:var(--accent);font-weight:700}.qta-opportunities h3{font-size:18px;margin:12px 0;line-height:1.55;overflow-wrap:anywhere}.qta-tags{display:flex;flex-wrap:wrap;gap:6px}.qta-tags span{font-size:11px;background:var(--cell,#f6f7fa);color:var(--muted);padding:4px 7px;border-radius:5px}.qta-opportunities p{font-size:13px;line-height:1.8;margin:14px 0}.qta-opportunities .qta-evidence{font-size:12px;color:var(--muted);margin:0 0 12px;line-height:1.85;width:100%}.qta-evidence b{color:var(--text);font-weight:600}.qta-opportunities button{margin-top:16px;color:var(--accent);border:0;background:var(--accent-soft);font-size:12px}.qta-note,.qta-method{font-size:12px;color:var(--muted);line-height:1.85}.qta-note{margin:18px 0 0}.qta-history-controls{display:grid;grid-template-columns:1fr 2fr;gap:15px;margin:18px 0}.qta-chart-compact{display:none}.qta-chart{display:block;width:100%;height:auto;max-height:280px;margin-top:22px;overflow:visible}.qta-chart text{font-size:11px;fill:var(--muted);font-family:inherit}.qta-grid{stroke:var(--line);stroke-dasharray:3 4}.qta-line{stroke:var(--accent);stroke-width:2.5;fill:none}.qta-point{fill:var(--accent);stroke:var(--panel-solid,#fff);stroke-width:2}.qta-table-scroll{max-width:100%;overflow:auto;margin-top:22px;border:1px solid var(--line);border-radius:10px;overscroll-behavior-x:contain}.qta-page table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;font-variant-numeric:tabular-nums}.qta-page caption{text-align:left;padding:12px;color:var(--muted);line-height:1.7}.qta-page th,.qta-page td{padding:14px 12px;text-align:center;border-bottom:1px solid var(--line);min-width:90px}.qta-page th{font-weight:500;font-size:12px}.qta-page thead th{background:var(--cell,#f6f7fa);color:var(--muted)}.qta-page tbody th{text-align:left;min-width:110px;max-width:180px;overflow-wrap:anywhere}.qta-history thead th{min-width:115px}.qta-history th:first-child{position:sticky;left:0;z-index:1;background:var(--panel-solid,#fff);box-shadow:1px 0 var(--line)}.qta-page th button{font-size:12px;background:transparent;border:0;min-height:0;line-height:1.6;padding:0;text-align:inherit;overflow-wrap:anywhere;color:inherit}.qta-page th small{display:block;font-size:10px;font-weight:400;color:var(--muted);margin-top:6px}.qta-cell{display:block;border-radius:8px;padding:10px 6px;min-width:76px}.qta-cell b{font-size:14px;font-weight:650;white-space:nowrap}.qta-cell em{font-size:11px;font-style:normal;font-weight:400}.qta-cell small{display:block;font-size:11px;margin-top:6px}.qta-low{background:rgba(214,151,63,.13);color:var(--text)}.qta-mid{background:var(--accent-soft);color:var(--text)}.qta-high{background:rgba(50,167,122,.12);color:var(--text)}.qta-missing{color:var(--muted)}.qta-selected>th button{color:var(--accent);font-weight:700}.qta-pagination{display:flex;align-items:center;justify-content:space-between;margin-top:14px;gap:10px;color:var(--muted);font-size:12px}.qta-page button:disabled{opacity:.4;cursor:default}.qta-bars{display:grid;gap:17px;margin:24px 0}.qta-bar-row{display:grid;grid-template-columns:minmax(85px,1fr) minmax(0,3fr) 52px;align-items:center;gap:14px;font-size:13px}.qta-bar-row>span{overflow-wrap:anywhere}.qta-bar-row b{text-align:right;font-size:12px;font-weight:500}.qta-bar-track{height:9px;background:var(--cell,#f6f7fa);border-radius:8px;overflow:hidden}.qta-bar-track i{height:100%;display:block;background:var(--accent);border-radius:8px}.qta-metrics{min-width:780px}.qta-method summary{cursor:pointer;color:var(--text)}.qta-method ul{padding-left:18px}.qta-method li{margin:9px 0}.qta-empty{text-align:center;padding:35px 15px;font-size:13px;line-height:1.85;color:var(--muted)}.qta-empty h2{color:var(--text)}.qta-notice{font-size:12px;line-height:1.8;padding:13px 16px;border-radius:10px;background:var(--accent-soft);color:var(--text)}.qta-page :focus-visible,.qta-tabs :focus-visible{outline:2px solid var(--accent);outline-offset:3px}#qta-history{scroll-margin-top:20px}
+.qta-key-metrics{display:grid;grid-template-columns:1fr 1fr;gap:16px;width:100%;margin:20px 0 0}.qta-key-metrics dt{font-size:11px;color:var(--muted)}.qta-key-metrics dd{margin:6px 0 0;font-size:22px;font-weight:650;font-variant-numeric:tabular-nums}.qta-key-metrics small{font-size:12px;font-weight:400;color:var(--muted)}.qta-opportunities .qta-reading{font-size:13px;line-height:1.85;border-top:1px solid var(--line);padding-top:16px}.qta-annotations{font-size:12px;color:var(--muted);margin-top:auto;width:100%}.qta-annotations summary,.qta-metric-details>summary{cursor:pointer;font-size:12px;color:var(--muted)}.qta-annotations p{font-size:12px;margin:8px 0 0}.qta-metric-details{border-top:1px solid var(--line);padding-top:18px}.qta-metric-details>summary{font-size:13px;color:var(--text)}
+@media(max-width:1000px){.qta-opportunities{grid-template-columns:1fr}.qta-opportunities article{display:block}.qta-opportunities h3{display:inline;margin-left:10px}.qta-tags{margin-top:12px}.qta-opportunities .qta-evidence{margin:0 0 12px}.qta-summary strong{font-size:24px}}
+@media(max-width:620px){.qta-chart-wide{display:none}.qta-chart-compact{display:block}.qta-heading{align-items:flex-start;flex-wrap:wrap}.qta-heading h1{font-size:27px}.qta-heading p{font-size:12px}.qta-card{padding:19px 15px;border-radius:13px}.qta-filters{grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}.qta-filters>label:first-child{grid-column:1/-1}.qta-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 10px}.qta-summary>div{padding-left:12px}.qta-summary span{font-size:11px}.qta-summary strong{font-size:24px}.qta-perspectives{gap:5px}.qta-perspectives button{font-size:13px;padding:9px 3px}.qta-perspectives small{font-size:9px}.qta-profile summary span{display:block;margin:4px 0}.qta-profile>div{grid-template-columns:1fr}.qta-section-heading{gap:8px;flex-wrap:wrap}.qta-section-heading h2{font-size:19px}.qta-opportunities article{padding:17px 14px}.qta-history-controls{grid-template-columns:1fr}.qta-history thead th{min-width:105px}.qta-page tbody th{min-width:85px;max-width:110px}.qta-page th,.qta-page td{padding:12px 8px}.qta-bar-row{grid-template-columns:minmax(75px,1fr) minmax(0,1.5fr) 45px;gap:9px;font-size:12px}.qta-chart{min-height:150px}.qta-page select,.qta-page input[type=number]{font-size:16px}}
+`;document.head.appendChild(style);
+})();
+
 /* ===== exam-changes.js ===== */
 /* One explicit historical exam per comparison; ranks do not depend on scores or maxima. */
 (function () {
@@ -14689,6 +15122,1759 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   window.ScoreExamReflection = { mount: mount, leave: leave };
 })();
 
+/* ===== entry-rollout.js ===== */
+// The first production release includes transcription and manual review only.
+window.ScorePaperEntryOnly = true;
+
+/* ===== paper-review-support.js ===== */
+/* Local upload recovery and safely rendered report formulas. */
+(function () {
+  'use strict';
+  var database, mathLoading;
+  function openUploads() {
+    if (!window.indexedDB) return Promise.resolve(null);
+    if (!database) database = new Promise(function (resolve) {
+      var request = indexedDB.open('score-paper-uploads-v1', 1);
+      request.onupgradeneeded = function () { request.result.createObjectStore('uploads', { keyPath: 'key' }); };
+      request.onsuccess = function () { resolve(request.result); };
+      request.onerror = request.onblocked = function () { database = null; resolve(null); };
+    }).catch(function () { database = null; return null; });
+    return database;
+  }
+  async function uploads(operation, user, id, value) {
+    var db = await openUploads(); if (!db) return null;
+    return new Promise(function (resolve) {
+      var tx = db.transaction('uploads', operation === 'get' ? 'readonly' : 'readwrite'), store = tx.objectStore('uploads'), result;
+      var request = operation === 'put' ? store.put(Object.assign({}, value, { key: user + ':' + id, owner: user, id: id, at: Date.now() })) : operation === 'delete' ? store.delete(user + ':' + id) : operation === 'latest' ? store.getAll() : store.get(user + ':' + id);
+      request.onsuccess = function () {
+        result = request.result;
+        if (operation === 'latest') (result || []).forEach(function (r) { if (Date.now() - r.at >= 7 * 86400000) store.delete(r.key); });
+        if (operation === 'put') store.getAll().onsuccess = function (e) { e.target.result.filter(function (r) { return r.owner === user; }).sort(function (a, b) { return b.at - a.at; }).forEach(function (r, i) { if (i >= 8 || Date.now() - r.at >= 7 * 86400000) store.delete(r.key); }); };
+      };
+      tx.oncomplete = function () {
+        if (operation === 'latest') result = (result || []).filter(function (r) { return r.owner === user && r.scope === id && Date.now() - r.at < 7 * 86400000; }).sort(function (a, b) { return b.at - a.at; })[0];
+        if (operation === 'get' && result && (result.owner !== user || Date.now() - result.at > 7 * 86400000)) result = null;
+        resolve(operation === 'put' || operation === 'delete' ? true : result || null);
+      };
+      tx.onerror = tx.onabort = function () { resolve(null); };
+    }).catch(function () { return null; });
+  }
+  function script(src) {
+    return new Promise(function (resolve, reject) { var el = document.createElement('script'); el.src = src; el.onload = resolve; el.onerror = reject; document.head.appendChild(el); });
+  }
+  function ensureMath() {
+    if (window.katex && window.renderMathInElement) return Promise.resolve();
+    if (!mathLoading) {
+      var link = document.createElement('link'); link.rel = 'stylesheet'; link.href = './vendor/katex/katex.min.css?v=0.19.0'; document.head.appendChild(link);
+      mathLoading = script('./vendor/katex/katex.min.js?v=0.19.0').then(function () { return script('./vendor/katex/auto-render.min.js?v=0.19.0'); }).catch(function (e) { mathLoading = null; throw e; });
+    }
+    return mathLoading;
+  }
+  function legacyFormula(value) {
+    var supers = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁻': '-' }, subs = { '₀': '0', '₁': '1', '₂': '2', '₃': '3', '₄': '4', '₅': '5', '₆': '6', '₇': '7', '₈': '8', '₉': '9' };
+    var result = value.replace(/_{2,}/g, '\\underline{\\qquad}').replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+/g, function (s) { return '^{' + Array.from(s).map(function (c) { return supers[c]; }).join('') + '}'; }).replace(/[₀₁₂₃₄₅₆₇₈₉]+/g, function (s) { return '_{' + Array.from(s).map(function (c) { return subs[c]; }).join('') + '}'; });
+    result = result.replace(/_([A-Za-z]\d*|\d+)/g, '_{$1}').replace(/\^(-?\d+|[A-Za-z])/g, '^{$1}').replace(/([A-Za-z])([高低初末向弹绳底总始终])(\d*)/g, '$1_{\\text{$2}$3}').replace(/½/g, '\\frac{1}{2}').replace(/[−–]/g, '-').replace(/[·×]/g, '\\cdot ').replace(/π/g, '\\pi ').replace(/θ/g, '\\theta ').replace(/ω/g, '\\omega ').replace(/μ/g, '\\mu ').replace(/Δ/g, '\\Delta ').replace(/≤/g, '\\le ').replace(/≥/g, '\\ge ').replace(/√\(([^()]+)\)/g, '\\sqrt{$1}').replace(/√([A-Za-z0-9]+)/g, '\\sqrt{$1}');
+    // Only local atoms become fractions; no change to the written order of operations.
+    return result.replace(/([A-Za-z]+(?:[_^]\{[^{}]+\})*|\d+(?:\.\d+)?)\/([A-Za-z]+(?:[_^]\{[^{}]+\})*|\d+(?:\.\d+)?)/g, '\\frac{$1}{$2}');
+  }
+  function markLegacy(root) {
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), nodes = [], node;
+    while ((node = walker.nextNode())) if (!node.parentElement.closest('textarea,input,select,script,style,code,pre,.katex,.pr-math-source') && node.parentElement.closest('.pr-text,.pr-evidence,.pr-wins,.pr-success')) nodes.push(node);
+    nodes.forEach(function (node) {
+      var original = node.nodeValue, protectedRanges = [], protectedMatch, protectedMath = /(?:\$\$[\s\S]*?\$\$|\$[^$\n]+\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\])/g;
+      while ((protectedMatch = protectedMath.exec(original))) protectedRanges.push([protectedMatch.index, protectedMatch.index + protectedMatch[0].length]);
+      var re = /[A-Za-z0-9πθωμΔ½][A-Za-z0-9πθωμΔ√∛½高低初末向弹绳底总始终₀-₉⁰¹²³⁴⁵⁶⁷⁸⁹⁻_^{}().=+*/−–<>≤≥×·-]*/g, last = 0, fragment = document.createDocumentFragment(), match, changed = false;
+      while ((match = re.exec(original))) {
+        if (protectedRanges.some(function (range) { return match.index >= range[0] && match.index < range[1]; })) continue;
+        var value = match[0];
+        if (!/[=≤≥<>²³⁴⁵⁶⁷⁸⁹⁰¹_^]/.test(value) || value.length < 3 || !/[A-Za-zπθωμΔ]/.test(value)) continue;
+        var formula = legacyFormula(value);
+        try { window.katex.renderToString(formula, { throwOnError: true, trust: false, maxExpand: 1000, maxSize: 12, strict: 'ignore' }); } catch (_) { continue; }
+        fragment.appendChild(document.createTextNode(original.slice(last, match.index)));
+        var span = document.createElement('span'); span.className = 'pr-math-source'; span.textContent = '\\(' + formula + '\\)'; fragment.appendChild(span);
+        last = match.index + value.length; changed = true;
+      }
+      if (changed) { fragment.appendChild(document.createTextNode(original.slice(last))); node.replaceWith(fragment); }
+    });
+  }
+  async function renderMath(root) {
+    try {
+      await ensureMath(); if (!root.isConnected) return;
+      markLegacy(root);
+      window.renderMathInElement(root, { delimiters: [{ left: '$$', right: '$$', display: true }, { left: '\\[', right: '\\]', display: true }, { left: '\\(', right: '\\)', display: false }, { left: '$', right: '$', display: false }], ignoredTags: ['script', 'style', 'textarea', 'pre', 'code', 'option'], ignoredClasses: ['katex'], throwOnError: false, trust: false, maxExpand: 1000, maxSize: 12, strict: 'ignore' });
+    } catch (_) { /* Keep readable source when the local math asset cannot be loaded. */ }
+  }
+  function wins(q) {
+    return (q.wins || []).map(function (w) {
+      if (w.basis === 'work' && /^(?:[A-H]{1,8}|[+-]?\d+(?:\.\d+)?(?:[A-Za-z/²³]+)?|大于|小于|等于|相等|不相等|正确|错误|是|否)$/.test(w.observed.trim())) return { skill: '已给出本小问的判断', observed: w.observed, significance: '把关键理由补充出来，可以形成完整的得分步骤。', basis: 'work_result' };
+      return w;
+    });
+  }
+  // A reading-time projection of existing advice, never a new diagnosis or model call.
+  function nextExamTips(report) {
+    if (!report || report.record_only || report.analysis_stale || report.work_on_paper === false && !(report.source_pages || []).some(function (p) { return p.role === 'work'; })) return [];
+    var questions = (report.questions || []).filter(function (q) {
+      if (q.record_only || q.review_status && q.review_status !== 'reviewed' || q.score_verification === 'conflict' || ['strength', 'ai_strength', 'needs_confirmation', 'question_guidance'].includes(q.analysis_mode)) return false;
+      if (q.teacher_score != null && q.max_score != null && q.teacher_score >= q.max_score || q.ai_grading && q.ai_grading.status === 'confirmed' && q.ai_grading.verdict === 'correct') return false;
+      var readable = typeof q.answer === 'string' && q.answer.trim() && q.status !== 'unclear' && q.status !== 'blank'
+        || (q.subparts || []).some(function (p) { return p.status === 'answered' && p.answer; });
+      var issue = q.first_issue && q.first_issue.certainty === 'confirmed';
+      var loss = typeof q.teacher_score === 'number' && typeof q.max_score === 'number' && q.teacher_score < q.max_score;
+      var graded = q.ai_grading && q.ai_grading.status === 'confirmed' && ['incorrect', 'partial'].includes(q.ai_grading.verdict);
+      return readable && (issue || loss || graded) && typeof q.transfer_rule === 'string' && q.transfer_rule.trim();
+    });
+    var result = [], used = new Set();
+    function ruleKey(value) { return value.normalize('NFKC').replace(/\s+/g, '').replace(/\*\*/g, '').replace(/[。.!！;；]+$/, ''); }
+    function add(q) {
+      var key = ruleKey(q.transfer_rule);
+      var existing = result.find(function (tip) { return ruleKey(tip.text) === key; });
+      if (existing) { if (!existing.questions.includes(q.label)) existing.questions.push(q.label); used.add(q.label); return; }
+      if (result.length >= 3 || used.has(q.label)) return;
+      result.push({ text: q.transfer_rule.trim(), questions: [q.label] }); used.add(q.label);
+    }
+    // Keep the report's learning priorities, but do not turn its practice questions,
+    // solutions or speculative explanations into a generic exam checklist.
+    (report.action_plan || []).forEach(function (action) {
+      var q = (action.questions || []).map(function (label) { return questions.find(function (q) { return q.label === label; }); })
+        .find(function (q) { return q && !used.has(q.label); });
+      if (q) add(q);
+    });
+    questions.forEach(add);
+    return result;
+  }
+  // Small, deliberately non-HTML renderer. Keep math opaque while formatting prose;
+  // quotes and editable source transcripts never pass through this formatter.
+  function prose(value) {
+    var math = [], source = String(value == null ? '' : value).replace(/\r\n?/g, '\n');
+    // Private-use markers supplied by model/user text must not impersonate placeholders.
+    source = source.replace(/[\uE000\uE001]/g, '');
+    source = source.replace(/\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$[^$\n]+\$/g, function (s) { math.push(s); return '\uE000' + (math.length - 1) + '\uE001'; });
+    function inline(s) {
+      return escapeHtml(s).replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\uE000(\d+)\uE001/g, function (_, n) { return escapeHtml(math[Number(n)] || ''); });
+    }
+    var html = '', paragraph = [], list = '', items = [];
+    function flush() { if (paragraph.length) { html += '<p>' + inline(paragraph.join('\n')) + '</p>'; paragraph = []; } if (items.length) { html += '<' + list + '>' + items.join('') + '</' + list + '>'; items = []; list = ''; } }
+    source.split('\n').forEach(function (line) {
+      var item = line.match(/^\s*(?:(\d+)[.)、]|([-*•]))\s+(.+)$/), heading = line.match(/^\s*#{1,6}\s+(.+)$/);
+      if (!line.trim()) { flush(); return; }
+      if (heading) { flush(); html += '<p class="pr-prose-heading"><strong>' + inline(heading[1]) + '</strong></p>'; return; }
+      if (item) { var kind = item[1] ? 'ol' : 'ul'; if (paragraph.length || list && list !== kind) flush(); list = kind; items.push('<li' + (item[1] ? ' value="' + Number(item[1]) + '"' : '') + '>' + inline(item[3]) + '</li>'); return; }
+      if (items.length) flush(); paragraph.push(line);
+    });
+    flush(); return '<div class="pr-text pr-prose">' + html + '</div>';
+  }
+  async function fetchScan(page) {
+    async function read(url) { var controller=new AbortController(), timer=setTimeout(function(){controller.abort();},5000); try { var response=await fetch(url,{signal:controller.signal}); if(!response.ok)throw new Error('扫描件读取失败'); return response; } finally { clearTimeout(timer); } }
+    try { return await read(page.url); }
+    catch (e) { if(!page.fallback_url)throw e; var response=await read(page.fallback_url); page.url=page.fallback_url; return response; }
+  }
+  function useFallbackImages(root,pages) {
+    var entries=pages.filter(function(p){return p.fallback_url;}).map(function(p){return {page:p,url:p.url,fallback:p.fallback_url};});
+    function recover(e) { var img=e.target;if(!img||img.tagName!=='IMG')return;var entry=entries.find(function(v){return img.src===v.url;});if(!entry)return;entry.page.url=entry.fallback;img.src=entry.fallback;var link=img.closest('a');if(link&&link.href===entry.url)link.href=entry.fallback; }
+    root.addEventListener('error',recover,true);return function(){root.removeEventListener('error',recover,true);};
+  }
+  window.ScorePaperSupport = { uploads: uploads, renderMath: renderMath, legacyFormula: legacyFormula, wins: wins, prose: prose, nextExamTips: nextExamTips, fetchScan: fetchScan, useFallbackImages: useFallbackImages };
+})();
+
+/* ===== paper-scan-views.js ===== */
+/* Geometry references for screenshot localization. Originals stay unchanged. */
+(function(root){
+  'use strict';
+  function plan(width,height){
+    var boxes=[[0,0,1,1]],overlap=.055;
+    if(width>height*1.15||height>width*1.15){
+      var horizontal=width>height;
+      for(var i=0;i<3;i++){var start=Math.max(0,i/3-overlap),end=Math.min(1,(i+1)/3+overlap);boxes.push(horizontal?[start,0,end-start,1]:[0,start,1,end-start]);}
+    }else for(var y=0;y<2;y++)for(var x=0;x<2;x++){var left=Math.max(0,x/2-overlap),top=Math.max(0,y/2-overlap),right=Math.min(1,(x+1)/2+overlap),bottom=Math.min(1,(y+1)/2+overlap);boxes.push([left,top,right-left,bottom-top]);}
+    return boxes;
+  }
+  // Detect ink bands, without OCR or assumptions about question numbers/layout.
+  // Long ruling lines and isolated speckles are excluded from the row projection.
+  function rows(pixels,width,height){
+    var active=[],bands=[],start=-1,last=-1,columns=new Uint32Array(width);
+    for(var cy=0;cy<height;cy++)for(var cx=3;cx<width-3;cx++){var ci=(cy*width+cx)*4;if(pixels[ci]<140&&pixels[ci+1]<140&&pixels[ci+2]<140)columns[cx]++;}
+    for(var y=0;y<height;y++){
+      var count=0;
+      for(var x=3;x<width-3;x++){var i=(y*width+x)*4;if(columns[x]<height*.6&&pixels[i]<140&&pixels[i+1]<140&&pixels[i+2]<140)count++;}
+      active[y]=count>=Math.max(4,width*.003)&&count<width*.65;
+      if(active[y]){if(start<0)start=y;last=y;}
+      if(start>=0&&(!active[y]&&y-last>4||y===height-1)){
+        if(last-start>=2)bands.push([Math.floor(start/height*1000),Math.ceil((last+1)/height*1000)]);
+        start=-1;
+      }
+    }
+    return bands.length>1&&bands.length<=120&&!(bands.length<12&&bands.some(function(b){return b[1]-b[0]>100;}))?bands:[];
+  }
+  function frames(pixels,width,height){
+    var groups=[],last=-1000,radius=Math.max(2,Math.round(width*.005)),counts=new Uint32Array(width);
+    for(var y=0;y<height;y++){
+      var prefix=new Uint32Array(width+1);
+      for(var x=0;x<width;x++){var i=(y*width+x)*4;prefix[x+1]=prefix[x]+(pixels[i]<200&&pixels[i+1]<200&&pixels[i+2]<200?1:0);}
+      for(var x=3;x<width-3;x++)if(prefix[Math.min(width,x+radius+1)]>prefix[Math.max(0,x-radius)])counts[x]++;
+    }
+    for(var x=3;x<width-3;x++)if(counts[x]>height*.5){if(x-last>width*.02)groups.push([x,x]);else groups[groups.length-1][1]=x;last=x;}
+    groups=groups.filter(function(g){return g[1]-g[0]<width*.05;});
+    if(groups.length>12)return [];
+    var result=[];
+    for(var g=0;g<groups.length-1;g++)for(var next=g+1;next<groups.length;next++){
+      var a=groups[g],b=groups[next];if(b[0]-a[1]<width*.15)continue;
+      var start=-1,end=-1,best=[0,0];
+      for(var yy=0;yy<height;yy++){
+        var sides=[a,b].every(function(group){for(var xx=group[0];xx<=group[1];xx++){var j=(yy*width+xx)*4;if(pixels[j]<200&&pixels[j+1]<200&&pixels[j+2]<200)return true;}return false;});
+        if(sides){if(start<0)start=yy;end=yy;}
+        if(start>=0&&(!sides&&yy-end>10||yy===height-1)){if(end-start>height*.06)result.push([Math.floor(a[0]/width*1000),Math.floor(start/height*1000),Math.ceil((b[1]+1)/width*1000),Math.ceil((end+1)/height*1000)]);start=-1;}
+      }
+
+    }
+    result=result.filter(function(f){
+      if(f[3]-f[1]>=500)return true;
+      var left=Math.round(f[0]/1000*width),right=Math.min(width,Math.round(f[2]/1000*width));
+      return [f[1],f[3]].every(function(edge){var count=0,center=Math.round(edge/1000*height);for(var x=left;x<right;x++){for(var y=Math.max(0,center-8);y<Math.min(height,center+9);y++){var i=(y*width+x)*4;if(pixels[i]<200&&pixels[i+1]<200&&pixels[i+2]<200){count++;break;}}}return count>(right-left)*.8;});
+    });
+    result=result.filter(function(f){return !result.some(function(inner){return inner!==f&&inner[0]>=f[0]&&inner[2]<=f[2]&&inner[2]-inner[0]<f[2]-f[0]-10&&Math.min(inner[3],f[3])-Math.max(inner[1],f[1])>(f[3]-f[1])*.8;});});
+    var children=[],columns=result.filter(function(f){return f[3]-f[1]>=200&&f[3]-f[1]<=500&&!result.some(function(other){return other!==f&&other[0]<=f[0]+5&&other[2]>=f[2]-5&&other[2]-other[0]>f[2]-f[0]+10;});});
+    columns.forEach(function(frame){
+      var left=Math.round(frame[0]/1000*width),right=Math.min(width,Math.round(frame[2]/1000*width)),lines=[];
+      for(var y=3;y<height-3;y++){
+        if(result.some(function(f){return y>=f[1]/1000*height&&y<=f[3]/1000*height&&Math.min(f[2],frame[2])-Math.max(f[0],frame[0])>(frame[2]-frame[0])*.5;}))continue;
+        var n=0;for(var x=left;x<right;x++)for(var yy=y-3;yy<=y+3;yy++){var i=(yy*width+x)*4;if(pixels[i]<200&&pixels[i+1]<200&&pixels[i+2]<200){n++;break;}}
+        if(n>(right-left)*.55&&(lines.length===0||y-lines[lines.length-1]>5))lines.push(y);
+      }
+      for(var i=1;i<lines.length;i++)if(lines[i]-lines[i-1]>height*.035&&lines[i]-lines[i-1]<height*.2)children.push([frame[0],Math.max(0,Math.floor((lines[i-1]-6)/height*1000)),frame[2],Math.min(1000,Math.ceil((lines[i]+7)/height*1000))]);
+    });
+    return result.concat(children).filter(function(f,i,all){return all.findIndex(function(other){return other.join(',')===f.join(',');})===i;}).slice(0,12);
+  }
+  function focusFrames(pageFrames,width,height){
+    var compact=pageFrames.filter(function(f){return f[3]-f[1]<200&&(f[2]-f[0])*width/((f[3]-f[1])*height)>2;}).sort(function(a,b){return (b[2]-b[0])*(b[3]-b[1])-(a[2]-a[0])*(a[3]-a[1]);}).slice(0,2);
+    var columns=pageFrames.filter(function(f){return f[3]-f[1]>=200&&!pageFrames.some(function(other){return other!==f&&other[3]-other[1]>=200&&other[0]<=f[0]+5&&other[2]>=f[2]-5&&other[2]-other[0]>f[2]-f[0]+20;});});
+    return compact.concat(columns).slice(0,5);
+  }
+  function viewPlan(width,height,pageFrames){
+    var boxes=plan(width,height),focus=focusFrames(pageFrames,width,height);
+    // Retain coverage tiles for larger originals in case edge decoding is
+    // limited or a detected answer frame is incomplete.
+    if(focus.length&&width*height<=3000000)boxes=[[0,0,1,1]];
+    var baseCount=boxes.length;
+    focus.forEach(function(f){boxes.push([f[0]/1000,f[1]/1000,(f[2]-f[0])/1000,(f[3]-f[1])/1000]);});
+    return {boxes:boxes.slice(0,10),baseCount:baseCount};
+  }
+  function printedInk(pixels){
+    var result=new Uint8ClampedArray(pixels),changed=0;
+    for(var i=0;i<result.length;i+=4){var high=Math.max(result[i],result[i+1],result[i+2]),low=Math.min(result[i],result[i+1],result[i+2]);if(high-low>50&&high>100){result[i]=result[i+1]=result[i+2]=255;changed++;}}
+    return {pixels:result,changed:changed};
+  }
+  function build(source){
+    var canvas=document.createElement('canvas'),rowBands=[],pageFrames=[];
+    var overviewScale=Math.min(1,1600/Math.max(source.width,source.height));canvas.width=Math.round(source.width*overviewScale);canvas.height=Math.round(source.height*overviewScale);
+    var overview=canvas.getContext('2d');overview.fillStyle='#fff';overview.fillRect(0,0,canvas.width,canvas.height);overview.drawImage(source,0,0,canvas.width,canvas.height);
+    pageFrames=frames(overview.getImageData(0,0,canvas.width,canvas.height).data,canvas.width,canvas.height);
+    var planned=viewPlan(source.width,source.height,pageFrames),boxes=planned.boxes,baseCount=planned.baseCount;
+    var urls=boxes.map(function(box,viewIndex){
+      var sx=Math.round(box[0]*source.width),sy=Math.round(box[1]*source.height),sw=Math.min(source.width-sx,Math.round(box[2]*source.width)),sh=Math.min(source.height-sy,Math.round(box[3]*source.height));
+      // Keep geometry tied to the actual rounded pixel crop.
+      box.splice(0,4,sx/source.width,sy/source.height,sw/source.width,sh/source.height);
+      var scale=Math.min(viewIndex>=baseCount?3:1,(viewIndex===0?3200:2000)/Math.max(sw,sh),Math.sqrt(8000000/(sw*sh))),cw=Math.round(sw*scale),ch=Math.round(sh*scale),leftMargin=44,topMargin=22;
+      canvas.width=cw+88;canvas.height=ch+44;
+      var c=canvas.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,canvas.width,canvas.height);c.drawImage(source,sx,sy,sw,sh,leftMargin,topMargin,cw,ch);
+      var pixels=(viewIndex===0||viewIndex>=baseCount&&box[3]>.2)?c.getImageData(leftMargin,topMargin,cw,ch).data:null;
+      var bands=pixels?rows(pixels,cw,ch):[];rowBands.push(bands);
+      c.strokeStyle='rgba(30,100,200,.20)';c.lineWidth=1;c.font='bold 13px sans-serif';
+      for(var i=0;i<=10;i++){
+        var px=leftMargin+cw*i/10,py=topMargin+ch*i/10,label=String(i*100);
+        c.beginPath();c.moveTo(px,topMargin);c.lineTo(px,topMargin+ch);c.moveTo(leftMargin,py);c.lineTo(leftMargin+cw,py);c.stroke();
+        c.fillStyle='#1e64c8';c.fillText(label,Math.min(px,canvas.width-c.measureText(label).width),14);c.fillText(label,leftMargin+cw+3,Math.min(py+5,canvas.height-3));
+      }
+      c.font='bold 11px sans-serif';c.fillStyle='#174ca8';
+      bands.forEach(function(band,index){c.fillText('L'+(index+1),2,topMargin+band[0]/1000*ch+10);});
+      if(viewIndex===0)pageFrames.forEach(function(frame,index){c.fillText('F'+(index+1),leftMargin+(frame[0]+frame[2])/2000*cw,Math.max(14,topMargin+frame[1]/1000*ch-4));});
+      // Separate colored corrections from black printed labels for small answer grids.
+      // Both model panels refer to the same original crop; only the upper panel grades.
+      if(viewIndex>=baseCount&&box[3]<.2){
+        canvas.width=cw;canvas.height=ch;c=canvas.getContext('2d');c.drawImage(source,sx,sy,sw,sh,0,0,cw,ch);
+        var original=c.getImageData(0,0,cw,ch),cleaned=printedInk(original.data),caption=26;
+        if(cleaned.changed>cw*ch*.0005){
+          canvas.height=2*(ch+caption);c=canvas.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,cw,canvas.height);c.putImageData(original,0,caption);
+          original.data.set(cleaned.pixels);c.putImageData(original,0,ch+2*caption);c.fillStyle='#174ca8';c.font='bold 15px sans-serif';c.fillText('A 原图：读取批改分',8,18);c.fillText('B 隐藏彩色批改：只核对印刷题号，不读得分',8,ch+caption+18);
+        }
+      }
+      return encode(canvas);
+    });
+    canvas.width=canvas.height=1;return {regions:urls,region_boxes:boxes,region_rows:rowBands,page_frames:pageFrames,region_focus:boxes.map(function(_,i){return i;}).filter(function(i){return i>=baseCount;})};
+  }
+  function encode(canvas) {
+    // Keep full resolution whenever possible; dense photos shrink automatically.
+    var qualities=[.92,.86,.80,.74,.68],encoded;
+    for(var q=0;q<qualities.length;q++){encoded=canvas.toDataURL('image/jpeg',qualities[q]);if(encoded.length<=2800000)return encoded;}
+    var copy=document.createElement('canvas');
+    try {
+      while(Math.max(canvas.width,canvas.height)>1024){
+        copy.width=canvas.width;copy.height=canvas.height;copy.getContext('2d').drawImage(canvas,0,0);
+        canvas.width=Math.round(copy.width*.85);canvas.height=Math.round(copy.height*.85);
+        canvas.getContext('2d').drawImage(copy,0,0,canvas.width,canvas.height);
+        encoded=canvas.toDataURL('image/jpeg',.80);if(encoded.length<=2800000)return encoded;
+      }
+      throw new Error('图片处理未完成，请重新选择');
+    } finally {copy.width=copy.height=1;}
+  }
+  root.ScorePaperScanViews={encode:encode,plan:plan,viewPlan:viewPlan,build:build,rows:rows,frames:frames,focusFrames:focusFrames,printedInk:printedInk};
+  if(typeof module!=='undefined'&&module.exports)module.exports=root.ScorePaperScanViews;
+})(globalThis);
+
+/* ===== paper-review.js ===== */
+/* Subject-level paper review. Scores and the existing vision quota are untouched. */
+(function () {
+  'use strict';
+  function entryOnly() { return window.ScorePaperEntryOnly === true; }
+  var support = window.ScorePaperSupport;
+  var ENDPOINT = '/api/score-tracker-paper-review', MAX_PAGES = 15;
+  var PREVIEW_RELAY = 'https://assets.tantantan.tech/paper-preview-upload';
+  var PREVIEW_HOST = /^(?:feat-paper-entry-analysis-fl|[0-9a-f]{8})\.score-tracker-d83\.pages\.dev$/i;
+  var roleNames = { paper: '试卷', work: '答题卡 / 作答', reference: '参考答案' };
+  var esc = function (v) { return escapeHtml(String(v == null ? '' : v)); };
+  var paperDebug = { enabled: false, events: [], maxEvents: 240, visibleEvents: 80 };
+  try {
+    var debugQuery = new URLSearchParams(window.location.search || '');
+    paperDebug.enabled = PREVIEW_HOST.test(window.location.hostname) || debugQuery.get('paper_debug') === '1' || window.localStorage.getItem('score_paper_debug') === '1';
+  } catch (_) { paperDebug.enabled = PREVIEW_HOST.test(window.location.hostname); }
+  window.__scorePaperDebug = paperDebug;
+  function debugChanged() {
+    if (!paperDebug.enabled) return;
+    try { window.dispatchEvent(new CustomEvent('score-paper-debug')); } catch (_) {}
+  }
+  function debugEvent(value) {
+    if (!paperDebug.enabled) return;
+    paperDebug.events.push(Object.assign({ at: Date.now() }, value));
+    if (paperDebug.events.length > paperDebug.maxEvents) paperDebug.events.splice(0, paperDebug.events.length - paperDebug.maxEvents);
+    debugChanged();
+  }
+  function debugNow() { return window.performance && window.performance.now ? window.performance.now() : Date.now(); }
+  function debugDuration(ms) { return ms < 1000 ? Math.round(ms) + ' ms' : (ms / 1000).toFixed(2) + ' s'; }
+  function debugHtml() {
+    if (!paperDebug.enabled) return '';
+    var visible = paperDebug.events.slice(-paperDebug.visibleEvents), rows = visible.reverse().map(function (e) {
+      return '<tr><td>' + esc(e.action || e.stage || '') + '</td><td>' + esc(e.route || '') + '</td><td>' + esc(e.status == null ? '—' : e.status) + '</td><td>' + esc(debugDuration(e.ms || 0)) + '</td><td>' + esc(e.note || (e.bytes ? Math.round(e.bytes / 1024) + ' KB' : '')) + '</td></tr>';
+    }).join('');
+    var route = PREVIEW_HOST.test(window.location.hostname) ? '预览：支持阿里云优先保存' : '当前入口：未启用阿里云优先保存';
+    return '<details class="pr-debug" data-pr-debug open><summary>上传调试信息（已记录 ' + paperDebug.events.length + ' 条，保留最近 ' + paperDebug.maxEvents + ' 条）</summary><p><b>' + esc(route) + '</b> · 页面：' + esc(window.location.hostname) + '</p><p class="pr-muted">阿里云只负责图片快速落盘；Supabase 负责登记与后台备份。若出现“回退”，说明本次没有走阿里云。下方显示最近 ' + Math.min(paperDebug.events.length, paperDebug.visibleEvents) + ' 条，按时间倒序。</p><div class="pr-debug-scroll"><table><thead><tr><th>动作</th><th>路径</th><th>状态</th><th>耗时</th><th>请求大小 / 说明</th></tr></thead><tbody>' + (rows || '<tr><td colspan="5">还没有网络动作</td></tr>') + '</tbody></table></div></details>';
+  }
+  function number(v) { return v === '' || v == null || !Number.isFinite(Number(v)) ? null : Number(v); }
+  // Calibrated from completed screenshot-entry records; individual layouts and
+  // additional reads vary considerably, so this is a range rather than a fee.
+  function creditEstimate(pages,location) {
+    var n=pages.length;if(!n)return '';
+    var rates=location==='none'?[8,20]:location==='paper'?[10,25]:[10,30];
+    function round(v){return Math.max(5,Math.round(v/5)*5);}
+    return round(n*rates[0])+'～'+round(n*rates[1]);
+  }
+  function owner() { return String(state.user && state.user.id || ''); }
+  function key(user) { return 'st_paper_drafts_v1_' + user; }
+  function drafts(user) { try { return JSON.parse(localStorage.getItem(key(user)) || '{}'); } catch (_) { return {}; } }
+  function putDraft(user, name, value) { var all = drafts(user); if (value) all[name] = value; else delete all[name]; try { localStorage.setItem(key(user), JSON.stringify(all)); } catch (_) {} }
+  function draftFor(user, id) { var all = drafts(user), slot = id || 'new'; if (!all[slot]) { all[slot] = crypto.randomUUID(); putDraft(user, slot, all[slot]); } return all[slot]; }
+  function current(ctx) { return ctx.user === owner() && ctx.token === state.token; }
+  async function api(ctx, action, payload) {
+    if(entryOnly()&&(action==='analyze_record'||action==='retry_scores'||action==='correct'&&payload&&payload.reanalyze===true))throw new Error('试卷分析暂未开放');
+    if (!current(ctx)) throw new Error('账号已切换，请重新打开考试');
+    var useRelay = PREVIEW_HOST.test(window.location.hostname) && (action === 'upload_page' || action === 'upload_page_view');
+    var controller = new AbortController(), timer = setTimeout(function () { controller.abort(); }, useRelay ? 50000 : 20000);
+    try {
+      var body = JSON.stringify(Object.assign({ action: action, token: ctx.token }, payload || {}));
+      var requestStarted = debugNow();
+      var res;
+      if (useRelay) {
+        var relayController = new AbortController(), relayTimer = setTimeout(function () { relayController.abort(); }, 25000);
+        var relayStarted = debugNow();
+        try {
+          res = await fetch(PREVIEW_RELAY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: relayController.signal, body: body });
+          debugEvent({ action: action, route: '阿里云', status: res.status, ms: debugNow() - relayStarted, bytes: body.length, note: res.headers && res.headers.get ? (res.headers.get('x-score-sync') || '') : '' });
+        }
+        catch (e) {
+          debugEvent({ action: action, route: '阿里云→回退', status: '网络失败', ms: debugNow() - relayStarted, bytes: body.length, note: e && e.name === 'AbortError' ? '阿里云中转超时' : '无法连接阿里云中转' });
+        }
+        finally { clearTimeout(relayTimer); }
+        if (res && [404, 405, 502, 503, 504].includes(res.status)) {
+          debugEvent({ action: action, route: '阿里云→回退', status: res.status, ms: 0, note: '中转不可用，改走同源接口' });
+          res = null;
+        }
+      }
+      if (!res) {
+        if (!current(ctx)) throw new Error('账号已切换，请重新打开考试');
+        var fallbackStarted = debugNow();
+        res = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal, body: body });
+        debugEvent({ action: action, route: useRelay ? 'Supabase回退' : 'Supabase', status: res.status, ms: debugNow() - fallbackStarted, bytes: body.length, note: useRelay ? '本次未使用阿里云图片落盘' : '' });
+      }
+      var data = await res.json().catch(function () { return {}; });
+      if (!current(ctx)) throw new Error('账号已切换，请重新打开考试');
+      if (!res.ok) { var err = new Error(data.error || '试卷分析服务暂不可用，请稍后重试'); err.status = res.status; throw err; }
+      return data;
+    } catch (e) { debugEvent({ action: action, route: useRelay ? '阿里云/回退' : 'Supabase', status: '异常', ms: debugNow() - requestStarted, note: e.message || '请求失败' }); if (e.name === 'AbortError') throw new Error('连接超时，请稍后查看分析记录'); throw e; }
+    finally { clearTimeout(timer); }
+  }
+  function prepare(file) {
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return Promise.reject(new Error('第一版支持 JPG、PNG、WebP 图片；PDF 请先导出为图片'));
+    if (file.size > 20 * 1024 * 1024) return Promise.reject(new Error('单张图片请控制在 20MB 以内'));
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file), image = new Image();
+      image.onerror = function () { URL.revokeObjectURL(url); reject(new Error('这张图片打不开，请重新选择')); };
+      image.onload = function () {
+        var canvas = document.createElement('canvas');
+        try {
+          var w = image.naturalWidth, h = image.naturalHeight;
+          if (!w || !h || w * h > 40000000) throw new Error('图片尺寸过大，请分成几页上传');
+          var scale = Math.min(1, 3600 / Math.max(w, h));
+          canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale);
+          var c = canvas.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, canvas.width, canvas.height); c.drawImage(image, 0, 0, canvas.width, canvas.height);
+          var views=window.ScorePaperScanViews.build(canvas);
+          var encoded=window.ScorePaperScanViews.encode(canvas);
+          resolve({ url: encoded, name: file.name, regions: views.regions, region_boxes:views.region_boxes,region_rows:views.region_rows,page_frames:views.page_frames,region_focus:views.region_focus });
+        } catch (e) { reject(e); } finally { URL.revokeObjectURL(url); canvas.width = canvas.height = 1; }
+      };
+      image.src = url;
+    });
+  }
+  function detailRegions(source, w, h) {
+    // Geometry-based tiles keep small marks readable without assuming a column layout.
+    if (w < 1800 && h < 2400) return [];
+    var columns = Math.max(1, Math.ceil(w / 1600)), rows = Math.max(1, Math.ceil(h / 1800));
+    while (columns * rows > 6) { if (columns > 1 && (rows === 1 || w / columns < h / rows)) columns--; else rows--; }
+    var regions = [], canvas = document.createElement('canvas');
+    for (var i = 0; i < columns; i++) { for (var row = 0; row < rows; row++) {
+      var left = Math.max(0, Math.floor(w * (i / columns - 0.04))), right = Math.min(w, Math.ceil(w * ((i + 1) / columns + 0.04)));
+      var top = Math.max(0, Math.floor(h * (row / rows - 0.06))), bottom = Math.min(h, Math.ceil(h * ((row + 1) / rows + 0.06)));
+      var scale = Math.min(1, 2600 / Math.max(right - left, bottom - top));
+      canvas.width = Math.round((right - left) * scale); canvas.height = Math.round((bottom - top) * scale);
+      canvas.getContext('2d').drawImage(source, left, top, right - left, bottom - top, 0, 0, canvas.width, canvas.height);
+      regions.push(canvas.toDataURL('image/jpeg', 0.9));
+    } }
+    canvas.width = canvas.height = 1; return regions;
+  }
+  async function rotate(page) {
+    var image = new Image();
+    await new Promise(function (resolve, reject) { image.onload = resolve; image.onerror = reject; image.src = page.url; });
+    var canvas = document.createElement('canvas'); canvas.width = image.height; canvas.height = image.width;
+    var c = canvas.getContext('2d'); c.translate(canvas.width, 0); c.rotate(Math.PI / 2); c.drawImage(image, 0, 0);
+    page.url = canvas.toDataURL('image/jpeg', 0.92); var views=window.ScorePaperScanViews.build(canvas);page.regions=views.regions;page.region_boxes=views.region_boxes;page.region_rows=views.region_rows;page.page_frames=views.page_frames;page.region_focus=views.region_focus; canvas.width = canvas.height = 1;
+  }
+  async function restoreScoreDetails(ctx, id, update) {
+    var scans = await api(ctx, 'sources', { request_id: id });
+    for (var page of scans.pages || []) {
+      if (page.has_details || page.role === 'reference') continue;
+      update('正在准备第 ' + page.page + ' 页清晰图…');
+      var response = await support.fetchScan(page);
+      if (!response.ok) throw new Error('扫描件读取失败，请重试');
+      var blob = await response.blob(), hash = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
+      var digest = Array.from(new Uint8Array(hash)).map(function (n) { return n.toString(16).padStart(2, '0'); }).join('');
+      var prepared = await prepare(blob);
+      if (prepared.regions.length) await api(ctx, 'save_score_details', { request_id: id, page: page.page, source_sha256: digest, regions: prepared.regions });
+    }
+  }
+  function button(label, action, cls) { return '<button type="button" class="pr-button ' + (cls || '') + '" data-pr="' + action + '">' + label + '</button>'; }
+  function summary(report) {
+    var verified = 0, score = 0, max = 0, scored = 0, losses = [];
+    report.result.questions.forEach(function (q) {
+      var c = (report.corrections || []).find(function (c) { return c.id === q.id; });
+      if (!c || !c.verified) return;
+      verified++;
+      if (c.teacher_score !== null && c.max_score !== null) {
+        score += c.teacher_score; max += c.max_score; scored++;
+        if (c.teacher_score < c.max_score) losses.push({ label: q.label, loss: c.max_score - c.teacher_score });
+      }
+    });
+    return { verified: verified, score: Math.round(score * 100) / 100, max: Math.round(max * 100) / 100, scored: scored, losses: losses.sort(function (a, b) { return b.loss - a.loss; }) };
+  }
+  function bullets(items) { return '<ul>' + (items || []).map(function (s) { return '<li class="pr-text">' + esc(s) + '</li>'; }).join('') + '</ul>'; }
+  function prose(value) { return support.prose(value); }
+  function fold(title, content, cls) { return content ? '<details class="pr-fold ' + (cls || '') + '"><summary>' + title + '</summary><div class="pr-fold-body">' + content + '</div></details>' : ''; }
+  function questionLinks(labels, report) {
+    return (labels || []).map(function (label) { var q = report.questions.find(function (q) { return q.label === label; }); return q ? button('第 ' + esc(label) + ' 题', 'focus:' + q.id, 'pr-link') : ''; }).join(' ');
+  }
+  var causeNames = { uncertain: '还不确定', time: '当时没时间', idea: '当时没思路', execution: '有思路，计算或执行卡住', reading: '读题或理解偏了', expression: '会做，但表达或步骤不完整' };
+  function elapsed(ms) { var sec = Math.max(0, Math.floor(ms / 1000)); return Math.floor(sec / 60) + ' 分 ' + sec % 60 + ' 秒'; }
+  function runningReport(r) {
+    var record = r.options && r.options.purpose==='record', p = r.progress || {}, steps = p.steps || (record ? ['识别试题', '读取作答与批改分', '整理识别结果'] : ['录入题目与作答', '核对批改与填涂', '分析优势和失分原因', '综合复盘与建议']), completed = p.completed_steps == null ? 0 : p.completed_steps;
+    return '<section class="pr-progress" aria-label="分析进度"><h3>' + esc(p.message || '正在接收分析任务') + '</h3><p class="pr-text">' + esc(p.detail || '正在读取上传资料。') + '</p><ol class="pr-milestones">' + steps.map(function (title, i) { return '<li class="' + (i < completed ? 'is-done' : i === completed ? 'is-current' : '') + '"><span aria-hidden="true">' + (i < completed ? '✓' : i + 1) + '</span>' + title + '<small>' + (i < completed ? '已完成' : i === completed ? '进行中' : '等待中') + '</small></li>'; }).join('') + '</ol>' +
+      (record && p.version>=4 ? '<p class="pr-scan-counts">已处理 <b>'+esc(p.completed_pages)+' / '+esc(p.total_pages)+'</b> 页 · 已定位 <b>'+esc(p.total_questions)+'</b> 题<br>已关联作答 <b>'+esc(p.linked_questions)+'</b> 题 · 已读批改分 <b>'+esc(p.readable_marks)+'</b> 题</p><div class="pr-page-statuses">'+(p.page_statuses||[]).map(function(x){return '<span class="pr-page-'+esc(x.status)+'">第 '+esc(x.page)+' 页 '+(x.status==='done'?'✓':x.status==='current'?'处理中':'等待')+'</span>';}).join('')+'</div>' : p.total_questions ? '<p>已录入 <b>' + p.total_questions + '</b> 题'+(record?'':' · 已分析 <b>' + (p.completed_questions || 0) + '</b> / ' + p.total_questions + ' 题')+' · 可读批改 ' + (p.readable_marks || 0) + ' 处</p>' : '') +
+      (p.current_questions && p.current_questions.length ? '<p class="pr-current-questions">本轮：第 ' + esc(p.current_questions.join('、')) + ' 题</p>' : '') +
+      '<p class="pr-muted">本轮已等待 ' + elapsed(Date.now() - Date.parse(p.run_started_at || r.created_at)) + ' · 当前阶段 ' + elapsed(Date.now() - Date.parse(p.phase_started_at || r.created_at)) + '</p><p class="pr-muted">' + (record ? '进度自动更新，可稍后返回查看识别结果。' : '复杂题会单独分析，阶段耗时可能不同。进度每 3 秒自动更新；你可以返回填写考试，稍后在分析记录中查看。') + '</p>' + button('刷新状态', 'report:' + r.request_id) + '</section>';
+  }
+  function difficultySections(q) {
+    var d = q.difficulty; if (!d) return '';
+    var names = { thinking: '思考 / 建模', calculation: '计算负担', reading: '信息整合', expression: '表达论证' };
+    return fold('难度 ' + d.overall + ' / ' + (d.scale || 5) + ' · 为什么这样评', prose(d.reason) + '<div class="pr-dimensions">' + Object.keys(names).map(function (axis) { var a = (d.dimensions || {})[axis]; return a && a.score != null ? '<span>' + names[axis] + ' <b>' + a.score + '/' + (d.scale || 5) + '</b><small>' + esc(a.reason) + '</small></span>' : ''; }).join('') + '</div><p class="pr-evidence">题目原文：' + esc(d.evidence_quote) + '</p><p class="pr-muted">按题目要求估计，不是对你能力的评分。</p>', 'pr-difficulty');
+  }
+  function reflectionRoute(q, cause) {
+    var h = q.cause_analysis && q.cause_analysis.hypotheses.find(function (h) { return h.kind === cause; });
+    if (h) return '按你的回忆，下一步可尝试：' + h.if_confirmed;
+    return { time: '先不看答案重做一次。如果能独立完成，再计时练习，看看哪一步花的时间最多。', idea: '从已经写对的那一步接着做。需要提示时只看下一步，再合上答案，试着说明为什么这样做。', execution: '保留已经列对的式子或思路，分步重做，检查是哪一步算错或漏了条件。', reading: '用自己的话复述题目要求，圈出刚才漏看或看错的条件，再重新作答。', expression: '先把理由说完整，再补写题目要求的步骤或材料依据。', uncertain: '可以先试着重做，再补充你卡在哪一步。' }[cause] || '';
+  }
+  function causeSections(q, correction) {
+    var c = q.cause_analysis; if (!c || q.analysis_mode === 'strength' || q.analysis_mode === 'needs_confirmation') return '';
+    var reflection = correction && correction.reflection, cause = reflection && reflection.cause || 'uncertain';
+    return '<details class="pr-fold pr-cause"><summary>回想一下，当时为什么没做出来？</summary><div class="pr-fold-body">' + (c && c.observation ? prose(c.observation) : '') +
+      (c && c.hypotheses.length ? c.hypotheses.map(function (h) { return '<article><p class="pr-text"><b>先试一下：</b>' + esc(h.check) + '</p><details><summary>为什么做这个验证</summary><p>' + esc(h.explanation) + '</p><p class="pr-evidence">' + esc(h.evidence) + (h.counter_evidence ? '；' + esc(h.counter_evidence) : '') + '</p></details></article>'; }).join('') : '') +
+      '<label>' + esc(c && c.question || '当时更接近哪种情况？') + '<select data-field="cause">' + Object.keys(causeNames).map(function (key) { return '<option value="' + key + '" ' + (key === cause ? 'selected' : '') + '>' + causeNames[key] + '</option>'; }).join('') + '</select></label><label>补充当时的情况（可选）<textarea data-field="reflection_note" maxlength="500" rows="2" placeholder="例如：还剩两分钟，只写出了第一步">' + esc(reflection && reflection.note || '') + '</textarea></label><p class="pr-reflection-route pr-text">' + esc(reflectionRoute(q, cause)) + '</p><p class="pr-muted">保存后，会结合你的回忆调整建议。</p></div></details>';
+  }
+  function positiveSections(report) {
+    var wins = report.questions.filter(function (q) { return q.wins && q.wins.length; });
+    wins.sort(function (a, b) { function weight(q) { return (q.difficulty && q.difficulty.overall || 0) + (support.wins(q).some(function (w) { return w.basis === 'work'; }) ? 3 : 0); } return weight(b) - weight(a); });
+    function card(q) { return '<article class="pr-win-card"><h4>第 ' + esc(q.label) + ' 题</h4>' + support.wins(q).slice(0, 2).map(function (w) { return prose(w.skill) + fold('看作答和说明', '<p class="pr-evidence">你的作答：' + esc(w.observed) + '</p>' + prose(w.significance)); }).join('') + questionLinks([q.label], report) + '</article>'; }
+    return wins.length ? '<section class="pr-insight pr-wins"><h3>这些地方做得不错</h3>' + wins.slice(0, 2).map(card).join('') + (wins.length > 2 ? fold('还有 ' + (wins.length - 2) + ' 题做得不错', wins.slice(2).map(card).join(''), 'pr-more-wins') : '') + '</section>' : '';
+  }
+
+  function contextSections(report) {
+    var c = report.exam_context; if (!c) return '';
+    var lines = [];
+    function score(label, key, max) { if (c[key] != null) lines.push(label + ' ' + c[key] + (c[max] == null ? '' : ' / ' + c[max])); }
+    function rank(label, key, count) { if (c[key] != null) lines.push(label + ' ' + c[key] + (c[count] == null ? '（未填人数）' : ' / ' + c[count] + ' 人')); }
+    score('本学科最终分', 'score', 'max'); score('本学科原始分', 'raw_score', 'raw_max');
+    if (c.target != null) lines.push('本学科目标分 ' + c.target);
+    rank('本学科年排', 'year_rank', 'year_count'); rank('本学科班排', 'class_rank', 'class_count'); rank('总分年排', 'total_year_rank', 'total_year_count'); rank('总分班排', 'total_class_rank', 'total_class_count');
+    return '<details class="pr-context"><summary>本次分析采用的考试信息</summary><p class="pr-muted">' + (c.source === 'saved_exam' ? '来自本账号已保存的考试数值。' : '来自开始分析时考试表单的数值。') + '原始分、最终分和不同范围的排名分别保留；不从排名推断具体失分原因。</p>' + bullets(lines) + '</details>';
+  }
+  function settingsSection(report) {
+    var s = report.options; if (!s) return '';
+    var names = { strengths: '优势与得分步骤', difficulty: '题目难度', causes: '失分诊断', solutions: '关键解答', practice: '针对性练习', patterns: '跨题共性', plan: '复习计划' };
+    return '<details class="pr-context"><summary>本份报告的分析设置</summary><p>' + (s.purpose === 'record' ? '只录入题目、作答和批改' : (s.modules || []).map(function (k) { return names[k]; }).filter(Boolean).join(' · ')) + '</p><p>讲解：' + ({ brief: '简洁', standard: '标准', detailed: '详细' })[s.detail] + ' · 单轮运行上限：' + s.time_budget_minutes + ' 分钟</p>' + (s.goal ? '<p class="pr-text">学习目标：' + esc(s.goal) + '</p>' : '') + '</details>';
+  }
+  function accountSections(report) {
+    var c = report.account_context;
+    if (!c) return '';
+    if (!c.enabled) return '<section class="pr-insight pr-account-context"><h4>历史成绩对照已关闭</h4><p class="pr-muted">本份报告只使用本次资料。</p></section>';
+    if (c.status !== 'available') return '<section class="pr-insight pr-account-context"><h4>账号成绩对照</h4>' + prose(c.note || '本次没有可用的历史记录。') + '</section>';
+    var d = c.difficulty || {}, p = c.prediction || {}, points = c.trajectory || [];
+    var html = '<section class="pr-insight pr-account-context"><h4>这次放在历史里怎么看</h4>';
+    if (d.index != null) html += '<p>成绩页难度参考：<strong>' + esc(d.index) + '</strong>（组内平均为 50）。换到历史平均难度，约相当于 <strong>' + esc(d.equivalent_score) + ' / ' + esc(d.max) + '</strong>。</p>' + prose(d.note) + (d.quality === 'limited' ? '<p class="pr-muted">参考较弱：' + esc((d.warnings || []).join('；')) + '</p>' : '');
+    else html += prose(d.note || '可比较的成绩记录不足，暂不估计历史难度。');
+    if (p.status === 'available') html += '<h4>考前预测回看</h4><p>按考前记录重算的排名位置：前 <strong>' + esc(p.predicted_position_percent) + '%</strong>；本次实际：前 <strong>' + esc(p.actual_position_percent) + '%</strong>。</p><p>' + (p.improvement_points > 0 ? '本次比该预测靠前 ' : p.improvement_points < 0 ? '本次比该预测靠后 ' : '本次与该预测接近，差值为 ') + esc(Math.abs(p.improvement_points)) + ' 个百分点。</p>' + prose(p.note);
+    else html += prose(p.note || '考前记录不足，暂不比较预测。');
+    if (points.length) {
+      var x = function(i){return 30 + i * 440 / Math.max(1, points.length - 1);}, y = function(v){return 16 + v * 1.2;};
+      html += '<h4>同科成绩轨迹</h4><p class="pr-muted">纵向为年级排名位置，越靠上越好；横向按考试先后排列。仅比较同分类、参考人数相近的考试。</p><svg viewBox="0 0 500 165" role="img" aria-label="同科历史排名位置轨迹" style="width:100%;max-height:210px"><line x1="30" y1="16" x2="30" y2="136" stroke="currentColor" opacity=".3"/><text x="0" y="20" font-size="10" fill="currentColor">前0%</text><text x="0" y="140" font-size="10" fill="currentColor">100%</text><polyline fill="none" stroke="var(--accent,#5d72e8)" stroke-width="2" points="' + points.map(function(o,i){return x(i)+','+y(o.position_percent);}).join(' ') + '"/>' + points.map(function(o,i){return '<circle cx="'+x(i)+'" cy="'+y(o.position_percent)+'" r="'+(o.current?5:3)+'" fill="var(--accent,#5d72e8)"><title>'+esc(o.date+'：前'+o.position_percent+'%')+'</title></circle>';}).join('') + '<text x="30" y="158" font-size="10" fill="currentColor">'+esc(points[0].date)+'</text><text x="470" y="158" text-anchor="end" font-size="10" fill="currentColor">'+esc(points[points.length-1].date)+'</text></svg>';
+      html += '<details><summary>查看各次成绩与排名</summary><div style="overflow-x:auto"><table><thead><tr><th>日期</th><th>得分 / 满分</th><th>年排 / 人数</th><th>排名位置</th></tr></thead><tbody>' + points.map(function(o){return '<tr><td>'+esc(o.date)+(o.current?' · 本次':'')+'</td><td>'+esc(o.score+' / '+o.max)+'</td><td>'+esc((o.rank==null?'—':o.rank)+' / '+o.participants)+'</td><td>前'+esc(o.position_percent)+'%</td></tr>';}).join('') + '</tbody></table></div></details>';
+    }
+    return html + '</section>';
+  }
+  function scoreBreakdown(report) {
+    var scored = report.questions.filter(function (q) { return typeof q.teacher_score === 'number' && typeof q.max_score === 'number'; });
+    var losses = scored.filter(function (q) { return q.teacher_score < q.max_score; }).sort(function (a, b) { return (b.max_score - b.teacher_score) - (a.max_score - a.teacher_score); });
+    var full = scored.filter(function (q) { return q.teacher_score === q.max_score; });
+    var lost = scored.reduce(function (n, q) { return n + q.max_score - q.teacher_score; }, 0);
+    var focus = losses.slice(0, 2), focusLost = focus.reduce(function (n, q) { return n + q.max_score - q.teacher_score; }, 0);
+    var lines = [];
+    if (full.length) lines.push('第 ' + full.map(function (q) { return q.label; }).join('、') + ' 题获得满分。');
+    if (focus.length) lines.push('失分最集中的题目是第 ' + focus.map(function (q) { return q.label; }).join('、') + ' 题，共失 ' + Math.round(focusLost * 100) / 100 + ' 分，占已录入失分的 ' + Math.round(focusLost / lost * 100) + '%。');
+    return { text: lines.join(''), count: scored.length, lost: lost };
+  }
+  function chapter(id, number, title, description) { return '<section class="pr-reading-section" data-report-section="' + id + '" tabindex="-1"><div class="pr-chapter"><span>' + number + '</span><div><h3>' + title + '</h3><p>' + description + '</p></div></div>'; }
+  function overallData(report) {
+    return report.overall || { strengths: report.questions.flatMap(function(q){return support.wins(q).slice(0,1).map(function(w){return {title:w.skill,detail:w.significance,questions:[q.label]};});}).slice(0,3), gaps: report.questions.filter(function(q){return q.first_issue && q.first_issue.certainty==='confirmed' && q.review_status!=='teacher_conflict';}).slice(0,3).map(function(q){return {title:q.first_issue.location,detail:q.first_issue.explanation,questions:[q.label]};}), difficulty:report.questions.filter(function(q){return q.difficulty;}).map(function(q){return Object.assign({label:q.label},q.difficulty);}), paper_summary:report.paper_summary || '' };
+  }
+  function metric(label, value, note) { return '<div class="pr-metric"><span>'+label+'</span><strong>'+esc(value)+'</strong><small>'+esc(note)+'</small></div>'; }
+  function reportMetrics(report) {
+    var paired=report.questions.filter(function(q){return number(q.teacher_score)!==null && number(q.max_score)!==null;}), total=report.total || {}, conflict=report.score_check && report.score_check.status==='conflict';
+    var hasTotal=number(total.score)!==null, score=hasTotal?total.score:paired.reduce(function(n,q){return n+q.teacher_score;},0), max=hasTotal?total.max:paired.reduce(function(n,q){return n+q.max_score;},0), known=hasTotal || paired.length>0;
+    var rated=overallData(report).difficulty || [], scales=Array.from(new Set(rated.map(function(d){return d.scale||5;}))), mean=rated.length && scales.length===1?Math.round(rated.reduce(function(n,d){return n+d.overall;},0)/rated.length*10)/10:null;
+    var html=metric(hasTotal?'原卷批改得分':'已录入题目得分',known?Math.round(score*100)/100+(number(max)!==null?' / '+max:''):'待补充',conflict?'分数合计存在差异，请先核对':hasTotal?'来自卷面明确的总分':'仅汇总得分与满分均明确的 '+paired.length+' 题');
+    var maxNote = total.max_source === 'saved_exam' ? '满分来自已关联考试的成绩记录' : total.max_source === 'printed_section_sum' ? '满分由卷面各部分印刷分值汇总' : total.max_source === 'printed_question_sum' ? '满分由完整题目印刷分值汇总' : '按原卷得分与满分计算';
+    html+=metric(hasTotal?'卷面得分率':'已录入部分得分率',known&&max>0&&score<=max&&!conflict?Math.round(score/max*1000)/10+'%':'暂无法确定',hasTotal?maxNote:'不是整卷得分率');
+    html+=metric('题目难度估计',mean!==null?mean+' / '+scales[0]:rated.length?'标尺不同':'暂无法判断',mean!==null?'已评 '+rated.length+' 题的平均值；AI 估计':rated.length?'含旧版五分制，逐题分别查看':'需要清晰、完整的题目条件');
+    html+=metric('分析覆盖',report.questions.length+' 题',report.complete?'已识别上传资料中的题目':'资料或分析尚有待补充内容');
+    return '<div class="pr-overall-metrics">'+html+'</div>';
+  }
+  function reportSections(report, updating) {
+    if(report.record_only)return '';
+    var core=overallData(report), actions=report.action_plan||[], headline=report.headline || core.headline, hasWork=report.work_on_paper!==false || (report.source_pages||[]).some(function(p){return p.role==='work';});
+    function findings(items,empty){return items.length?items.slice(0,2).map(function(x){return '<article><strong>'+esc(x.title)+'</strong>'+questionLinks(x.questions,report)+'</article>';}).join(''):'<p class="pr-muted">'+empty+'</p>';}
+    var html=chapter('highlights','01','本次整体分析','先了解整体表现，再按需要查看具体题目。')+reportMetrics(report);
+    if(headline)html+='<p class="pr-headline">'+esc(headline)+'</p>';
+    if(report.overview && report.overview!==headline)html+=fold('查看整体评价',prose(report.overview),'pr-overview');
+    html += nextExamSection(report, updating);
+    html+='<div class="pr-overall-findings"><section class="pr-overall-win"><h4>做得好的地方</h4>'+findings(core.strengths||[],hasWork?'现有资料暂不足以归纳具体优势，可先查看逐题记录。':'补充作答后，可分析已经做对的部分。')+'</section><section class="pr-overall-gap"><h4>最需要留意的地方</h4>'+findings(core.gaps||[],hasWork?'暂未确认具体问题；待核对的题目不会直接判为薄弱。':'当前仅分析题目要求，不判断个人不足。')+'</section></div>';
+    if(actions.length)html+=button('查看练习与复习安排','jump:plan');
+    var exp=report.options && report.options.exam_experience;
+    if(exp && (exp.completion!=='unknown'||exp.checked!=='unknown'||exp.note))html+='<p class="pr-recollection">按你的回忆：'+esc([({finished:'做完了试卷',unfinished:'有题目没做完'})[exp.completion],({yes:'检查过',no:'没来得及检查',partly:'只检查了部分'})[exp.checked],exp.note].filter(Boolean).join('；'))+'。这用于辅助判断，不直接作为逐题错因。</p>';
+    html+='</section>'+chapter('performance','02','试卷难度与得分分布','分别看题目要求和实际得分，找到需要进一步了解的部分。');
+    html+=prose(core.paper_summary || report.paper_summary || '结合下方逐题评价查看试卷要求；资料不足时暂不作整体难度判断。');
+    if(core.difficulty && core.difficulty.length)html+='<p class="pr-muted">按题目要求估计，不由你的对错决定，也不是全体考生的实测难度。</p>'+fold('查看每题难度与得分','<div class="pr-table-scroll"><table class="pr-difficulty-table"><thead><tr><th>题号</th><th>难度估计</th><th>批改得分</th><th>主要难点</th></tr></thead><tbody>'+report.questions.map(function(q){var d=core.difficulty.find(function(d){return d.label===q.label;});return '<tr><td>'+esc(q.label)+'</td><td>'+(d?d.overall+'/'+(d.scale||5):'待评')+'</td><td>'+(q.teacher_score!=null?esc(q.teacher_score)+(q.max_score!=null?' / '+esc(q.max_score):''):'待补充')+'</td><td>'+esc(d&&d.reason||'资料不足')+'</td></tr>';}).join('')+'</tbody></table></div>');
+    if(scoreBreakdown(report).text)html+='<p class="pr-score-summary">'+esc(scoreBreakdown(report).text)+'</p>';
+    var losses=report.questions.filter(function(q){return q.teacher_score!=null&&q.max_score!=null&&q.teacher_score<q.max_score;}).sort(function(a,b){return (b.max_score-b.teacher_score)-(a.max_score-a.teacher_score);});
+    if(losses.length)html+='<div class="pr-loss-map">'+losses.map(function(q){return '<span>第 '+esc(q.label)+' 题 <b>−'+Math.round((q.max_score-q.teacher_score)*100)/100+' 分</b></span>';}).join('')+'</div><p class="pr-muted">仅按明确的逐题批改分汇总，不含 AI 估分；失分多少不等于修复优先级。</p>';
+    if((report.score_groups||[]).length)html+='<h4>卷面分组得分</h4><div class="pr-loss-map">'+report.score_groups.map(function(g){return '<span>'+esc(g.label)+' <b>'+(g.teacher_score==null?'得分待确认':esc(g.teacher_score))+(g.max_score==null?'':' / '+esc(g.max_score))+'</b></span>';}).join('')+'</div><p class="pr-muted">分组总分不分摊到小题，也不与逐题得分重复相加。</p>';
+    if((report.ai_grade_checks||[]).length)html+='<h4>逐题判分与整组得分核对</h4>'+report.ai_grade_checks.map(function(g){return '<p class="pr-insight">'+esc(g.label)+'：逐题合计 <strong>'+esc(g.compared_score)+'</strong>，卷面分组 <strong>'+esc(g.teacher_group_score)+'</strong>。'+esc(g.note)+'</p>';}).join('');
+    if(report.context_summary)html+=fold('结合本次考试信息看表现',prose(report.context_summary));
+    html+='</section>'+chapter('insights','03','做得好的方法与主要问题','结论对应具体题目；多道题之间的共同特点在这里归纳。');
+    html+=positiveSections(report);
+    if(!(core.strengths||[]).length && (report.strengths||[]).length)html+=bullets(report.strengths);
+    if((core.gaps||[]).length)html+='<div class="pr-key-gaps"><h4>已经确认的关键问题</h4>'+core.gaps.map(function(g){return '<article><strong>'+esc(g.title)+'</strong>'+prose(g.detail)+questionLinks(g.questions,report)+'</article>';}).join('')+'</div>';
+    if((report.patterns||[]).length)html+='<div class="pr-patterns"><h4>几道题之间的联系</h4>'+report.patterns.map(function(p){return '<article class="pr-pattern"><h4>'+esc(p.title)+(p.confidence==='low'?' <small>还需验证</small>':'')+'</h4>'+prose(p.interpretation)+questionLinks(p.questions,report)+fold('查看依据与反例',prose(p.evidence))+'</article>';}).join('')+'</div>';
+    else html+='<p class="pr-muted">'+(report.options && !report.options.modules.includes('patterns')?'本次未展开多题共性分析。':'暂未发现有足够依据的重复特点，不从单道题扩大判断。')+'</p>';
+    return html+'</section>';
+  }
+  function nextExamSection(report, updating) {
+    var tips = updating ? [] : support.nextExamTips(report);
+    var empty = updating ? '正在更新分析，完成后会同步整理考前提醒。'
+      : report.analysis_stale ? '作答或分数已修改，请先更新分析，再整理考前提醒。'
+      : report.work_on_paper === false && !(report.source_pages || []).some(function (p) { return p.role === 'work'; }) ? '补充考试时的作答后，才能整理适合你的考前提醒。'
+      : '本次暂没有足够依据整理具体提醒；可先查看逐题复盘，不必额外增加检查任务。';
+    return '<aside class="pr-next-exam" aria-label="下次考试注意点"><h4>下次考试注意点</h4>' +
+      (tips.length ? '<p class="pr-muted">考前快速回看，遇到相应题型时用上。仅根据本次复盘整理，不代表长期薄弱点。</p><ol>' + tips.map(function (tip) {
+        return '<li>' + prose(tip.text) + '<div class="pr-tip-sources"><span class="pr-muted">来自本次：</span>' + questionLinks(tip.questions, report) + '</div></li>';
+      }).join('') + '</ol>' : '<p class="pr-muted">' + empty + '</p>') + '</aside>';
+  }
+  function reportPlan(report) {
+    if(report.record_only)return '';
+    var actions=report.action_plan||[], html=chapter('plan','05','接下来的练习与复习','先解决最值得投入的问题，再用具体任务检查是否掌握。');
+    if(report.options && report.options.study_minutes)html+='<p class="pr-muted">你的复习安排：每天约 '+report.options.study_minutes+' 分钟。</p>';
+    function action(a,i){return '<article class="pr-action"><div class="pr-action-heading"><span class="pr-step-number">'+(i+1)+'</span><h4>'+esc(a.title)+'</h4></div>'+prose(a.task)+'<div class="pr-success"><b>做到这样就可以：</b>'+prose(a.success_check)+'</div>'+(a.timebox?'<p class="pr-muted">练习安排：'+esc(a.timebox)+'</p>':'')+questionLinks(a.questions,report)+fold('为什么先做这件事',prose(a.reason))+'</article>';}
+    if(actions.length)html+='<div class="pr-action-plan">'+actions.slice(0,2).map(action).join('')+(actions.length>2?fold('后续还有 '+(actions.length-2)+' 项安排',actions.slice(2).map(function(a,i){return action(a,i+2);}).join('')):'')+'</div>';
+    else if((report.priorities||[]).length)html+=bullets(report.priorities);
+    else html+='<p class="pr-muted">'+(report.options && !report.options.modules.includes('plan')?'本次未生成复习计划，可按逐题建议订正。':'现有资料暂不足以安排可靠的补弱任务，可先核对作答。')+'</p>';
+    return html+'</section>';
+  }
+  function reportDetails(report) { return contextSections(report)+settingsSection(report)+((report.uncertainties||[]).length?fold('补充信息与核对项',bullets(report.uncertainties)):''); }
+  function aiGradingSection(q) {
+    var g = q.ai_grading;
+    if (!g || q.record_only) return '';
+    if (g.status !== 'confirmed') return '<aside class="pr-insight pr-ai-grade"><h4>AI 判分待复核</h4><p>' + esc(g.reason || '独立核对尚未一致，暂不填写逐题得分。') + '</p></aside>';
+    var numeric = typeof g.score === 'number', title = numeric ? 'AI 判分：' + g.score + ' / ' + q.max_score : 'AI 核对：' + (g.verdict === 'correct' ? '答案正确' : g.verdict === 'partial' ? '部分正确' : '答案有误');
+    return '<aside class="pr-insight pr-ai-grade"><h4>' + esc(title) + '</h4><p>' + esc(g.source === 'provided' ? '已核对提供的参考答案' : 'AI 已独立求解并复核') + '；不是老师逐题批改分，不会改动考试成绩。' + (!numeric ? '满分或评分规则未确认，只判断作答，不编造数值分数。' : '') + '</p><p>参考结论：' + esc(g.answer_key) + '</p>' + prose(g.comparison) + fold('查看核对依据', prose(g.solution_check) + (g.reference_quote ? '<p class="pr-evidence">参考原文：' + esc(g.reference_quote) + '</p>' : '') + '<p class="pr-muted">' + esc(g.from_image ? '作答已从原图独立复核。' : '基于已保存的作答转录。') + '</p>') + '</aside>';
+  }
+  function aiGradeBadge(q) {
+    var g = q.ai_grading;
+    return typeof g.score === 'number' ? 'AI ' + g.score + ' / ' + q.max_score + ' 分' : 'AI ' + (g.verdict === 'correct' ? '答案正确' : g.verdict === 'partial' ? '部分正确' : '答案有误');
+  }
+  function solutionSections(q) {
+    return (q.transfer_rule ? fold('下次遇到类似题', prose(q.transfer_rule)) : '') + (q.reference ? fold(q.reference_source === 'provided' ? '参考答案与解题步骤' : '解题讲解 · AI 解析', prose(q.reference), 'pr-solution') : '');
+  }
+  function questionSections(q, correction) {
+    if (q.record_only) return '';
+    var html = q.detail_level === 'overview' ? '<p class="pr-muted">本题按你的设置展示简短结论，未生成详细解答和练习。</p>' : '';
+    if (q.analysis_mode === 'strength' || q.analysis_mode === 'ai_strength') return html + '<p class="pr-full-credit">' + (q.analysis_mode === 'ai_strength' ? 'AI 已核对这道题的答案正确。' : '这道题已得满分。') + '</p>' + (q.wins && q.wins.length ? support.wins(q).map(function (w) { return prose(w.skill) + fold('看作答和说明', '<p class="pr-evidence">' + esc(w.observed) + '</p>' + prose(w.significance)); }).join('') : '') + solutionSections(q) + difficultySections(q);
+    if (q.analysis_mode === 'needs_confirmation' || q.analysis_mode === 'question_guidance') html += '<p class="pr-muted">' + esc(q.confirmation_prompt || '以下按题目条件讲解，不据此评价你的个人表现。') + '</p>';
+    if(q.correct_steps && q.correct_steps.length) html += '<section class="pr-correct-prefix"><h4>已经做对的部分</h4>'+bullets(q.correct_steps)+'</section>';
+    var issue = q.first_issue;
+    if (q.review_status === 'teacher_conflict') html += '<p class="pr-warning">批改与 AI 判断有分歧，请先核对；暂不据此判定薄弱。</p>';
+    if (issue && issue.certainty === 'confirmed') html += '<div class="pr-first-issue"><h4>问题出在这里 · ' + esc(issue.location) + '</h4>' + prose(issue.explanation) + '<h4>这一步这样改</h4>' + prose(issue.correction) + fold('对照你的作答', '<p class="pr-evidence">' + esc(issue.observed) + '</p>') + '</div>';
+    else if (q.loss_reason) html += '<h4>这道题的问题</h4>' + prose(q.loss_reason) + (q.evidence ? fold('对照你的作答', '<p class="pr-evidence">' + esc(q.evidence) + '</p>') : '');
+    html += causeSections(q, correction);
+    if (q.suggestion && (!issue || q.suggestion !== issue.correction)) html += '<h4>接着怎么做</h4>' + prose(q.suggestion);
+    if (q.practice) html += fold('练一道，看看会不会了', prose(q.practice) + '<div class="pr-success"><b>检查一下：</b>' + prose(q.success_check) + '</div>' + (q.practice_answer ? fold('做完再看答案', prose(q.practice_answer)) : ''), 'pr-practice');
+    html += solutionSections(q);
+    html += difficultySections(q);
+    if (q.uncertainties && q.uncertainties.length) html += '<details class="pr-open-questions"><summary>本题补充信息</summary>' + bullets(q.uncertainties) + '</details>';
+    return html;
+  }
+  function formContext(ctx, subject) {
+    var card = Array.from(ctx.modal.querySelectorAll('.exam-subject-card-v10')).find(function (c) { return c.querySelector('.exam-subject-name-v10').value.trim() === subject; });
+    function val(selector, node) { var el = (node || ctx.modal).querySelector(selector); return el ? number(el.value) : null; }
+    return { score: val('.actual-v16', card), max: val('.max-v16', card), raw_score: val('.raw-v16', card), raw_max: val('.rawmax-v16', card), target: val('.target-v16', card), year_rank: val('.year-rank-v16', card), year_count: val('.year-participants-v16', card) || val('#totalParticipantsV16'), class_rank: val('.class-rank-v16', card), class_count: val('.class-participants-v16', card) || val('#totalClassParticipantsV16'), total_year_rank: val('#totalRankV16'), total_year_count: val('#totalParticipantsV16'), total_class_rank: val('#totalClassRankV16'), total_class_count: val('#totalClassParticipantsV16') };
+  }
+  function show(ctx, subject, trigger) {
+    if (!current(ctx) || !(ctx.host || ctx.modal).isConnected) return toast('请重新打开考试');
+    if (ctx.dialog) return;
+    // Missing ids are always a fresh attempt. Resumption is explicit: the hub
+    // passes the saved draft id when the user chooses to continue a draft.
+    if (!ctx.draftId) ctx.draftId = crypto.randomUUID();
+    var session = ctx.sessions[subject] || (ctx.sessions[subject] = { pages: [], workOnPaper: true, consent: false, pending: null });
+    var dialog = document.createElement(ctx.host ? 'section' : 'dialog'); dialog.className = ctx.host ? 'pr-dialog pr-inline' : 'pr-dialog'; dialog.setAttribute('aria-labelledby', 'pr-title');
+    var busy = false, dirty = false, saving = false, quietSave = false, closed = false, timer, selected = null, reviews = [], quota = null, view = 'upload', initialSection = ctx.initialSection, autoSaveTimer;
+    var cacheScope = ctx.draftId + '|' + subject, cacheQueue = Promise.resolve(), restoredUploads = false;
+    ctx.dialog = dialog;
+    dialog.innerHTML = '<header class="pr-head"><div><span class="pr-eyebrow">' + esc(subject) + ' · BETA</span><h2 id="pr-title">' + (ctx.options && ctx.options.purpose==='record'?'试题与得分':'AI 分析') + '</h2></div>' + button(esc(ctx.closeLabel || (ctx.host ? '返回试卷列表' : '返回考试')), 'close') + '</header><div class="pr-content"><div class="pr-message" role="status" aria-live="polite"></div><div class="pr-tabs">' + button('上传资料', 'upload', 'is-active') + button('分析记录', 'history') + '</div><div class="pr-main"></div></div>';
+    (ctx.host || document.body).appendChild(dialog);
+    if (dialog.showModal) dialog.showModal(); else dialog.setAttribute('open', '');
+    var main = dialog.querySelector('.pr-main'), message = dialog.querySelector('.pr-message');
+    var debugListener = function () {
+      if (!paperDebug.enabled) return;
+      var node = main.querySelector('[data-pr-debug]');
+      if (!node) return;
+      var open = node.open;
+      node.outerHTML = debugHtml();
+      var replacement = main.querySelector('[data-pr-debug]');
+      if (replacement) replacement.open = open;
+    };
+    if (paperDebug.enabled) window.addEventListener('score-paper-debug', debugListener);
+    var floatingNote=document.createElement('div'), floatingTimer;floatingNote.className='pr-floating-note';floatingNote.setAttribute('aria-hidden','true');floatingNote.hidden=true;dialog.appendChild(floatingNote);
+    function note(text, error) { message.textContent = text || ''; message.classList.toggle('is-error', !!error);clearTimeout(floatingTimer);floatingNote.hidden=true;if(!text)return;var rect=message.getBoundingClientRect(),offscreen=rect.top<0||rect.bottom>window.innerHeight||!rect.height;if(view==='report'||offscreen||error){floatingNote.textContent=text;floatingNote.classList.toggle('is-error',!!error);floatingNote.hidden=false;if(!error&&!/正在|请稍候|保存中/.test(text))floatingTimer=setTimeout(function(){floatingNote.hidden=true;},2600);} }
+    function alive() { return !closed && current(ctx) && (ctx.host ? ctx.host.isConnected && (ctx.isActive ? ctx.isActive() : state.page === 'stats' && ['ai','papers'].includes(state.analysisTab)) : ctx.modal.isConnected && state.modal === ctx.modal); }
+    function close(force) {
+      if (!force && dirty && !confirm('核对修改尚未保存，确定返回考试吗？')) return;
+      closed = true; clearTimeout(timer); clearTimeout(autoSaveTimer); clearTimeout(floatingTimer); cleanup.disconnect(); if (paperDebug.enabled) window.removeEventListener('score-paper-debug', debugListener); ctx.dialog = null;
+      if (dialog.close) dialog.close(); dialog.remove(); if (ctx.host && ctx.onClose && !force) ctx.onClose(); else if (trigger && trigger.isConnected) trigger.focus();
+    }
+    var cleanup = new MutationObserver(function () { if (!(ctx.host || ctx.modal).isConnected || (!ctx.host && state.modal !== ctx.modal) || !current(ctx)) close(true); });
+    ctx.canLeave = function () { return !dirty || confirm('核对修改尚未保存，确定离开吗？'); };
+    ctx.dispose = function () { close(true); };
+    cleanup.observe(document.body, { childList: true, subtree: true });
+    dialog.addEventListener('cancel', function (e) { e.preventDefault(); close(false); });
+    function tab(next) {
+      if (dirty && !confirm('核对修改尚未保存，确定切换吗？')) return false;
+      // Keep the live status node when the upload contents are replaced.
+      if (main.contains(message)) main.before(message);
+      dirty = false; view = next; if (ctx.onView) ctx.onView(next);
+      dialog.querySelectorAll('.pr-tabs button').forEach(function (b) { b.classList.toggle('is-active', b.dataset.pr === next); });
+      return true;
+    }
+    function snapshot() {
+      var payload = session.payload && Object.assign({}, session.payload); if (payload) delete payload.pages;
+      return { scope: cacheScope, pages: session.pages, workOnPaper: session.workOnPaper, workLocation: session.workLocation, consent: session.consent, pending: session.pending, payload: payload, retrySubmission: !!session.retrySubmission, cloudDraftId: session.cloudDraftId, cloudReady: session.cloudReady, cloudSync: session.cloudSync || null };
+    }
+    var cloudSyncTask = null;
+    function ecsManifest(id) {
+      return session.pages.map(function (scan, i) {
+        var upload = scan.cloud_upload, assets = upload && Array.isArray(upload.assets) ? upload.assets.filter(Boolean) : [];
+        return { page: i + 1, role: scan.role, asset: assets[0], detail_assets: assets.slice(1), separate_views: upload && upload.separate_views === true, expected_views: upload && upload.separate_views === true ? (upload.expected_views || (scan.regions || []).length) : undefined, region_boxes: scan.region_boxes, region_rows: scan.region_rows, page_frames: scan.page_frames, region_focus: scan.region_focus };
+      });
+    }
+    function hasPendingEcsUpload() {
+      return session.pages.some(function (scan) { return scan.cloud_upload && scan.cloud_upload.sync_pending === true; });
+    }
+    async function registerEcsMaterials(id) {
+      if (!hasPendingEcsUpload()) return null;
+      if (cloudSyncTask && cloudSyncTask.id === id) return cloudSyncTask.promise;
+      session.cloudSync = { request_id: id, page_count: session.pages.length, status: 'pending' };
+      session.cloudReady = false;
+      var promise = api(ctx, 'register_ecs_materials', { request_id: id, pages: ecsManifest(id) }).then(function (result) {
+        session.cloudReady = true;
+        session.cloudSync = { request_id: id, page_count: session.pages.length, status: 'ready', storage: result.storage || 'aliyun_primary' };
+        session.pages.forEach(function (scan) { if (scan.cloud_upload) scan.cloud_upload.sync_pending = false; });
+        persist();
+        debugEvent({ action: '后台登记', route: 'Supabase', status: 200, ms: 0, note: '阿里云图片已登记，可开始识别' });
+        return result;
+      }).catch(function (error) {
+        session.cloudReady = false;
+        session.cloudSync = { request_id: id, page_count: session.pages.length, status: 'failed', error: error.message };
+        persist();
+        debugEvent({ action: '后台登记', route: 'Supabase', status: error.status || '异常', ms: 0, note: error.message || '后台登记失败' });
+        throw error;
+      });
+      cloudSyncTask = { id: id, promise: promise };
+      return promise;
+    }
+    async function saveCloud(id) {
+      if (ctx.options && ctx.options.config_version===2) ctx.options.work_location=session.workLocation || (session.workOnPaper?'paper':session.pages.some(function(p){return p.role==='work';})?'separate':'none');
+      await api(ctx, 'save_materials', { request_id: id, draft_id: ctx.draftId, exam_id: ctx.examId || null, subject: subject, title: ctx.title || '', options: ctx.options, page_count: session.pages.length, consent: true });
+      session.cloudDraftId = id;
+      for (var pi = 0; pi < session.pages.length; pi++) {
+        var scan=session.pages[pi],regions=scan.regions || [],uploaded=scan.cloud_upload;
+        try {
+          // Older backends could accept the page without returning its source
+          // path. Re-upload that incomplete checkpoint before saving details.
+          if (!uploaded || typeof uploaded.source_path!=='string' || !uploaded.source_path || uploaded.request_id!==id || uploaded.role!==scan.role || uploaded.page!==pi+1) {
+            note('正在保存第 ' + (pi + 1) + ' / ' + session.pages.length + ' 页原图');
+            var pagePayload={request_id:id,page:pi+1,role:scan.role,url:scan.url,region_boxes:scan.region_boxes,region_rows:scan.region_rows,page_frames:scan.page_frames,region_focus:scan.region_focus};
+            // Use one bounded request for the common case; large pages retain
+            // the resumable, individually uploaded view path.
+            var combined=JSON.stringify(Object.assign({action:'upload_page',token:ctx.token,regions:regions},pagePayload)).length<=3600000;
+            if(combined)pagePayload.regions=regions;
+            else {pagePayload.separate_views=true;pagePayload.expected_views=regions.length;}
+            var saved=await api(ctx,'upload_page',pagePayload);
+            uploaded=scan.cloud_upload={request_id:id,page:pi+1,role:scan.role,source_path:saved.source_path,views:combined?regions.length:0,separate_views:!combined,expected_views:!combined?regions.length:undefined,assets:Array.isArray(saved.assets)?saved.assets:[],sync_pending:saved.sync_pending===true};await persist();
+          }
+          for(var vi=uploaded.views;vi<regions.length;vi++){
+            note('正在保存第 ' + (pi + 1) + ' / ' + session.pages.length + ' 页 · 局部图 ' + (vi+1) + ' / ' + regions.length);
+            var viewSaved=await api(ctx,'upload_page_view',{request_id:id,page:pi+1,view:vi,source_path:uploaded.source_path,regions:[regions[vi]]});
+            if (viewSaved.asset) uploaded.assets[vi + 1] = viewSaved.asset;
+            if (viewSaved.sync_pending === true) uploaded.sync_pending = true;
+            uploaded.views=vi+1;await persist();
+          }
+        } catch (e) { if(e.status===409){delete scan.cloud_upload;await persist();} e.message = '第 ' + (pi + 1) + ' 张扫描件保存失败：' + e.message; throw e; }
+      }
+      session.cloudDraftId = id;
+      if (hasPendingEcsUpload()) {
+        session.cloudReady = false;
+        session.cloudSync = { request_id: id, page_count: session.pages.length, status: 'pending' };
+        // The image is already on ECS. Registration is deliberately detached
+        // from the save button; start() can await the same promise if needed.
+        registerEcsMaterials(id).catch(function () {});
+      } else {
+        session.cloudReady = true;
+        session.cloudSync = null;
+      }
+      await persist();
+    }
+    function persist() {
+      var id = session.pending || session.cacheId || cacheScope, value = snapshot(); session.cacheId = id;
+      cacheQueue = cacheQueue.then(function () { return support.uploads('put', ctx.user, id, value); });
+      return cacheQueue;
+    }
+    function fill(saved) {
+      if (!saved || saved.scope !== cacheScope || !Array.isArray(saved.pages)) return false;
+      session.pages = saved.pages; session.workOnPaper = saved.workOnPaper; session.workLocation = saved.workLocation; session.consent = saved.consent;
+      session.cloudDraftId = saved.cloudDraftId; session.cloudReady = saved.cloudReady;
+      session.cloudSync = saved.cloudSync || null;
+      session.pending = saved.pending; session.cacheId = saved.id; session.retrySubmission = saved.retrySubmission;
+      session.payload = saved.payload && Object.assign({}, saved.payload, { pages: saved.pages.map(function (p) { return { role: p.role, url: p.url, regions: p.regions || [],region_boxes:p.region_boxes,region_rows:p.region_rows,page_frames:p.page_frames,region_focus:p.region_focus }; }) });
+      restoredUploads = true; return true;
+    }
+    async function resume() {
+      var r = selected;
+      if (!r) return;
+      var matching = session.pending === r.request_id || session.cacheId === r.request_id;
+      if ((!matching || !session.pages.length) && r.recovery && r.recovery.mode !== 'saved') {
+        fill(await support.uploads('get', ctx.user, r.request_id)); matching = session.pending === r.request_id || session.cacheId === r.request_id;
+      }
+      if ((!matching || !session.pages.length) && r.recovery && r.recovery.mode === 'images') {
+        session.resumeTarget = r.request_id; session.pending = r.request_id; session.cacheId = r.request_id; session.payload = null; if (!matching) session.pages = []; upload(); note('已恢复分析记录，请补充尚未保存到本机的原图。'); return;
+      }
+      var data = await api(ctx, 'resume', { request_id: r.request_id,
+        mode: ctx.host ? 'saved' : matching && session.pages.length ? 'images' : 'saved',
+        pages: !ctx.host && matching && (!r.recovery || r.recovery.mode!=='saved') ? session.pages.map(function (p) { return { role: p.role, url: p.url, regions: p.regions || [],region_boxes:p.region_boxes,region_rows:p.region_rows,page_frames:p.page_frames,region_focus:p.region_focus }; }) : [],
+        work_on_paper: session.workOnPaper, consent: session.consent });
+      session.pending = r.request_id; session.resumeTarget = null;
+      if (session.pages.length) await persist();
+      await load(data.request_id || r.request_id);
+    }
+    function upload() {
+      if (!tab('upload')) return;
+      var quotaText = quota ? (quota.enabled ? (quota.unit==='credits'?'可用 '+Math.floor(quota.remaining)+' AI 积分':'剩余 '+quota.remaining+' 次') : '试题识别暂未开放') : '正在读取 AI 额度…';
+      var location = session.workLocation || (session.workOnPaper ? 'paper' : session.pages.some(function(p){return p.role==='work';}) ? 'separate' : 'none');
+      var estimate=quota?.unit==='credits'?creditEstimate(session.pages,location):'';
+      main.innerHTML = (restoredUploads ? '<p class="pr-message">已自动回填上次的图片、顺序和设置。</p>' : '') + '<section class="pr-intro"><h3>添加试卷与作答</h3><p>按页序添加清晰图片，试卷、答题卡与参考答案合计最多 15 张。</p><div class="pr-quota">' + esc(quotaText) + '</div></section>' + debugHtml() + '<fieldset class="pr-work-location"><legend>作答写在哪里？</legend>' + [['paper','写在试卷上','上传带作答的试卷即可。'],['separate','在答题卡上','分别添加试卷和答题卡。'],['none','仅上传题目','只识别题目与印刷分值，不生成分析。']].map(function(x){return '<label><input type="radio" name="pr_location" value="'+x[0]+'" '+(location===x[0]?'checked':'')+'><span><strong>'+x[1]+'</strong><small>'+x[2]+'</small></span></label>';}).join('') + '</fieldset>' +
+        Object.keys(roleNames).map(function (role) {
+          var pages = session.pages.filter(function (p) { return p.role === role; });
+          return '<section class="pr-upload-group" data-upload-role="' + role + '" ' + (role==='work' && location!=='separate' && !pages.length ? 'hidden' : '') + '><div class="pr-section-head"><h3>' + roleNames[role] + '<small>' + (role === 'paper' ? '必选' : '补充资料') + '</small></h3><label class="pr-button pr-file-label">＋ 添加图片<input type="file" accept="image/jpeg,image/png,image/webp" multiple data-role="' + role + '" ' + (busy ? 'disabled' : '') + '></label></div><p>' + ({ paper: '按题目顺序上传，作答写在试卷上也可以。', work: '作答在单独的答题卡上时，请补充上传。', reference: '补充参考答案或评分细则，可以更准确地核对答案和得分步骤。' })[role] + '</p><div class="pr-pages">' + pages.map(function (p) {
+            var i = session.pages.indexOf(p);
+            return '<article class="pr-page"><img src="' + p.url + '" alt="' + esc(roleNames[role] + '第' + (pages.indexOf(p) + 1) + '页') + '"><div class="pr-page-info">第 ' + (i + 1) + ' 页 · ' + esc(p.name) + '</div><div class="pr-page-actions">' + button('前移', 'up:' + i) + button('旋转', 'rotate:' + i) + button('移除', 'remove:' + i) + '</div></article>';
+          }).join('') + '</div></section>';
+        }).join('') + '<label class="pr-check" hidden><input type="checkbox" id="pr-work" ' + (session.workOnPaper ? 'checked' : '') + '>试卷图片中包含我的作答 / 老师批改</label>' +
+        '<details class="pr-help"><summary>图片要求与计次说明</summary><p>支持 JPG、PNG、WebP，共 1～' + MAX_PAGES + ' 张，每张原图不超过 20MB。拍清题号、文字、步骤和批改痕迹，裁掉姓名、考号等信息。PDF 请先转成图片。</p><p>看不清的部分单独核对，其他内容继续分析。AI 判断与老师批改分分开显示，不会自动填入考试成绩。没有作答也可讲解题目和安排原题尝试，但不评价个人优劣。编辑中的图片会暂存在当前设备7天。提交后扫描件和录入内容保存到当前账号，可跨设备查看和恢复；删除原始试题录入会删除扫描件，已有分析仍保留文字。</p><p>试用次数独立于成绩识图。AI 识别录入与新建 AI 分析各计一次，失败也计次；重复提交同一请求、查看和手动核对不重复计次。北京时间每天 0 点重置。</p></details>' +
+        '<label class="pr-check pr-consent"><input type="checkbox" id="pr-consent" ' + (session.consent ? 'checked' : '') + '>同意将这些图片，以及允许调用时的本次与历史考试数值发送给第三方 AI 服务分析，并在账号内保存扫描件与报告</label><div class="pr-footer pr-upload-footer"><span>' + session.pages.length + ' / ' + MAX_PAGES + ' 张</span>' + button(session.resumeTarget ? '恢复这份分析' : session.pending ? (session.retrySubmission ? '继续确认本次分析' : '查看进行中的分析') : busy ? '处理图片中…' : ctx.options && ctx.options.purpose==='record' ? '开始识别'+(estimate?' · 约 '+estimate+' 积分':'') : '开始分析', session.resumeTarget ? 'resume' : 'start', 'pr-primary') + '</div>';
+      var referenceGroup=main.querySelector('[data-upload-role=reference]');if(referenceGroup){var extra=document.createElement('details');extra.className='pr-upload-extra';extra.open=session.pages.some(function(p){return p.role==='reference';});extra.innerHTML='<summary>添加参考答案（选填）</summary>';referenceGroup.before(extra);extra.appendChild(referenceGroup);}
+      if(entryOnly()){
+        main.querySelector('[name=pr_location][value=none]').closest('label').querySelector('small').textContent='识别题目、分值及已有参考答案。';
+        main.querySelector('[data-upload-role=paper]>p').textContent='按题目顺序上传。';
+        main.querySelector('[data-upload-role=reference]>p').textContent='可上传参考答案或评分细则。';
+        main.querySelector('.pr-help').innerHTML='<summary>图片与识别说明</summary><p>JPG / PNG / WebP，最多15张，单张原图不超过 20MB；大图会自动处理并逐张保存。拍清题号与批改分，裁掉姓名、考号；PDF 请先转图片。</p><p>关联原题与作答截图，读取已有分数；模糊处由你核对。</p>';
+        main.querySelector('.pr-consent').lastChild.textContent='同意将图片发送给 AI 识别，并在账号中保存试题资料';
+      }
+      if(quota && quota.unit==='credits'){
+        if(entryOnly())main.querySelector('.pr-help').insertAdjacentHTML('beforeend','<p>按实际用量扣积分，失败不扣；查看和手动核对免费。</p>');
+        else {var billingHelp=main.querySelector('.pr-help p:last-child');if(billingHelp)billingHelp.textContent='按实际用量扣积分，失败不扣；重复提交同一请求、查看和手动核对不重复扣费。';}
+        main.querySelector('.pr-quota').insertAdjacentHTML('beforeend','<div class="pr-credit-quote">'+(estimate?'本次预计 '+estimate+' 积分 · ':'添加图片后显示预计消耗 · ')+'开始需 '+(location==='none'?150:400)+' 可用积分</div><details><summary>如何扣分</summary><p>预计范围参考少量历史记录，实际取决于图片和补读次数。按实际用量扣分，失败不扣。提交时最多预留 '+Math.min(1000,Math.floor(quota.remaining))+' 分，完成后释放余量。手动核对与保存免费。</p></details>');
+      }
+      main.querySelectorAll('input[type=file]').forEach(function (input) { input.onchange = async function () {
+        var files = Array.from(input.files || []); if (!files.length || busy) return;
+        if (files.length + session.pages.length > MAX_PAGES) return note('每次最多 ' + MAX_PAGES + ' 张，请先移除多余图片', true);
+        busy = true; note('正在处理图片…'); upload();
+        try {
+          var added = [];
+          for (var file of files) {
+            var prepareStarted = debugNow();
+            var p = await prepare(file); p.role = input.dataset.role; added.push(p);
+            debugEvent({ action: '本机处理图片', route: '本机', status: '完成', ms: debugNow() - prepareStarted, bytes: file.size, note: '压缩与局部图切分' });
+          }
+          var all = session.pages.concat(added);
+          // Each source/view is bounded during preparation; the 15-page cap bounds the total.
+          session.pages = all; session.cloudReady = false; restoredUploads = false; var saved = await persist(); note(saved ? '图片已保存，可检查方向和页序' : '图片已添加，请保持页面打开直到题目和作答读取完成。');
+        } catch (e) { note(e.message, true); } finally { busy = false; if (alive()) upload(); }
+      }; });
+      if (ctx.onUpload) ctx.onUpload(main);
+      main.querySelector('.pr-footer').prepend(message);
+      message.classList.add('pr-action-message');
+      main.querySelectorAll('[name=pr_location]').forEach(function(el){el.onchange=function(){
+        if(el.value==='none' && session.pages.some(function(p){return p.role==='work';})){el.checked=false;main.querySelector('[name=pr_location][value="'+location+'"]').checked=true;return note('已添加答题卡，请先移除作答图片再选择“仅上传题目”',true);}
+        session.workLocation=el.value;session.workOnPaper=el.value==='paper';session.cloudReady=false;persist();upload();
+      };});
+      main.querySelector('#pr-work').onchange = function (e) { session.workOnPaper = e.target.checked; persist(); };
+      main.querySelector('#pr-consent').onchange = function (e) { session.consent = e.target.checked; persist(); };
+      main.querySelector('[data-pr=start],[data-pr=resume]').disabled = busy || (!session.resumeTarget && (!session.pending && (!quota || !quota.enabled || quota.remaining < (quota.unit==='credits'?(location==='none'?150:400):1) || !quota.global_available)));
+      main.querySelectorAll('.pr-page-actions button').forEach(function (b) { b.disabled = busy; });
+      if (ctx.host && !session.pending) {
+        var footer = main.querySelector('.pr-footer'), draftButton = document.createElement('button');
+        draftButton.type = 'button'; draftButton.className = 'pr-button'; draftButton.textContent = '保存资料草稿'; draftButton.disabled = busy;
+        footer.insertBefore(draftButton, footer.lastElementChild);
+        draftButton.onclick = async function () {
+          if (!session.pages.some(function (p) { return p.role === 'paper'; })) return note('请先添加试卷图片', true);
+          if (!session.consent) return note('请先确认扫描件保存说明', true);
+          busy = true; draftButton.disabled = true;
+          try { if (ctx.beforeSubmit) subject = await ctx.beforeSubmit(); await saveCloud(session.cloudDraftId || crypto.randomUUID()); await persist(); note('草稿已保存，可从试卷列表继续上传'); }
+          catch (e) { note(e.message, true); } finally { busy = false; if (alive() && view === 'upload') upload(); }
+        };
+      }
+    }
+    function history() {
+      if (!tab('history')) return;
+      main.innerHTML = '<h3>本科目的分析记录</h3><p class="pr-muted">显示本次考试的报告，以及本科目尚未关联考试的报告。试卷原图请留在自己的设备中。</p>' +
+        (reviews.length ? reviews.map(function (r) { return '<button type="button" class="pr-history" data-pr="report:' + r.request_id + '"><span>' + esc(new Date(r.created_at).toLocaleString('zh-CN')) + '<small class="pr-muted"> · ' + (r.exam_id ? '本次考试' : '未关联考试') + '</small></span><b>' + ({ running: '分析中', succeeded: '查看报告', failed: '未完成' })[r.status] + ' →</b></button>'; }).join('') : '<div class="pr-empty">还没有报告，上传这次考试的试卷试试。</div>');
+    }
+    async function refresh() {
+      var responses = await Promise.allSettled([api(ctx, 'quota'), ctx.setup ? Promise.resolve({reviews:[]}) : api(ctx, 'list', { draft_id: ctx.draftId, exam_id: ctx.examId || null, subject: subject })]);
+      if (!alive()) return;
+      if (responses[0].status === 'fulfilled') quota = responses[0].value.quota;
+      if (responses[1].status === 'fulfilled') reviews = responses[1].value.reviews || [];
+      var failure = responses.find(function (r) { return r.status === 'rejected'; });
+      if (failure) note(failure.reason.message, true);
+      if (view === 'upload') upload(); else if (view === 'history') history();
+      if (trigger && reviews.some(function (r) { return r.status === 'succeeded'; })) trigger.textContent = '查看试卷分析';
+    }
+    function renderReport(r) {
+      if (!alive()) return;
+      if (main.contains(message)) main.before(message);
+      message.classList.remove('pr-action-message');
+      if(ctx.onRecordChange)ctx.onRecordChange(r);
+      if (r.status === 'succeeded' && session.pending === r.request_id) { session.pending = null; session.payload = null; session.retrySubmission = false; session.pages = []; session.cloudReady = false; session.cloudDraftId = null; support.uploads('delete', ctx.user, r.request_id); support.uploads('delete', ctx.user, cacheScope); session.cacheId = null; restoredUploads = false; }
+      if(r.result && r.result.record_only && r.status==='succeeded' && ctx.onRecorded){var recorded=ctx.onRecorded;ctx.onRecorded=null;Promise.resolve().then(function(){return Promise.allSettled([support.uploads('delete',ctx.user,r.request_id),support.uploads('delete',ctx.user,cacheScope)]);}).then(function(){recorded(r);});return;}
+      if(main.paperBoardDispose)main.paperBoardDispose();
+      main.paperBoardBeforeSave=null;
+      selected = r; view = 'report'; dirty = false; if (ctx.onView) ctx.onView('report');
+      if (r.status === 'paused') { var pp=r.progress||{},isEntry=r.options&&r.options.purpose==='record'; main.innerHTML = '<section class="pr-recovery"><h3>' + esc(pp.message || '进度已保存') + '</h3><p>'+(pp.version>=4?'已处理 '+esc(pp.completed_pages)+' / '+esc(pp.total_pages)+' 页，继续时只处理剩余页面。':'本轮已完成的内容已保存。')+'</p>' + button(isEntry?'继续录入':'继续分析', 'resume', 'pr-primary') + button('删除记录', 'delete', 'pr-danger') + '</section>'; if (window.ScorePaperScans) window.ScorePaperScans.decorate(main, r, ctx, { api: api, load: load, note: note, save:save }); return; }
+      if (r.status === 'running' && !r.result) {
+        main.innerHTML = runningReport(r) + button(r.pause_requested ? '完成当前步骤后暂停' : '暂停并保存进度', 'pause');
+        clearTimeout(timer); timer = setTimeout(function () { load(r.request_id); }, 3000); return;
+      }
+
+      if (r.status === 'failed' && !r.result) {
+        var p = r.progress || {}, recovery = r.recovery || { available: p.version >= 2 && (p.resume_remaining == null || p.resume_remaining > 0), completed: p.completed_questions || 0, total: p.total_questions || 0, questions: [] };
+        var matching = session.pending === r.request_id || session.cacheId === r.request_id;
+        main.innerHTML = '<section class="pr-recovery"><h3>任务已中断，进度已保存</h3><p>'+(p.version>=4?'已处理 <b>'+esc(p.completed_pages)+' / '+esc(p.total_pages)+'</b> 页。已完成的页保留，重试当前页后继续。':'已完成 <b>' + recovery.completed + ' / ' + recovery.total + '</b> 题。')+'</p>' +
+          (matching && session.pages.length ? '<p>已自动回填上次上传的 ' + session.pages.length + ' 张图片及设置。</p><div class="pr-recovered-pages">' + session.pages.map(function (p) { return '<img src="' + p.url + '" alt="' + esc(roleNames[p.role]) + '">'; }).join('') + '</div>' : recovery.mode === 'saved' ? '<p>已恢复保存的题目、作答和批改分，可直接继续。</p>' : '') +
+          (recovery.available ? button(r.options&&r.options.purpose==='record'?'继续录入':'恢复分析', 'resume', 'pr-primary') + '<p class="pr-muted">继续未完成部分，AI 调用按实际用量结算。</p>' : '<p>本次恢复次数已用完，已保存的资料仍可查看。</p>') +
+          (recovery.questions.length ? '<details class="pr-recovered-work"><summary>查看已恢复的题目和作答</summary>' + recovery.questions.map(function (q) { return '<article><h4>第 ' + esc(q.label) + ' 题</h4><p class="pr-text">' + esc(q.stem) + '</p><p class="pr-text">作答：' + esc(q.answer || '未作答') + '</p></article>'; }).join('') + '</details>' : '') +
+          '<details><summary>查看中断详情</summary><p>' + esc(r.error_message) + '</p></details></section>' + button('返回记录', 'history') + button('删除记录', 'delete', 'pr-danger');
+        support.renderMath(main); return;
+      }
+
+      var report = r.result, stats = summary(r);main.classList.toggle('pr-record-view',!!report.record_only);
+      var updating = r.status === 'running', stale = report.analysis_stale;
+      var updateNotice = updating ? '<aside class="pr-message" role="status"><b>' + esc(r.progress && r.progress.message || '正在更新分析') + '</b><p>下方保留上一版报告。更新完成后，将替换相关题目和整体建议。</p></aside>' : stale ? '<aside class="pr-message"><b>核对内容已保存，下面的分析仍为上一版。</b>' + (r.status === 'failed' ? '<p>' + esc(r.error_message) + '</p>' + ((r.progress && r.progress.resume_remaining || 0) > 0 ? button('继续更新分析', 'resume') : '') : '') + '</aside>' : '';
+      main.innerHTML = updateNotice + '<section class="pr-result-top"><span class="pr-eyebrow">' + esc(subject) + ' · ' + report.questions.length + ' 题</span><h3>' + (report.record_only ? '确认识别结果' : '试卷复盘') + '</h3>' +
+        '<nav class="pr-report-nav" aria-label="报告目录">' + (report.record_only ? '' : button('整体分析', 'jump:highlights') + button('难度与得分', 'jump:performance') + button('优势与问题', 'jump:insights')) + button(report.record_only ? '题目与作答' : '逐题复盘', 'jump:questions') + (report.record_only ? '' : button('复习安排','jump:plan')) + button('资料与说明', 'jump:materials') + '</nav></section>' +
+        (report.record_only && !entryOnly() && (ctx.onAnalyzeRecord || window.ScorePaperHub) ? '<div class="pr-first-action"><p>先核对识别结果。试题可以单独保存，需要时再生成分析。</p>'+button('生成 AI 分析 · 消耗 1 次','analyze-record','pr-primary')+'</div>' : '') + reportSections(report, updating) + '<section class="pr-reading-section" data-report-section="questions" tabindex="-1"><div class="pr-chapter"><span>' + (report.record_only ? '01' : '04') + '</span><div><h3>' + (report.record_only ? '题目与作答' : '逐题复盘') + '</h3><p>' + (report.record_only ? '对照扫描件，核对识别的内容。' : '先看哪里需要改，再按需展开讲解和练习。') + '</p></div></div>' + '<div class="pr-question-filters" aria-label="筛选题目">' + (report.record_only ? ['all','confirm','unverified'] : ['all','review','confirm']).map(function(f,i){return '<button type="button" class="pr-button" data-pr="filter:'+f+'" aria-pressed="'+(i===0)+'">'+(report.record_only?['全部题目','需要核对','未对照原卷']:['全部题目','需要订正','需要核对'])[i]+'</button>';}).join('')+'</div>' + '<p class="pr-filter-empty pr-muted" role="status" hidden>没有符合这项筛选的题目，可以切回全部题目。</p><div class="pr-questions">' + report.questions.map(function (q) {
+          var c = (r.corrections || []).find(function (c) { return c.id === q.id; }) || { answer: q.answer, teacher_score: q.teacher_score, max_score: q.max_score };
+          if (q.ai_grading?.status === 'confirmed' && !c.verified && c.answer === q.ai_grading.original_answer) c = Object.assign({}, c, { answer: q.answer });
+          var confirmQuestion = q.score_verification === 'conflict' || q.review_status === 'teacher_conflict' || q.analysis_mode === 'needs_confirmation';
+          var reviewQuestion = !confirmQuestion && (q.teacher_score != null && q.max_score != null && q.teacher_score < q.max_score || q.ai_grading?.status === 'confirmed' && ['incorrect','partial'].includes(q.ai_grading.verdict) || q.first_issue && q.first_issue.certainty === 'confirmed');
+          return '<details class="pr-question" data-question="' + esc(q.id) + '" data-needs-review="' + !!reviewQuestion + '" data-needs-confirm="' + !!confirmQuestion + '"><summary><span>第 ' + esc(q.label) + ' 题 <small>' + esc(q.knowledge.join(' · ')) + '</small>' + (q.first_issue && q.first_issue.location && q.first_issue.certainty === 'confirmed' ? '<small class="pr-issue-preview">需要留意：' + esc(q.first_issue.location) + '</small>' : '') + '</span><span class="pr-badge">' + (confirmQuestion ? '需要核对' : q.teacher_score != null && q.max_score != null ? q.teacher_score + ' / ' + q.max_score + ' 分' : !report.record_only && q.ai_grading?.status === 'confirmed' ? aiGradeBadge(q) : '展开查看') + '</span><span class="pr-chevron" aria-hidden="true">⌄</span></summary><div class="pr-question-body">' + aiGradingSection(q) + questionSections(q, c) + '<details class="pr-fold pr-source" ' + (report.record_only ? 'open' : '') + '><summary>原题、作答与扫描件</summary><div class="pr-fold-body"><div data-scan-host></div><h4>题目</h4><p class="pr-text">' + esc(c.stem || q.stem) + '</p><h4>你的作答</h4><p class="pr-text">' + esc(c.answer || '未填写作答') + '</p><details class="pr-fold pr-edit"><summary>识别有误？修改文字或分数</summary><div class="pr-fold-body"><p class="pr-muted">题目页：' + (q.pages.join('、') || '—') + (q.work_pages && q.work_pages.length ? ' · 作答页：' + q.work_pages.join('、') : '') + '</p><label>题目（可修正识别内容）<textarea data-field="stem" rows="3" maxlength="4500">' + esc(c.stem || q.stem) + '</textarea></label><label>考试时的作答（可修正识别内容）<textarea data-field="answer" rows="3" maxlength="4000">' + esc(c.answer) + '</textarea></label>' +
+            '<div class="pr-score-fields"><label>老师批改得分<input data-field="teacher_score" type="number" min="0" max="9999" step="0.01" placeholder="未识别 / 未批改" value="' + esc(c.teacher_score) + '"></label><label>本题满分<input data-field="max_score" type="number" min="0" max="9999" step="0.01" placeholder="填写满分" value="' + esc(c.max_score) + '"></label></div><p class="pr-muted">批改依据：' + esc(q.score_evidence || '有批改分可在上方补充，留空表示未批改或未录入。') + '</p>' +
+            (!report.record_only && q.estimated_score !== null && q.ai_grading?.status !== 'confirmed' ? '<p class="pr-estimate">AI 估分：' + q.estimated_score + (q.max_score !== null ? ' / ' + q.max_score : '') + '，仅供参考</p>' + (q.estimate_evidence && q.estimate_evidence.quote ? '<p class="pr-evidence">评分细则依据：' + esc(q.estimate_evidence.quote) + '</p>' : '') : '') +
+            '</div></details></div></details><div class="pr-checks"><label class="pr-check"><input type="checkbox" data-field="verified" ' + (c.verified ? 'checked' : '') + '>已对照原卷核对</label>'+(report.record_only&&report.screenshot_only?'<input type="checkbox" data-field="accepted" hidden '+(c.accepted?'checked':'')+'>':'')+'<label class="pr-check"><input type="checkbox" data-field="corrected" ' + (c.corrected ? 'checked' : '') + '>已完成订正</label></div></div></details>';
+        }).join('') + '</div><div class="pr-footer"><span class="pr-muted" data-pr-save-status>核对修改不会改变考试分数</span>' + button(report.record_only || (report.update_count || 0) >= 5 ? '保存核对记录' : '保存并更新分析', 'save', 'pr-primary') + '</div></section>' + reportPlan(report) + '<section class="pr-reading-section" data-report-section="materials" tabindex="-1"><div class="pr-chapter"><span>' + (report.record_only ? '02' : '06') + '</span><div><h3>资料与说明</h3><p>' + (report.record_only ? '查看原始扫描件和手动核对记录。' : '查看原始扫描件、核对记录和本次分析使用的信息。') + '</p></div></div><div class="pr-materials"></div>' + fold('考试信息与分析依据', reportDetails(report), 'pr-report-meta') + fold('识别与核对记录', '<p class="pr-text">' + esc(report.coverage) + '</p><div class="pr-stats"><div><b>' + report.questions.length + '</b><span>识别题目</span></div><div><b data-pr-verified>' + stats.verified + '</b><span>已核对</span></div><div><b data-pr-score>' + (stats.scored ? stats.score + ' / ' + stats.max : '—') + '</b><span>已核对题目得分</span></div></div><p class="pr-muted">仅汇总已确认的卷面批改分，不代表整卷成绩。</p><section class="pr-evaluation"><h4>已核对题目的失分</h4><div data-pr-losses></div></section>') +
+        ((report.warnings || []).length || !report.complete ? fold('需要补充或核对的资料', (!report.complete ? '<p>尚未覆盖的题目或作答可以继续补充。</p>' : '') + bullets(report.warnings), 'pr-open-questions') : '') + '</section><div class="pr-footer">' + button('返回记录', 'history') + button(report.record_only?'删除这份试题录入':'删除这份报告', 'delete', 'pr-danger') + '</div>';
+      var highlights = main.querySelector('[data-report-section="highlights"]');
+      if (highlights) highlights.insertAdjacentHTML('beforeend', accountSections(report));
+      var materials = main.querySelector('.pr-materials');
+      if (!entryOnly() && materials && !updating && !report.source_record && (report.score_refresh_count || 0) < 5) materials.insertAdjacentHTML('beforebegin', '<div class="pr-insight"><p>补读分数与满分，并核对缺少批改分的作答：有答案先对，没有答案由 AI 求解复核。老师批改分与 AI 判分分开展示；不会把整组分数平均拆开。</p>' + button('重新识别分数', 'retry-scores') + '<p class="pr-muted">不占新分析次数；每份报告最多补读 5 次。已亲自核对的作答不会被覆盖。</p></div>');
+      if (report.record_only && window.ScorePaperRecords) report.questions.forEach(function(q) {
+        var c=(r.corrections||[]).find(function(c){return c.id===q.id;}) || {};
+        var target=main.querySelector('[data-question="'+q.id+'"] .pr-edit .pr-fold-body');
+        if(target){target.insertAdjacentHTML('afterbegin',window.ScorePaperRecords.fields(q,c));target.parentElement.open=false;target.parentElement.querySelector('summary').textContent='修改题型、文字或分数';}
+      });
+      async function finalizeEntry(choice) {
+        if (!selected || !selected.result || !selected.result.record_only) return null;
+        var fresh = await api(ctx, 'finalize_entry', { request_id: selected.request_id, revision: selected.revision, choice: choice || 'save' });
+        if (alive() && fresh && fresh.review) { Object.assign(selected, fresh.review); dirty = false; renderReport(selected);note('录入完成');var card=main.querySelector('.pr-entry-complete');if(card){card.tabIndex=-1;card.focus({preventScroll:true});card.scrollIntoView({block:'nearest'});} }
+        return fresh && fresh.review || selected;
+      }
+      function renderEntryCompletion() {
+        if (!report.record_only || !report.entry_completion) return;
+        var synced = report.entry_completion.choice === 'sync', showTypes = synced || !!report.exam_id || !!ctx.examId || !!(selected && selected.exam_id), card = document.createElement('section');
+        card.className = 'pr-entry-complete'; card.setAttribute('aria-label', '录入完成');
+        card.innerHTML = '<div class="pr-entry-complete-mark" aria-hidden="true">✓</div><div class="pr-entry-complete-copy"><h3>录入完成</h3><p>试题已保存；' + (synced ? '题型得分已更新。' : '本场已有题型得分未修改。') + '</p></div><div class="pr-entry-complete-actions">' + (showTypes ? '<button type="button" class="pr-button pr-primary" data-entry-types data-view-types>查看题型分析</button>' : '') + '<button type="button" class="pr-button" data-pr="history">返回所有试卷</button><button type="button" class="pr-button" data-entry-new>继续录入新试卷</button></div>';
+        var top = main.querySelector('.pr-result-top'); if (top) top.after(card); else main.prepend(card);
+        var board = main.querySelector('.pb-board');
+        if (board) {
+          var done = board.querySelector('[data-pb-complete]'), finish = board.querySelector('[data-pb=finish]'), choice = board.querySelector('.pb-finish-choice');
+          if (done) { done.hidden = false; done.textContent = synced ? '录入完成 · 题型得分已更新。' : '录入完成 · 试题已保存。'; }
+          if (finish) finish.hidden = true;
+          if (choice) choice.hidden = true;
+        }
+        var types = card.querySelector('[data-entry-types]');
+        if (types) types.onclick = function () { if (ctx.canLeave && !ctx.canLeave()) return; if (ctx.dispose) ctx.dispose(); if (window.ScoreQuestionTypeAnalysis) window.ScoreQuestionTypeAnalysis.open(report.subject); };
+        var newer = card.querySelector('[data-entry-new]');
+        if (newer) newer.onclick = function () { if (ctx.canLeave && !ctx.canLeave()) return; if (ctx.dispose) ctx.dispose(); if (ctx.onNewEntry) ctx.onNewEntry(); else if (ctx.onClose) ctx.onClose(); };
+      }
+      if(report.record_only && window.ScorePaperRecords)window.ScorePaperRecords.decorate(main,r,ctx,api,note,{save:save,isDirty:function(){return dirty;},finalize:finalizeEntry});
+      if (report.record_only) {
+        var legacySave = main.querySelector('[data-pr="save"]');
+        if (legacySave) { var legacyFooter = legacySave.closest('.pr-footer'); if (legacyFooter) legacyFooter.remove(); }
+        var saveNote = document.createElement('p'); saveNote.className = 'pr-muted pr-auto-save-note'; saveNote.textContent = '修改会自动保存；只需处理标出的异常。';
+        var questionSection = main.querySelector('[data-report-section="questions"]'); if (questionSection) questionSection.appendChild(saveNote);
+      }
+      {(report.record_only?['materials']:['performance','insights','plan','materials']).forEach(function(id){var section=main.querySelector('[data-report-section="'+id+'"]');if(!section)return;var fold=document.createElement('details');fold.className='pr-report-extra';var title=section.querySelector('.pr-chapter h3');fold.innerHTML='<summary>'+esc(title?title.textContent:'更多内容')+'</summary>';section.before(fold);fold.appendChild(section);});}
+      losses(stats); support.renderMath(main); if (window.ScorePaperScans) window.ScorePaperScans.decorate(main, r, ctx, { api: api, load: load, note: note, save:save, finalize:finalizeEntry });
+      renderEntryCompletion();
+      if (updating) { main.querySelectorAll('input,textarea,select,[data-pr=save],[data-pr=delete]').forEach(function (el) { el.disabled = true; }); clearTimeout(timer); timer = setTimeout(function () { load(r.request_id); }, 3000); }
+      if ((report.update_count || 0) >= 5) (main.querySelector('[data-pr-save-status]')||message).textContent = '5次分析更新已用完，可继续保存核对和订正记录';
+      main.querySelectorAll('.pr-question input,.pr-question textarea,.pr-question select').forEach(function (el) { el.addEventListener('input', function () { dirty = true; if (el.dataset.field === 'cause') { var detail = el.closest('[data-question]'), q = report.questions.find(function (q) { return q.id === detail.dataset.question; }); detail.querySelector('.pr-reflection-route').textContent = reflectionRoute(q, el.value); } (main.querySelector('[data-pr-save-status]')||message).textContent = '有未保存的核对修改'; if (report.record_only) { clearTimeout(autoSaveTimer); if (!['verified','accepted','corrected'].includes(el.dataset.field)) autoSaveTimer = setTimeout(function(){ if(!alive() || !dirty || saving) return; quietSave=true; save().catch(function(err){if(alive())note(err.message,true);}).finally(function(){quietSave=false;}); }, 850); } }); });
+    }
+    function losses(stats) {
+      main.querySelector('[data-pr-losses]').innerHTML = stats.losses.length ? stats.losses.map(function (q) { return '<div class="pr-loss"><span>第 ' + esc(q.label) + ' 题</span><b>失 ' + Math.round(q.loss * 100) / 100 + ' 分</b></div>'; }).join('') : '<p class="pr-muted">' + (stats.scored ? '已核对的小题暂无失分。' : '核对小题得分后，在这里查看失分分布。') + '</p>';
+    }
+    async function load(id) {
+      clearTimeout(timer);
+      try {
+        var results = await Promise.all([api(ctx, 'get', { request_id: id }), support.uploads('get', ctx.user, id)]);
+        if (alive()) {
+          if (ctx.expectedExamId && results[0].review.exam_id !== ctx.expectedExamId) throw new Error('这份试卷已移出当前考试，请返回后刷新');
+          if (results[1]) fill(results[1]); note(''); renderReport(results[0].review);
+          if (initialSection) {
+            var section = Array.from(main.querySelectorAll('[data-report-section]')).find(function (s) { return s.dataset.reportSection === initialSection; });
+            if (section) { initialSection = null; section.focus({ preventScroll: true }); if (section.scrollIntoView) section.scrollIntoView({ block: 'start' }); }
+          }
+        }
+      }
+      catch (e) { if (alive()) { note(e.message + (ctx.host ? '；可返回后重新打开。' : '；可点击“分析记录”重新查看。'), true); if (view === 'report' && selected && selected.status === 'running') timer = setTimeout(function () { load(id); }, 8000); } }
+    }
+    async function start() {
+      if (session.pending && !session.retrySubmission) { view = 'report'; return load(session.pending); }
+      if (ctx.beforeSubmit && !session.pending) { busy=true;try { subject = await ctx.beforeSubmit(); } catch(e) { return note(e.message,true); } finally {busy=false;} }
+      if (!session.pages.some(function (p) { return p.role === 'paper'; })) return note('请先上传试卷题目', true);
+      if (!session.consent) return note('请先确认图片分析与报告保存说明', true);
+      var id = session.pending || session.cloudDraftId || crypto.randomUUID(), submitted = false; session.pending = id; busy = true; upload(); note('正在提交资料…');
+      try {
+        var savedSubject = ctx.exam && ctx.exam.scores && ctx.exam.scores[subject];
+        session.payload = session.payload || { request_id: id, draft_id: ctx.draftId, exam_id: savedSubject ? ctx.examId : null,
+          subject: subject, title: ctx.title || '', options: ctx.options, exam_context: ctx.host ? ctx.examContext : formContext(ctx, subject), pages: session.pages.map(function (p) { return { role: p.role, url: p.url, regions: p.regions || [],region_boxes:p.region_boxes,region_rows:p.region_rows,page_frames:p.page_frames,region_focus:p.region_focus }; }), work_on_paper: session.workOnPaper, consent: true };
+        if (!await persist()) note('本机暂时无法保存图片；完成识别后仍可从保存的作答恢复。');
+        await support.uploads('delete', ctx.user, cacheScope);
+        if (ctx.host && (!session.cloudReady || ctx.setup)) {
+          await saveCloud(id);
+          if (session.cloudSync && session.cloudSync.request_id === id && session.cloudSync.status !== 'ready') {
+            note('图片已快速保存到阿里云，正在完成后台登记…');
+            await registerEcsMaterials(id);
+          }
+        }
+        submitted = true;
+        var data = await api(ctx, 'start', ctx.host ? Object.assign({}, session.payload, { pages: undefined, use_saved: true }) : session.payload);
+        session.retrySubmission = false; quota = data.quota; if (alive()) { view = 'report'; await load(id); }
+      } catch (e) {
+        if (!submitted) {
+          session.pending = null; session.payload = null; session.retrySubmission = false;
+          await persist();
+          if (alive()) { note(e.message + '；已保存的资料会保留，点击开始按钮可重试。', true); upload(); }
+          return;
+        }
+        // A timeout may occur after reservation; check the same ID before offering a new request.
+        try { var existing = await api(ctx, 'get', { request_id: id }); session.retrySubmission = false; if (alive()) renderReport(existing.review); }
+        catch (_) {
+          if (e.status && e.status < 500) { session.pending = null; session.payload = null; session.retrySubmission = false; }
+          else session.retrySubmission = true;
+          if (alive()) { note(e.message + (session.retrySubmission ? '；再次点击会确认同一请求，不会重复计次。' : ''), true); upload(); }
+        }
+      } finally { busy = false; if (alive() && view === 'upload') upload(); }
+    }
+    async function save() {
+      if(saving)return null;
+      clearTimeout(autoSaveTimer);
+      if(main.paperBoardBeforeSave)await main.paperBoardBeforeSave();
+      if(!dirty){note('试题已保存');return selected;}
+      var corrections = [];
+      for (var detail of main.querySelectorAll('[data-question]')) {
+        var get = function (name) { return detail.querySelector('[data-field=' + name + ']'); };
+        for (var field of ['teacher_score', 'max_score']) { if (!get(field).validity.valid) { detail.open = true; get(field).focus(); throw new Error('分数请输入 0～9999，最多两位小数'); } }
+        var score = number(get('teacher_score').value), max = number(get('max_score').value);
+        if (score !== null && max !== null && score > max) { detail.open = true; get('teacher_score').focus(); throw new Error('得分不能高于本小题满分'); }
+        corrections.push({ type_total:detail.dataset.groupTotal?JSON.parse(detail.dataset.groupTotal):((selected.corrections||[]).find(function(c){return c.id===detail.dataset.question;})||{}).type_total, id: detail.dataset.question, stem: get('stem').value, answer: get('answer').value, question_type:get('question_type')?get('question_type').value:undefined, question_difficulty:get('question_difficulty')?get('question_difficulty').value:undefined, teacher_score: score, max_score: max, verified: get('verified').checked, accepted:!!get('accepted')&&get('accepted').checked, corrected: get('corrected').checked, reflection: get('cause') ? { cause: get('cause').value, note: get('reflection_note').value } : null });
+      }
+      corrections.forEach(function(c){if(!c.type_total)return;var group=c.type_total;if(!group.questions.every(function(label){var q=selected.result.questions.find(function(q){return q.label===label;});return corrections.some(function(v){return v.id===q?.id&&v.question_type===group.label;});}))corrections.forEach(function(v){if(v.type_total&&v.type_total.label===group.label&&v.type_total.questions.length===group.questions.length&&group.questions.every(function(l){return v.type_total.questions.includes(l);}))v.type_total=null;});});
+      saving=true;
+      var controls=Array.from(main.querySelectorAll('input,textarea,select,button'));controls.forEach(function(el){el.dataset.wasDisabled=String(el.disabled);el.disabled=true;});
+      try{
+        var result=await api(ctx,'correct',{request_id:selected.request_id,revision:selected.revision,corrections:corrections,reanalyze:!selected.result.record_only && (selected.result.update_count||0)<5});
+        if(alive()){
+          if (quietSave || (selected.result.record_only && selected.result.screenshot_only && main.querySelector('.pb-board'))) {
+            var wasComplete = !!(selected.result && selected.result.entry_completion);
+            Object.assign(selected, result.review);
+            dirty = false;
+            if (ctx.onRecordChange) ctx.onRecordChange(selected);
+            if (wasComplete && !(selected.result && selected.result.entry_completion)) { renderReport(selected); return selected; }
+            if(!quietSave)note('本题已保存');else note('修改已自动保存');
+            return selected;
+          }
+          renderReport(result.review);note(result.review.status==='running'?'已保存，正在更新分析':'试题已保存');return result.review;
+        }
+      }finally{saving=false;controls.forEach(function(el){if(el.isConnected)el.disabled=el.dataset.wasDisabled==='true';});}
+
+    }
+    dialog.addEventListener('click', async function (e) {
+      var target = e.target.closest('[data-pr]'); if (!target) return;
+      var action = target.dataset.pr;
+      if (action === 'close') return close(false);
+      if ((busy || saving) && action !== 'history' && action !== 'upload') return;
+      try {
+        if (action === 'analyze-record') { if(dirty && !await save())return; if(ctx.onAnalyzeRecord)await ctx.onAnalyzeRecord(selected);else if(window.ScorePaperHub){var record=selected;ctx.dispose();window.ScorePaperHub.analyze(record);} }
+        else if (action === 'upload') upload();
+        else if (action === 'history' && ctx.host) { close(false); }
+        else if (action === 'history') { if (tab('history')) { history(); await refresh(); } }
+        else if (action === 'start') await start();
+        else if (action === 'pause') { await api(ctx, 'pause', { request_id: selected.request_id }); await load(selected.request_id); }
+        else if (action === 'resume') { target.disabled = true; await resume(); }
+        else if (action.startsWith('report:')) { if (tab('report')) await load(action.slice(7)); }
+        else if (action === 'save') { target.disabled = true; await save(); }
+        else if (action.startsWith('filter:')) {
+          var filter = action.slice(7), visible = 0;
+          main.querySelectorAll('.pr-question[data-question]').forEach(function (q) { q.hidden = filter === 'review' ? q.dataset.needsReview !== 'true' : filter === 'confirm' ? q.dataset.needsConfirm !== 'true' : filter === 'unverified' ? q.dataset.unverified !== 'true' : false; if (!q.hidden) visible++; });
+          main.querySelectorAll('[data-pr^="filter:"]').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.pr === action ? 'true' : 'false'); });
+          main.querySelector('.pr-filter-empty').hidden = visible > 0;
+        }
+        else if (action.startsWith('jump:')) { var section = main.querySelector('[data-report-section="' + action.slice(5) + '"]'); if (section) { if(section.parentElement.matches('details'))section.parentElement.open=true; section.focus({ preventScroll: true }); if (section.scrollIntoView) section.scrollIntoView({ block: 'start' }); } }
+        else if (action.startsWith('focus:')) { var detail = Array.from(main.querySelectorAll('[data-question]')).find(function (q) { return q.dataset.question === action.slice(6); }); if (detail) { var all = main.querySelector('[data-pr="filter:all"]'); if (all) all.click(); detail.open = true; detail.querySelector('summary').focus({ preventScroll: true }); if (detail.scrollIntoView) detail.scrollIntoView({ block: 'start' }); } }
+        else if (action === 'retry-scores' && selected) {
+          if (dirty) { note('请先保存核对修改，再重新识别分数。', true); return; }
+          await restoreScoreDetails(ctx, selected.request_id, function (message) { note(message); });
+          await api(ctx, 'retry_scores', { request_id: selected.request_id, revision: selected.revision });
+          await load(selected.request_id);
+        }
+        else if (action === 'delete' && selected && confirm(selected.result && selected.result.record_only?'删除本份录入及扫描件？已生成的分析保留文字快照；已同步的题型得分保留。':'删除这份分析报告及核对记录？原始试题录入和考试成绩保留。')) {
+          await api(ctx, 'delete', { request_id: selected.request_id }); await support.uploads('delete', ctx.user, selected.request_id); if (session.pending === selected.request_id || session.cacheId === selected.request_id) { session.pages = []; session.pending = null; session.payload = null; session.cacheId = null; } selected = null; dirty = false; note('报告已删除'); view = 'history'; if (ctx.host) close(false); else await refresh();
+        } else if (action.startsWith('remove:')) { session.pages.splice(Number(action.split(':')[1]), 1); session.cloudReady = false; await persist(); upload(); }
+        else if (action.startsWith('up:')) { var i = Number(action.split(':')[1]); if (i > 0) { var p = session.pages.splice(i, 1)[0]; session.pages.splice(i - 1, 0, p); session.cloudReady = false; await persist(); upload(); } }
+        else if (action.startsWith('rotate:')) { busy = true; await rotate(session.pages[Number(action.split(':')[1])]); delete session.pages[Number(action.split(':')[1])].cloud_upload; session.cloudReady = false; await persist(); busy = false; upload(); }
+      } catch (error) { if (alive()) note(error.message, true); }
+      finally { busy = false; if (target.isConnected) target.disabled = false; }
+    });
+    if (ctx.initialReport) { load(ctx.initialReport); return; }
+    upload();
+    // Never hydrate a fresh upload from the previous local slot. Only an
+    // explicit draft/resume entry may restore cached images.
+    if (ctx.restoreDraft) {
+      support.uploads('latest', ctx.user, cacheScope).then(function (saved) { if (alive() && !session.pages.length && !session.pending && !busy && fill(saved)) { if (session.pending) return load(session.pending).then(refresh); if (view === 'upload') upload(); } return refresh(); });
+    } else refresh();
+  }
+
+  var beforeOpen = openExam;
+  openExam = function (exam) {
+    var result = beforeOpen.apply(this, arguments), modal = state.modal;
+    if (!modal || !modal.querySelector('#examSubjectsV16') || modal._paperReview || !owner()) return result;
+    var ctx = { modal: modal, exam: exam || null, examId: String(exam && exam.id || ''), user: owner(), token: state.token,
+      draftId: drafts(owner())[String(exam && exam.id || '') || 'new'] || null, sessions: Object.create(null), dialog: null };
+    modal._paperReview = ctx;
+    function decorate() {
+      modal.querySelectorAll('.exam-subject-card-v10').forEach(function (card) {
+        if (card.querySelector('.pr-entry')) return;
+        var entry = document.createElement('button'); entry.type = 'button'; entry.className = 'pr-entry'; entry.textContent = '试题录入 / AI 分析';
+        entry.onclick = function () { var name = card.querySelector('.exam-subject-name-v10').value.trim(); if (name) { if (window.ScorePaperHub) { window.ScorePaperHub.enter(ctx, name, formContext(ctx, name)); } else { ctx.draftId = crypto.randomUUID(); ctx.restoreDraft = false; show(ctx, name, entry); } } };
+        card.appendChild(entry);
+      });
+    }
+    decorate();
+    var observer = new MutationObserver(function () { if (!modal.isConnected) { observer.disconnect(); return; } decorate(); });
+    observer.observe(modal.querySelector('#examSubjectsV16'), { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true });
+    modal.addEventListener('click', function (e) { if (e.target.closest('.draft-clear-v61')) putDraft(ctx.user, ctx.examId || 'new', null); }, true);
+    return result;
+  };
+  var beforeSave = dataApiV7;
+  dataApiV7 = async function (action, payload) {
+    var ctx = state.modal && state.modal._paperReview;
+    var relevant = action === 'save_exam' && ctx && ctx.draftId && payload && payload.exam && String(payload.exam.id || '') === ctx.examId;
+    var result = await beforeSave.apply(this, arguments);
+    if (relevant && result && result.id && current(ctx)) {
+      putDraft(ctx.user, result.id, ctx.draftId);
+      if (!ctx.examId) putDraft(ctx.user, 'new', null);
+      try { await api(ctx, 'attach', { draft_id: ctx.draftId, exam_id: result.id }); }
+      catch (_) { toast('考试已保存，试卷报告稍后打开该科目时会继续关联'); }
+    }
+    return result;
+  };
+  // Retry only the new feature's association. Never replay save_exam.
+  var openWithEntry = openExam;
+  openExam = function (exam) {
+    var result = openWithEntry.apply(this, arguments), ctx = state.modal && state.modal._paperReview;
+    if (ctx && ctx.examId && ctx.draftId) api(ctx, 'attach', { draft_id: ctx.draftId, exam_id: ctx.examId }).catch(function () {});
+    return result;
+  };
+  window.ScorePaperReview = { summary: summary, mount: show, api: api, prepare: prepare, draftFor: draftFor };
+  var style = document.createElement('style');
+  style.textContent = `
+    .pr-progress{padding:18px 0}.pr-milestones{list-style:none;padding:0;margin:22px 0}.pr-milestones li{display:flex;align-items:center;gap:10px;padding:11px 0;color:var(--muted)}.pr-milestones li>span{display:grid;place-items:center;width:25px;height:25px;border-radius:50%;border:1px solid var(--line);flex:none}.pr-milestones small{margin-left:auto;font-size:11px}.pr-milestones .is-current{color:var(--accent);font-weight:700}.pr-milestones .is-current>span{background:var(--accent-soft)}.pr-milestones .is-done{color:var(--text)}.pr-wins{border-left:3px solid #43937a;padding:14px 16px}.pr-wins article+article{margin-top:15px}.pr-cause{border:1px solid var(--line);border-radius:12px;padding:12px;margin:16px 0}.pr-cause article{padding:10px 0}.pr-cause label{display:block;font-size:12px;margin-top:10px}.pr-cause select{display:block;width:100%;padding:9px;border:1px solid var(--line);border-radius:9px;background:var(--panel-solid);color:var(--text);font:inherit}.pr-reflection-route{padding:10px;background:var(--accent-soft);border-radius:8px}.pr-dimensions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.pr-dimensions>span{border:1px solid var(--line);border-radius:9px;padding:8px;font-size:12px}.pr-dimensions small{display:block;color:var(--muted);font-size:11px}.pr-table-scroll{overflow:auto}.pr-difficulty-table{width:100%;border-collapse:collapse;font-size:12px}.pr-difficulty-table th,.pr-difficulty-table td{padding:8px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}.pr-difficulty-table th{white-space:nowrap}
+
+    .pr-insight{padding:18px 0;border-bottom:1px solid var(--line);margin-bottom:12px}.pr-insight ul,.pr-question-body ul{padding-left:20px}.pr-insight li,.pr-question-body li{margin:7px 0}.pr-pattern,.pr-action{padding:13px 0}.pr-pattern+.pr-pattern,.pr-action+.pr-action{border-top:1px solid var(--line)}.pr-pattern h4 small{font-size:10px;font-weight:400;color:var(--muted)}.pr-action-plan{background:var(--accent-soft,#eef1ff);border:0;border-radius:15px;padding:18px;margin:16px 0 20px}.pr-success{padding:9px 12px;border-left:3px solid var(--accent,#5d72e8);background:var(--panel-solid,#fff);font-size:12px}.pr-link{padding:4px 9px;margin:4px 2px 0 0;font-size:11px}.pr-first-issue{border-left:3px solid #d99a57;padding-left:12px;margin:16px 0}.pr-issue-preview{display:block;color:var(--accent)!important;margin-top:4px}.pr-solution,.pr-practice,.pr-open-questions{padding:12px 0;border-bottom:1px solid var(--line)}.pr-solution summary,.pr-practice summary,.pr-open-questions summary{cursor:pointer;font-weight:600}.pr-original-note{margin:14px 0!important}.pr-loss-map{display:flex;flex-wrap:wrap;gap:7px}.pr-loss-map>span{border:1px solid var(--line);padding:6px 10px;border-radius:9px;font-size:12px}.pr-loss-map b{color:var(--danger,#b44436);margin-left:7px}.pr-question{scroll-margin-top:90px}.pr-text{overflow-wrap:anywhere}.pr-total{margin:10px 0!important}
+    .pr-entry{display:inline-flex;align-items:center;margin-top:12px;padding:7px 11px;border:1px solid var(--line);border-radius:9px;background:transparent;color:var(--accent,#5d72e8);font:inherit;font-size:12px;cursor:pointer}
+    .pr-dialog{box-sizing:border-box;width:min(760px,calc(100% - 24px));max-height:92dvh;padding:0;border:1px solid var(--line,#e8ebf0);border-radius:22px;background:var(--panel-solid,#fff);color:var(--text,#18212f);box-shadow:0 24px 90px #0003;overflow:auto;font:14px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    .pr-dialog::backdrop{background:#101a3070;backdrop-filter:blur(4px)}.pr-head{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:18px 24px;background:var(--panel-solid,#fff);border-bottom:1px solid var(--line)}.pr-head h2{font-size:20px;margin:0}.pr-eyebrow{font-size:11px;font-weight:700;letter-spacing:1px;color:var(--accent,#5d72e8)}.pr-content{padding:0 24px 24px}.pr-message:empty{display:none}.pr-message{padding:10px 12px;margin:14px 0;background:var(--accent-soft,#eef1ff);border-radius:10px;font-size:12px}.pr-message.is-error{color:var(--danger,#b44436);background:#fef0ed}.pr-tabs{display:flex;gap:8px;margin:18px 0}.pr-tabs .is-active{background:var(--accent-soft,#eef1ff);color:var(--accent,#5d72e8);border-color:transparent}
+    .pr-button{border:1px solid var(--line,#e8ebf0);border-radius:10px;padding:8px 13px;background:var(--panel-solid,#fff);color:var(--text,#18212f);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}.pr-button:disabled{opacity:.5;cursor:wait}.pr-button:focus-visible,.pr-entry:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.pr-primary{background:var(--accent,#5d72e8);color:white;border-color:transparent;font-weight:700}.pr-danger{color:var(--danger,#b44436)}.pr-main h3{font-size:16px;margin:0 0 7px}.pr-main h4{font-size:13px;margin:15px 0 5px}.pr-main p{margin:6px 0}.pr-intro{padding:20px;background:var(--accent-soft,#eef1ff);border-radius:15px;margin-bottom:20px}.pr-intro p{font-size:13px;color:var(--muted,#788392)}.pr-quota{font-size:11px;margin-top:12px;color:var(--accent,#5d72e8)}.pr-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.pr-section-head h3{margin:0}.pr-section-head small{font-size:10px;font-weight:400;color:var(--muted);margin-left:8px}.pr-upload-group{padding:18px 0;border-bottom:1px solid var(--line)}.pr-upload-group>p{font-size:12px;color:var(--muted)}.pr-file-label{position:relative;overflow:hidden}.pr-file-label input{position:absolute;inset:0;opacity:0;width:100%;cursor:pointer}.pr-pages{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.pr-page{border:1px solid var(--line);border-radius:12px;overflow:hidden;min-width:0}.pr-page img{width:100%;height:125px;object-fit:contain;background:#f4f5f7;display:block}.pr-page-info{padding:5px 8px;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pr-page-actions{display:flex;gap:3px;padding:0 5px 6px}.pr-page-actions button{flex:1;padding:4px 2px;font-size:10px}.pr-check{display:flex;align-items:flex-start;gap:8px;margin:15px 0;font-size:12px}.pr-check input{margin-top:4px;flex:none;accent-color:var(--accent)}.pr-consent{color:var(--muted)}.pr-help{font-size:12px;padding:10px 0;color:var(--muted)}.pr-help summary{cursor:pointer;color:var(--text)}.pr-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:18px 0}.pr-footer>span{font-size:11px}.pr-muted{font-size:11px;color:var(--muted,#788392)}.pr-history{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px;margin:8px 0;background:var(--panel-solid,#fff);border:1px solid var(--line);border-radius:12px;font:inherit;font-size:12px;color:var(--text);text-align:left;cursor:pointer}.pr-history b{color:var(--accent)}.pr-empty{text-align:center;padding:40px 12px}.pr-empty p{color:var(--muted);font-size:13px;margin:12px 0 20px}.pr-spinner{width:25px;height:25px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;margin:0 auto 20px;animation:pr-spin 1s linear infinite}@keyframes pr-spin{to{transform:rotate(360deg)}}
+    .pr-result-top{padding:20px;border:1px solid var(--line);border-radius:15px;margin-bottom:16px}.pr-result-top>p{font-size:12px;color:var(--muted)}.pr-stats{display:grid;grid-template-columns:1fr 1fr 1.6fr;gap:12px;margin:20px 0}.pr-stats div{display:flex;flex-direction:column}.pr-stats b{font-size:23px;font-variant-numeric:tabular-nums}.pr-stats span{font-size:10px;color:var(--muted)}.pr-warning{background:#fff5df;color:#80602e;border-radius:12px;padding:10px 14px;font-size:12px;margin-bottom:20px}.pr-question{border:1px solid var(--line);border-radius:12px;margin:10px 0}.pr-question>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px;cursor:pointer;font-weight:600;list-style:none}.pr-question summary small{display:block;font-size:10px;color:var(--muted);font-weight:400}.pr-badge{font-size:10px;color:var(--accent);white-space:nowrap}.pr-question-body{padding:0 15px 16px}.pr-text{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px}.pr-question-body>label,.pr-score-fields label{display:block;font-size:11px;color:var(--muted)}.pr-question textarea,.pr-question input[type=number]{box-sizing:border-box;width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--input-bg,#fff);color:var(--text);font:inherit;font-size:13px;margin-top:5px}.pr-question textarea{resize:vertical}.pr-score-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}.pr-checks{display:flex;flex-wrap:wrap;gap:16px}.pr-evidence{border-left:3px solid var(--line);padding-left:10px;font-size:12px;color:var(--muted)}.pr-estimate{font-size:12px;color:#947124}.pr-evaluation{border-top:1px solid var(--line);padding-top:20px}.pr-evaluation h3{margin-top:18px}.pr-evaluation li{font-size:13px;margin:8px 0}.pr-loss{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:12px}.pr-loss b{color:var(--danger,#b44436)}
+    .pr-main .pr-wins{border:1px solid var(--line);border-left:3px solid #43937a;border-radius:14px;padding:18px;margin:18px 0;background:var(--panel-solid,#fff)}.pr-main .pr-win-card{padding:16px 0}.pr-main .pr-win-card+.pr-win-card{border-top:1px solid var(--line);margin-top:0}.pr-main .pr-win-card h4{margin:0 0 10px;font-size:14px}.pr-main .pr-win-card p{margin:9px 0}.pr-main .pr-win-card .pr-evidence{margin-top:12px;padding:8px 10px;background:var(--accent-soft,#f5f7fb);border:0;border-radius:8px;font-size:12px;line-height:1.7}.pr-more-wins summary,.pr-recovery summary{cursor:pointer;padding:12px 0}.pr-more-wins{border-top:1px solid var(--line)}.pr-main .pr-text{line-height:1.85}.pr-main .katex{font-size:1.08em;white-space:normal}.pr-main .katex-display{overflow-x:auto;overflow-y:hidden;padding:8px 2px;margin:12px 0;max-width:100%}.pr-main .katex-html{white-space:normal}.pr-recovery{padding:20px;border:1px solid var(--line);border-radius:14px}.pr-recovery>.pr-button{margin:12px 0}.pr-recovered-pages{display:flex;gap:8px;overflow:auto;padding:10px 0}.pr-recovered-pages img{width:80px;height:95px;object-fit:contain;border:1px solid var(--line);border-radius:8px;flex:none}.pr-recovered-work article{padding:12px 0;border-bottom:1px solid var(--line)}.pr-main .pr-first-issue{padding:12px 14px;border-radius:0 10px 10px 0;background:var(--accent-soft,#f5f7fb)}
+    /* Report reading hierarchy. Sources/editors stay available without leading the story. */
+    .pr-inline .pr-content{max-width:780px;margin-inline:auto}.pr-main .pr-reading-section{margin:30px 0 36px;scroll-margin-top:120px}.pr-main .pr-reading-section:focus{outline:none}.pr-main .pr-reading-section:focus-visible{outline:2px solid var(--accent);outline-offset:6px}
+    .pr-main .pr-chapter{display:flex;align-items:flex-start;gap:12px;margin:0 0 18px}.pr-main .pr-chapter>span{font-size:12px;font-weight:750;color:var(--accent);background:var(--accent-soft);border-radius:10px;padding:6px 9px;line-height:1.5}.pr-main .pr-chapter h3{font-size:19px;line-height:1.4;margin:0 0 4px}.pr-main .pr-chapter p{color:var(--muted);font-size:12px;margin:0}
+    .pr-main .pr-result-top{background:var(--accent-soft);border:0;padding:24px;margin-top:16px}.pr-main .pr-result-top h3{font-size:24px;line-height:1.35;margin:8px 0}.pr-main .pr-total{display:flex;align-items:baseline;gap:5px;color:var(--text)}.pr-main .pr-total>b{font-size:36px;letter-spacing:-1px}.pr-main .pr-total>span{font-size:16px}.pr-main .pr-total>small{margin-left:8px;font-size:11px;color:var(--muted)}
+    .pr-report-nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}.pr-main .pr-report-nav .pr-button{min-height:42px;background:var(--panel-solid);flex:1}.pr-main .pr-score-summary{font-size:13px;line-height:1.85;padding:12px 14px;border-radius:10px;background:var(--panel-solid);border:1px solid var(--line);margin-bottom:14px}
+    .pr-main .pr-fold{border:0;border-top:1px solid var(--line);border-radius:0;padding:0;margin:12px 0;background:none}.pr-main .pr-fold>summary{cursor:pointer;padding:13px 2px;font-size:13px;font-weight:600;line-height:1.6;color:var(--text);overflow-wrap:anywhere}.pr-main .pr-fold-body{padding:0 2px 12px;min-width:0}.pr-main .pr-fold-body>label{display:block;font-size:12px;color:var(--muted);margin:12px 0}.pr-main summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+    .pr-main .pr-action-plan{background:var(--panel-solid);border:1px solid var(--line);border-top:3px solid var(--accent);border-radius:14px;padding:18px;margin:18px 0}.pr-main .pr-action-heading{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}.pr-main .pr-action-heading h4{font-size:15px;margin:0;line-height:1.6;overflow-wrap:anywhere}.pr-step-number{font-size:12px;color:var(--accent);font-weight:700;flex:none}.pr-main .pr-action{padding:16px 0}.pr-main .pr-action:last-child{padding-bottom:0}.pr-main .pr-success{border:0;border-radius:10px;background:var(--accent-soft);padding:12px 14px;margin:14px 0}.pr-main .pr-success>b{display:block;font-size:12px;color:var(--accent);margin-bottom:3px}.pr-main .pr-success p{margin:0}
+    .pr-main .pr-prose{white-space:normal;font-size:14px;line-height:1.85}.pr-main .pr-prose p{white-space:pre-wrap;margin:8px 0}.pr-main .pr-prose p:first-child{margin-top:0}.pr-main .pr-prose ul,.pr-main .pr-prose ol{padding-left:24px;margin:10px 0}.pr-main .pr-prose li{margin:7px 0;white-space:pre-wrap}.pr-main .pr-prose strong{font-weight:650}.pr-main .pr-evidence{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.8}.pr-main .pr-prose-heading{padding-top:6px}.pr-main .pr-wins .pr-win-card{padding:12px 0}.pr-main .pr-wins h3{font-size:16px}.pr-main .pr-win-card h4{font-size:12px;color:var(--muted);margin-bottom:6px}.pr-main .pr-win-card .pr-fold{margin:6px 0;border:0}.pr-main .pr-win-card .pr-fold>summary{padding:5px 0;color:var(--muted);font-size:12px}
+    .pr-question-filters{display:flex;gap:7px;flex-wrap:wrap;margin:14px 0}.pr-question-filters [aria-pressed=true]{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}.pr-main .pr-question[hidden],.pr-main [hidden]{display:none!important}.pr-main .pr-question{background:var(--panel-solid);overflow:hidden;scroll-margin-top:120px}.pr-main .pr-question>summary{padding:16px;font-size:14px;min-height:48px;list-style:none}.pr-main .pr-question>summary::-webkit-details-marker{display:none}.pr-main .pr-question>summary>span:first-child{flex:1;min-width:0;overflow-wrap:anywhere}.pr-main .pr-question summary small{font-size:11px;line-height:1.65;margin-top:4px}.pr-main .pr-badge{font-size:12px;flex:none}.pr-chevron{font-size:0;width:7px;height:7px;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:rotate(45deg);margin:0 3px 4px;flex:none}.pr-question[open]>summary>.pr-chevron{transform:rotate(225deg);margin-top:6px}.pr-main .pr-question[open]>summary{border-bottom:1px solid var(--line)}.pr-main .pr-question-body{padding:16px}.pr-main .pr-question-body h4{font-size:14px}.pr-main .pr-first-issue{margin:0 0 18px;padding:14px;border-left:3px solid #d99a57}.pr-main .pr-first-issue h4:first-child{margin-top:0}.pr-main .pr-full-credit{font-size:14px;font-weight:600}.pr-main .pr-source{margin-top:20px}.pr-main .pr-link{min-height:36px;padding:6px 12px}.pr-main .pr-check{font-size:12px}.pr-main .pr-context{padding:12px 0}.pr-main .pr-context>summary{cursor:pointer;font-weight:600}.pr-main .pr-report-meta .pr-insight{margin-bottom:18px}.pr-main .katex-error{overflow-wrap:anywhere}
+    @media(max-width:520px){.pr-dialog{width:100%;max-width:100%;max-height:100dvh;height:100dvh;margin:0;border-radius:0;border:0}.pr-head{padding:15px 16px}.pr-content{padding:0 16px 24px}.pr-pages{grid-template-columns:repeat(2,minmax(0,1fr))}.pr-intro,.pr-main .pr-result-top{padding:18px}.pr-head h2{font-size:18px}.pr-stats b{font-size:20px}.pr-main .pr-question>summary{padding:14px;gap:8px}.pr-main .pr-report-nav .pr-button{font-size:12px;padding:8px}.pr-main .pr-difficulty-table thead{display:none}.pr-main .pr-difficulty-table tbody{display:block}.pr-main .pr-difficulty-table tr{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);border-radius:10px;margin:10px 0;padding:8px}.pr-main .pr-difficulty-table td{padding:4px;border:0}.pr-main .pr-difficulty-table td:nth-child(1)::before{content:'题号 ';color:var(--muted)}.pr-main .pr-difficulty-table td:nth-child(2)::before{content:'综合 ';color:var(--muted)}.pr-main .pr-difficulty-table td:nth-child(3)::before{content:'思考 ';color:var(--muted)}.pr-main .pr-difficulty-table td:nth-child(4)::before{content:'计算 ';color:var(--muted)}.pr-main .pr-difficulty-table td:last-child{grid-column:1/-1;border-top:1px solid var(--line);margin-top:6px;padding-top:8px;font-size:13px;line-height:1.8}}@media(prefers-reduced-motion:reduce){.pr-spinner{animation:none}}
+  `;
+  style.textContent += '.pr-floating-note{position:fixed;z-index:9999;bottom:calc(78px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);max-width:min(90vw,480px);padding:11px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel-solid,#fff);color:var(--text,#18212f);font-size:13px;line-height:1.5;box-shadow:0 6px 24px #18212f25;pointer-events:none;overflow-wrap:anywhere}.pr-floating-note[hidden]{display:none!important}.pr-floating-note.is-error{color:var(--danger,#a74944)}.pr-action-message{flex:1 0 100%;min-width:0;margin:0 0 10px;box-sizing:border-box;line-height:1.7;overflow-wrap:anywhere}.pr-action-message:empty{display:none}.pr-footer:has(>.pr-action-message),.pr-upload-footer{flex-wrap:wrap}.pr-upload-footer>.pr-button{max-width:100%;white-space:normal}';
+  style.textContent += '.pr-debug{margin:12px 0 18px;padding:10px 12px;border:1px dashed var(--line,#dfe3ea);border-radius:10px;background:var(--panel-solid,#fff);font-size:11px}.pr-debug summary{cursor:pointer;font-weight:650}.pr-debug p{margin:6px 0;line-height:1.6}.pr-debug-scroll{overflow:auto;max-height:230px}.pr-debug table{width:100%;border-collapse:collapse;white-space:nowrap}.pr-debug th,.pr-debug td{padding:5px 6px;text-align:left;border-bottom:1px solid var(--line,#e8ebf0);font-size:10px}.pr-debug th{color:var(--muted,#788392);font-weight:600}.pr-debug td:last-child{white-space:normal;min-width:120px}';
+  style.textContent += '.pr-main .pr-next-exam{margin:18px 0;padding:16px 18px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:12px;background:var(--panel-solid)}.pr-main .pr-next-exam>h4{margin:0 0 6px;font-size:16px}.pr-next-exam>ol{margin:14px 0 0;padding-left:22px}.pr-next-exam>ol>li{padding-left:3px;overflow-wrap:anywhere}.pr-next-exam>ol>li+li{margin-top:16px}.pr-next-exam>ol>li::marker{color:var(--accent);font-weight:650}.pr-main .pr-next-exam .pr-prose{font-size:13px}.pr-tip-sources{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-width:0}.pr-main .pr-tip-sources .pr-link{margin:0;white-space:normal;overflow-wrap:anywhere}.pr-entry-complete{display:grid;grid-template-columns:auto 1fr;gap:10px 14px;align-items:center;margin:18px 0;padding:18px;border:1px solid var(--accent,#5d72e8);border-radius:14px;background:var(--accent-soft,#eef1ff)}.pr-entry-complete-mark{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--accent,#5d72e8);color:#fff;font-size:20px;font-weight:700}.pr-entry-complete-copy h3{margin:0 0 3px;font-size:18px}.pr-entry-complete-copy p{margin:0;color:var(--muted);font-size:13px}.pr-entry-complete-actions{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px}.pr-entry-complete-actions .pr-button{flex:1 1 140px}';
+  document.head.appendChild(style);
+})();
+
+/* ===== paper-review-board.js ===== */
+/* Image-first checking. All writes use the existing owned record endpoints. */
+(function(){
+ 'use strict';
+ var roles={paper:'原题',work:'作答',reference:'参考答案'},esc=function(v){return escapeHtml(String(v==null?'':v));};
+ var same=function(a,b){return a.page===b.page&&a.kind===b.kind&&a.box.every(function(n,i){return Math.abs(n-b.box[i])<.00015;});};
+ var key=function(g){return JSON.stringify([g.label,g.questions.slice().sort()]);};
+ function groups(row){return (row.result.score_groups||[]).map(function(g){var override=(row._boardGroups||[]).find(function(v){return key(v)===key(g);})||(row.corrections||[]).map(function(c){return c.type_total;}).find(function(v){return v&&key(v)===key(g);});return override?Object.assign({},g,{teacher_score:override.score,max_score:override.max,manual:true}):g;});}
+ function mount(main,row,ctx,source,hooks){
+  if(main.paperBoardDispose)main.paperBoardDispose();
+  if(!row.result?.screenshot_only||row.status!=='succeeded'||!source.pages.length)return;
+  var old=main.querySelector('.pb-board');if(old)old.remove();
+  var pages=source.pages,questions=row.result.questions,readonly=!!source.readonly,board=document.createElement('section');board.className='pb-board';board.setAttribute('aria-label','原图核对');
+  var remembered=ctx.paperBoardState?.[row.request_id]||{},page=pages.find(function(p){return p.page===remembered.page;})||pages[0],selected=questions.find(function(q){return q.label===remembered.label;})||questions[0],mode='view',active=null,groupMode=false,entries=[],draft=null,lastEdit=null,busy=false,finalizing=false,confirming=false,edited=false,drag=null,zoom=1;
+  var nodes=new Map(Array.from(main.querySelectorAll('[data-question]')).map(function(n){return [n.dataset.question,n];}));
+  function node(q){return nodes.get(String(q.id));}
+  function field(q,name){return node(q)?.querySelector('[data-field='+name+']');}
+  function val(q,name){var el=field(q,name),c=(row.corrections||[]).find(function(c){return c.id===q.id;})||{};return el?(el.type==='checkbox'?el.checked:el.type==='number'?(el.value===''?null:Number(el.value)):el.value):Object.prototype.hasOwnProperty.call(c,name)?c[name]:q[name];}
+  function write(q,name,value){var el=field(q,name);if(!el)return;if(el.type==='checkbox')el.checked=!!value;else el.value=value==null?'':value;stateCache=null;el.dispatchEvent(new Event('input',{bubbles:true}));}
+  function items(){return questions.map(function(q){return {q:q,c:{teacher_score:val(q,'teacher_score'),max_score:val(q,'max_score'),question_type:val(q,'question_type'),verified:!!val(q,'verified')}};});}
+  var stateCache=null;
+  function info(q){if(!stateCache){var all=items(),scoreGroups=groups(row);stateCache=new Map(all.map(function(item){return [item.q,window.ScorePaperRecords?.questionState(item.q,item.c,all,scoreGroups)||{reasons:[],verified:false}];}));}return stateCache.get(q)||{reasons:[],verified:false};}
+  function needs(q){var state=info(q);return !state.verified&&state.reasons.length>0;}
+  function nextPending(after){var at=questions.indexOf(after),order=questions.slice(at+1).concat(questions.slice(0,Math.max(0,at)));return order.find(needs);}
+  function pageFor(q){var r=allRegions(q).find(function(v){return v.kind==='work';})||allRegions(q)[0];return r?pages.find(function(p){return p.page===r.page;}):pages.find(function(p){return p.role==='paper';});}
+  function remember(){ctx.paperBoardState||={};ctx.paperBoardState[row.request_id]={page:page.page,label:selected.label};}
+  function say(message,error){var el=board.querySelector('[data-pb-status]');el.textContent=message;el.classList.toggle('pb-error',!!error);}
+  function allRegions(q){return q.source_regions||[];}
+  function collect(){entries=[];questions.forEach(function(q){allRegions(q).forEach(function(r,index){if(r.page!==page.page)return;var entry=entries.find(function(e){return same(e.region,r);});if(!entry){entry={region:{page:r.page,kind:r.kind,box:r.box.slice()},members:[],refs:[]};entries.push(entry);}if(!entry.members.includes(q))entry.members.push(q);entry.refs.push({q:q,index:index});});});}
+  function groupFor(entry){return entry&&groups(row).find(function(g){return g.questions.length===entry.members.length&&entry.members.every(function(q){return g.questions.includes(q.label)&&val(q,'question_type')===g.label;});});}
+  function chooseEntry(entry){active=entry;selected=entry.members.includes(selected)?selected:entry.members[0];groupMode=!!groupFor(entry)&&entry.members.every(function(q){return val(q,'teacher_score')==null;});}
+  board.innerHTML='<header class="pb-head"><div><h3>对照原图核对</h3><p>点题目框改分数；确认当前题时会自动保存并进入下一处。</p></div></header><nav class="pb-pages" aria-label="扫描图片"></nav><div class="pb-layout"><section class="pb-view"><div class="pb-view-head"><b data-pb-page-title></b><div><button type="button" class="pr-button" data-pb="zoom-out" aria-label="缩小图片">−</button><button type="button" class="pr-button" data-pb="zoom" aria-label="重置图片大小">100%</button><button type="button" class="pr-button" data-pb="zoom-in" aria-label="放大图片">＋</button></div></div><div class="pb-scroll"><div class="pb-stage"><img draggable="false" alt="扫描原图，题目框显示在图上"><div class="pb-boxes"></div></div></div><div class="pb-tools"><button type="button" class="pr-button" data-pb="adjust">调整范围</button><button type="button" class="pr-button" data-pb="add">补画框</button><button type="button" class="pr-button" data-pb="undo" disabled>撤销</button><select data-pb-kind aria-label="框内内容" hidden><option value="paper">原题</option><option value="work">作答</option><option value="reference">参考答案</option></select><span data-pb-tip>虚线框表示待核对。</span></div></section><aside class="pb-inspector"><div class="pb-title"><h4 data-pb-title></h4><span data-pb-state></span></div><label class="pb-picker">题目<select data-pb-question aria-label="选择题目"></select></label><div class="pb-pair"><button type="button" class="pr-button" data-pb="paper">原题</button><button type="button" class="pr-button" data-pb="work">作答</button></div><div class="pb-crop"><img alt="所选题目截图"></div><form class="pb-form"><label>题型<input data-pb-field="question_type" maxlength="40" placeholder="如：解答题"></label><div class="pb-scores"><label><span data-pb-score-label>批改得分</span><input data-pb-field="teacher_score" type="number" min="0" max="9999" step=".01" inputmode="decimal" placeholder="未读到"></label><span>/</span><label>满分<input data-pb-field="max_score" type="number" min=".01" max="9999" step=".01" inputmode="decimal" placeholder="待补充"></label></div><p class="pb-hint" data-pb-evidence></p><p class="pb-error" data-pb-error role="alert"></p><button class="pr-button pr-primary" type="submit">确认并下一处</button></form><button type="button" class="pr-button pb-next" data-pb="next">下一处待核对 →</button><p class="pb-message" data-pb-complete hidden>需要核对的内容已处理完。</p><p class="pb-message" data-pb-status role="status" aria-live="polite"></p></aside></div>';
+  var complete=board.querySelector('[data-pb-complete]');complete.textContent='核对完成 · 0 处待处理，其余题目将采用识别结果。';
+  var finish=document.createElement('button');finish.type='button';finish.className='pr-button pr-primary pb-finish';finish.dataset.pb='finish';finish.textContent='完成录入';finish.hidden=true;complete.after(finish);var finishChoice=document.createElement('div');finishChoice.className='pb-finish-choice';finishChoice.hidden=true;finishChoice.innerHTML='<p class="pb-message">本场已有题型得分，要用这次试卷结果更新吗？</p><button type="button" class="pr-button pr-primary" data-pb="finish-replace">更新并完成</button><button type="button" class="pr-button" data-pb="finish-only">仅保存试卷</button>';finish.after(finishChoice);
+  var anchor=main.querySelector('.pr-record-overview')||main.querySelector('.pr-result-top');anchor.after(board);
+  var ledger=main.querySelector('[data-report-section=questions]');if(ledger&&!ledger.parentElement.classList.contains('pb-ledger')){var fold=document.createElement('details');fold.className='pb-ledger';fold.innerHTML='<summary>按题号查看与核对</summary>';ledger.before(fold);fold.appendChild(ledger);}
+  main.classList.add('pb-image-first');
+  var $=function(s){return board.querySelector(s);},stage=$('.pb-stage'),image=stage.querySelector('img'),boxes=$('.pb-boxes');
+  function paint(box,element){element.style.left=box[0]*100+'%';element.style.top=box[1]*100+'%';element.style.width=box[2]*100+'%';element.style.height=box[3]*100+'%';}
+  function renderBoxes(){boxes.innerHTML=entries.map(function(e,i){var isActive=e===active,label=e.members.map(function(q){return q.label;}).join('、'),score=e.members.length===1?val(e.members[0],'teacher_score'):null,g=groupFor(e);if(e.members.length>4)label=e.members[0].label+'…'+e.members.at(-1).label;return '<div class="pb-box '+(e.members.some(needs)?'pb-pending ':'')+(isActive?'pb-selected':'')+'" data-pb-entry="'+i+'"><button type="button" data-pb-select="'+i+'" aria-label="第'+esc(label)+'题 '+roles[e.region.kind]+'" aria-pressed="'+isActive+'">'+esc(label)+'题'+(g?' · 合计 '+g.teacher_score:score!=null?' · '+score+'分':'')+'</button>'+(!readonly&&isActive&&mode==='adjust'?['nw','ne','sw','se'].map(function(c){return '<button type="button" class="pb-handle" data-pb-corner="'+c+'" aria-label="调整'+({nw:'左上',ne:'右上',sw:'左下',se:'右下'}[c])+'角"></button>';}).join(''):'')+'</div>';}).join('');entries.forEach(function(e,i){paint(e===active&&draft?draft.box:e.region.box,boxes.children[i]);});stage.classList.toggle('pb-editing',mode!=='view');}
+  function crop(){var holder=$('.pb-crop'),img=holder.querySelector('img'),r=active?.region;if(!r){holder.hidden=true;return;}holder.hidden=false;img.src=page.url;var b=draft?.box||r.box;function size(){if(!img.naturalWidth)return;holder.style.aspectRatio=b[2]*img.naturalWidth/(b[3]*img.naturalHeight);img.style.cssText='width:'+100/b[2]+'%;max-width:none;left:'+(-b[0]/b[2]*100)+'%;top:'+(-b[1]/b[3]*100)+'%;';}img.onload=size;if(img.complete)size();}
+  function renderPending(){var button=$('[data-pb=next]'),remaining=questions.some(needs),submit=$('.pb-form [type=submit]'),done=!!row.result.entry_completion&&!edited;if(button){button.hidden=true;button.textContent='';}submit.hidden=readonly||(!remaining&&!edited&&!confirming);submit.disabled=readonly||confirming||finalizing||submit.hidden;submit.textContent=confirming?'正在保存…':remaining?'确认并下一处':'保存本题';$('[data-pb-complete]').hidden=remaining;finish.hidden=remaining||readonly||done||!finishChoice.hidden;finish.disabled=confirming||finalizing;finishChoice.querySelectorAll('button').forEach(function(b){b.disabled=confirming||finalizing;});if(remaining){finishChoice.hidden=true;finish.hidden=true;}}
+  function renderEditor(){edited=false;var available=groupFor(active),g=groupMode&&available,members=active?.members||[selected];$('.pb-picker').hidden=!!active&&members.length===1;$('[data-pb-question]').innerHTML=(available?'<option value="__group">'+esc(available.label)+'合计</option>':'')+members.map(function(q){return '<option value="'+esc(q.label)+'">第 '+esc(q.label)+' 题</option>';}).join('');if(!active)$('[data-pb-question]').innerHTML=questions.map(function(q){return '<option value="'+esc(q.label)+'">第 '+esc(q.label)+' 题</option>';}).join('');$('[data-pb-question]').value=g?'__group':selected.label;
+   $('[data-pb-title]').textContent=g?g.label+'合计':'第 '+selected.label+' 题';$('[data-pb-state]').textContent=members.every(function(q){return val(q,'verified');})?'已核对':g?'保留合计':needs(selected)?'待核对':'可确认';
+   $('[data-pb-field=question_type]').value=g?g.label:val(selected,'question_type')||'';$('[data-pb-field=question_type]').disabled=readonly||!!g;
+   $('[data-pb-field=teacher_score]').value=(g?g.teacher_score:val(selected,'teacher_score'))??'';$('[data-pb-field=max_score]').value=(g?g.max_score:val(selected,'max_score'))??'';$('[data-pb-score-label]').textContent=g?'题型合计':'批改得分';
+   var reasons=(g?members.filter(needs).flatMap(function(q){return info(q).reasons;}):needs(selected)?info(selected).reasons:[]).filter(function(v,i,a){return a.indexOf(v)===i;});
+   var evidence=!active?'本页尚未定位这道题，可补画框或切换原题 / 作答。':g?'共 '+g.questions.length+' 题，只记合计，不拆分。':selected.score_mark?.quote?'批改依据：'+selected.score_mark.quote:'未读到批改分时保持留空，0 分请填 0。';
+   $('[data-pb-evidence]').textContent=(reasons.length?'需核对：'+reasons.join(' · ')+'。':'')+evidence;$('[data-pb-error]').textContent='';
+   renderPending();
+   ['paper','work'].forEach(function(kind){var b=$('[data-pb='+kind+']');b.setAttribute('aria-pressed',String(active?.region.kind===kind));b.disabled=!allRegions(selected).some(function(r){return r.kind===kind;});});crop();
+  }
+  function render(){remember();collect();var oldRegion=active?.region;active=entries.find(function(e){return oldRegion&&same(e.region,oldRegion);})||entries.find(function(e){return e.members.includes(selected);})||null;if(active&&!active.members.includes(selected))selected=active.members[0];
+   $('.pb-pages').innerHTML=pages.map(function(p){var n=questions.filter(function(q){return needs(q)&&allRegions(q).some(function(r){return r.page===p.page;});}).length;return '<button type="button" class="pr-button" data-pb-page="'+p.page+'" aria-current="'+(p.page===page.page)+'"><img loading="lazy" src="'+esc(p.url)+'" alt=""><span>'+roles[p.role]+' '+(pages.filter(function(v){return v.role===p.role;}).indexOf(p)+1)+'</span>'+(n?'<small>'+n+'处待核对</small>':'')+'</button>';}).join('');$('[data-pb-page-title]').textContent=roles[page.role]+' · 第 '+page.page+' 页';image.src=page.url;image.alt='第 '+page.page+' 页'+roles[page.role]+'扫描原图';renderBoxes();renderEditor();$('[data-pb=adjust]').disabled=readonly||!active;$('[data-pb=add]').disabled=readonly;$('[data-pb=undo]').disabled=readonly||(!draft&&!lastEdit);$('[data-pb=adjust]').textContent=mode==='adjust'?'完成调整':'调整范围';$('[data-pb=add]').textContent=mode==='add'?'取消补框':'补画框';$('[data-pb-kind]').hidden=mode!=='add';$('[data-pb-tip]').textContent=mode==='add'?'拖动空白处，为当前题目补框。':mode==='adjust'?'拖框移动，拖四角调整大小。':'虚线框表示待核对。';
+  }
+  function changed(q){write(q,'verified',false);write(q,'accepted',false);}
+  function syncFields(){if(readonly)return;var g=groupMode&&groupFor(active);if(g){var score=$('[data-pb-field=teacher_score]').value,max=$('[data-pb-field=max_score]').value;var override={label:g.label,questions:g.questions.slice(),score:score===''?null:Number(score),max:max===''?null:Number(max)};row._boardGroups=(row._boardGroups||[]).filter(function(v){return key(v)!==key(g);}).concat(override);g.questions.forEach(function(label){var q=questions.find(function(q){return q.label===label;});node(q).dataset.groupTotal=JSON.stringify(override);changed(q);});}else ['question_type','teacher_score','max_score'].forEach(function(name){var value=$('[data-pb-field='+name+']').value;if(name!=='question_type')value=value===''?null:Number(value);if(value!==val(selected,name))write(selected,name,value);});renderBoxes();}
+  $('.pb-form').oninput=function(){if(readonly||confirming||finalizing)return;edited=true;syncFields();renderPending();say('修改将在确认或完成录入时保存。');};
+  async function persist(changes){await hooks.regions(changes);changes.forEach(function(c){var q=questions.find(function(q){return q.label===c.label;});q.source_regions=c.regions;changed(q);});}
+  async function flush(){if(busy)throw new Error('截图正在保存，请稍候');if(!draft)return;busy=true;board.setAttribute('aria-busy','true');try{var edits=draft,changes=edits.refs.map(function(ref){var next=allRegions(ref.q).map(function(r){return {page:r.page,kind:r.kind,box:r.box.slice()};});if(edits.add)next.push({page:page.page,kind:edits.kind,box:edits.box.slice()});else next[ref.index]={page:page.page,kind:edits.kind,box:edits.box.slice()};return {label:ref.q.label,regions:next};});var previous=changes.map(function(c){var q=questions.find(function(q){return q.label===c.label;});return {label:c.label,regions:allRegions(q).map(function(r){return {page:r.page,kind:r.kind,box:r.box.slice()};})};});await persist(changes);lastEdit=previous;draft=null;mode='view';active=null;render();say('范围已保存，请核对对应分数。');}catch(e){say(e.message+'；调整仍保留，可重试。',true);throw e;}finally{busy=false;board.removeAttribute('aria-busy');}}
+  main.paperBoardBeforeSave=flush;
+  async function navigate(nextPage,q){await flush();page=nextPage;selected=q||selected;active=null;groupMode=false;mode='view';zoom=1;stage.style.width='100%';render();var e=entries.find(function(e){return e.members.includes(selected);});if(e){chooseEntry(e);renderBoxes();renderEditor();}remember();}
+  board.onclick=async function(event){var b=event.target.closest('button'),region=event.target.closest('[data-pb-entry]');if(b||region)event.stopPropagation();if(confirming||finalizing||b?.type==='submit')return;try{if(b?.dataset.pbPage){await navigate(pages.find(function(p){return String(p.page)===b.dataset.pbPage;}));return;}if(b?.dataset.pbSelect!=null||region&&mode==='view'){await flush();chooseEntry(entries[Number(b?.dataset.pbSelect??region.dataset.pbEntry)]);renderBoxes();renderEditor();remember();return;}var action=b?.dataset.pb;if(!action)return;if(busy)return;
+    if(action==='finish'){var sync=main.querySelector('[data-sync-types]'),replace=main.querySelector('[data-replace-types]');if(!sync){await hooks.save();finish.hidden=true;finishChoice.hidden=true;complete.textContent='录入完成 · 试题已保存。';say('录入完成');return;}if(replace&&!replace.checked){finish.hidden=true;finishChoice.hidden=false;say('核对完成，请选择是否更新已有题型得分。');return;}if(sync.disabled){say('还有题型信息需要补全，完成后即可录入。',true);return;}sync.click();return;}if(action==='finish-replace'){var replace=main.querySelector('[data-replace-types]'),sync=main.querySelector('[data-sync-types]');if(replace){replace.checked=true;replace.dispatchEvent(new Event('change',{bubbles:true}));}if(sync&&!sync.disabled)sync.click();else say('还有题型信息需要补全，完成后即可录入。',true);return;}if(action==='finish-only'){await hooks.save();finish.hidden=true;finishChoice.hidden=true;complete.hidden=false;complete.textContent='录入完成 · 试题已保存，原有题型得分未改动。';say('录入完成');return;}if(action==='adjust'){if(mode==='adjust'){await flush();mode='view';render();}else{await flush();mode='adjust';render();}return;}if(action==='add'){await flush();mode=mode==='add'?'view':'add';$('[data-pb-kind]').value=row.result.work_on_paper&&!allRegions(selected).some(function(r){return r.kind==='work';})?'work':page.role;render();return;}
+    if(action==='undo'){if(draft){draft=null;mode='view';render();say('已撤销未保存的范围调整。');}else if(lastEdit){busy=true;try{await persist(lastEdit);lastEdit=null;active=null;render();say('已恢复上一步截图范围。');}finally{busy=false;}}return;}
+    if(action==='paper'||action==='work'){var r=allRegions(selected).find(function(r){return r.kind===action;});if(r)await navigate(pages.find(function(p){return p.page===r.page;}),selected);return;}
+    if(action==='next'){var q=nextPending(selected);if(!q){renderEditor();return;}await navigate(pageFor(q)||page,q);return;}
+    if(action?.startsWith('zoom')){zoom=action==='zoom'?1:Math.max(1,Math.min(3,zoom+(action==='zoom-in' ? .5 : -.5)));stage.style.width=zoom*100+'%';$('[data-pb=zoom]').textContent=Math.round(zoom*100)+'%';}
+   }catch(e){say(e.message,true);}};
+  function finishStatus(active,message,error){finalizing=active;board.toggleAttribute('aria-busy',active);finish.textContent=active?'正在保存…':'完成录入';var choiceButtons=finishChoice.querySelectorAll('button');choiceButtons[0].textContent=active?'正在保存…':'更新并完成';choiceButtons[1].textContent=active?'正在保存…':'仅保存试卷';renderPending();if(message)say(message,error);}
+  main.paperBoardFinishStatus=finishStatus;
+  async function finishEntry(choice){
+   if(busy||confirming||finalizing||questions.some(needs))return;finishStatus(true,'正在保存试题…');
+   try{var saved=await hooks.save();if(!saved)throw new Error('保存尚未完成，请重试');if(hooks.finalize){await hooks.finalize(choice||'save');return;}finishChoice.hidden=true;complete.hidden=false;complete.textContent=choice==='sync'?'录入完成 · 题型得分已更新。':'录入完成 · 试题已保存。';say('录入完成');}
+   catch(e){say(e.message,true);}finally{if(board.isConnected){finishStatus(false);}}
+  }
+  board.addEventListener('click',function(e){var b=e.target.closest('[data-pb=finish],[data-pb=finish-replace],[data-pb=finish-only]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();if(busy||confirming||finalizing||questions.some(needs))return;var sync=main.querySelector('[data-sync-types]'),replace=main.querySelector('[data-replace-types]');if(b.dataset.pb==='finish'){if(sync){if(replace&&!replace.checked){finish.hidden=true;finishChoice.hidden=false;say('核对完成，请选择是否更新已有题型得分。');return;}if(!sync.disabled){sync.click();return;}}finishEntry('save');}else if(b.dataset.pb==='finish-replace'){if(replace){replace.checked=true;replace.dispatchEvent(new Event('change',{bubbles:true}));}if(sync&&!sync.disabled)sync.click();else say('还有题型信息需要补全，完成后即可录入。',true);}else finishEntry('save');},true);
+  $('[data-pb-question]').onchange=async function(){if(confirming||finalizing)return;try{await flush();groupMode=this.value==='__group';if(!groupMode)selected=questions.find(function(q){return q.label===this.value;});renderBoxes();renderEditor();remember();}catch(e){say(e.message,true);}};
+  $('.pb-form').onsubmit=async function(e){e.preventDefault();e.stopPropagation();if(readonly||busy||confirming||finalizing||(!questions.some(needs)&&!edited))return;var previous=[],saved=false;confirming=true;renderPending();say('正在保存本题…');try{for(var input of board.querySelectorAll('input[data-pb-field]'))if(!input.checkValidity())throw new Error('请输入有效分数，最多两位小数');var score=$('[data-pb-field=teacher_score]').value,max=$('[data-pb-field=max_score]').value;if(score!==''&&max!==''&&Number(score)>Number(max))throw new Error('得分不能超过满分');syncFields();await flush();var g=groupMode&&groupFor(active),targets=g?active.members:[selected];previous=targets.map(function(q){return {q:q,verified:val(q,'verified')};});targets.forEach(function(q){write(q,'verified',true);});var next=nextPending(selected);var result=await hooks.save();if(!result)throw new Error('保存尚未完成，请重试');saved=true;edited=false;if(board.isConnected){if(next){var nextPage=pageFor(next)||page;if(nextPage===page){selected=next;active=entries.find(function(e){return e.members.includes(next);})||null;groupMode=false;if(active)chooseEntry(active);renderBoxes();renderEditor();remember();}else await navigate(nextPage,next);}else{renderBoxes();renderEditor();}say(next?'本题已保存':'核对完成，可以完成录入。');}}catch(err){if(!saved)previous.forEach(function(item){write(item.q,'verified',item.verified);});if(board.isConnected){edited=!saved;renderBoxes();say(err.message,true);}}finally{confirming=false;if(board.isConnected)renderPending();}};
+  function point(e){var r=stage.getBoundingClientRect();return [Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))];}
+  stage.onpointerdown=function(e){if(readonly||busy||confirming||finalizing||mode==='view'||e.button>0||e.target.closest('[data-pb-select]'))return;var el=e.target.closest('[data-pb-entry]');if(mode==='adjust'&&(!active||Number(el?.dataset.pbEntry)!==entries.indexOf(active)))return;if(!image.naturalWidth&&!image.complete)return;e.preventDefault();var start=point(e);if(mode==='add'){draft={add:true,kind:$('[data-pb-kind]').value,box:[start[0],start[1],.015,.015],refs:[{q:selected}]};}else draft||={kind:active.region.kind,box:active.region.box.slice(),refs:active.refs};drag={start:start,original:draft.box.slice(),corner:e.target.closest('[data-pb-corner]')?.dataset.pbCorner};stage.setPointerCapture(e.pointerId);changed(selected);};
+  stage.onpointermove=function(e){if(!drag)return;var end=point(e),dx=end[0]-drag.start[0],dy=end[1]-drag.start[1],b=drag.original.slice(),c=drag.corner,clamp=function(n,l,r){return Math.max(l,Math.min(r,n));};if(mode==='add')b=[Math.min(end[0],drag.start[0]),Math.min(end[1],drag.start[1]),Math.max(.011,Math.abs(dx)),Math.max(.011,Math.abs(dy))];else if(!c){b[0]=clamp(b[0]+dx,0,1-b[2]);b[1]=clamp(b[1]+dy,0,1-b[3]);}else{var l=b[0],t=b[1],r=l+b[2],bottom=t+b[3];if(c.includes('w'))l=clamp(l+dx,0,r-.011);if(c.includes('e'))r=clamp(r+dx,l+.011,1);if(c.includes('n'))t=clamp(t+dy,0,bottom-.011);if(c.includes('s'))bottom=clamp(bottom+dy,t+.011,1);b=[l,t,r-l,bottom-t];}draft.box=b;var target=mode==='add'?boxes.querySelector('.pb-new'):boxes.querySelector('.pb-selected');if(!target){target=document.createElement('div');target.className='pb-box pb-selected pb-new';boxes.appendChild(target);}paint(b,target);};
+  stage.onpointerup=function(){if(!drag)return;drag=null;$('[data-pb=undo]').disabled=false;if(mode==='add'){mode='adjust';$('[data-pb=add]').textContent='补画框';$('[data-pb=adjust]').textContent='保存补画';}crop();say('范围尚未保存，点“'+(draft.add?'保存补画':'完成调整')+'”即可。');};
+  stage.onpointercancel=function(){drag=null;};
+  board.onkeydown=function(e){var handle=e.target.closest('[data-pb-corner]');if(confirming||finalizing||!handle||mode!=='adjust'||!active||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;e.preventDefault();draft||={kind:active.region.kind,box:active.region.box.slice(),refs:active.refs};var b=draft.box,c=handle.dataset.pbCorner,d=e.shiftKey ? .01 : .002,axis=e.key==='ArrowLeft'||e.key==='ArrowRight'?0:1,delta=e.key==='ArrowLeft'||e.key==='ArrowUp'?-d:d,far=axis===0?c.includes('e'):c.includes('s');if(far)b[axis+2]=Math.max(.011,Math.min(1-b[axis],b[axis+2]+delta));else{var end=b[axis]+b[axis+2];b[axis]=Math.max(0,Math.min(end-.011,b[axis]+delta));b[axis+2]=end-b[axis];}paint(b,boxes.querySelector('.pb-selected'));$('[data-pb=undo]').disabled=false;crop();changed(selected);};
+  if(!remembered.page){var pending=questions.find(needs);if(pending){selected=pending;var r=allRegions(pending).find(function(r){return r.kind==='work';})||allRegions(pending)[0];if(r)page=pages.find(function(p){return p.page===r.page;})||page;}}
+  render();if(active){chooseEntry(active);renderBoxes();renderEditor();}if(readonly)board.querySelectorAll('input,select,.pb-form button,.pb-finish,.pb-finish-choice button').forEach(function(el){el.disabled=true;});
+  function externalInput(e){if(e.target.closest('.pb-board'))return;if(e.target.matches('[data-field]')){stateCache=null;renderBoxes();renderPending();}}
+  main.addEventListener('input',externalInput);main.paperBoardDispose=function(){main.removeEventListener('input',externalInput);main.paperBoardFinishStatus=null;main.paperBoardDispose=null;};
+ }
+ window.ScorePaperBoard={mount:mount,groups:groups};
+ var css=document.createElement('style');css.textContent=`.pb-board{margin:20px 0;border:1px solid var(--line);border-radius:14px;background:var(--panel-solid,#fff);overflow:hidden}.pb-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:18px 20px}.pb-head h3{margin:0;font-size:20px}.pb-head p{margin:5px 0 0;color:var(--muted);font-size:13px}.pb-pages{display:flex;gap:8px;padding:0 20px 18px;overflow:auto}.pb-pages>.pr-button{flex:none;display:flex;flex-direction:column;gap:4px;min-width:74px;padding:7px 10px;font-size:12px}.pb-pages img{width:48px;height:52px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:3px}.pb-pages [aria-current=true]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}.pb-pages small{font-size:11px;color:#a36b23}.pb-layout{display:grid;grid-template-columns:minmax(0,1fr) 255px;border-top:1px solid var(--line)}.pb-view{padding:14px;background:var(--soft,#f5f7fb);min-width:0}.pb-view-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;margin-bottom:12px}.pb-view-head .pr-button{padding:5px 8px;margin:0;min-width:32px;font-size:12px}.pb-scroll{overflow:auto;max-height:760px;overscroll-behavior:contain}.pb-stage{position:relative;width:100%;line-height:0;user-select:none}.pb-stage>img{display:block;width:100%;max-width:none;height:auto;background:#fff}.pb-boxes{position:absolute;inset:0;pointer-events:none}.pb-box{position:absolute;border:1.5px solid var(--accent,#5264e8);background:#5264e805;pointer-events:auto;box-sizing:border-box;line-height:1.4}.pb-pending{border-style:dashed;border-color:#b47b2a}.pb-selected{z-index:4;border:2px solid var(--accent,#5264e8);background:#5264e810}.pb-box>button[data-pb-select]{position:absolute;top:-10px;left:3px;max-width:calc(100% - 6px);white-space:nowrap;text-overflow:ellipsis;overflow:hidden;padding:3px 7px;min-height:26px;border:0;border-radius:4px;background:var(--panel-solid,#fff);color:var(--text);font:inherit;font-size:11px;box-shadow:0 0 0 1px var(--line);cursor:pointer}.pb-selected>button[data-pb-select]{background:var(--accent,#5264e8);color:white}.pb-handle{position:absolute;width:28px;height:28px;min-height:0;padding:0;border:0;background:transparent;display:flex;align-items:center;justify-content:center;touch-action:none;z-index:2}.pb-handle:after{content:'';width:10px;height:10px;border:2px solid var(--accent);background:var(--panel-solid,#fff);border-radius:2px}.pb-handle[data-pb-corner=nw]{left:-15px;top:-15px;cursor:nwse-resize}.pb-handle[data-pb-corner=ne]{right:-15px;top:-15px;cursor:nesw-resize}.pb-handle[data-pb-corner=sw]{left:-15px;bottom:-15px;cursor:nesw-resize}.pb-handle[data-pb-corner=se]{right:-15px;bottom:-15px;cursor:nwse-resize}.pb-editing{touch-action:none}.pb-editing .pb-selected{cursor:move}.pb-new{pointer-events:none}.pb-tools{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-top:12px}.pb-tools .pr-button{padding:7px 9px;margin:0;font-size:12px}.pb-tools>span{font-size:11px;color:var(--muted);flex:1 1 170px}.pb-inspector{padding:18px;min-width:0;border-left:1px solid var(--line)}.pb-title{display:flex;justify-content:space-between;align-items:center;gap:8px}.pb-title h4{font-size:18px;margin:0}.pb-title>span{font-size:11px;color:var(--muted)}.pb-picker{display:block;font-size:12px;color:var(--muted);margin-top:14px}.pb-picker select{display:block;width:100%;padding:8px;background:var(--panel-solid);color:var(--text);border:1px solid var(--line);border-radius:8px}.pb-pair{display:flex;gap:6px;margin:12px 0}.pb-pair .pr-button{flex:1;margin:0;padding:7px;font-size:12px}.pb-pair [aria-pressed=true]{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}.pb-crop{position:relative;overflow:hidden;background:white;border:1px solid var(--line);border-radius:7px;max-height:250px;margin:14px 0}.pb-crop img{position:absolute;height:auto;display:block}.pb-form>label,.pb-scores label{display:flex;flex-direction:column;gap:6px;font-size:12px}.pb-form input{min-width:0;box-sizing:border-box;width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;color:var(--text);background:var(--panel-solid);font:inherit;font-size:16px}.pb-scores{display:grid;grid-template-columns:minmax(0,1fr) 10px minmax(0,1fr);align-items:end;gap:8px;margin-top:14px}.pb-scores>span{padding-bottom:10px;color:var(--muted)}.pb-hint,.pb-message{font-size:12px!important;line-height:1.7;color:var(--muted);margin:12px 0!important;overflow-wrap:anywhere}.pb-form>.pr-button{width:100%;margin-top:4px}.pb-next{width:100%;font-size:12px!important;margin-top:12px}.pb-error{color:var(--danger,#a74944)!important;font-size:12px!important;line-height:1.6}.pb-error:empty{display:none}.pb-ledger{margin:20px 0}.pb-ledger>summary{padding:14px 0;cursor:pointer;font-size:15px;color:var(--muted)}.pb-image-first .pr-record-overview{display:none}.pb-board [hidden]{display:none!important}@media(max-width:760px){.pb-layout{grid-template-columns:1fr}.pb-inspector{border-left:0;border-top:1px solid var(--line)}.pb-crop{display:none}.pb-form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px 12px;align-items:end}.pb-scores{margin:0}.pb-form>.pb-hint,.pb-form>.pb-error,.pb-form>button{grid-column:1/-1}.pb-scroll{max-height:560px}.pb-head{padding:15px}.pb-pages{padding:0 15px 15px}.pb-inspector{padding:15px}}@media(max-width:420px){.pb-head h3{font-size:18px}.pb-head p{font-size:12px}.pb-head>.pr-button{padding:8px;white-space:nowrap}.pb-form{display:block}.pb-scores{margin-top:12px}.pb-view{padding:12px}.pb-scroll{max-height:450px}}@media(pointer:coarse){.pb-board .pr-button,.pb-picker select{min-height:44px}.pb-handle{width:44px;height:44px}.pb-handle[data-pb-corner=nw]{left:-23px;top:-23px}.pb-handle[data-pb-corner=ne]{right:-23px;top:-23px}.pb-handle[data-pb-corner=sw]{left:-23px;bottom:-23px}.pb-handle[data-pb-corner=se]{right:-23px;bottom:-23px}}`;
+ css.textContent+=' .pb-next{white-space:normal;overflow-wrap:anywhere}.pb-finish{width:100%;white-space:normal}.pb-finish-choice{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.pb-finish-choice>p{grid-column:1/-1}.pb-finish-choice .pr-button{width:100%}@media(max-width:420px){.pb-finish-choice{grid-template-columns:1fr}}';css.textContent+=' .pb-board[aria-busy] .pb-finish:not([hidden])::before,.pb-board[aria-busy] .pb-finish-choice button::before{content:"";display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;margin-right:7px;vertical-align:-2px;animation:pb-saving-spin .8s linear infinite}@keyframes pb-saving-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.pb-board[aria-busy] .pb-finish::before,.pb-board[aria-busy] .pb-finish-choice button::before{animation:none}}';document.head.appendChild(css);
+})();
+
+/* ===== paper-review-scans.js ===== */
+/* Per-question scan regions and editable OCR records; no generated HTML is trusted. */
+(function () {
+  'use strict';
+  var esc = function (s) { return escapeHtml(String(s == null ? '' : s)); };
+  var roles = { paper: '原题', work: '作答', reference: '参考答案' };
+  function validRegion(r,pages){return r&&roles[r.kind]&&pages.some(function(p){return p.page===r.page;})&&Array.isArray(r.box)&&r.box.length===4&&r.box.every(function(n){return typeof n==='number'&&Number.isFinite(n)&&n>=0&&n<=1;})&&r.box[2]>.01&&r.box[3]>.01&&r.box[0]+r.box[2]<=1.001&&r.box[1]+r.box[3]<=1.001;}
+  function layoutCrop(img,box){function layout(){if(!img.naturalWidth||!img.naturalHeight)return;img.parentElement.style.aspectRatio=(box[2]*img.naturalWidth)/(box[3]*img.naturalHeight);img.style.cssText='width:'+(100/box[2])+'%;max-width:none;left:'+(-box[0]/box[2]*100)+'%;top:'+(-box[1]/box[3]*100)+'%';}img.onload=layout;if(img.complete)layout();}
+  function enlarge(region,page,opener){var modal=document.createElement('dialog');modal.className='ps-enlarge';modal.innerHTML='<header><strong>'+roles[region.kind]+'截图 · 第 '+region.page+' 页</strong><button type="button" class="pr-button" data-close-crop>关闭</button></header><div class="ps-crop"><img alt="'+roles[region.kind]+'截图放大"></div><p class="pr-muted">显示的是已保存扫描件的对应区域，未调用 AI。</p>';document.body.appendChild(modal);window.ScorePaperSupport.useFallbackImages(modal,[page]);var image=modal.querySelector('img');image.src=page.url;layoutCrop(image,region.box);modal.querySelector('[data-close-crop]').onclick=function(){modal.close();};modal.onclick=function(e){if(e.target===modal)modal.close();};modal.onclose=function(){modal.remove();if(opener&&opener.isConnected)opener.focus();};modal.showModal();}
+  function btn(s, action) { return '<button type="button" class="pr-button" data-scan="' + action + '">' + s + '</button>'; }
+  function cropEditor(parent, pages, current, save) {
+    var editor = document.createElement('section'); editor.className = 'ps-editor';
+    var page = pages.find(function (p) { return current && p.page === current.page; }) || pages[0], box = current ? current.box.slice() : [0,0,1,1], kind = current ? current.kind : page.role;
+    editor.innerHTML = '<div class="ps-controls"><label>来源页<select data-page>' + pages.map(function (p) { return '<option value="' + p.page + '" ' + (p === page ? 'selected' : '') + '>第 ' + p.page + ' 页 · ' + roles[p.role] + '</option>'; }).join('') + '</select></label><label>区域内容<select data-kind>' + Object.keys(roles).map(function (k) { return '<option value="' + k + '" ' + (k === kind ? 'selected' : '') + '>' + roles[k] + '</option>'; }).join('') + '</select></label></div><p class="pr-muted">在图片上拖动框选完整题目或作答；也可以调整下面的百分比。跨页内容可继续添加区域。</p><div class="ps-stage"><img alt="待框选的扫描页" draggable="false"><div class="ps-selection"></div></div><div class="ps-coordinates">' + ['左边距','上边距','宽度','高度'].map(function (n, i) { return '<label>' + n + ' %<input type="number" min="0" max="100" step="0.1" data-coordinate="' + i + '"></label>'; }).join('') + '</div><div class="ps-actions">' + btn('整页','full') + btn('保存区域','save') + btn('取消','cancel') + '</div><p class="ps-error" role="status"></p>';
+    parent.appendChild(editor); var stage = editor.querySelector('.ps-stage'), img = stage.querySelector('img'), selection = stage.querySelector('.ps-selection'), start;
+    function paint() { selection.style.cssText = 'left:' + box[0]*100 + '%;top:' + box[1]*100 + '%;width:' + box[2]*100 + '%;height:' + box[3]*100 + '%'; editor.querySelectorAll('[data-coordinate]').forEach(function (el, i) { el.value = Math.round(box[i]*1000)/10; }); }
+    img.src = page.url; paint();
+    editor.querySelector('[data-page]').onchange = function (e) { page = pages.find(function (p) { return String(p.page) === e.target.value; }); img.src = page.url; box = [0,0,1,1]; paint(); };
+    editor.querySelector('[data-kind]').onchange = function (e) { kind = e.target.value; };
+    function point(e) { var r = stage.getBoundingClientRect(); return [Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))]; }
+    stage.onpointerdown = function (e) { if (!img.complete) return; e.preventDefault(); start = point(e); stage.setPointerCapture(e.pointerId); };
+    stage.onpointermove = function (e) { if (!start) return; var end = point(e); box = [Math.min(start[0],end[0]),Math.min(start[1],end[1]),Math.max(.001,Math.abs(end[0]-start[0])),Math.max(.001,Math.abs(end[1]-start[1]))]; paint(); };
+    stage.onpointerup = stage.onpointercancel = function () { start = null; };
+    editor.querySelectorAll('[data-coordinate]').forEach(function (el, i) { el.onchange = function () { box[i] = Math.max(0,Math.min(1,Number(el.value)/100)); box[2] = Math.min(box[2],1-box[0]); box[3] = Math.min(box[3],1-box[1]); paint(); }; });
+    editor.onclick = async function (e) { var b = e.target.closest('[data-scan]'); if (!b) return; e.stopPropagation();
+      if (b.dataset.scan === 'cancel') editor.remove();
+      if (b.dataset.scan === 'full') { box = [0,0,1,1]; paint(); }
+      if (b.dataset.scan === 'save') { b.disabled = true; try { box=Array.from(editor.querySelectorAll('[data-coordinate]')).map(function(el){return Number(el.value)/100;});if(box.some(function(n){return !Number.isFinite(n)||n<0||n>1;})||box[0]+box[2]>1.001||box[1]+box[3]>1.001)throw new Error('请在图片范围内框选');if (box[2] <= .01 || box[3] <= .01) throw new Error('请框选更完整的区域'); await save({ page: page.page, kind: kind, box: box.slice() }); editor.remove(); } catch (err) { editor.querySelector('.ps-error').textContent = err.message; } finally { b.disabled = false; } }
+    };
+    editor.scrollIntoView && editor.scrollIntoView({ block: 'nearest' });
+  }
+  function regionCard(region, page, index, shared) {
+    return '<figure class="ps-region" data-index="' + index + '" data-region-kind="'+region.kind+'"><figcaption>' + (region.kind==='paper'?'原题截图':region.kind==='work'?(shared?'作答截图 · 共用填涂区':'答题卡 / 作答截图'):'参考答案截图') + ' · 第 ' + region.page + ' 页</figcaption><button type="button" class="ps-preview" data-scan="zoom:'+index+'" aria-label="放大'+roles[region.kind]+'截图"><div class="ps-crop"><img loading="lazy" src="' + esc(page.url) + '" alt="' + roles[region.kind] + '扫描区域"></div></button><div>' + btn('放大','zoom:' + index) + btn('调整','edit:' + index) + btn('移除区域','remove:' + index) + '</div></figure>';
+  }
+  async function decorate(main, r, ctx, hooks) {
+    var generation = String(Number(main.dataset.scanGeneration || 0) + 1); main.dataset.scanGeneration = generation;
+    var isPaused = r.status === 'paused', qs = r.result ? r.result.questions : r.recovery && r.recovery.questions || [];
+    if (!qs.length) return;
+    var api = function (action, payload) { return hooks.api(ctx, action, Object.assign({ request_id: r.request_id }, payload || {})); };
+    if (isPaused) {
+      var form = document.createElement('form'); form.className = 'ps-verify';
+      form.innerHTML = '<h3>核对题目与作答</h3><p class="pr-muted">保留原有错误写法；修正识别文字和批改分，分析会使用保存后的内容。</p>' + qs.map(function (q, i) { return '<details class="pr-question" data-ocr="' + i + '"><summary>第 ' + esc(q.label) + ' 题</summary><div class="pr-question-body"><label>题目<textarea name="stem' + i + '" rows="4" maxlength="4500" required>' + esc(q.stem) + '</textarea></label><label>考试时的作答<textarea name="answer' + i + '" rows="4" maxlength="4000">' + esc(q.answer) + '</textarea></label><div class="pr-score-fields"><label>批改得分<input name="score' + i + '" type="number" min="0" max="9999" step=".01" value="' + esc(q.teacher_score) + '"></label><label>满分<input name="max' + i + '" type="number" min="0" max="9999" step=".01" value="' + esc(q.max_score) + '"></label></div></div></details>'; }).join('') + '<button class="pr-button pr-primary" type="submit">保存核对并继续</button>';
+      var selection = r.input_selection || r.options || {};
+      if (selection.config_version === 2 && selection.purpose !== 'record') {
+        var picker=document.createElement('fieldset');picker.className='ps-scope';
+        picker.innerHTML='<legend>哪些题需要详细分析？</legend><label>分析范围<select name="analysis_scope"><option value="all">全部适用题目</option><option value="losses">失分题优先</option><option value="selected">我选择的题目</option></select></label><p class="pr-muted">整体概览仍覆盖已上传题目，未选中的题保留简短结论。</p><div class="ps-question-picks">'+qs.map(function(q){return '<label class="pr-check"><input type="checkbox" name="detail_questions" value="'+esc(q.label)+'" '+((selection.selected_questions||[]).includes(q.label)?'checked':'')+'>第 '+esc(q.label)+' 题'+(q.teacher_score!=null?' · '+q.teacher_score+(q.max_score!=null?' / '+q.max_score:'')+' 分':'')+'</label>';}).join('')+'</div>';
+        form.querySelector('button[type=submit]').before(picker);picker.querySelector('select').value=selection.analysis_scope||'all';
+        function togglePicks(){picker.querySelector('.ps-question-picks').hidden=picker.querySelector('select').value!=='selected';}picker.onchange=togglePicks;togglePicks();
+      }
+      main.appendChild(form);
+      form.onsubmit = async function (e) { e.preventDefault(); var b = form.querySelector('[type=submit]'); b.disabled = true;
+        try { var questions = qs.map(function (q, i) { function value(k) { return form.elements[k+i].value; } return { label: q.label, stem: value('stem'), answer: value('answer'), teacher_score: value('score') === '' ? null : Number(value('score')), max_score: value('max') === '' ? null : Number(value('max')) }; }); var scope=form.elements.analysis_scope?{analysis_scope:form.elements.analysis_scope.value,selected_questions:Array.from(form.querySelectorAll('[name=detail_questions]:checked')).map(function(x){return x.value;})}:undefined; if(scope && scope.analysis_scope==='selected' && !scope.selected_questions.length)throw new Error('请选择至少一道需要详细分析的题目'); await api('confirm_input', { questions: questions, analysis_selection:scope }); await api('resume', { mode: 'saved' }); await hooks.load(r.request_id); } catch (err) { hooks.note(err.message, true); } finally { if (b.isConnected) b.disabled = false; }
+      };
+      if (r.input_review) main.querySelector('[data-pr=resume]').hidden = true;
+    }
+    var source;
+    try { source = await api('sources'); } catch (err) { if (main.isConnected) hooks.note(err.message, true); return; }
+    if (!main.isConnected || main.dataset.scanGeneration !== generation) return;
+    var pages = source.pages || [], regions = source.regions || {}, panel = document.createElement('details'); panel.className = 'ps-library';
+    if(main.paperFallbackDispose)main.paperFallbackDispose();
+    main.paperFallbackDispose=window.ScorePaperSupport.useFallbackImages(main,pages);
+    panel.innerHTML = '<summary>扫描件 · ' + pages.length + ' 页</summary><p class="pr-muted">扫描件保存在当前账号。关联分析共用原始扫描件；原录入删除后，分析仍保留已保存的题目文字。</p><div class="ps-pages">' + pages.map(function (p) { return '<a target="_blank" rel="noopener" href="' + esc(p.url) + '"><img loading="lazy" src="' + esc(p.url) + '" alt="第' + p.page + '页扫描件"><span>第' + p.page + '页 · ' + roles[p.role] + '</span></a>'; }).join('') + '</div>' + (r.status !== 'running' && !source.readonly ? '<label>补充扫描件类别<select data-add-kind><option value="paper">原题</option><option value="work">作答</option><option value="reference">参考答案</option></select></label><label class="pr-check"><input type="checkbox" data-scan-consent>同意在账号中保存补充扫描件；裁掉姓名、考号等无关信息</label><label class="pr-button pr-file-label">补充扫描件<input type="file" accept="image/jpeg,image/png,image/webp" data-add-page></label>' : '') + '<p class="ps-upload-note" role="status"></p>';
+    var materials = main.querySelector('.pr-materials'); if (materials) materials.appendChild(panel); else main.prepend(panel);
+    var file = panel.querySelector('[data-add-page]'); if (file) file.onchange = async function () {
+      if (!file.files.length) return; var message = panel.querySelector('.ps-upload-note'); file.disabled = true;
+      try {
+        if (!panel.querySelector('[data-scan-consent]').checked) throw new Error('请先确认保存扫描件');
+        if (pages.length >= 15) throw new Error('本份报告已保存15张扫描件');
+        message.textContent = '正在保存扫描件…'; var p = await window.ScorePaperReview.prepare(file.files[0]);
+        await api('save_materials', { consent: true, subject: r.subject, draft_id: r.draft_id, exam_id: r.exam_id, title: r.title, options: r.options });
+        await api('upload_page', { page: pages.length+1, role: panel.querySelector('[data-add-kind]').value, url: p.url });
+        await hooks.load(r.request_id);
+      } catch (err) { message.textContent = err.message; } finally { file.disabled = false; file.value = ''; }
+    };
+    var controllers=new Map();
+    qs.forEach(function (q, i) {
+      var target = isPaused ? main.querySelector('[data-ocr="' + i + '"] .pr-question-body') : main.querySelector('[data-question="' + q.id + '"] [data-scan-host]');
+      if (!target) return;
+      var zone = document.createElement('section'); zone.className = 'ps-question'; target.prepend(zone);
+      var current = Object.prototype.hasOwnProperty.call(regions,q.label) ? regions[q.label] : q.source_regions || [];
+      current = current.filter(function (r) { return validRegion(r,pages); });
+      function render() {
+        q.source_regions=current;
+        var kinds=['paper','work','reference'],cards=kinds.map(function(kind){var found=current.map(function(region,index){return {region:region,index:index};}).filter(function(item){return item.region.kind===kind;});if(found.length)return found.map(function(item){return regionCard(item.region,pages.find(function(p){return p.page===item.region.page;}),item.index,q.shared_work);}).join('');var ids=kind==='paper'?q.pages||[]:kind==='work'?q.work_pages||[]:q.reference_pages||[],known=pages.filter(function(p){return ids.includes(p.page);});if(!known.length&&kind==='paper')known=pages.filter(function(p){return p.role==='paper';});if(!known.length&&kind==='work'&&q.work_expected)known=pages.filter(function(p){return p.role===(r.result&&r.result.work_on_paper?'paper':'work');});return (known.length||kind==='paper'||kind==='work'&&q.work_expected)?'<div class="ps-unlocated"><b>'+roles[kind]+'截图尚未定位</b><p>尚未关联完整截图；可能缺少扫描页，可补充页面后框选。</p>'+known.map(function(p){return '<a href="'+esc(p.url)+'" target="_blank" rel="noopener">查看第 '+p.page+' 页</a>';}).join(' · ')+'</div>':'';}).join('');
+        zone.innerHTML = '<h4>原题与作答截图</h4>' + (pages.length ? '<div class="ps-regions">' + cards + '</div>' + (!source.readonly?btn('＋ 框选扫描区域','add'):'') + (!current.length ? '<p class="pr-muted">没有可靠定位时保留原页；可分别框选原题与作答，也支持跨页。</p>' : '') : '<p class="pr-muted">本题暂无可用扫描件，可在资料区补充原卷或答题卡。</p>');
+        zone.querySelectorAll('.ps-region').forEach(function(card){var region=current[Number(card.dataset.index)];layoutCrop(card.querySelector('.ps-crop img'),region.box);});
+        if(source.readonly)zone.querySelectorAll('[data-scan^="edit:"],[data-scan^="remove:"]').forEach(function(b){b.remove();});
+      }
+      controllers.set(q.label,function(next){current=next;regions[q.label]=next;render();});
+      async function persist(next) { await api('save_regions', { label: q.label, regions: next }); current = next;regions[q.label]=next;render();var item=Array.from(main.querySelectorAll('[data-question]')).find(function(n){return n.dataset.question===String(q.id);}),check=item&&item.querySelector('[data-field=verified]'),accepted=item&&item.querySelector('[data-field=accepted]');if(accepted)accepted.checked=false;if(check){check.checked=false;check.dispatchEvent(new Event('input',{bubbles:true}));}hooks.note('截图区域已保存，请确认本题对应位置。'); }
+      zone.onclick = async function (e) { var b = e.target.closest('[data-scan]'); if (!b || b.closest('.ps-editor')) return; e.preventDefault(); e.stopPropagation();
+        var a = b.dataset.scan, index = Number(a.split(':')[1]);
+        try { if(a.startsWith('zoom:')){var region=current[index];if(region)enlarge(region,pages.find(function(p){return p.page===region.page;}),b);}
+          else if(!source.readonly&&(a === 'add' || a.startsWith('edit:'))) { var old = zone.querySelector('.ps-editor'); if (old) old.remove(); cropEditor(zone,pages,a === 'add' ? null : current[index],async function (r) { var next = current.slice(); if (a === 'add') next.push(r); else next[index] = r; await persist(next); }); }
+          else if (!source.readonly&&a.startsWith('remove:')) await persist(current.filter(function (_, j) { return j !== index; }));
+        } catch (err) { hooks.note(err.message,true); }
+      };
+      render();
+    });
+    if(window.ScorePaperBoard&&hooks.save)window.ScorePaperBoard.mount(main,r,ctx,source,{save:hooks.save,finalize:hooks.finalize,regions:async function(updates){var saved=await api('save_regions',{updates:updates});updates.forEach(function(u){var apply=controllers.get(u.label);if(apply)apply(u.regions);});return saved;}});
+    var syncPanel=main.querySelector('.pr-type-sync');if(syncPanel&&syncPanel.refresh)syncPanel.refresh();
+  }
+  window.ScorePaperScans = { decorate: decorate };
+  var style = document.createElement('style'); style.textContent = `.ps-library{padding:16px;border:1px solid var(--line);border-radius:12px;margin-bottom:18px}.ps-library summary{font-weight:700;cursor:pointer}.ps-pages{display:flex;gap:12px;overflow:auto;padding:15px 0}.ps-pages a{flex:none;width:90px;font-size:11px;color:var(--text);text-decoration:none}.ps-pages img{width:90px;height:110px;object-fit:contain;border:1px solid var(--line);border-radius:8px;display:block}.ps-library>label{display:block;margin:12px 0}.ps-library .pr-check{display:flex}.ps-library .pr-file-label{display:inline-block}.ps-library select{display:block}.ps-question{padding:12px 0;border-bottom:1px solid var(--line);margin-bottom:15px}.ps-regions{display:grid;grid-template-columns:1fr 1fr;gap:12px}.ps-region{margin:8px 0;border:1px solid var(--line);border-radius:10px;padding:10px;min-width:0}.ps-region figcaption{font-size:12px;color:var(--muted);margin-bottom:8px}.ps-crop{position:relative;overflow:hidden;background:#fff;aspect-ratio:1;max-height:600px}.ps-crop img{position:absolute;height:auto;display:block}.ps-region .pr-button{font-size:11px;padding:5px 8px;margin:10px 4px 0 0}.ps-editor{margin:15px 0;padding:12px;border:1px solid var(--accent);border-radius:12px}.ps-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ps-controls select{width:100%;padding:8px}.ps-stage{position:relative;touch-action:none;user-select:none;margin:12px auto;max-width:600px;line-height:0}.ps-stage>img{width:100%;height:auto;display:block}.ps-selection{position:absolute;box-sizing:border-box;border:2px solid #5264e8;background:#5264e820;pointer-events:none}.ps-coordinates{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.ps-coordinates input{width:100%}.ps-actions{display:flex;gap:8px;margin-top:12px}.ps-error{color:var(--danger)}.ps-verify{margin-top:20px}.ps-upload-note{font-size:12px;color:var(--muted)}@media(max-width:520px){.ps-regions{grid-template-columns:1fr}.ps-coordinates{grid-template-columns:1fr 1fr}}`;
+  style.textContent += '.ps-scope{border:1px solid var(--line);border-radius:12px;padding:16px;margin:24px 0}.ps-scope legend{font-size:16px;font-weight:600}.ps-scope select{display:block;padding:10px;width:100%;margin:8px 0;background:var(--panel-solid);color:var(--text);border:1px solid var(--line);border-radius:8px}.ps-question-picks{display:flex;flex-wrap:wrap;gap:8px 20px}.ps-question-picks[hidden]{display:none}.ps-verify>h3{font-size:22px}';
+  document.head.appendChild(style);
+  var cropStyle=document.createElement('style');cropStyle.textContent='.ps-region{margin:0}.ps-preview{display:block;width:100%;padding:0;border:0;background:white;cursor:zoom-in;text-align:left;border-radius:6px;overflow:hidden}.ps-crop{max-height:none}.ps-region figcaption{font-weight:600}.ps-unlocated{padding:14px;border:1px dashed var(--line);border-radius:10px;font-size:12px;color:var(--muted)}.ps-unlocated a{color:var(--accent)}.ps-unlocated p{line-height:1.7}.ps-enlarge{box-sizing:border-box;width:min(960px,94vw);max-height:90vh;overflow:auto;padding:18px;border:1px solid var(--line);border-radius:14px;background:var(--panel-solid,#fff);color:var(--text)}.ps-enlarge::backdrop{background:#17203399}.ps-enlarge header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;position:sticky;top:-18px;padding:10px 0;background:var(--panel-solid,#fff);z-index:1}.ps-enlarge .ps-crop{max-height:none}.ps-enlarge .pr-button{flex:none}@media(max-width:520px){.ps-region{padding:9px}.ps-enlarge{padding:12px}.ps-enlarge header{top:-12px}}';document.head.appendChild(cropStyle);
+})();
+
+/* ===== paper-review-hub.js ===== */
+/* One paper workspace: upload, check questions, then read related reports. */
+(function () {
+  'use strict';
+  function entryOnly() { return window.ScorePaperEntryOnly === true; }
+  var esc = function (s) { return escapeHtml(String(s == null ? '' : s)); };
+  var names = { strengths: '找出做得好的地方', difficulty: '看懂试卷难在哪里', causes: '分析为什么丢分', solutions: '讲清关键解题步骤', practice: '生成针对性练习', patterns: '找出多道题的共同特点', plan: '安排接下来的复习' };
+  var labels = { running: '分析中', paused: '可继续', succeeded: '已完成', failed: '待恢复', draft: '资料草稿' };
+  var ctx, root, generation = 0, rows = [], drafts = [], more = false, origin = null, seed = null, selection = null, activeEditor = null, pendingAnalysis = null, paper = null, requestVersion = 0;
+  function leaveEditor() { if (activeEditor && activeEditor.canLeave && !activeEditor.canLeave()) return false; if (activeEditor && activeEditor.dispose) activeEditor.dispose(); activeEditor = null; return true; }
+  var filters = { subject: '', exam_id: '', status: '', search: '' };
+  function user() { return String(state.user && state.user.id || ''); }
+  function context() { return { user: user(), token: state.token }; }
+  function api(action, body) { return window.ScorePaperReview.api(ctx, action, body); }
+  function button(label, action, primary) { return '<button type="button" class="pr-button ' + (primary ? 'pr-primary' : '') + '" data-hub="' + action + '">' + label + '</button>'; }
+  function exams() { return state.exams || []; }
+  function examName(id) { var e = exams().find(function (e) { return e.id === id; }); return e ? e.name : id ? '已关联考试' : '未关联考试'; }
+  function examOptions(id, subject) { return '<option value="">暂不关联考试</option>' + exams().filter(function (e) { return !subject || e.scores && e.scores[subject]; }).map(function (e) { return '<option value="' + esc(e.id) + '" ' + (id === e.id ? 'selected' : '') + '>' + esc(e.name + ' · ' + e.exam_date) + '</option>'; }).join(''); }
+  function subjects() { return Array.from(new Set(['语文','数学','英语','物理','化学','生物','政治','历史','地理'].concat(exams().flatMap(function (e) { return Object.keys(e.scores || {}); }), rows.map(function (r) { return r.subject; })))); }
+  function navigation() {
+    var selected = state.analysisTab === 'ai' ? 'papers' : state.analysisTab || 'stats', labels = { stats:'成绩分析', types:'题型分析', papers:entryOnly()?'试题录入':'试卷复盘' };
+    return '<nav class="ph-tabs" aria-label="分析分类">' + Object.keys(labels).map(function(k){return '<button type="button" aria-pressed="'+(selected===k)+'" data-analysis-tab="'+k+'">'+labels[k]+'</button>';}).join('') + '</nav>';
+  }
+  function tabs(node) { if (node) node.insertAdjacentHTML('afterbegin', navigation()); }
+  document.addEventListener('click', function(e) {
+    var b=e.target.closest('[data-analysis-tab]'); if(!b || !leaveEditor())return;
+    state.analysisTab=b.dataset.analysisTab; selection=null; seed=null; renderPage();
+  });
+  function analyzeRecord(row) {
+    if (entryOnly()) { note('试卷分析暂未开放，可继续核对和保存试题。'); return; }
+    if (!leaveEditor()) return;
+    state.analysisTab='papers'; selection=null; shell();root.querySelector('.ph-header').hidden=true;
+    body().innerHTML = paperNavigation('reports') + '<div class="ph-analysis-setup"></div>';
+    window.ScorePaperRecords.configure(body().querySelector('.ph-analysis-setup'), row, { api:api,
+      user:ctx.user, open:async function(id){await open(id);},
+      started:async function(id){await open(id);} });
+    window.scrollTo(0,0);
+  }
+  function note(s) { var el = root && root.querySelector('.ph-message'); if (el) el.textContent = s || ''; }
+  function shell() {
+    root.innerHTML = '<div class="ph-workspace"><header class="ph-header"><div><span class="pr-eyebrow">学习复盘</span><h1>' + '试卷复盘' + '</h1><p>' + '上传试卷，核对得分，查看题型表现和 AI 分析。' + '</p></div><div>' + (origin && origin.modal.isConnected ? button('返回正在编辑的考试', 'return') : '') + button('上传试卷', 'new', true) + '</div></header><div class="ph-message" role="status" aria-live="polite"></div><div class="ph-body"></div></div>';
+    tabs(root.firstElementChild);
+    if (entryOnly()) {
+      root.querySelector('.pr-eyebrow').textContent='试题资料';
+      root.querySelector('.ph-header h1').textContent='试题录入';
+      root.querySelector('.ph-header p').textContent='读取题目、作答和已有批改分，确认后保存。';
+    }
+    root.querySelector('.ph-workspace').onclick = async function (e) {
+      var b = e.target.closest('[data-hub]'); if (!b) return;
+      try {
+        if (/^(new|list|return|open:|draft:|paper-)/.test(b.dataset.hub) && !leaveEditor()) return;
+        if (b.dataset.hub === 'new') { selection = null; seed = null; state.analysisTab='papers'; shell(); await create(); }
+        else if (b.dataset.hub === 'list') { paper=null; await list(); }
+        else if (b.dataset.hub === 'paper-record' && paper && paper.record) await open(paper.record.request_id);
+        else if (b.dataset.hub === 'paper-reports' && paper) showReports();
+        else if (b.dataset.hub === 'paper-more-reports' && paper) await moreReports();
+        else if (b.dataset.hub === 'paper-analyze' && paper && paper.record) analyzeRecord(paper.record);
+        else if (b.dataset.hub === 'more') await list(true);
+        else if (b.dataset.hub === 'return') { origin.modal.style.display = ''; state.page = origin.previousPage || 'exams'; state.analysisTab = 'ai'; renderPage(); }
+        else if (b.dataset.hub.startsWith('open:')) await open(b.dataset.hub.slice(5));
+        else if (b.dataset.hub.startsWith('draft:')) await create(drafts.find(function (r) { return r.request_id === b.dataset.hub.slice(6); }));
+        else if (b.dataset.hub.startsWith('delete-draft:') && confirm('删除这份资料草稿及扫描件？')) { b.disabled = true; await api('delete_draft', { request_id: b.dataset.hub.slice(13) }); await list(); }
+      } catch (err) { note(err.message); } finally { if (b.isConnected) b.disabled = false; }
+    };
+  }
+  function body() { return root.querySelector('.ph-body'); }
+  function sourceId(r) { return r.source_record && r.source_record.request_id || r.result && r.result.source_record && r.result.source_record.request_id || r.request_id; }
+  function isRecord(r) { return r.options && r.options.purpose === 'record'; }
+  function renderCards() {
+    var host = root.querySelector('.ph-list'); if (!host) return;
+    var groups = new Map();
+    drafts.forEach(function(d){if((!filters.subject || d.subject===filters.subject)&&(!filters.exam_id || d.exam_id===filters.exam_id))groups.set(d.request_id,{record:Object.assign({},d,{status:'draft'}),reports:[]});});
+    rows.forEach(function(r){if(entryOnly()&&!isRecord(r))return;var id=sourceId(r),g=groups.get(id)||{record:null,reports:[]};if(isRecord(r))g.record=r;else if(!g.reports.some(function(a){return a.request_id===r.request_id;}))g.reports.push(r);groups.set(id,g);});
+    var cards=Array.from(groups.values()).map(function(g){
+      g.reports.sort(function(a,b){return String(b.created_at).localeCompare(String(a.created_at));});
+      var latest=g.reports[0],r=g.record||latest;
+      var current=latest && ['running','paused','failed'].includes(latest.status)?latest:r;
+      var progress=current.entry_progress||current.result&&current.result.entry_progress||null;
+      var status=current.status==='draft'?'资料草稿':current.status==='running'?(isRecord(current)?'识别中':'分析中'):current.status==='paused'?'待继续':current.status==='failed'?'待恢复':(current.entry_completion||current.result&&current.result.entry_completion)?'录入完成':(progress&&progress.pending!=null?'待核对 · '+progress.pending+' 处':'待核对');
+      var target=current.status==='draft'?current.request_id:latest?latest.request_id:r.request_id;
+      var action=current.status==='draft'?'继续上传':['running','paused','failed'].includes(current.status)?'查看进度 / 继续':isRecord(current)?'查看试题':'查看报告';
+      return {g:g,row:r,status:status,target:target,action:action,current:current};
+    }).filter(function(c){return (!filters.status || c.current.status===filters.status) && (!filters.search || [c.row.title,c.row.subject,examName(c.row.exam_id)].join(' ').toLowerCase().includes(filters.search.toLowerCase()));});
+    host.innerHTML = cards.length ? cards.map(function(c){var r=c.row;return '<article class="ph-card"><div class="ph-card-top"><span class="ph-subject">'+esc(r.subject)+'</span><span class="ph-status">'+esc(c.status)+'</span></div><h3>'+esc(r.title||examName(r.exam_id)+' · '+r.subject)+'</h3><p>'+esc(examName(r.exam_id))+'</p><small>'+esc(new Date(r.created_at).toLocaleString('zh-CN'))+(c.g.reports.length?' · '+c.g.reports.length+' 份已加载报告':'')+'</small>'+(c.current.progress && c.current.status!=='succeeded'?'<p class="ph-progress">'+esc(c.current.progress.message||'进度已保存')+'</p>':'')+'<footer>'+button(c.action,(c.current.status==='draft'?'draft:':'open:')+c.target,true)+(c.g.record && c.g.reports.length?button('试题与得分','open:'+c.g.record.request_id):'')+(r.status==='draft'?button('删除草稿','delete-draft:'+r.request_id):'')+'</footer></article>';}).join('') : '<div class="ph-empty"><h3>'+(filters.subject||filters.exam_id||filters.status||filters.search?'没有符合条件的试卷':'从一张试卷开始')+'</h3><p>上传试卷与作答，核对后可查看题型表现，也可以稍后再生成 AI 分析。</p>'+button('上传试卷','new',true)+'</div>';
+    root.querySelector('.ph-more').innerHTML=more?button('加载更多试卷','more'):'';
+    if(entryOnly()&&host.querySelector('.ph-empty p'))host.querySelector('.ph-empty p').textContent='上传试卷与作答，核对后保存试题，并更新题型得分。';
+  }
+  async function list(append) {
+    selection = null; seed = null; paper = null; root.querySelector('.ph-header').hidden=false;var version=++requestVersion;
+    if (!append) {
+      body().innerHTML = '<details class="ph-list-filters"><summary>筛选试卷</summary><div class="ph-filters"><label>科目<select data-filter="subject"><option value="">全部科目</option>' + subjects().map(function (s) { return '<option ' + (filters.subject === s ? 'selected' : '') + '>' + esc(s) + '</option>'; }).join('') + '</select></label><label>考试<select data-filter="exam_id">' + examOptions(filters.exam_id).replace('暂不关联考试','全部考试') + '</select></label><label>状态<select data-filter="status"><option value="">全部状态</option>' + Object.keys(labels).filter(function (k) { return k !== 'draft'; }).map(function (k) { return '<option value="' + k + '" ' + (filters.status === k ? 'selected' : '') + '>' + labels[k] + '</option>'; }).join('') + '</select></label><label>搜索已加载记录<input data-search value="' + esc(filters.search) + '" placeholder="试卷名称、科目或考试"></label>' + button('刷新', 'list') + '</div></details><div class="ph-list" aria-live="polite">正在读取试卷…</div><div class="ph-more"></div>';
+      body().querySelectorAll('[data-filter]').forEach(function (el) { el.onchange = function () { filters[el.dataset.filter] = el.value; list().catch(function (e) { note(e.message); }); }; });
+      body().querySelector('[data-search]').oninput = function (e) { filters.search = e.target.value; renderCards(); };
+    }
+    var gen = generation; note('');
+    try { var data = await api('list_all', Object.assign({}, filters, { offset: append ? rows.length : 0, status:'' })); if (gen !== generation || version!==requestVersion || !root.isConnected) return; rows = append ? rows.concat(data.reviews.filter(function(r){return !rows.some(function(old){return old.request_id===r.request_id;});})) : data.reviews; if (!append) drafts = data.drafts || []; more = data.has_more; renderCards(); }
+    catch (e) { note(e.message); var el = root.querySelector('.ph-list'); if (el) el.innerHTML = '<p>记录读取未完成，请点击刷新重试。</p>'; }
+  }
+  function optionSelect(key, label, values, chosen) { return '<label>' + label + '<select name="' + key + '">' + Object.keys(values).map(function (k) { return '<option value="' + k + '" ' + (String(chosen) === k ? 'selected' : '') + '>' + values[k] + '</option>'; }).join('') + '</select></label>'; }
+  function choice(name, value, title, description, selected, type) {
+    return '<label class="ph-choice"><input type="' + (type || 'radio') + '" name="' + name + '" value="' + esc(value) + '" ' + (selected ? 'checked' : '') + '><span><strong>' + title + '</strong><small>' + description + '</small></span></label>';
+  }
+  function step(n, title, description) { return '<div class="ph-step"><span>' + n + '</span><div><h3>' + title + '</h3><p>' + description + '</p></div></div>'; }
+  async function create(draft) {
+    root.querySelector('.ph-header').hidden=true;
+    var gen=generation, data=draft || seed || {}, opts=Object.assign({},data.options || {}), selectedSubject=data.subject || '';
+    selection=null;
+    body().innerHTML='<div class="ph-create"><div class="ph-section-title"><div><h2>'+(draft?'继续试题录入':'上传试卷')+'</h2><p>先上传并识别，核对后可保存题型得分，也可以生成 AI 分析。</p></div>'+button('返回试卷列表','list')+'</div><form class="ph-basics">'+step('01','录入哪张试卷','可以先录入，之后再关联考试。')+'<div class="ph-form-grid"><label>科目<input name="subject" list="ph-subjects" maxlength="40" required placeholder="请选择或输入科目" value="'+esc(selectedSubject)+'"><datalist id="ph-subjects">'+subjects().map(function(n){return '<option value="'+esc(n)+'">';}).join('')+'</datalist></label><label>关联考试<select name="exam_id">'+examOptions(data.exam_id || '',selectedSubject)+'</select></label></div><details class="ph-name"><summary>试卷名称 <span data-title-preview></span></summary><label>自定义名称<input name="title" maxlength="100" value="'+esc(data.title || '')+'" placeholder="按考试和科目自动命名"></label></details>'+(data.originDraft?'<p class="ph-hint">保存正在编辑的考试后，试题会自动关联。</p>':'')+'</form><div class="ph-editor ph-create-editor"></div></div>';
+    var basics=body().querySelector('form'), c=Object.assign(context(),{host:body().querySelector('.ph-editor'),draftId:data.draft_id || crypto.randomUUID(),restoreDraft:!!draft,sessions:{},setup:true,fresh:!draft,onClose:list});
+    if(entryOnly())body().querySelector('.ph-section-title p').textContent='读取已有内容，确认识别结果后保存。';
+    function update(){
+      var subject=basics.elements.subject.value.trim();
+      c.title=basics.elements.title.value.trim() || (basics.elements.exam_id.value?examName(basics.elements.exam_id.value)+' · ':'')+(subject || '试卷')+' · 试题';
+      basics.querySelector('[data-title-preview]').textContent=c.title;
+      c.options=Object.assign({},opts,{config_version:2,purpose:'record',modules:[],review_before_analysis:false,analysis_scope:'all',selected_questions:[],use_account_history:false});
+      c.examId=basics.elements.exam_id.value;c.exam=exams().find(function(e){return e.id===c.examId;});c.examContext=undefined;
+    }
+    basics.onsubmit=function(e){e.preventDefault();};basics.oninput=update;
+    basics.elements.subject.onchange=function(){var id=basics.elements.exam_id.value;basics.elements.exam_id.innerHTML=examOptions(id,basics.elements.subject.value.trim());update();};
+    c.beforeSubmit=async function(){if(!basics.reportValidity())throw new Error('请先选择科目');update();return basics.elements.subject.value.trim();};
+    c.onUpload=function(){update();};c.onAnalyzeRecord=analyzeRecord;c.onRecorded=function(row){open(row.request_id).catch(function(e){note(e.message);});};
+    c.onNewEntry=function(){generation++;selection=null;seed=null;paper=null;shell();create().catch(function(e){note(e.message);});};
+    c.onView=function(view){basics.hidden=view!=='upload';body().querySelector('.ph-section-title').hidden=view!=='upload';c.host.classList.toggle('ph-creating',view==='upload');};
+    if(draft && !data.pages){
+      note('正在恢复已保存的扫描件…');var source=await api('sources',{request_id:draft.request_id});
+      data.pages=await Promise.all(source.pages.map(async function(p){var response=await window.ScorePaperSupport.fetchScan(p);if(!response.ok)throw new Error('扫描件读取失败，请重试');var prepared=await window.ScorePaperReview.prepare(await response.blob());return Object.assign(prepared,{role:p.role,name:'第'+p.page+'页'});}));
+    }
+    if(gen!==generation)return;
+    if(data.pages)c.sessions[selectedSubject]={pages:data.pages,workOnPaper:data.workOnPaper!==undefined?data.workOnPaper:opts.work_location!=='none'&&opts.work_location!=='separate',workLocation:opts.work_location,consent:false,pending:null,cloudDraftId:draft&&draft.request_id};
+    activeEditor=c;update();note('');window.ScorePaperReview.mount(c,selectedSubject,null);
+  }
+  function mount(data, reportId) {
+    root.querySelector('.ph-header').hidden=true;
+    selection = { data: data, reportId: reportId }; seed = null; note('');
+    body().innerHTML = paperNavigation(data.options && data.options.purpose==='record'?'record':'reports') + '<div class="ph-editor-toolbar"><span>' + esc(data.title || data.subject + '试卷') + ' · ' + esc(examName(data.exam_id)) + '</span>' + (reportId ? button('关联考试 / 名称', 'link') : '<span class="pr-muted">每轮 ' + data.options.time_budget_minutes + ' 分钟 · ' + (data.options.purpose === 'record' ? '只录入' : data.options.modules.length + ' 项分析')) + '</div><div class="ph-editor"></div>';
+    var host = body().querySelector('.ph-editor'), exam = exams().find(function (e) { return e.id === data.exam_id; });
+    var c = Object.assign(context(), { host: host, exam: exam, examId: data.exam_id || '', draftId: data.draft_id, sessions: {}, title: data.title, options: data.options, examContext: data.examContext, initialReport: reportId, onClose: list });
+    if (data.pages) c.sessions[data.subject] = { pages: data.pages, workOnPaper: true, consent: false, pending: null };
+    if (data.request_id) c.sessions[data.subject].cloudDraftId = data.request_id;
+    c.onAnalyzeRecord = analyzeRecord;
+    c.onRecordChange=function(row){if(paper && paper.record && paper.record.request_id===row.request_id)paper.record=row;};
+    activeEditor = c;
+    window.ScorePaperReview.mount(c, data.subject, null);
+    var link = body().querySelector('[data-hub=link]'); if (link) link.onclick = function () {
+      if(activeEditor && activeEditor.canLeave && !activeEditor.canLeave())return;
+      var panel = document.createElement('form'); panel.className = 'ph-link-form'; panel.innerHTML = '<label>报告名称<input name="title" maxlength="100" value="' + esc(data.title || '') + '"></label><label>关联到考试<select name="exam">' + examOptions(data.exam_id, data.subject) + '</select></label><p class="pr-muted">关联用于整理记录；报告保留开始分析时的考试数值。</p><button class="pr-button pr-primary" type="submit">保存关联</button>';
+      link.replaceWith(panel); panel.onsubmit = async function (e) { e.preventDefault(); try { await api('link', { request_id: reportId, exam_id: panel.elements.exam.value || null, title: panel.elements.title.value }); await open(reportId); note('关联已保存'); } catch (err) { note(err.message); } };
+    };
+  }
+  function paperNavigation(active) {
+    if(!paper)return '';
+    if(entryOnly())return '<div class="ph-paper-bar">'+button('所有试卷','list')+'<span class="pr-muted">试题与得分</span></div>';
+    return '<div class="ph-paper-bar">'+button('所有试卷','list')+'<nav aria-label="本份试卷">'+(paper.record?'<button type="button" class="pr-button" aria-pressed="'+(active==='record')+'" data-hub="paper-record">试题与得分</button>':'')+'<button type="button" class="pr-button" aria-pressed="'+(active==='reports')+'" data-hub="paper-reports">AI 分析'+(paper.reports.length?' · '+paper.reports.length:'')+'</button></nav></div>';
+  }
+  function showReports() {
+    if(entryOnly()){if(paper&&paper.record)open(paper.record.request_id);return;}
+    selection=null;
+    body().innerHTML=paperNavigation('reports')+'<section class="ph-report-list"><h2>这份试卷的 AI 分析</h2><p class="pr-muted">使用已保存的题目生成报告，不必重新上传或识别。</p>'+(paper.record && paper.record.status==='succeeded'?button(paper.reports.length?'重新生成分析 · 消耗 1 次':'生成 AI 分析 · 消耗 1 次','paper-analyze',true):'')+(!paper.record?'<p class="pr-muted">原始录入已移除，仍可查看已保存的报告。</p>':'')+'<div class="ph-list">'+(paper.reports.length?paper.reports.map(function(r){return '<article class="ph-card"><span class="ph-status">'+esc(labels[r.status])+'</span><h3>'+esc(r.title||r.subject+' · AI 分析')+'</h3><p>'+esc(new Date(r.created_at).toLocaleString('zh-CN'))+'</p>'+button(r.status==='succeeded'?'查看报告':'查看进度 / 继续','open:'+r.request_id,true)+'</article>';}).join(''):'<p>还没有分析报告。试题已保存，可以现在分析，也可以稍后继续。</p>')+'</div>'+(paper.more?button('加载更多报告','paper-more-reports'):'')+'</section>';
+  }
+  async function moreReports(){var current=paper,version=++requestVersion;var data=await api('list_all',{source_request_id:current.id,offset:current.reports.length});if(paper!==current||version!==requestVersion)return;current.reports=current.reports.concat(data.reviews.filter(function(r){return !current.reports.some(function(old){return old.request_id===r.request_id;});}));current.more=data.has_more;showReports();}
+  async function open(id) {
+    var version=++requestVersion,gen=generation,d=await api('get',{request_id:id}),r=d.review,source=sourceId(r),record=isRecord(r)?r:null;
+    var data=await api('list_all',{source_request_id:source,offset:0});
+    if(!record && (r.source_record || r.result && r.result.source_record)){try{record=(await api('get',{request_id:source})).review;}catch(e){if(e.status!==404)throw e;}}
+    if(gen!==generation || version!==requestVersion || !root.isConnected)return;
+    paper={id:source,record:record,reports:data.reviews,more:data.has_more};
+    if(!isRecord(r) && !paper.reports.some(function(x){return x.request_id===r.request_id;}))paper.reports.unshift(r);
+    state.analysisTab='papers';
+    mount({subject:r.subject,exam_id:r.exam_id,draft_id:r.draft_id,title:r.title,options:r.options||{}},id);
+  }
+  function enter(old, subject, examContext) {
+    old.previousPage = state.page; origin = old; old.modal.style.display = 'none';
+    var freshDraft = crypto.randomUUID(); old.draftId = freshDraft;
+    seed = { subject: subject, exam_id: old.exam && old.exam.scores && old.exam.scores[subject] ? old.examId : '', draft_id: freshDraft, examContext: examContext, title: (old.modal.querySelector('#examName').value || '考试') + ' · ' + subject, originDraft: !old.examId }; selection = null;
+    state.analysisTab = 'papers'; state.page = 'stats'; renderPage();
+  }
+  function render(node) {
+    if (!node) return; generation++; root = node;if(state.analysisTab==='ai')state.analysisTab='papers';
+    var next = context(); if (ctx && ctx.user !== next.user) { seed = null; selection = null; rows = []; drafts = []; origin = null; paper = null; } ctx = next;
+    shell(); if (pendingAnalysis) { var record=pendingAnalysis; pendingAnalysis=null; analyzeRecord(record); } else if (selection) mount(selection.data, selection.reportId); else if (seed) create().catch(function (e) { note(e.message); }); else list();
+  }
+  window.ScorePaperHub = { tabs: tabs, navigation:navigation, render: render, enter: enter, open:open, canLeave:leaveEditor,
+    analyze:function(row){pendingAnalysis=row;state.page='stats';state.analysisTab='papers';selection=null;seed=null;renderPage();} };
+  var style = document.createElement('style'); style.textContent = `
+.ph-workspace{max-width:1100px;margin:0 auto;padding:0 0 40px;color:var(--text)}.ph-tabs{display:flex;gap:6px;margin:0 0 24px;padding:5px;background:var(--panel-solid,#fff);border:1px solid var(--line);border-radius:13px;width:fit-content}.ph-tabs button{border:0;background:transparent;color:var(--muted);padding:10px 22px;border-radius:9px;font:inherit;font-size:14px;cursor:pointer}.ph-tabs [aria-pressed=true]{background:var(--accent-soft,#eef1ff);color:var(--accent);font-weight:700}.ph-header,.ph-section-title{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:24px}.ph-header h1{font-size:26px;margin:6px 0}.ph-header p,.ph-section-title p{font-size:13px;color:var(--muted);margin:5px 0}.ph-header>div:last-child{display:flex;gap:8px;flex-wrap:wrap}.ph-filters{display:grid;grid-template-columns:1fr 1.4fr 1fr 1.6fr auto;gap:12px;align-items:end;margin:20px 0}.ph-workspace label{font-size:12px;color:var(--muted)}.ph-workspace input:not([type=checkbox]):not([type=file]),.ph-workspace select,.ph-workspace textarea{box-sizing:border-box;width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel-solid,#fff);color:var(--text);font:inherit;font-size:14px;margin-top:6px}.ph-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.ph-card{min-width:0;background:var(--panel-solid,#fff);border:1px solid var(--line);border-radius:16px;padding:20px;display:flex;flex-direction:column}.ph-card h3{font-size:17px;line-height:1.5;margin:16px 0 7px;overflow-wrap:anywhere}.ph-card p{font-size:13px;color:var(--muted);margin:4px 0 8px}.ph-card small{font-size:11px;color:var(--muted)}.ph-card-top{display:flex;justify-content:space-between;gap:8px;font-size:12px}.ph-subject{font-weight:700;color:var(--accent)}.ph-status{padding:3px 8px;border-radius:20px;background:var(--accent-soft);font-size:11px}.ph-succeeded{color:#31846c;background:#31846c15}.ph-card footer{display:flex;gap:8px;margin-top:auto;padding-top:18px}.ph-progress{padding-top:10px}.ph-empty{grid-column:1/-1;padding:55px 18px;text-align:center;border:1px dashed var(--line);border-radius:16px}.ph-empty p{font-size:13px;color:var(--muted)}.ph-more{text-align:center;margin:20px}.ph-message:empty{display:none}.ph-message{padding:12px;border-radius:10px;background:var(--accent-soft);font-size:13px;margin-bottom:16px}.ph-create{background:var(--panel-solid,#fff);padding:26px;border:1px solid var(--line);border-radius:18px}.ph-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.ph-create fieldset{border:1px solid var(--line);border-radius:12px;padding:18px;margin:24px 0}.ph-create legend{font-size:14px;font-weight:700;padding:0 7px}.ph-create fieldset p,.ph-hint{font-size:12px;color:var(--muted);line-height:1.8}.ph-modules{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.ph-modules label{display:flex;align-items:center;gap:8px;color:var(--text);font-size:13px}.ph-modules input{accent-color:var(--accent)}.ph-create fieldset:disabled{opacity:.5}.ph-actions{text-align:right;padding-top:15px}.ph-editor-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:13px;margin-bottom:15px;flex-wrap:wrap}.ph-link-form{display:grid;gap:10px;flex:1}.pr-inline{width:100%!important;max-width:100%!important;max-height:none!important;height:auto!important;margin:0!important;border:1px solid var(--line)!important;border-radius:16px!important;box-shadow:none;overflow:visible}.pr-inline .pr-head{position:static;border-radius:16px 16px 0 0}.pr-inline .pr-tabs{display:none}.pr-inline .pr-content{padding-top:20px}.pr-inline .pr-main{max-width:850px;margin:auto}.ph-workspace button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}@media(max-width:800px){.ph-list{grid-template-columns:repeat(2,minmax(0,1fr))}.ph-filters{grid-template-columns:1fr 1fr}.ph-filters>button{justify-self:start}.ph-header{align-items:start}.ph-header h1{font-size:22px}.ph-modules{grid-template-columns:1fr 1fr}}@media(max-width:520px){.ph-header,.ph-section-title{flex-direction:column;align-items:stretch}.ph-header>div:last-child{justify-content:flex-start}.ph-list{grid-template-columns:1fr}.ph-create{padding:18px}.ph-form-grid{grid-template-columns:1fr}.ph-tabs{width:100%;box-sizing:border-box}.ph-tabs button{flex:1;padding:9px 10px}.ph-workspace .pr-head{align-items:start;gap:8px}.ph-editor-toolbar{align-items:start}.pr-inline .pr-content{padding:12px 14px 22px}.ph-workspace{padding-bottom:60px}}`;
+  style.textContent += `
+/* Guided setup and readable report hierarchy. */
+.ph-create{padding:28px}.ph-create h2{font-size:26px;margin:0 0 8px}.ph-create .ph-section-title p,.ph-step p{font-size:14px;line-height:1.7}.ph-step{display:flex;gap:14px;align-items:flex-start;margin:26px 0 20px}.ph-step>span{display:grid;place-items:center;min-width:34px;height:34px;border-radius:10px;background:var(--accent-soft);color:var(--accent);font-weight:700;font-size:14px}.ph-step h3{font-size:20px!important;margin:1px 0 5px!important;line-height:1.4}.ph-step p{margin:0;color:var(--muted)}.ph-create label{font-size:14px}.ph-name{margin-top:18px}.ph-name summary{cursor:pointer;font-size:14px}.ph-name summary span{color:var(--muted);margin-left:8px}.ph-name label{display:block;margin-top:12px}.ph-create .ph-create-editor .pr-inline{border:0!important;border-radius:0!important}.ph-create .ph-creating .pr-head{display:none}.ph-create .pr-content{padding:0}.ph-create .pr-main{max-width:none}.ph-create .pr-intro{padding:20px;margin:22px 0;background:var(--accent-soft);border-radius:12px}.ph-create .pr-intro h3{font-size:18px}.ph-create .pr-intro p,.ph-create .pr-quota{font-size:14px;line-height:1.65}.ph-create .pr-upload-group{padding:20px 0}.ph-create .pr-upload-group h3{font-size:17px}.ph-create .pr-upload-group>p{font-size:14px}.ph-create .pr-work-location{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:0;border:0;margin:20px 0}.pr-work-location legend{font-size:16px;font-weight:650;margin-bottom:12px}.pr-work-location label,.ph-choice{display:flex!important;align-items:flex-start!important;gap:9px!important;padding:15px!important;border:1px solid var(--line);border-radius:11px;cursor:pointer;background:var(--panel-solid);min-width:0}.pr-work-location label:has(input:checked),.ph-choice:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}.ph-choice input,.pr-work-location input{margin:4px 0 0;flex:none;accent-color:var(--accent)}.ph-choice strong,.pr-work-location strong{display:block;font-size:15px;font-weight:650;line-height:1.5;color:var(--text)}.ph-choice small,.pr-work-location small{display:block;font-size:13px;line-height:1.65;color:var(--muted);margin-top:5px}.ph-create .ph-presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;border:0;padding:0;margin:0}.ph-sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}.ph-create .ph-modules{grid-template-columns:1fr 1fr;margin:16px 0}.ph-preferences{border-top:1px solid var(--line);margin-top:28px}.ph-preferences .ph-step:first-child{margin-top:28px}.ph-core-note{font-size:14px!important;line-height:1.8;padding:13px 0;color:var(--muted)}.ph-context,.ph-custom{border:1px solid var(--line);border-radius:12px;padding:0 16px;margin:14px 0}.ph-context>summary,.ph-custom>summary{padding:16px 0;font-size:15px;font-weight:600;cursor:pointer;line-height:1.5}.ph-context>summary small{font-weight:400;color:var(--muted);font-size:13px}.ph-context[open],.ph-custom[open]{padding-bottom:16px}.ph-context>label,.ph-custom>label{display:block;margin-top:14px}.ph-hint{font-size:13px!important;line-height:1.8}.ph-example{font-size:14px;padding:15px;border-radius:10px;background:var(--accent-soft);line-height:1.8;align-self:end}.ph-create .ph-priorities{border:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:20px 0}.ph-priorities legend{margin-bottom:12px}.ph-summary{padding:18px;border-radius:12px;background:var(--accent-soft);margin:20px 0;font-size:15px}.ph-summary p{font-size:14px;line-height:1.8;margin:8px 0 0}.ph-create .pr-footer{position:sticky;bottom:70px;z-index:4;background:var(--panel-solid);border:1px solid var(--line);border-radius:12px;padding:14px;box-shadow:0 4px 20px #00000008;flex-wrap:wrap}.ph-create .pr-footer .pr-button{min-height:44px;font-size:14px}.ph-create .pr-consent{font-size:13px;line-height:1.75;margin:24px 0 16px}.ph-create [hidden],.pr-main [hidden]{display:none!important}.ph-create .pr-help{font-size:13px}.ph-create .ph-form-grid{gap:16px}.ph-create .pr-message{font-size:14px}.ph-create .pr-check{font-size:14px}
+.pr-main .pr-result-top h3{font-size:27px;margin-top:8px}.pr-main .pr-chapter{margin:0 0 22px;gap:14px}.pr-main .pr-chapter h3{font-size:22px;line-height:1.4}.pr-main .pr-chapter p{font-size:14px;line-height:1.7}.pr-main .pr-reading-section{padding-top:28px;margin-top:28px;border-top:1px solid var(--line)}.pr-main .pr-overall-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 24px}.pr-metric{padding:16px;border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;gap:8px;min-width:0}.pr-metric>span{font-size:13px;color:var(--muted)}.pr-metric strong{font-size:25px;line-height:1.3;letter-spacing:-.6px;font-variant-numeric:tabular-nums}.pr-metric small{font-size:13px;line-height:1.6;color:var(--muted)}.pr-main .pr-headline{font-size:19px;line-height:1.65;font-weight:700;margin:24px 0 12px}.pr-main .pr-overview .pr-prose{font-size:16px;line-height:1.8}.pr-overall-findings{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:24px 0}.pr-overall-findings>section{padding:18px;border:1px solid var(--line);border-radius:12px;border-top:3px solid #43937a}.pr-overall-findings>.pr-overall-gap{border-top-color:#c98c4c}.pr-main .pr-overall-findings h4{font-size:16px;margin:0 0 14px}.pr-overall-findings article{margin:14px 0 0}.pr-overall-findings strong{font-size:15px;line-height:1.7;display:block}.pr-first-action{padding:18px;background:var(--accent-soft);border-radius:12px;line-height:1.8;font-size:15px}.pr-first-action .pr-button{margin-top:10px}.pr-main .pr-recollection{font-size:14px;color:var(--muted);line-height:1.8;margin-top:18px}.pr-main .pr-prose,.pr-main .pr-text{font-size:15px;line-height:1.8}.pr-main .pr-muted,.pr-main .pr-evidence{font-size:13px;line-height:1.75}.pr-main h4{font-size:16px;margin-top:20px}.pr-main .pr-fold>summary{font-size:15px;padding:15px 2px}.pr-main .pr-question>summary{font-size:16px;min-height:52px}.pr-main .pr-question summary small{font-size:13px}.pr-main .pr-badge{font-size:14px}.pr-main .pr-question-body h4{font-size:16px}.pr-main .pr-key-gaps article{padding:16px 0;border-bottom:1px solid var(--line)}.pr-key-gaps strong{font-size:17px}.pr-main .pr-pattern h4{font-size:17px}.pr-main .pr-action-plan{background:var(--panel-solid);border:1px solid var(--line)}.pr-main .pr-action h4{font-size:17px}.pr-main .pr-success{font-size:14px;padding:12px 14px}.pr-main .pr-report-nav .pr-button{flex:0 1 auto;font-size:13px;min-height:44px}.pr-main .pr-correct-prefix{border-left:3px solid #43937a;padding:12px 16px;margin-bottom:18px}.pr-main .pr-correct-prefix h4{margin-top:0}.pr-main .pr-difficulty-table{font-size:14px}.pr-main .pr-loss-map>span{font-size:14px;padding:10px}.pr-main .pr-win-card h4{font-size:14px}.pr-main .pr-context>summary{font-size:15px}.pr-main .pr-question .pr-check{font-size:13px}
+@media(min-width:1080px){.ph-preferences{display:grid;grid-template-columns:minmax(0,1fr) 235px;gap:0 24px;align-items:start}.ph-preferences>*{grid-column:1;min-width:0}.ph-preferences>.ph-summary{grid-column:2;grid-row:1/7;position:sticky;top:24px;margin-top:28px}.ph-create .ph-presets{grid-template-columns:1fr}.ph-presets .ph-choice{padding:13px 16px!important}}
+@media(max-width:700px){.ph-create{padding:18px}.ph-create .ph-presets,.ph-create .pr-work-location,.ph-create .ph-priorities{grid-template-columns:1fr}.ph-create .ph-modules{grid-template-columns:1fr}.ph-create .ph-form-grid{grid-template-columns:1fr}.ph-create .pr-footer{bottom:75px;gap:8px}.ph-create .pr-footer>span{width:100%}.ph-create .pr-footer .pr-button{flex:1}.pr-main .pr-overall-metrics{grid-template-columns:1fr 1fr;gap:10px}.pr-metric{padding:13px}.pr-metric strong{font-size:25px}.pr-overall-findings{grid-template-columns:1fr}.pr-main .pr-chapter h3{font-size:20px}.pr-main .pr-report-nav{gap:6px}.pr-main .pr-report-nav .pr-button{flex:1 0 28%;padding:8px}.pr-main .pr-difficulty-table tr{grid-template-columns:repeat(3,minmax(0,1fr))}.pr-main .pr-difficulty-table td:nth-child(2)::before{content:'难度 '}.pr-main .pr-difficulty-table td:nth-child(3)::before{content:'得分 '}.pr-main .pr-difficulty-table td:nth-child(4)::before{content:'主要难点 '}.pr-main .pr-question-body{padding:14px}.ph-create h2{font-size:24px}}
+`;
+  style.textContent += '.ph-workspace .ph-create input[type=radio]{width:16px;height:16px;padding:0;margin:4px 0 0;border:initial;background:initial;flex:none}.ph-workspace .ph-create input[type=checkbox]{width:16px;height:16px;flex:none}';
+  document.head.appendChild(style);
+})();
+
+/* ===== paper-records.js ===== */
+/* A checked question ledger feeds marks and optional AI reports. */
+(function () {
+  'use strict';
+  var esc = function (v) { return escapeHtml(String(v == null ? '' : v)); };
+  var names = { strengths:'优势与得分步骤', difficulty:'题目难度', causes:'失分原因', solutions:'关键解答', practice:'针对性练习', patterns:'跨题共性', plan:'复习安排' };
+  function track(event, data) { if (window.__scoreTrackerTrack) window.__scoreTrackerTrack(event, data, 'stats'); }
+  function fields(q, c) {
+    var level = c.question_difficulty ?? q.question_difficulty ?? '';
+    return '<div class="pr-score-fields"><label>题型名称<input data-field="question_type" maxlength="40" placeholder="如：阅读理解 / 填空题" value="' + esc(c.question_type ?? q.question_type) + '"></label><label>题目难度（选填）<select data-field="question_difficulty"><option value="">未标注</option>' + Object.keys(ScoreQuestionTypeModel.difficulties).map(function (k) { return '<option value="' + k + '"' + (k === level ? ' selected' : '') + '>' + ScoreQuestionTypeModel.difficulties[k] + '</option>'; }).join('') + '</select></label></div>';
+  }
+  function groupsFor(row){return window.ScorePaperBoard?window.ScorePaperBoard.groups(row):row.result.score_groups;}
+  function valueOf(c,q,key){return Object.prototype.hasOwnProperty.call(c,key)?c[key]:q[key];}
+  function questionState(q, c, items, scoreGroups) {
+    var reasons=[];
+    if (!q.screenshot_only && !(valueOf(c,q,'stem') || '').trim()) reasons.push('缺少题干');
+    if (q.screenshot_only && !(q.source_regions||[]).some(function(r){return r.kind==='paper';})) reasons.push('原题截图待定位');
+    if (q.screenshot_only && (q.work_expected || q.work_pages&&q.work_pages.length) && !(q.source_regions||[]).some(function(r){return r.kind==='work';})) reasons.push('作答截图待定位');
+    var grouped=q.type_total&&valueOf(c,q,'question_type')===q.type_total.label;
+    if(grouped&&items){var members=items.filter(function(i){return i.c.question_type===c.question_type;});grouped=(scoreGroups||[]).some(function(g){return g.label===c.question_type&&g.teacher_score!=null&&g.max_score!=null&&g.questions.length===members.length&&members.every(function(i){return g.questions.includes(i.q.label);});});}
+    if (valueOf(c,q,'teacher_score') == null&&!grouped&&(!q.screenshot_only||q.work_expected||q.work_pages&&q.work_pages.length)) reasons.push('缺少得分');
+    if (valueOf(c,q,'max_score') == null&&!grouped) reasons.push('缺少满分');
+    if (!(valueOf(c,q,'question_type') || '').trim()) reasons.push('未填题型');
+    var score=valueOf(c,q,'teacher_score'),max=valueOf(c,q,'max_score');
+    if(score!=null&&(!Number.isFinite(score)||score<0)||max!=null&&(!Number.isFinite(max)||max<=0)||score!=null&&max!=null&&score>max)reasons.push('分值需检查');
+    if (!c.verified && (q.score_verification === 'conflict' || q.review_status === 'teacher_conflict')) reasons.push('批改分有冲突');
+    if (!c.verified && q.answer_verification === 'conflict') reasons.push('作答存在歧义');
+    if (!c.verified && (['low','medium'].includes(q.confidence) || !q.screenshot_only&&(q.analysis_mode === 'needs_confirmation' || q.status === 'unclear'))) reasons.push('识别内容待确认');
+    if (!c.verified && ['single_read','conflict'].includes(q.max_verification)) reasons.push('满分待复核');
+    if (!c.verified && q.score_verification === 'single_read') reasons.push('批改分待复核');
+    if (!c.verified) (q.uncertainties||[]).map(function(s){return String(s||'').trim();}).filter(Boolean).slice(0,3).forEach(function(s){reasons.push(s);});
+    return { reasons:reasons, verified:!!c.verified };
+  }
+  function live(main, row) {
+    return row.result.questions.map(function(q){
+      var node=Array.from(main.querySelectorAll('[data-question]')).find(function(n){return n.dataset.question===String(q.id);}),old=(row.corrections||[]).find(function(c){return c.id===q.id;})||{};
+      function value(k,fallback){var el=node && node.querySelector('[data-field="'+k+'"]');if(!el)return fallback;if(el.type==='checkbox')return el.checked;if(el.type==='number')return el.value.trim()===''?null:Number(el.value);return el.value;}
+      return {q:q,c:{stem:value('stem',valueOf(old,q,'stem')),answer:value('answer',valueOf(old,q,'answer')),question_type:value('question_type',valueOf(old,q,'question_type')),question_difficulty:value('question_difficulty',valueOf(old,q,'question_difficulty')),teacher_score:value('teacher_score',valueOf(old,q,'teacher_score')),max_score:value('max_score',valueOf(old,q,'max_score')),verified:value('verified',!!old.verified),accepted:value('accepted',!!old.accepted)}};
+    });
+  }
+  function totals(items, scoreGroups) {
+    var groups=new Map(),untyped=0,unverified=0;
+    items.forEach(function(item){var c=item.c,name=(c.question_type||'').trim();if(!name){untyped++;return;}if(!c.verified&&!c.accepted)unverified++;
+      var g=groups.get(name)||{name:name,score:0,max:0,levels:[]};
+      g.score=g.score==null||c.teacher_score==null?null:Math.round((g.score+c.teacher_score)*100)/100;
+      g.max=g.max==null||c.max_score==null?null:Math.round((g.max+c.max_score)*100)/100;
+      g.levels.push(c.question_difficulty);groups.set(name,g);
+    });
+    return {rows:Array.from(groups.values()).map(function(g){var level=g.levels[0],members=items.filter(function(i){return (i.c.question_type||'').trim()===g.name;}),group=(scoreGroups||[]).find(function(s){return s.label===g.name&&s.questions.length===members.length&&members.every(function(i){return (i.c.verified||i.c.accepted||!questionState(i.q,i.c,items,scoreGroups).reasons.length)&&s.questions.includes(i.q.label);});});return {name:g.name,score:(!group?.manual?g.score:null)??(group&&members.reduce(function(n,i){return n+(i.c.teacher_score??0);},0)<=group.teacher_score?group.teacher_score:null),max:(!group?.manual?g.max:null)??(group&&members.reduce(function(n,i){return n+(i.c.max_score??0);},0)<=group.max_score?group.max_score:null),difficulty:level&&g.levels.every(function(x){return x===level;})?level:''};}),untyped:untyped,unverified:unverified};
+  }
+  function existingFor(row) {
+    var exam=(state.allExams||state.exams||[]).find(function(e){return e.id===row.exam_id;});return exam && exam.question_type_scores && exam.question_type_scores[row.subject] || [];
+  }
+  function drawSync(panel, data, linked, screenshot) {
+    panel.innerHTML='<h3>本场题型得分</h3><p class="pr-muted">仅汇总你已确认的卷面批改分。</p>'+(data.rows.length?'<div class="pr-type-table"><table><thead><tr><th>题型</th><th>得分 / 满分</th><th>难度</th></tr></thead><tbody>'+data.rows.map(function(r){return '<tr><td>'+esc(r.name)+'</td><td>'+esc(r.score==null?'待补全':r.score)+' / '+esc(r.max==null?'待补全':r.max)+'</td><td>'+esc(ScoreQuestionTypeModel.difficulties[r.difficulty]||'未标注')+'</td></tr>';}).join('')+'</tbody></table></div>':'<p>填写题型名称后，这里会自动汇总。</p>')+
+      '<p class="pr-muted">'+(data.untyped?data.untyped+' 题未填题型，不纳入本次汇总。':'')+(data.unverified?(screenshot?'保存时将一并采用没有疑点的识别结果。':data.unverified+' 题尚未对照原卷核对。'):'')+'缺少得分或满分的题型保存为待补全，不参与统计。</p>'+
+      (data.existing.length?'<details><summary>查看本科已有的 '+data.existing.length+' 项题型</summary><p>'+data.existing.map(function(r){return esc(r.name)+'：'+esc(r.score==null?'—':r.score)+' / '+esc(r.max==null?'—':r.max);}).join('；')+'</p></details><label class="pr-check" style="display:none"><input type="checkbox" data-replace-types>用上方汇总替换本科已有题型得分</label>':'')+
+      (!linked?'<p>关联考试后，即可把这里的得分更新到题型分析。</p>':'')+
+      '<div class="pr-footer">'+(linked?'<button type="button" class="pr-button pr-primary" data-sync-types style="display:none">更新题型并完成</button>':'')+'<button type="button" class="pr-button" data-pr="save" style="display:none">仅保存试卷</button></div><p role="status" data-sync-note></p>';
+  }
+  function decorate(main,row,ctx,api,note,hooks) {
+    if(row.result.screenshot_only){
+      main.classList.add('pr-screenshot-entry');
+      main.querySelectorAll('.pr-source>.pr-fold-body>h4,.pr-source>.pr-fold-body>p').forEach(function(n){n.hidden=true;});
+      main.querySelectorAll('[data-field="stem"],[data-field="answer"],[data-field="corrected"]').forEach(function(n){n.closest('label').hidden=true;});
+      main.querySelectorAll('.pr-edit>summary').forEach(function(n){n.textContent='修改题型或分数';});
+      row.result.questions.forEach(function(q){if(!q.type_total)return;var node=Array.from(main.querySelectorAll('[data-question]')).find(function(n){return n.dataset.question===String(q.id);});if(node){var hint=document.createElement('p');hint.className='pr-muted pr-type-total';hint.textContent=q.type_total.label+'卷面合计：'+q.type_total.score+' / '+q.type_total.max+' 分；不拆分到每题。';node.querySelector('.pr-question-body').prepend(hint);}});
+    }
+    var lastBatch=[];
+    var overview=document.createElement('section');overview.className='pr-record-overview';overview.setAttribute('aria-label','核对概览');
+    main.querySelector('.pr-result-top').after(overview);
+    var panel=document.createElement('section');panel.className='pr-type-sync pr-insight';
+    main.querySelector('[data-report-section="questions"] > .pr-footer').replaceWith(panel);
+    function update(){
+      var items=live(main,row),pending=items.filter(function(i){return !i.c.verified&&questionState(i.q,i.c,items,groupsFor(row)).reasons.length;}),verified=items.filter(function(i){return i.c.verified;}).length;
+      var total=row.result.total||{};
+      overview.innerHTML='<div class="pr-check-metrics"><div><b>'+items.length+'</b><span>已识别题目</span></div><div><b>'+pending.length+'</b><span>处需要核对</span></div><div><b>'+verified+' / '+items.length+'</b><span>已对照原卷</span></div>'+(total.score!=null?'<div><b>'+esc(total.score)+(total.max!=null?' / '+esc(total.max):'')+'</b><span>卷面批改总分</span></div>':'')+'</div><p>'+ (pending.length?'只需处理标出的缺失或冲突；其余结果可直接采用。':'核对完成，可以直接完成录入。')+'</p>';
+      var eligible=items.filter(function(i){return !i.c.verified&&!questionState(i.q,i.c,items,groupsFor(row)).reasons.length;});
+      overview.insertAdjacentHTML('beforeend','<div class="pr-bulk-actions"><button type="button" class="pr-button pr-primary" data-confirm-clean '+(!eligible.length?'disabled':'')+'>采用全部无异常题（'+eligible.length+'）</button>'+(pending.length?'<button type="button" class="pr-button" data-show-pending>查看需处理的 '+pending.length+' 题</button>':'')+(lastBatch.length?'<button type="button" class="pr-button" data-undo-batch>撤销本次操作</button>':'')+'</div><p class="pr-bulk-hint">没有疑点的识别结果可以直接采用，不需要逐题点确认。</p>');
+      overview.querySelector('[data-confirm-clean]').onclick=function(){
+        var current=live(main,row),chosen=current.filter(function(i){return !i.c.verified&&!questionState(i.q,i.c,current,groupsFor(row)).reasons.length;}),first;
+        lastBatch=chosen.map(function(i){return String(i.q.id);});
+        main.querySelectorAll('[data-question]').forEach(function(n){if(lastBatch.includes(n.dataset.question)){var box=n.querySelector('[data-field=verified]');box.checked=true;first=first||box;}});
+        if(first)first.dispatchEvent(new Event('input',{bubbles:true}));
+        note('已采用 '+chosen.length+' 题无异常结果；异常题仍需单独处理。');
+        var filter=main.querySelector('[data-pr="filter:confirm"]');if(pending.length&&filter)filter.click();
+        track('paper_confirm_clean',{count:chosen.length});
+      };
+      var undo=overview.querySelector('[data-undo-batch]');if(undo)undo.onclick=function(){var ids=lastBatch.slice(),first;lastBatch=[];main.querySelectorAll('[data-question]').forEach(function(n){if(ids.includes(n.dataset.question)){var box=n.querySelector('[data-field=verified]');box.checked=false;first=first||box;}});if(first)first.dispatchEvent(new Event('input',{bubbles:true}));note('已撤销本次批量确认，其他题目的核对状态不变。');};
+      var show=overview.querySelector('[data-show-pending]');if(show)show.onclick=function(){var filter=main.querySelector('[data-pr="filter:confirm"]');if(filter){filter.click();filter.scrollIntoView({block:'nearest'});}};
+      items.forEach(function(item){var info=questionState(item.q,item.c,items,groupsFor(row)),node=Array.from(main.querySelectorAll('[data-question]')).find(function(n){return n.dataset.question===String(item.q.id);});if(!node)return;
+        node.dataset.needsConfirm=String(!info.verified&&info.reasons.length>0);node.dataset.unverified=String(!info.verified);
+        var brief=node.querySelector('.pr-record-brief');if(!brief){brief=document.createElement('small');brief.className='pr-record-brief';node.querySelector('summary>span').appendChild(brief);}
+        var hint=node.querySelector('.pr-type-total');if(hint){var members=items.filter(function(i){return i.c.question_type===item.c.question_type;});hint.hidden=!(groupsFor(row)||[]).some(function(g){return g.label===item.c.question_type&&g.questions.length===members.length&&members.every(function(i){return g.questions.includes(i.q.label);});});}
+        brief.textContent=[item.c.question_type||'未分类',info.verified?'已核对':info.reasons.length?info.reasons.join(' · '):item.c.accepted?'已采用':'可直接采用'].join(' · ');
+      });
+      var data=totals(items,groupsFor(row));data.existing=existingFor(row);drawSync(panel,data,!!row.exam_id,!!row.result.screenshot_only);
+      var submit=panel.querySelector('[data-sync-types]'),replace=panel.querySelector('[data-replace-types]');
+      function enabled(){if(submit)submit.disabled=!data.rows.length||(row.result.screenshot_only?pending.length>0:data.unverified>0)||!!replace&&!replace.checked;}
+      if(replace)replace.onchange=enabled;enabled();
+      if(submit)submit.onclick=async function(){
+        var accepted=!!replace&&replace.checked;submit.disabled=true;var finishStatus=main.paperBoardFinishStatus;var failure='';if(finishStatus)finishStatus(true,'正在保存试题和题型得分…');note('正在保存试题和题型得分…');
+        try{
+          if(row.result.screenshot_only){
+            var current=live(main,row),first;
+            current.forEach(function(item){if(item.c.verified||item.c.accepted||questionState(item.q,item.c,current,groupsFor(row)).reasons.length)return;var box=main.querySelector('[data-question="'+item.q.id+'"] [data-field=accepted]');if(box){box.checked=true;first=first||box;}});
+            if(first)first.dispatchEvent(new Event('input',{bubbles:true}));
+          }
+          var saved=await hooks.save();if(!saved)throw new Error('保存尚未完成，请重试');
+          var preview=await api(ctx,'preview_types',{request_id:saved.request_id,revision:saved.revision});
+          if(!main.isConnected)return;
+          var active=main.querySelector('.pr-type-sync');
+          if(preview.existing.length&&!accepted){[state.exams,state.allExams].forEach(function(list){(list||[]).forEach(function(e){if(e.id===row.exam_id){e.question_type_scores=e.question_type_scores||{};e.question_type_scores[row.subject]=preview.existing;}});});if(active.refresh)active.refresh();active.querySelector('[data-sync-note]').textContent='试题已保存；本科题型已发生变化，请重新核对后确认替换。';failure='已有题型得分发生变化，请重新选择是否替换。';note(failure,true);return;}
+          if(preview.unverified)throw new Error('请先对照原卷核对已分类题目');
+          var savedTypes=await api(ctx,'sync_types',{request_id:saved.request_id,revision:saved.revision,exam_version:preview.exam_version,replace:accepted});
+          [state.exams,state.allExams].forEach(function(list){(list||[]).forEach(function(e){if(e.id===savedTypes.exam_id)e.question_type_scores=savedTypes.question_type_scores;});});
+          if(!main.isConnected)return;
+          if(hooks.finalize){await hooks.finalize('sync');return;}
+          main.querySelector('.pr-type-sync').innerHTML='<h3>试题与题型得分已保存</h3><p>已更新本场'+esc(row.subject)+'的 '+preview.rows.length+' 项题型。整科和总分保持原样。</p><button type="button" class="pr-button" data-view-types>查看题型分析</button>';var board=main.querySelector('.pb-board');if(board){var done=board.querySelector('[data-pb-complete]'),finish=board.querySelector('[data-pb=finish]'),choice=board.querySelector('.pb-finish-choice');if(done){done.hidden=false;done.textContent='录入完成 · 题型得分已更新。';}if(finish)finish.hidden=true;if(choice)choice.hidden=true;}
+          main.querySelector('[data-view-types]').onclick=function(){if(ctx.canLeave&&!ctx.canLeave())return;if(ctx.dispose)ctx.dispose();window.ScoreQuestionTypeAnalysis.open(row.subject);};
+          note('试题与题型得分已保存');track('paper_type_sync',{types:preview.rows.length,replaced:preview.existing.length>0});
+        }catch(e){failure='保存未完成：'+e.message;if(main.isConnected){note(failure,true);var active=main.querySelector('[data-sync-types]');if(active)active.disabled=false;}}finally{if(finishStatus&&main.paperBoardFinishStatus===finishStatus)finishStatus(false,failure||'录入完成',!!failure);}
+      };
+      var activeFilter=main.querySelector('[data-pr^="filter:"][aria-pressed=true]');if(activeFilter)activeFilter.click();
+    }
+    panel.refresh=update;update();
+    if(window.ScorePaperEntryOnly===true)row.result.questions.forEach(function(q){
+      var node=Array.from(main.querySelectorAll('[data-question]')).find(function(n){return n.dataset.question===String(q.id);});
+      if(!node)return;var source=node.querySelector('.pr-source>.pr-fold-body');
+      if(q.provided_reference){var reference=document.createElement('details');reference.className='pr-legacy-reference';reference.innerHTML='<summary>已识别的参考答案</summary><p class="pr-text">'+esc(q.provided_reference)+'</p>';source.appendChild(reference);}
+      if(q.uncertainties&&q.uncertainties.length){var notes=document.createElement('details');notes.className='pr-legacy-reference';notes.innerHTML='<summary>待核对备注 · '+q.uncertainties.length+'</summary><ul>'+q.uncertainties.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ul>';source.appendChild(notes);}
+    });
+    live(main,row).forEach(function(item){var node=Array.from(main.querySelectorAll('[data-question]')).find(function(n){return n.dataset.question===String(item.q.id);});if(node&&questionState(item.q,item.c,live(main,row),groupsFor(row)).reasons.length){node.open=true;var edit=node.querySelector('.pr-edit');if(edit)edit.open=true;}});
+    main.querySelectorAll('.pr-question input,.pr-question textarea,.pr-question select').forEach(function(el){el.addEventListener('input',function(){
+      if(el.dataset.field!=='verified'&&el.dataset.field!=='accepted'&&el.dataset.field!=='corrected'){var card=el.closest('[data-question]'),verified=card.querySelector('[data-field=verified]'),accepted=card.querySelector('[data-field=accepted]');if(verified)verified.checked=false;if(accepted)accepted.checked=false;}
+      update();
+    });});
+  }
+  function preferences(user){try{return JSON.parse(localStorage.getItem('st_paper_analysis_preferences_v1_'+user)||'{}');}catch(_){return {};}}
+  function configure(host,row,hooks) {
+    if(window.ScorePaperEntryOnly===true){host.textContent='试卷分析暂未开放，请返回试题录入。';return;}
+    var user=hooks.user||String(state.user&&state.user.id||''),requestId=crypto.randomUUID(),draftId=crypto.randomUUID(),old=row.options||{},saved=preferences(user),defaults=['strengths','difficulty','causes','solutions','patterns'];
+    var selectedModules=Array.isArray(saved.modules)?saved.modules.filter(function(k){return names[k];}):defaults;
+    host.innerHTML='<section class="ph-create"><div class="ph-section-title"><div><h2>生成 AI 分析</h2><p>'+esc(row.subject)+' · '+row.result.questions.length+' 题 · 直接使用已保存的题目与作答。</p></div><button type="button" class="pr-button" data-back-record>返回试题</button></div><form class="pr-record-analysis"><label>分析范围<select name="scope"><option value="all">整张试卷</option><option value="losses">失分题优先</option><option value="selected">指定题目</option></select></label><fieldset data-question-picks hidden><legend>选择题目</legend>'+row.result.questions.map(function(q){return '<label class="pr-check"><input type="checkbox" name="question" value="'+esc(q.label)+'">第 '+esc(q.label)+' 题</label>';}).join('')+'</fieldset><label>你特别想了解什么？（选填）<textarea name="goal" maxlength="300" rows="2" placeholder="例如：数学大题主要丢分在哪里？"></textarea></label><details class="ph-context"><summary>更多设置</summary><label>讲解详略<select name="detail"><option value="brief">只讲关键点</option><option value="standard">讲清关键步骤</option><option value="detailed">从基础一步步讲</option></select></label><div class="ph-modules">'+Object.keys(names).map(function(k){return '<label class="pr-check"><input type="checkbox" name="module" value="'+k+'" '+(selectedModules.includes(k)?'checked':'')+'>'+names[k]+'</label>';}).join('')+'</div><label>单轮运行上限<select name="budget"><option value="3">3 分钟</option><option value="8">8 分钟</option><option value="15">15 分钟</option><option value="30">30 分钟</option></select></label><label>年级<input name="grade" maxlength="40" value="'+esc(saved.grade??old.grade)+'"></label><label>已学范围<input name="range" maxlength="200" value="'+esc(saved.learning_range??old.learning_range)+'"></label><label class="pr-check"><input type="checkbox" name="scans" checked>结合已保存原图理解图形</label><label class="pr-check"><input type="checkbox" name="history" '+(saved.use_account_history===false?'':'checked')+'>结合本账号历史成绩</label></details><p class="pr-muted">识别与生成分析各消耗 1 次；查看报告、手动核对和更新题型得分不消耗次数。</p><label class="pr-check pr-consent"><input type="checkbox" name="consent" required>同意将已保存的题目、作答与批改分，以及允许使用的原图和考试数值发送给 AI 服务生成分析。</label><div class="pr-footer"><span role="status" data-analysis-note></span><button class="pr-button pr-primary" type="submit">开始分析 · 消耗 1 次</button></div></form></section>';
+    var form=host.querySelector('form');form.elements.detail.value=['brief','standard','detailed'].includes(saved.detail)?saved.detail:'standard';form.elements.budget.value=[3,8,15,30].includes(saved.time_budget_minutes)?String(saved.time_budget_minutes):'15';
+    host.querySelector('[data-back-record]').onclick=function(){hooks.open(row.request_id);};
+    form.elements.scope.onchange=function(){form.querySelector('[data-question-picks]').hidden=this.value!=='selected';};
+    form.onsubmit=async function(e){
+      e.preventDefault();var submit=form.querySelector('[type=submit]'),status=form.querySelector('[data-analysis-note]');if(String(state.user&&state.user.id||'')!==user){status.textContent='账号已切换，请重新打开试卷';return;}
+      var selected=Array.from(form.querySelectorAll('[name=question]:checked')).map(function(b){return b.value;});
+      if(!form.elements.consent.checked){status.textContent='请先确认 AI 分析说明';return;}
+      if(form.elements.scope.value==='selected'&&!selected.length){status.textContent='请至少选择一道题';return;}
+      submit.disabled=true;status.textContent='正在创建分析…';
+      try{
+        var options=Object.assign({},old,{config_version:2,purpose:'analysis',use_source_scans:form.elements.scans.checked,use_account_history:form.elements.history.checked,review_before_analysis:false,analysis_scope:form.elements.scope.value,selected_questions:selected,detail:form.elements.detail.value,time_budget_minutes:Number(form.elements.budget.value),grade:form.elements.grade.value,learning_range:form.elements.range.value,goal:form.elements.goal.value,modules:Array.from(form.querySelectorAll('[name=module]:checked')).map(function(b){return b.value;})});
+        var data=await hooks.api('analyze_record',{request_id:requestId,draft_id:draftId,source_request_id:row.request_id,source_revision:row.revision,consent:true,options:options});
+        if(!host.isConnected)return;
+        try{localStorage.setItem('st_paper_analysis_preferences_v1_'+user,JSON.stringify({detail:options.detail,time_budget_minutes:options.time_budget_minutes,grade:options.grade,learning_range:options.learning_range,modules:options.modules,use_account_history:options.use_account_history}));}catch(_){}
+        track('paper_analysis_from_record',{questions:row.result.questions.length,scope:options.analysis_scope});await hooks.started(data.request_id);
+      }catch(err){if(host.isConnected){status.textContent=err.message+'；重试不重复计次。';submit.disabled=false;}}
+    };
+  }
+  window.ScorePaperRecords={fields:fields,decorate:decorate,questionState:questionState,configure:configure};
+  var style=document.createElement('style');
+  style.textContent='.ph-workspace>.ph-header[hidden]{display:none!important}.pr-record-view .pr-result-top{background:transparent;padding:0;margin:0 0 16px}.pr-record-view .pr-result-top h3{font-size:22px!important;margin:6px 0}.pr-record-view .pr-report-nav{display:none}.pr-record-view .pr-first-action{padding:0;background:none;margin:16px 0}.pr-record-view .pr-first-action p{margin:0}.pr-record-view .pr-reading-section{padding-top:20px!important;margin-top:20px!important}.pr-type-table{overflow-x:auto}.pr-type-table table{width:100%;border-collapse:collapse;font-size:14px}.pr-type-table th,.pr-type-table td{padding:12px 8px;border-bottom:1px solid var(--line);text-align:left}.pr-type-table td:first-child{overflow-wrap:anywhere}.pr-type-sync .pr-footer{flex-wrap:wrap}.pr-record-analysis>label{display:block;margin:18px 0}.pr-record-analysis fieldset{border:1px solid var(--line);border-radius:10px}.pr-record-overview{padding:18px;border:1px solid var(--line);border-radius:14px;margin:18px 0;background:var(--panel-solid)}.pr-check-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.pr-check-metrics>div{display:flex;flex-direction:column;gap:6px}.pr-check-metrics b{font-size:23px}.pr-check-metrics span,.pr-record-overview p,.pr-record-brief{font-size:13px;color:var(--muted);line-height:1.7}.pr-record-brief{display:block;margin-top:3px}.ph-paper-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px}.ph-paper-bar nav{display:flex;gap:8px}.ph-paper-bar [aria-pressed=true]{color:var(--accent);background:var(--accent-soft);border-color:var(--accent)}.ph-list-filters{margin:14px 0 20px}.pr-upload-extra>summary{padding:16px 0;cursor:pointer;font-size:15px;font-weight:600}.ph-list-filters summary{cursor:pointer;font-size:14px;color:var(--muted)}.ph-workspace .pr-inline .pr-head{display:none}.ph-report-list>p{line-height:1.7}.ph-report-list>.ph-list{margin-top:20px}.ph-report-list>.pr-button{margin:8px 0}.ph-tabs{flex-wrap:wrap}.ph-tabs button{white-space:nowrap}.pr-question[data-needs-confirm=true]>summary{border-left:3px solid #ba7c2d}.pr-type-sync .pr-check{margin:16px 0}.pr-record-overview p{margin-bottom:0}.ph-workspace .pr-record-analysis input[type=checkbox],.ph-workspace .pr-record-analysis input[type=radio]{width:16px;height:16px;flex:none}.pr-report-extra>summary{padding:16px;cursor:pointer;font-weight:600;color:var(--accent)}.pr-report-extra{margin:20px 0;border:1px solid var(--line);border-radius:12px}.pr-report-extra>.pr-reading-section{margin:0!important;padding:20px!important;border:0!important}@media(max-width:520px){.pr-check-metrics{grid-template-columns:1fr 1fr}.pr-type-sync .pr-button{width:100%}.ph-paper-bar nav{width:100%}.ph-paper-bar nav .pr-button{flex:1}.ph-tabs button{flex:1 1 auto;padding:9px 8px}}';
+  document.head.appendChild(style);
+  var bulkStyle=document.createElement('style');bulkStyle.textContent='.pr-bulk-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.pr-bulk-hint{font-size:12px!important}.pr-bulk-actions .pr-button{white-space:normal}@media(max-width:520px){.pr-bulk-actions .pr-button{flex:1 1 100%}}';document.head.appendChild(bulkStyle);
+  var scanStyle=document.createElement('style');scanStyle.textContent='.pr-page-statuses{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.pr-page-statuses span{padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px;color:var(--muted)}.pr-page-statuses .pr-page-done{color:var(--text)}.pr-page-statuses .pr-page-current{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}.pr-scan-counts{line-height:1.9}.pr-screenshot-entry [hidden]{display:none!important}';document.head.appendChild(scanStyle);
+})();
+
 /* ===== exam-detail.js ===== */
 /* One exam, one place to read its scores, ranks and saved papers. */
 (function () {
@@ -14815,7 +17001,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   function changeText(point, recent) { return Math.abs(point.x) < 0.005 ? '基本持平' : (point.x > 0 ? '进步 ' : '退步 ') + fmtChange(Math.abs(point.x)) + (recent ? ' 个百分点 / 场' : ' 个百分点'); }
   function metric(label, value, sub) { return '<div class="ed-metric"><span>' + esc(label) + '</span><strong>' + esc(value) + '</strong><small>' + esc(sub || '') + '</small></div>'; }
   function header(exam) {
-    return '<div class="ed-top">' + button('← 返回考试记录', 'back') + button('编辑 / 补录', 'edit') + '</div><header class="ed-heading"><span class="ed-eyebrow">单次考试详情</span><h1 tabindex="-1">' + esc(exam.name) + '</h1><p>' + esc(fmtYearDate(exam.exam_date) + (exam.end_date && exam.end_date !== exam.exam_date ? ' — ' + fmtYearDate(exam.end_date) : '') + ' · ' + (exam.grade_level || '未分类')) + (exam.is_hidden ? ' · 已从趋势图隐藏，仍可查看完整记录' : '') + '</p></header>';
+    return '<div class="ed-top">' + button(view && view.returnPage === 'stats' ? '← 返回题型分析' : '← 返回考试记录', 'back') + button('编辑 / 补录', 'edit') + '</div><header class="ed-heading"><span class="ed-eyebrow">单次考试详情</span><h1 tabindex="-1">' + esc(exam.name) + '</h1><p>' + esc(fmtYearDate(exam.exam_date) + (exam.end_date && exam.end_date !== exam.exam_date ? ' — ' + fmtYearDate(exam.end_date) : '') + ' · ' + (exam.grade_level || '未分类')) + (exam.is_hidden ? ' · 已从趋势图隐藏，仍可查看完整记录' : '') + '</p></header>';
   }
   function overview(exam, m) {
     var totalLabel = m.manual ? '已录入总分' : m.complete ? '本次总分' : '已录入科目小计';
@@ -14849,7 +17035,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
           cell('原始分', r.raw === null ? '—' : fmt(r.raw) + ' / ' + fmt(r.rawMax)) + cell('得分率', r.rate === null ? '—' : fmt(r.rate) + '%') +
           cell('目标', r.target === null ? '未设置' : fmt(r.target) + (r.actual !== null ? '<small>' + (r.actual === r.target ? '已达标' : signed(r.actual - r.target) + ' 分') + '</small>' : '')) +
           cell('年级排名', rankCell(r.year)) + cell('班级排名', rankCell(r.class)) + (hasAverages ? cell('平均分', averageCell(exam, r)) : '') + '</tr>';
-      }).join('') + '</tbody></table></div>' : '<p class="ed-empty">还没有科目数据，点击“编辑 / 补录”添加成绩。</p>') + combinations(exam, m) + '</section>';
+      }).join('') + '</tbody></table></div>' : '<p class="ed-empty">还没有科目数据，点击“编辑 / 补录”添加成绩。</p>') + (window.ScoreQuestionTypes ? window.ScoreQuestionTypes.detail(exam) : '') + combinations(exam, m) + '</section>';
   }
   function combinations(exam, m) {
     var selected = (state.modulesV18 || []).filter(function (mod) { return (exam.moduleIds || []).includes(mod.id); });
@@ -15035,8 +17221,8 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       if (action === 'back') {
         if (!leave()) return;
         track('exam_detail_closed', { reason: 'back' });
-        var scroll = v.scroll; view = null; render(); window.scrollTo(0, scroll);
-        var original = Array.from(document.querySelectorAll('[data-exam-detail]')).find(function (b) { return b.dataset.examDetail === exam.id; }); if (original) original.focus({ preventScroll: true });
+        var scroll = v.scroll; state.page = v.returnPage || 'records'; view = null; render(); window.scrollTo(0, scroll);
+        var original = Array.from(document.querySelectorAll('[data-exam-detail],[data-qta-exam]')).find(function (b) { return (b.dataset.examDetail || b.dataset.qtaExam) === exam.id; }); if (original) original.focus({ preventScroll: true });
       } else if (action === 'edit') {
         track('exam_detail_edit_opened');
         if (editor) { if (!leave()) return; v.report = null; renderPage(); }
@@ -15060,7 +17246,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   }
   function open(id) {
     var exam = allExams().find(function (e) { return e.id === id; }); if (!exam || !leave()) return;
-    view = { id: id, user: owner(), token: state.token, scroll: window.scrollY || 0, papers: null, offset: 0, more: false, loading: false, subject: '', chartMode: 'movement', trendWindow: 'previous', sameCategory: false };
+    view = { id: id, returnPage: state.page === 'stats' && window.ScoreQuestionTypeAnalysis && window.ScoreQuestionTypeAnalysis.active() ? 'stats' : 'records', user: owner(), token: state.token, scroll: window.scrollY || 0, papers: null, offset: 0, more: false, loading: false, subject: '', chartMode: 'movement', trendWindow: 'previous', sameCategory: false };
     track('exam_detail_opened', { source: 'records' });
     state.page = 'records'; render(); window.scrollTo(0, 0);
     var heading = document.querySelector('.ed-heading h1'); if (heading) heading.focus({ preventScroll: true });
@@ -15322,4 +17508,36 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   document.addEventListener('click',function(e){if(e.target.closest&&e.target.closest('#importDataV30'))open();});
   var style=document.createElement('style');style.textContent='.backup-sheet{box-sizing:border-box;color:var(--text);overflow-wrap:anywhere}.backup-sheet .card-sub{line-height:1.65}.backup-file-label{display:grid;gap:9px;font-size:13px;font-weight:600;margin:20px 0 12px}.backup-file-label input{width:100%;min-width:0;box-sizing:border-box;border:1px dashed var(--line);border-radius:12px;padding:14px 10px;font:inherit;color:var(--text);background:var(--cell,#f6f8fc)}#backupStatus{font-size:12px;line-height:1.65;margin:12px 0;color:var(--muted)}#backupStatus.backup-error{color:var(--danger,#c54b57)}.backup-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:18px 0}.backup-summary>div{background:var(--accent-soft,#f1f3ff);border:1px solid var(--line);border-radius:12px;padding:13px 6px;text-align:center}.backup-summary strong{font-size:26px;display:block;line-height:1.2}.backup-summary span{display:block;font-size:11px;color:var(--muted);margin-top:7px}.backup-meta,.backup-rule,.backup-sheet details{font-size:12px;line-height:1.75;color:var(--muted)}.backup-rule{padding-top:12px;border-top:1px solid var(--line)}.backup-settings{display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.7;margin-top:18px}.backup-settings[hidden]{display:none}.backup-settings input{margin-top:4px;flex-shrink:0}.backup-sheet button:disabled{opacity:.55;cursor:default}.backup-sheet .export-go-v30{min-height:46px}';document.head.appendChild(style);
   window.ScoreBackupImport={open:open};
+})();
+
+/* ===== account-growth.js ===== */
+(function(){
+ 'use strict';
+ var cached=null,cachedToken='',loadedAt=0,pending=null;
+ var names={record:'记录有效成绩',quick:'快速录入后保存',trend:'成绩趋势',radar:'能力雷达',worth:'成绩含金量',trajectory:'轨迹匹配',goal:'设置目标',reflection:'考试反思',types:'题型统计',paper:'核对试题',report:'查看已有分析报告',export:'导出成绩',appearance:'应用外观',feedback:'提交反馈或投票',planner:'学习规划'};
+ function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+ function number(v){return Math.max(0,Math.floor(Number(v)||0)).toLocaleString();}
+ async function request(action){var token=state.token,r=await fetch('/api/score-tracker-data-api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:action,token:token})});var j=await r.json();if(!r.ok)throw Error(j.error||'暂时无法读取');if(token!==state.token)throw Error('登录状态已变化');return j;}
+ function view(a){
+  var g=a.growth,c=a.credits,next=(g.levels||[]).find(function(l){return l.level===g.level+1;});
+  var requirements=next?['成长分 '+number(g.points)+' / '+number(next.threshold),next.min_days?'注册 '+g.registered_days+' / '+next.min_days+' 天':'',next.min_months?'有效使用 '+g.active_months+' / '+next.min_months+' 个月':'',!g.valid_exams?'至少 1 场有效考试':''].filter(Boolean).join(' · '):'已达到最高等级';
+  var levelTable='<div class="ag-table" tabindex="0" role="region" aria-label="等级与 AI 月额度"><table><thead><tr><th>等级</th><th>成长分</th><th>额外要求</th><th>月积分</th></tr></thead><tbody>'+(g.levels||[]).map(function(l){return '<tr'+(l.level===g.level?' class="ag-current"':'')+'><td>Lv.'+l.level+'</td><td>'+l.threshold+'</td><td>'+esc([l.level>1?'有效考试':'',l.min_days?l.min_days+'天':'',l.min_months?l.min_months+'个有效月':''].filter(Boolean).join(' · ')||'—')+'</td><td>'+l.monthly_credits+'</td></tr>';}).join('')+'</tbody></table></div>';
+  return '<div class="ag-summary"><div><span class="ag-level">Lv.'+g.level+'</span><span>成长分 <b>'+number(g.points)+'</b></span></div><button type="button" class="ag-refresh">刷新</button></div><p class="ag-progress">'+esc(requirements)+'</p><div class="ag-wallet"><div><b>'+number(c.available)+'</b><span>可用 AI 积分</span></div><div><b>'+number(c.monthly)+'</b><span>每月发放</span></div>'+(c.held?'<div><b>'+number(c.held)+'</b><span>任务预留</span></div>':'')+'</div>'+
+   (!a.enabled?'<p class="ag-note">账号等级对所有账号显示；AI 功能暂未开放。</p>':a.budget_status==='paused'?'<p class="ag-note">本月 AI 预算不足，未扣积分</p>':'')+
+   '<details><summary>积分怎么用</summary><div class="ag-rules"><p><b>按实际用量扣分，失败不扣。</b>手动核对与保存免费。</p><div class="ag-table"><table aria-label="识别选项与开始所需积分"><thead><tr><th>功能 / 页面选项</th><th>开始需可用积分</th></tr></thead><tbody><tr><td>成绩图片识别</td><td>13 分（通常约 13 分 / 次）</td></tr><tr><td>试题识别 · 仅上传题目</td><td>150 分</td></tr><tr><td>试题识别 · 写在试卷上</td><td>400 分</td></tr><tr><td>试题识别 · 在答题卡上</td><td>400 分</td></tr></tbody></table></div><p>试题识别通常每张约 10～30 积分，实际随图片和补读次数变化，上传后会显示本次估算。表中是开始所需余额，并非固定费用。提交时预留部分积分，完成后释放余量。试卷分析暂未开放。</p><p>首次赠送 <b>'+number(c.welcome)+'</b> 分；Lv.2 起每月自动发放，升级补差。可累积至 <b>'+number(c.cap)+'</b> 分。</p></div></details>'+
+   '<details><summary>如何升级</summary><div class="ag-rules"><ul><li>首次有效体验：按功能加分</li><li>有效使用月：<b>+60</b>，无需每天签到</li><li>不同日期的有效考试：每场 <b>+20</b>，每月最多 3 场</li><li>结合考试查看趋势、雷达、含金量或匹配：每场每月最多 <b>+10</b>，全账号每月最多 <b>+20</b></li></ul><p>重复点击不加分，等级累计保留。</p><details><summary>12 级门槛与月额度</summary>'+levelTable+'</details><details><summary>首次体验成长分</summary><div class="ag-features">'+(g.features||[]).filter(function(f){return f.feature!=='planner';}).map(function(f){return '<span>'+esc(names[f.feature]||f.feature)+' <b>+'+f.points+'</b> '+(f.earned?'已获得':'')+'</span>';}).join('')+'</div><p>历史仅按已保存的有效记录补记。</p></details></div></details><button type="button" class="ag-usage">最近 AI 用量</button><div class="ag-history" aria-live="polite"></div>';
+ }
+ function paint(){var host=document.getElementById('accountGrowth');if(!host||cachedToken!==state.token||!cached)return;host.innerHTML=view(cached);host.querySelector('.ag-refresh').onclick=function(){load(true);};host.querySelector('.ag-usage').onclick=async function(){var box=host.querySelector('.ag-history');this.disabled=true;try{var j=await request('account_usage');if(!host.isConnected)return;box.innerHTML=(j.usage||[]).map(function(r){var feature={vision:'成绩识图',paper_entry:'试题识别',probe:'连接测试',admin_test:'模型测试'}[r.feature]||'AI 调用';return '<p>'+esc(feature)+' · '+esc(new Date(r.created_at).toLocaleString())+' · '+number(r.charged_credits)+' 分 · '+esc({active:'进行中',succeeded:'已完成',failed:'失败未扣分',expired:'已释放预留'}[r.status]||r.status)+'</p>';}).join('')||'<p>暂无 AI 使用记录</p>';}catch(e){box.textContent=e.message;}finally{this.disabled=false;}};}
+ async function load(force){
+  if(!state.token)return;var token=state.token,host=document.getElementById('accountGrowth');
+  if(!force&&cachedToken===token&&cached&&Date.now()-loadedAt<30000){paint();return;}
+  if(pending&&pending.token===token)return pending.promise;
+  if(host&&!cached)host.textContent='正在读取等级与 AI 积分…';
+  var promise=(async function(){try{var j=await request('account_status');if(state.token!==token)return;cached=j.account;cachedToken=token;loadedAt=Date.now();paint();}catch(e){if(host&&host.isConnected&&state.token===token){host.textContent='等级与 AI 积分暂不可用。';var b=document.createElement('button');b.type='button';b.className='ag-refresh';b.textContent='重试';b.onclick=function(){load(true);};host.appendChild(b);}}finally{if(pending&&pending.token===token)pending=null;}})();pending={token:token,promise:promise};return promise;
+ }
+ var oldAccount=accountHtml;accountHtml=function(){var html=oldAccount();if(!state.token)return html;var block='<section class="account-growth" id="accountGrowth" aria-label="账号等级（所有账号）与 AI 积分" aria-live="polite">正在读取账号等级与 AI 积分…</section>';return html.replace('<div class="username-origin-v19"',block+'<div class="username-origin-v19"');};
+ var oldBind=bindPage;bindPage=function(){var result=oldBind.apply(this,arguments);if(state.page==='account')load(false);return result;};
+ if(typeof dataApiV7==='function'){var oldApi=dataApiV7;dataApiV7=async function(action,payload){if(action==='save_exam'&&state.modal&&state.modal.dataset&&state.modal.dataset.quickEntryApplied)payload=Object.assign({},payload,{quick_entry:true});var r=await oldApi.call(this,action,payload);if(/^save_|^import/.test(action)){loadedAt=0;cached=null;}return r;};}
+ window.ScoreAccountBenefits={refresh:function(){return load(true);},invalidate:function(){cached=null;loadedAt=0;}};
+ var style=document.createElement('style');style.textContent='.account-growth{margin:12px 0 8px;padding:16px;border:1px solid var(--line,#e2e8f0);border-radius:14px;background:var(--panel-solid,#fff);font-size:13px;line-height:1.7;max-width:100%;box-sizing:border-box;min-width:0;text-align:left}.ag-summary,.ag-summary>div{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.ag-summary{justify-content:space-between}.ag-level{font-size:15px;font-weight:750;color:var(--accent,#5269d8);background:var(--accent-soft,#edf1ff);border-radius:8px;padding:2px 10px}.ag-progress,.ag-note{color:var(--muted,#687386);font-size:12px;margin:10px 0}.ag-wallet{display:flex;gap:24px;flex-wrap:wrap;margin:14px 0}.ag-wallet>div{display:flex;flex-direction:column}.ag-wallet b{font-size:24px;line-height:1.2}.ag-wallet span{font-size:12px;color:var(--muted,#687386);margin-top:5px}.account-growth summary{cursor:pointer;color:var(--accent,#5269d8);padding:7px 0}.ag-rules{padding-top:4px}.ag-rules p{font-size:12px;color:var(--muted,#687386);margin:8px 0}.ag-table{width:100%;overflow:auto}.ag-table table{border-collapse:collapse;width:100%;font-size:12px}.ag-table th,.ag-table td{text-align:left;padding:8px 5px;border-bottom:1px solid var(--line,#e2e8f0)}.ag-current{color:var(--accent,#5269d8);font-weight:650}.ag-features{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ag-features span{padding:6px;background:var(--soft,#f7f8fb);border-radius:6px;font-size:12px}.ag-refresh,.ag-usage{font:inherit;padding:6px 10px;color:var(--accent,#5269d8);border:1px solid var(--line,#e2e8f0);border-radius:8px;background:transparent;cursor:pointer;min-height:36px}.ag-usage{margin-top:12px}.ag-history p{border-bottom:1px solid var(--line,#e2e8f0);padding:8px 0;overflow-wrap:anywhere}@media(max-width:420px){.account-growth{padding:12px}.ag-features{grid-template-columns:1fr}.ag-table th,.ag-table td{padding:7px 3px}}';document.head.appendChild(style);
 })();

@@ -376,7 +376,7 @@
       hidden: null,
       total: {},
       city: {},
-      subjects: {},
+      subjects: Object.create(null),
       modules: {},
       moduleDefinitions: {},
       rankMode: '',
@@ -384,7 +384,12 @@
       errors: [],
       fieldCount: 0
     };
-    if (!source) {
+    var typeLines = [];
+    source = source.split('\n').filter(function (line) {
+      if (/^题型\s*[:|]/.test(line)) { typeLines.push(line); return false; }
+      return true;
+    }).join('\n');
+    if (!source && !typeLines.length) {
       result.errors.push('请先输入要识别的内容。');
       return result;
     }
@@ -454,6 +459,22 @@
     Object.keys(result.total).forEach(function (key) { addFieldCount(result, result.total[key]); });
     Object.keys(result.city).forEach(function (key) { addFieldCount(result, result.city[key]); });
 
+    typeLines.forEach(function (line) {
+      var parts = line.match(/^题型\s*[:|]\s*([^|]+)\|([^|]+)\|([^|]*)\|([^|]*)(?:\|([^|]*)(?:\|([^|]*)(?:\|([^|]*))?)?)?$/);
+      if (!parts) { result.errors.push('题型请按「题型：科目 | 题型名 | 得分 | 满分」填写，可追加「| 位置 | 难度 | 原因」，未知填 -。'); return; }
+      var name = parts[1].trim();
+      if (!name || name.length > 40) { result.errors.push('题型所属科目名称不正确'); return; }
+      if (!Object.prototype.hasOwnProperty.call(result.subjects,name)) result.subjects[name] = {};
+      var rows = result.subjects[name].questionTypes || (result.subjects[name].questionTypes = []);
+      var row={name:parts[2].trim(),score:valueOrEmpty(parts[3]) || null,max:valueOrEmpty(parts[4]) || null};
+      if(valueOrEmpty(parts[5]))row.position=valueOrEmpty(parts[5]);
+      [['difficulty',6,window.ScoreQuestionTypeModel.difficulties],['cause',7,window.ScoreQuestionTypeModel.causes]].forEach(function(pair){var v=valueOrEmpty(parts[pair[1]]);if(v)row[pair[0]]=Object.keys(pair[2]).find(function(k){return pair[2][k]===v;})||v;});
+      rows.push(row);
+    });
+    Object.keys(result.subjects).forEach(function (name) {
+      try { if (result.subjects[name].questionTypes) result.subjects[name].questionTypes = window.ScoreQuestionTypeModel.clean(result.subjects[name].questionTypes,name); }
+      catch (e) { result.errors.push(e.message); }
+    });
     segments.filter(function (item) { return !item.module; }).forEach(function (item) {
       var parsed = parseSubjectBody(item.body);
       if (Object.keys(parsed).length) mergeSubject(result, item.name, parsed);
@@ -722,6 +743,7 @@
         continue;
       }
       var data = result.subjects[name];
+      if (data.questionTypes && data.questionTypes.length && window.ScoreQuestionTypes) count += window.ScoreQuestionTypes.apply(modal, card, data.questionTypes);
       if (Array.prototype.some.call(card.querySelectorAll('.target-v16,.raw-v16,.actual-v16'), function (input) { return input.value.trim() !== ''; })) {
         card.querySelectorAll('.max-v16,.rawmax-v16').forEach(function (input) { delete input.dataset.nlDefault; });
       }
@@ -845,7 +867,7 @@
       '<div class="nl-entry-upload-card"><label class="nl-entry-file-button"><span>选择成绩单图片</span><small>支持多选，最多 6 张</small><input class="nl-entry-files" type="file" accept="image/*" multiple></label><p>可按成绩单顺序选择多张截图，系统会合并识别同一次考试。长图会自动分段，保留小字细节。</p><p class="nl-entry-help">识别成功后，图片和结果会保存下来，仅供管理员核对准确性。</p></div>' +
       '<div class="nl-entry-image-list" aria-live="polite"><span class="nl-entry-empty">还没有选择图片</span></div>' +
       '<div class="nl-entry-progress" hidden aria-live="polite"><div class="nl-entry-progress-head"><span>识别进度 · 总计</span><strong class="nl-entry-elapsed">0.0s</strong></div><ol class="nl-entry-progress-steps"><li class="nl-entry-progress-step" data-progress-step="0"><span class="nl-entry-progress-dot">1</span><span class="nl-entry-progress-step-label">检查登录与额度</span><strong class="nl-entry-progress-step-time" data-progress-time="0">—</strong></li><li class="nl-entry-progress-step" data-progress-step="1"><span class="nl-entry-progress-dot">2</span><span class="nl-entry-progress-step-label">测试识别服务连通性</span><strong class="nl-entry-progress-step-time" data-progress-time="1">—</strong></li><li class="nl-entry-progress-step" data-progress-step="2"><span class="nl-entry-progress-dot">3</span><span class="nl-entry-progress-step-label">准备清晰图片</span><strong class="nl-entry-progress-step-time" data-progress-time="2">—</strong></li><li class="nl-entry-progress-step" data-progress-step="3"><span class="nl-entry-progress-dot">4</span><span class="nl-entry-progress-step-label">上传并识别图片</span><strong class="nl-entry-progress-step-time" data-progress-time="3">—</strong></li><li class="nl-entry-progress-step" data-progress-step="4"><span class="nl-entry-progress-dot">5</span><span class="nl-entry-progress-step-label">读取识别结果</span><strong class="nl-entry-progress-step-time" data-progress-time="4">—</strong></li><li class="nl-entry-progress-step" data-progress-step="5"><span class="nl-entry-progress-dot">6</span><span class="nl-entry-progress-step-label">整理可编辑结果</span><strong class="nl-entry-progress-step-time" data-progress-time="5">—</strong></li></ol></div>' +
-      '<p class="nl-entry-vision-edit-hint" hidden>识别结果可直接编辑，确认无误后再点击“确认并填入”。</p>' +
+      '<p class="nl-entry-vision-edit-hint" hidden>识别结果可直接编辑，确认无误后再点击“确认并填入”。题型行格式：科目 | 题型 | 得分 | 满分 | 位置 | 难度；后两项可省略，未知填 -。</p>' +
       '<textarea class="nl-entry-vision-output" aria-label="识别结果，可编辑" spellcheck="false" hidden></textarea>' +
       '<div class="modal-actions"><button class="primary nl-entry-vision-submit" type="button" disabled>识别图片</button></div>' +
       '</section>' +
@@ -921,6 +943,7 @@
         }
       });
       result.fillMode = decision.mode;
+      modal.dataset.quickEntryApplied='true';
       trackUsage('quick_entry_fill_confirmed', { fill_mode: decision.mode, created_module_count: decision.create.length });
       return true;
     }
@@ -939,7 +962,7 @@
     var quotaRefresh = backdrop.querySelector('.nl-entry-quota-refresh');
     function quotaBlocked() {
       return !quotaState || !quotaState.enabled || !quotaState.eligible || !quotaState.quota.service_enabled ||
-        quotaState.quota.remaining <= 0 || quotaState.quota.global_remaining <= 0 || Date.now() < quotaRetryAt;
+        quotaState.quota.remaining < (quotaState.quota.unit==='credits'?13:1) || quotaState.quota.global_remaining <= 0 || Date.now() < quotaRetryAt;
     }
     function syncVisionButton() {
       var hasResult = !!visionText || (visionOutput && !visionOutput.hidden);
@@ -948,6 +971,13 @@
     function renderQuota() {
       if (!backdrop.isConnected || !quotaState) return;
       var q = quotaState.quota;
+      if(q.unit==='credits'){
+        quotaCount.textContent='可用 '+Math.floor(q.remaining)+' AI 积分';
+        quotaNote.textContent=(!quotaState.enabled||!q.service_enabled?'识图暂未启用。':q.global_remaining<=0?'本月 AI 预算不足。':'')+'约 13 分 / 次，按实际用量扣分，失败不扣。';
+        quotaRules.textContent='开始需 13 可用积分，提交时最多预留 '+Math.min(150,Math.floor(q.remaining))+' 分，完成后释放余量。确认填入免费。';
+        quotaDetails.querySelector('summary').textContent='如何扣分';
+        quotaDetails.hidden=false;syncVisionButton();return;
+      }
       var period = q.period || 'day';
       var prefixes = {lifetime:'体验',month:'本月',week:'本周',day:'今日'};
       var units = {lifetime:'次（一次性）',month:'次/月',week:'次/周',day:'次/日'};
@@ -1243,7 +1273,7 @@
         var retryAfter = Number(payload.retry_after_seconds || 0);
         if (!detail && retryAfter > 0) detail = '约 ' + retryAfter + ' 秒后可重试';
         var label = payload.error || '识图服务暂时不可用';
-        var serviceError = new Error(String(label) + (payload.quota_refunded ? '，本次次数已返还。' : ''));
+        var serviceError = new Error(String(label) + (payload.quota_refunded ? '，本次积分预留已释放。' : ''));
         serviceError.requestId = payload.request_id || visionRequestId;
         serviceError.stage = payload.stage || 'recognition';
         serviceError.diagnostics = payload.diagnostics || {};
@@ -1316,6 +1346,9 @@
           '，年排：' + displayPair(subject.yearRank, subject.yearParticipants) +
           '，班排：' + displayPair(subject.classRank, subject.classParticipants)
         );
+        (Array.isArray(subject.questionTypes) ? subject.questionTypes : []).forEach(function (row) {
+          lines.push('题型：' + subject.name + ' | ' + row.name + ' | ' + displayValue(row.score) + ' | ' + displayValue(row.max) + ' | ' + displayValue(row.position) + ' | ' + displayValue(window.ScoreQuestionTypeModel.difficulties[row.difficulty]));
+        });
       });
       return lines.join('\n');
     }
@@ -1408,7 +1441,7 @@
         visionOutput.hidden = false;
         if (visionEditHint) {
           visionEditHint.hidden = false;
-          visionEditHint.textContent = '识别结果可直接编辑，确认无误后再点击“确认并填入”。' + (Array.isArray(visionPayload.warnings) ? visionPayload.warnings.slice(0, 3).join(' ') : '');
+          visionEditHint.textContent = '识别结果可直接编辑，确认无误后再点击“确认并填入”。题型行格式：科目 | 题型 | 得分 | 满分 | 位置 | 难度；后两项可省略，未知填 -。' + (Array.isArray(visionPayload.warnings) ? visionPayload.warnings.slice(0, 3).join(' ') : '');
         }
         finishVisionProgress(true);
         trackUsage('quick_entry_image_recognition_completed', {
