@@ -140,8 +140,14 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
   }
   if (!['save_materials','upload_page','upload_page_view','authorize_ecs_page','prepare_ecs_page','authorize_ecs_page_view','prepare_ecs_page_view','register_ecs_materials','material_status','save_score_details','sources','save_regions','link','pause','confirm_input','delete_draft'].includes(action)) return undefined;
   if (!UUID.test(body.request_id || '')) throw new WorkspaceError('分析编号无效');
-  const row = await materialQuery(db.from(reviews).select('*').eq('request_id', body.request_id).eq('user_id', user).maybeSingle());
-  const m = await materialFor(db, user, body.request_id);
+  // These two ownership reads are independent. Running them together is
+  // important for the preview save path: the request still has to create or
+  // update the Supabase draft, but it should not pay two sequential round trips
+  // before the ECS-first page uploads can begin.
+  const [row, m] = await Promise.all([
+    materialQuery(db.from(reviews).select('*').eq('request_id', body.request_id).eq('user_id', user).maybeSingle()),
+    materialFor(db, user, body.request_id)
+  ]);
   if (action === 'material_status') {
     const expected = Number.isInteger(body.page_count) ? Math.max(0, Math.min(MAX_PAGES, body.page_count)) : 0;
     const savedPages = Array.isArray(m?.pages) ? m.pages : [];

@@ -8,7 +8,7 @@
   var PREVIEW_HOST = /^(?:feat-paper-entry-analysis-fl|[0-9a-f]{8})\.score-tracker-d83\.pages\.dev$/i;
   var roleNames = { paper: '试卷', work: '答题卡 / 作答', reference: '参考答案' };
   var esc = function (v) { return escapeHtml(String(v == null ? '' : v)); };
-  var paperDebug = { enabled: false, events: [] };
+  var paperDebug = { enabled: false, events: [], maxEvents: 240, visibleEvents: 80 };
   try {
     var debugQuery = new URLSearchParams(window.location.search || '');
     paperDebug.enabled = PREVIEW_HOST.test(window.location.hostname) || debugQuery.get('paper_debug') === '1' || window.localStorage.getItem('score_paper_debug') === '1';
@@ -21,18 +21,18 @@
   function debugEvent(value) {
     if (!paperDebug.enabled) return;
     paperDebug.events.push(Object.assign({ at: Date.now() }, value));
-    if (paperDebug.events.length > 40) paperDebug.events.splice(0, paperDebug.events.length - 40);
+    if (paperDebug.events.length > paperDebug.maxEvents) paperDebug.events.splice(0, paperDebug.events.length - paperDebug.maxEvents);
     debugChanged();
   }
   function debugNow() { return window.performance && window.performance.now ? window.performance.now() : Date.now(); }
   function debugDuration(ms) { return ms < 1000 ? Math.round(ms) + ' ms' : (ms / 1000).toFixed(2) + ' s'; }
   function debugHtml() {
     if (!paperDebug.enabled) return '';
-    var rows = paperDebug.events.slice(-10).reverse().map(function (e) {
+    var visible = paperDebug.events.slice(-paperDebug.visibleEvents), rows = visible.reverse().map(function (e) {
       return '<tr><td>' + esc(e.action || e.stage || '') + '</td><td>' + esc(e.route || '') + '</td><td>' + esc(e.status == null ? '—' : e.status) + '</td><td>' + esc(debugDuration(e.ms || 0)) + '</td><td>' + esc(e.note || (e.bytes ? Math.round(e.bytes / 1024) + ' KB' : '')) + '</td></tr>';
     }).join('');
     var route = PREVIEW_HOST.test(window.location.hostname) ? '预览：支持阿里云优先保存' : '当前入口：未启用阿里云优先保存';
-    return '<details class="pr-debug" data-pr-debug open><summary>上传调试信息（仅此预览显示）</summary><p><b>' + esc(route) + '</b> · 页面：' + esc(window.location.hostname) + '</p><p class="pr-muted">阿里云只负责图片快速落盘；Supabase 负责登记与后台备份。若出现“回退”，说明本次没有走阿里云。</p><div class="pr-debug-scroll"><table><thead><tr><th>动作</th><th>路径</th><th>状态</th><th>耗时</th><th>请求大小 / 说明</th></tr></thead><tbody>' + (rows || '<tr><td colspan="5">还没有网络动作</td></tr>') + '</tbody></table></div></details>';
+    return '<details class="pr-debug" data-pr-debug open><summary>上传调试信息（已记录 ' + paperDebug.events.length + ' 条，保留最近 ' + paperDebug.maxEvents + ' 条）</summary><p><b>' + esc(route) + '</b> · 页面：' + esc(window.location.hostname) + '</p><p class="pr-muted">阿里云只负责图片快速落盘；Supabase 负责登记与后台备份。若出现“回退”，说明本次没有走阿里云。下方显示最近 ' + Math.min(paperDebug.events.length, paperDebug.visibleEvents) + ' 条，按时间倒序。</p><div class="pr-debug-scroll"><table><thead><tr><th>动作</th><th>路径</th><th>状态</th><th>耗时</th><th>请求大小 / 说明</th></tr></thead><tbody>' + (rows || '<tr><td colspan="5">还没有网络动作</td></tr>') + '</tbody></table></div></details>';
   }
   function number(v) { return v === '' || v == null || !Number.isFinite(Number(v)) ? null : Number(v); }
   // Calibrated from completed screenshot-entry records; individual layouts and
