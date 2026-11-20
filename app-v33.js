@@ -230,11 +230,11 @@ function goalFraction(value,max){
   return String(goalNumber(Number(value)))+"/"+String(goalNumber(Number(max)));
 }
 function goalSummaryHtml(rec){
-  var target=totalGoalValue(),targetRaw=goalFraction(target,rec.totalMax);
+  var target=totalGoalValue(),targetRaw=rec.totalMaxValid?goalFraction(target,rec.totalMax):"";
   var valid=rec.comparable,asScore=rec.asScore;
   var cls=rec.comparison.diff==null?"na":rec.comparison.diff<0?"no":"ok";
   var gap=!rec.has?"尚未有出分记录":!valid?"待补成绩或满分":target==null?"未设总目标":rec.comparison.gap;
-  var label=rec.singleExam?"最近一次":"各科最近";
+  var label=!rec.has||rec.singleExam?"最近一次":"各科最近";
   var raw=valid?goalFraction(rec.sum,rec.rawMax):"";
   var mode=valid?(asScore?"分数比较":"得分率比较"):"";
   function item(label,value,sub){
@@ -267,7 +267,7 @@ function chipHtml(s){
   var targetRaw=!asScore?goalFraction(goal,s.max):"";
   var actualRaw=sc&&!asScore?goalFraction(sc.v,sc.max):"";
   return '<span class="gh-chip '+cls+'" data-subject="'+esc(s.name)+'" title="'+esc(detail)+'">'
-    +"<small>"+esc(s.name)+" · "+(goal==null?"—":"目标 "+comparison.targetText+(targetRaw&&(v!=null&&target!=null)?" · "+targetRaw:""))+"</small><b>"+comparison.valueText+"</b>"
+    +"<small>"+esc(s.name)+" · "+(goal==null?"—":"目标 "+comparison.targetText+(targetRaw&&target!=null?" · "+targetRaw:""))+"</small><b>"+comparison.valueText+"</b>"
     +(actualRaw?'<small class="gh-raw-v33">实际 '+actualRaw+'</small>':"")
     +"<em>"+tail+"</em></span>";
 }
@@ -348,20 +348,20 @@ function renderHomeCard(mount){
   }
 }
 function SUB_TOTALS(){
-  var subs=activeSubjects(),weighted=0,totalMax=0,sum=0,rawMax=0,has=false,comparable=true,sameScale=true,latestExam=null,singleExam=true;
+  var subs=activeSubjects(),weighted=0,totalMax=0,sum=0,rawMax=0,has=false,comparable=true,sameScale=true,latestExam=null,singleExam=true,totalMaxValid=subs.length>0;
   subs.forEach(function(s){
     var max=Number(s.max),r=latestScore(s.name),rate=r?goalRate(r.v,r.max):null;
     if(r){has=true;sum+=r.v;if(Number(r.max)!==max)sameScale=false;
       if(Number.isFinite(r.max)&&r.max>0)rawMax+=r.max;
       if(latestExam&&latestExam!==r.exam)singleExam=false;else if(!latestExam)latestExam=r.exam;
     }
-    if(!Number.isFinite(max)||max<=0){comparable=false;return;}
+    if(!Number.isFinite(max)||max<=0){comparable=false;totalMaxValid=false;return;}
     totalMax+=max;
     if(rate==null)comparable=false;else weighted+=rate*max;
   });
   comparable=has&&comparable&&totalMax>0;
   var rate=comparable?weighted/totalMax:null,targetRate=goalRate(totalGoalValue(),totalMax),asScore=comparable&&sameScale;
-  return {sum:goalNumber(sum),rawMax:goalNumber(rawMax),totalMax:goalNumber(totalMax),singleExam:has&&singleExam,rate:rate,targetRate:targetRate,has:has,comparable:comparable,asScore:asScore,
+  return {sum:goalNumber(sum),rawMax:goalNumber(rawMax),totalMax:goalNumber(totalMax),totalMaxValid:totalMaxValid,singleExam:has&&singleExam,rate:rate,targetRate:targetRate,has:has,comparable:comparable,asScore:asScore,
     comparison:goalComparison(asScore?sum:rate,asScore?totalGoalValue():targetRate,asScore)};
 }
 
