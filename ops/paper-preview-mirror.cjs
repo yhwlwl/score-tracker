@@ -17,8 +17,19 @@ const fileFor = asset => digest(asset.path) + '.enc';
 const primaryBase = requestId => path.join(ROOT,'primary',requestId);
 const primaryData = (requestId,ref) => path.join(primaryBase(requestId),ref+'.data.enc');
 const primaryMeta = (requestId,ref) => path.join(primaryBase(requestId),ref+'.meta.enc');
+const primaryLocks = new Map();
 let keyPromise;
 async function encryptionKey(){return keyPromise ||= fs.readFile(path.join(KEY_DIR,'encryption.key')).then(k=>{if(k.length!==32)throw Error('key');return k;});}
+async function withPrimaryLock(requestId,fn){
+  if(!uuid.test(requestId||''))throw Error('invalid request');
+  const previous=primaryLocks.get(requestId)||Promise.resolve();let release;const gate=new Promise(resolve=>release=resolve),tail=previous.then(()=>gate);primaryLocks.set(requestId,tail);
+  await previous;try{return await fn();}finally{release();if(primaryLocks.get(requestId)===tail)primaryLocks.delete(requestId);}
+}
+async function signBridgeAsset(requestId,ref,token){
+  if(!uuid.test(requestId||'')||!uuid.test(ref||'')||!readToken.test(token||''))throw Error('invalid bridge request');
+  const key=await fs.readFile(path.join(KEY_DIR,'worker.pem'));
+  return crypto.sign(null,Buffer.from(`scoretracker-paper-bridge-v1\n${requestId}\n${ref}\n${token}`),key).toString('base64url');
+}
 
 async function atomicWrite(file, bytes) {
   const temp = file + '.' + crypto.randomUUID() + '.tmp';
@@ -72,7 +83,13 @@ async function prunePrimary(requestId,refs) {
   if(!uuid.test(requestId||''))throw Error('invalid request');
   const base=primaryBase(requestId),keep=new Set(refs);let names;
   try{names=await fs.readdir(base);}catch(e){if(e.code==='ENOENT')return;throw e;}
-  for(const name of names){const m=/^([0-9a-f-]{36})\.(?:data|meta)\.enc$/i.exec(name);if(m&&uuid.test(m[1])&&!keep.has(m[1]))await removePrimaryAsset(requestId,m[1]);}
+  for(const name of names){
+    const m=/^([0-9a-f-]{36})\.(?:data|meta)\.enc$/i.exec(name);if(!m||!uuid.test(m[1])||keep.has(m[1]))continue;
+    // An Edge response may be lost after registration. Do not remove a recently
+    // written asset while that request can still be committing.
+    const info=await fs.stat(path.join(base,name)).catch(()=>null);if(!info||Date.now()-info.mtimeMs<300000)continue;
+    await removePrimaryAsset(requestId,m[1]);
+  }
 }
 
 async function control(privateKey, payload) {
@@ -102,8 +119,8 @@ async function uploadBackup(privateKey,job,asset,bytes){
   if(!res.ok)throw Error('backup upload');
   return {path:asset.path};
 }
-async function cleanupStale(privateKey,requestId,paths){
-  for(let i=0;i<paths.length;i+=10)await control(privateKey,{action:'cleanup_stale',request_id:requestId,paths:paths.slice(i,i+10)});
+async function cleanupStale(privateKey,job,paths){
+  for(let i=0;i<paths.length;i+=10)await control(privateKey,{action:'cleanup_stale',request_id:job.request_id,user_id:job.user_id,paths:paths.slice(i,i+10)});
 }
 async function processJob(privateKey, encKey, payload) {
   const {job,assets=[]}=payload;
@@ -112,8 +129,8 @@ async function processJob(privateKey, encKey, payload) {
   const current=await control(privateKey,{action:'check',...identity});
   if(!current.current || current.user_id!==job.user_id || current.operation!==job.operation)return;
   if(job.operation==='delete') {
-    await Promise.all([fs.rm(base,{recursive:true,force:true}),fs.rm(primaryBase(job.request_id),{recursive:true,force:true})]);
-    await control(privateKey,{action:'ack',...identity}); return;
+    const removed=await withPrimaryLock(job.request_id,async()=>{const latest=await control(privateKey,{action:'check',...identity});if(!latest.current||latest.operation!=='delete')return false;await Promise.all([fs.rm(base,{recursive:true,force:true}),fs.rm(primaryBase(job.request_id),{recursive:true,force:true})]);return true;});
+    if(removed)await control(privateKey,{action:'ack',...identity});return;
   }
   if(!Array.isArray(assets)||assets.length>165)throw Error('invalid job');
   if(job.operation==='primary')throw Error('use primary worker');
@@ -155,9 +172,7 @@ async function run() {
     try { payload=await control(privateKey,{action:'pull'});if(payload.error)throw Error('job unavailable');
       if(payload.job){
         if(payload.job.operation==='primary'){
-          const assets=payload.assets||[],resolved=[];
-          for(const a of assets){const local=await primaryInternal(payload.job.request_id,a.ecs_ref);resolved.push({...a,_local:local});}
-          await processPrimaryJob(privateKey,payload.job,resolved);
+          await processPrimaryJob(privateKey,payload.job,payload.assets||[]);
         } else await processJob(privateKey,encKey,payload);
       }
     } catch (_) {
@@ -171,16 +186,29 @@ async function processPrimaryJob(privateKey,job,assets){
   if(!job||job.operation!=='primary'||!uuid.test(job.request_id||'')||!uuid.test(job.user_id||'')||!uuid.test(job.generation||'')||!Array.isArray(assets)||assets.length>165)throw Error('invalid primary job');
   const identity={request_id:job.request_id,generation:job.generation},current=await control(privateKey,{action:'check',...identity});
   if(!current.current||current.user_id!==job.user_id||current.operation!=='primary')return;
-  const refs=new Set(),uploaded=[];
+  const refs=new Set(),uploaded=[],legacy=new Set(),legacyBase=path.join(ROOT,job.user_id,job.request_id),encKey=await encryptionKey();
   for(const asset of assets){
-    if(typeof asset.path!=='string'||!asset.path.startsWith(`${job.user_id}/${job.request_id}/`)||!uuid.test(asset.ecs_ref||'')||!sha256.test(asset.sha256||'')||refs.has(asset.ecs_ref))throw Error('invalid asset');
-    refs.add(asset.ecs_ref);const local=asset._local;
+    if(typeof asset.path!=='string'||!asset.path.startsWith(`${job.user_id}/${job.request_id}/`)||!Number.isInteger(asset.bytes)||asset.bytes<1||asset.bytes>2100000||!mimes.has(asset.mime))throw Error('invalid asset');
+    if(!asset.ecs_ref){
+      const name=fileFor(asset),aad=`${job.user_id}/${job.request_id}/${name}`;legacy.add(name);await fs.mkdir(legacyBase,{recursive:true,mode:0o700});
+      try{const old=open(encKey,aad,await fs.readFile(path.join(legacyBase,name)));if(old.length!==asset.bytes)throw Error('size');}
+      catch(_){await enoughSpace();const bytes=await download(asset);await atomicWrite(path.join(legacyBase,name),seal(encKey,aad,bytes));}
+      continue;
+    }
+    if(!uuid.test(asset.ecs_ref||'')||!sha256.test(asset.sha256||'')||refs.has(asset.ecs_ref))throw Error('invalid asset');
+    refs.add(asset.ecs_ref);const local=asset._local||await primaryInternal(job.request_id,asset.ecs_ref);
     if(!local||local.bytes!==asset.bytes||local.mime!==asset.mime||local.sha256!==asset.sha256)throw Error('local mismatch');
-    const result=await uploadBackup(privateKey,job,asset,local.data);if(result.stale){await cleanupStale(privateKey,job.request_id,uploaded);return;}uploaded.push(result.path);
+    const result=await uploadBackup(privateKey,job,asset,local.data);if(result.stale){await cleanupStale(privateKey,job,uploaded);return;}uploaded.push(result.path);
   }
-  const still=await control(privateKey,{action:'check',...identity});
-  if(!still.current){await cleanupStale(privateKey,job.request_id,uploaded);return;}
-  await prunePrimary(job.request_id,refs);await control(privateKey,{action:'ack',...identity});
+  const finished=await withPrimaryLock(job.request_id,async()=>{
+    const still=await control(privateKey,{action:'check',...identity});if(!still.current)return false;
+    await prunePrimary(job.request_id,refs);
+    let names=[];try{names=await fs.readdir(legacyBase);}catch(e){if(e.code!=='ENOENT')throw e;}
+    for(const name of names)if(/^[a-f0-9]{64}\.enc$/.test(name)&&!legacy.has(name))await fs.unlink(path.join(legacyBase,name));
+    return true;
+  });
+  if(!finished){await cleanupStale(privateKey,job,uploaded);return;}
+  await control(privateKey,{action:'ack',...identity});
 }
 if(require.main===module)run().catch(()=>{console.error('paper mirror: startup failed');process.exitCode=1;});
-module.exports={seal,open,processJob,processPrimaryJob,fileFor,run,savePrimaryAsset,readPrimaryAsset,removePrimaryAsset,primaryInternal,prunePrimary};
+module.exports={seal,open,processJob,processPrimaryJob,fileFor,run,savePrimaryAsset,readPrimaryAsset,removePrimaryAsset,primaryInternal,prunePrimary,withPrimaryLock,signBridgeAsset};

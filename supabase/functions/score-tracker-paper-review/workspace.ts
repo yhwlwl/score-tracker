@@ -2,6 +2,7 @@ import { UUID, validateStart, validateImageRegions, validateScanMetadata, text, 
 import { reviewSettings, preferenceSettings, scanRegions } from './options.ts';
 const MATERIALS = 'score_tracker_paper_materials', SCAN_BUCKET = 'score-tracker-paper-scans';
 const ECS_PRIMARY = 'preview-v2-primary', ECS_READ = 'https://assets.tantantan.tech/paper-preview-read';
+const ECS_BRIDGE = 'https://scoretracker-paper-preview-bridge.steelpilot.workers.dev/read';
 const ECS_TOKEN = /^[A-Za-z0-9_-]{43}$/, SHA256 = /^[a-f0-9]{64}$/;
 const materialPaths = (pages: any[]) => pages.flatMap(p => [p.path, ...(p.detail_images || []).map((r: any) => r.path)]).filter(Boolean);
 function ecsReadUrl(requestId: string, asset: any) {
@@ -13,7 +14,8 @@ function ecsMeta(value: any, path: string, detail = false) {
   if (detail && value?.mime !== 'image/jpeg') throw new WorkspaceError('局部图片格式无效');
   const mime = detail ? 'image/jpeg' : value.mime;
   if (!['image/jpeg','image/png','image/webp'].includes(mime)) throw new WorkspaceError('扫描件格式无效');
-  return { path, mime, bytes:value.bytes, ecs_ref:value.ecs_ref, ecs_read_token:value.ecs_read_token, sha256:value.sha256 };
+  if (value.ecs_bridge_sig != null && !/^[A-Za-z0-9_-]{86}$/.test(value.ecs_bridge_sig)) throw new WorkspaceError('扫描件元数据无效');
+  return { path, mime, bytes:value.bytes, ecs_ref:value.ecs_ref, ecs_read_token:value.ecs_read_token, sha256:value.sha256, ...(value.ecs_bridge_sig ? {ecs_bridge_sig:value.ecs_bridge_sig} : {}) };
 }
 export class WorkspaceError extends Error { status: number; constructor(message: string, status = 400) { super(message); this.status = status; } }
 function entryProgressForList(row: any) {
@@ -61,30 +63,49 @@ export async function storedPages(db: any, user: string, id: string, loadPages?:
   if (!m?.pages?.length) throw new WorkspaceError('请先添加试卷图片');
   if (m.pages.some((p: any) => p.expected_views != null && p.expected_views !== (p.detail_images || []).length)) throw new WorkspaceError('局部图尚未上传完成，请继续保存扫描件', 409);
   const primary = m.options?.ecs_mirror === ECS_PRIMARY;
+  // Keep a whole page's concurrent reads below the ECS per-IP connection limit.
+  let active = 0; const waiters: Array<() => void> = [];
+  const acquire = async () => { if (active >= 3) await new Promise<void>(resolve => waiters.push(resolve)); else active++; };
+  const release = () => { const next = waiters.shift(); if (next) next(); else active--; };
   const asData = async (bytes: Uint8Array, mime: string) => {
     let binary = ''; for (let i = 0; i < bytes.length; i += 16384) binary += String.fromCharCode(...bytes.subarray(i, i + 16384));
     return `data:${mime};base64,${btoa(binary)}`;
   };
   const download = async (p: any, page: number) => {
     if (loadPages && !loadPages.includes(page)) return `stored:${p.path}`;
+    await acquire();
+    try {
     if (primary && p.ecs_ref && p.ecs_read_token) {
-      const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 18000); let issue = 'unknown';
-      try {
-        const response = await fetch(ecsReadUrl(id,p), { redirect:'error', signal:controller.signal, headers:{'Accept':'image/*'} });
+      let issue = 'unknown';
+      const read = async (bridge: boolean) => {
+        const controller = new AbortController(), timer = setTimeout(() => controller.abort(), bridge ? 16000 : 3500);
+        try {
+        const response = await fetch(bridge ? ECS_BRIDGE : ecsReadUrl(id,p), bridge
+          ? {method:'POST',redirect:'error',signal:controller.signal,headers:{'Content-Type':'application/json'},body:JSON.stringify({request_id:id,asset:p.ecs_ref,token:p.ecs_read_token,signature:p.ecs_bridge_sig})}
+          : {redirect:'error',signal:controller.signal,headers:{'Accept':'image/*'}});
         issue = 'http_' + response.status;
-        if (response.ok) {
+        if (response.ok && Number(response.headers.get('content-length') || 0) <= 2100000) {
           const type = (response.headers.get('content-type') || '').split(';')[0];
           const bytes = new Uint8Array(await response.arrayBuffer());
           issue = type !== p.mime ? 'mime_' + type : bytes.length !== p.bytes ? 'bytes_' + bytes.length : 'ok';
+          if (issue === 'ok' && SHA256.test(p.sha256 || '')) {
+            const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(n=>n.toString(16).padStart(2,'0')).join('');
+            if (hash !== p.sha256) issue = 'hash';
+          }
           if (issue === 'ok') return asData(bytes,p.mime);
         }
-      } catch (e) { issue = 'fetch_' + String((e as any)?.name || 'error').slice(0,40); }
-      finally { clearTimeout(timer); }
+        } catch (e) { issue = 'fetch_' + String((e as any)?.name || 'error').slice(0,40); }
+        finally { clearTimeout(timer); }
+        return null;
+      };
+      const direct = await read(false); if (direct) return direct;
+      if (/^[A-Za-z0-9_-]{86}$/.test(p.ecs_bridge_sig || '')) { const bridged = await read(true); if (bridged) return bridged; }
       console.warn('paper_ecs_read_failed', JSON.stringify({ request_id:id, page, issue }));
     }
     const { data, error } = await db.storage.from(SCAN_BUCKET).download(p.path);
     if (error || !data) throw new WorkspaceError(primary ? '境内扫描件暂时不可读，Supabase 备份仍在同步，请重试' : '扫描件读取未完成，请重试', 503);
     return asData(new Uint8Array(await data.arrayBuffer()),p.mime);
+    } finally { release(); }
   };
   return Promise.all(m.pages.map(async (p: any) => ({ role: p.role, page: p.page, url: await download(p, p.page), ...(p.page_frames ? {page_frames:p.page_frames} : {}), ...(p.region_focus ? {region_focus:p.region_focus} : {}),
     ...((p.detail_images || []).length ? { regions: await Promise.all(p.detail_images.map((d: any) => download(d, p.page))), ...(p.detail_images.every((d: any) => d.box) ? {region_boxes:p.detail_images.map((d: any) => d.box), ...(p.detail_images.every((d: any) => d.rows) ? {region_rows:p.detail_images.map((d: any) => d.rows)} : {})} : {}) } : {}) })));
@@ -244,9 +265,10 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
     if (!row?.result || !m || row.status !== 'succeeded') throw new WorkspaceError('请先完成当前分析', 409);
     const previous = m.pages.find((p: any) => p.page === body.page);
     if (!previous || !/^[a-f0-9]{64}$/.test(body.source_sha256 || '')) throw new WorkspaceError('扫描页校验信息无效');
-    const { data, error } = await db.storage.from(SCAN_BUCKET).download(previous.path);
-    if (error || !data) throw new WorkspaceError('原图读取未完成，请重试', 503);
-    const bytes = new Uint8Array(await data.arrayBuffer());
+    const source = (await storedPages(db,user,body.request_id,[body.page])).find((p:any)=>p.page===body.page);
+    if (!source?.url?.startsWith('data:')) throw new WorkspaceError('原图读取未完成，请重试', 503);
+    const rawSource = atob(source.url.split(',')[1]);
+    const bytes = Uint8Array.from(rawSource, c=>c.charCodeAt(0));
     const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))).map(n => n.toString(16).padStart(2, '0')).join('');
     if (digest !== body.source_sha256) throw new WorkspaceError('扫描页已变化，请刷新后重试', 409);
     if (!Array.isArray(body.regions) || !body.regions.length) throw new WorkspaceError('请提供清晰的局部图');
@@ -270,12 +292,14 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
     const sourceMaterial = m || (row?.result?.source_record?.request_id ? await materialFor(db, user, row.result.source_record.request_id) : null);
     let pages: any[] = [];
     if (sourceMaterial?.pages.length) {
-      if (sourceMaterial.options?.ecs_mirror === ECS_PRIMARY) pages = sourceMaterial.pages.map((p:any)=>({page:p.page,role:p.role,has_details:!!p.detail_images?.length,url:ecsReadUrl(sourceMaterial.request_id,p)}));
-      else {
-        const { data, error } = await db.storage.from(SCAN_BUCKET).createSignedUrls(sourceMaterial.pages.map((p: any) => p.path), 900);
-        if (error) throw new WorkspaceError('扫描件读取未完成，请重试', 503);
-        pages = sourceMaterial.pages.map((p: any, i: number) => ({ page: p.page, role: p.role, has_details: !!p.detail_images?.length, url: data[i]?.signedUrl }));
-      }
+      const primary = sourceMaterial.options?.ecs_mirror === ECS_PRIMARY;
+      const { data, error } = await db.storage.from(SCAN_BUCKET).createSignedUrls(sourceMaterial.pages.map((p: any) => p.path), 900);
+      if (error && (!primary || sourceMaterial.pages.some((p:any)=>!p.ecs_ref))) throw new WorkspaceError('扫描件读取未完成，请重试', 503);
+      pages = sourceMaterial.pages.map((p:any,i:number) => {
+        const signed = data?.[i]?.signedUrl, local = primary && p.ecs_ref && p.ecs_read_token;
+        if (!local && !signed) throw new WorkspaceError('扫描件读取未完成，请重试',503);
+        return {page:p.page,role:p.role,has_details:!!p.detail_images?.length,url:local?ecsReadUrl(sourceMaterial.request_id,p):signed,...(local&&signed?{fallback_url:signed}:{})};
+      });
     }
     return { pages, regions: sourceMaterial?.regions || {}, readonly: !!row?.result?.source_record, material: m ? { request_id: m.request_id, draft_id: m.draft_id, subject: m.subject, exam_id: m.exam_id, title: m.title, options: m.options } : null };
   }

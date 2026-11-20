@@ -14,7 +14,7 @@ function flatAssets(material:any) { return (material?.pages || []).flatMap((p:an
 function safeAssets(material:any, user:string, requestId:string, primary=false) {
   const prefix=`${user}/${requestId}/`;
   const assets=flatAssets(material).map((p:any)=>({path:p.path,mime:p.mime,bytes:p.bytes,...(primary?{ecs_ref:p.ecs_ref,sha256:p.sha256}:{})}));
-  const valid=assets.length<=165 && assets.every((p:any)=>typeof p.path==='string'&&p.path.startsWith(prefix)&&!p.path.slice(prefix.length).includes('/')&&/^[A-Za-z0-9-]+$/.test(p.path.slice(prefix.length))&&['image/jpeg','image/png','image/webp'].includes(p.mime)&&Number.isInteger(p.bytes)&&p.bytes>=1&&p.bytes<=2100000&&(!primary||(uuid.test(p.ecs_ref||'')&&sha256.test(p.sha256||''))));
+  const valid=assets.length<=165 && assets.every((p:any)=>typeof p.path==='string'&&p.path.startsWith(prefix)&&!p.path.slice(prefix.length).includes('/')&&/^[A-Za-z0-9-]+$/.test(p.path.slice(prefix.length))&&['image/jpeg','image/png','image/webp'].includes(p.mime)&&Number.isInteger(p.bytes)&&p.bytes>=1&&p.bytes<=2100000&&(!primary||(!p.ecs_ref&&!p.sha256)||(uuid.test(p.ecs_ref||'')&&sha256.test(p.sha256||''))));
   return valid?assets:null;
 }
 async function materialFor(job:any){ return query(db.from('score_tracker_paper_materials').select('request_id,user_id,options,pages').eq('request_id',job.request_id).eq('user_id',job.user_id).maybeSingle()); }
@@ -44,7 +44,14 @@ Deno.serve(async (req: Request) => {
         const assets=safeAssets(material,job.user_id,job.request_id,true);
         if(!assets) return reply(200,{job,error:'metadata'});
         if(!assets.length) return reply(200,{job,error:'empty'});
-        return reply(200,{job,assets});
+        // A page saved through the Supabase fallback still needs an ECS copy.
+        const fallback=assets.filter((p:any)=>!p.ecs_ref), byPath=new Map();
+        if(fallback.length){
+          const {data,error}=await db.storage.from(BUCKET).createSignedUrls(fallback.map((p:any)=>p.path),900);
+          if(error||!data||data.length!==fallback.length||data.some((p:any)=>!p.signedUrl||p.error))return reply(200,{job,error:'urls'});
+          fallback.forEach((p:any,i:number)=>byPath.set(p.path,data[i].signedUrl));
+        }
+        return reply(200,{job,assets:assets.map((p:any)=>p.ecs_ref?p:{...p,url:byPath.get(p.path)})});
       }
       if (material.options?.ecs_mirror !== 'preview-v1') return reply(200,{job,error:'changed'});
       const assets=safeAssets(material,job.user_id,job.request_id,false);
@@ -61,11 +68,12 @@ Deno.serve(async (req: Request) => {
     if (!uuid.test(body.request_id || '')) return reply(400,{error:'invalid'});
     if (body.action === 'cleanup_stale') {
       const currentJob=await query(db.from(JOBS).select('*').eq('request_id',body.request_id).maybeSingle());
-      if(!currentJob)return reply(200,{ok:true});
-      const material=await materialFor(currentJob), currentPaths=new Set(flatAssets(material).map((p:any)=>p.path));
-      const prefix=`${currentJob.user_id}/${body.request_id}/`, paths=Array.isArray(body.paths)?body.paths:[];
-      if(paths.length>10||paths.some((p:any)=>typeof p!=='string'||!p.startsWith(prefix)||p.slice(prefix.length).includes('/')||currentPaths.has(p)))return reply(400,{error:'invalid'});
-      if(paths.length){const removed=await db.storage.from(BUCKET).remove(paths);if(removed.error)throw Error('storage');}
+      if(!uuid.test(body.user_id||'')||(currentJob&&currentJob.user_id!==body.user_id))return reply(400,{error:'invalid'});
+      const material=await materialFor({request_id:body.request_id,user_id:body.user_id}), currentPaths=new Set(flatAssets(material).map((p:any)=>p.path));
+      const prefix=`${body.user_id}/${body.request_id}/`, paths=Array.isArray(body.paths)?body.paths:[];
+      if(paths.length>10||paths.some((p:any)=>typeof p!=='string'||!p.startsWith(prefix)||!/^[A-Za-z0-9-]+$/.test(p.slice(prefix.length))))return reply(400,{error:'invalid'});
+      const stale=paths.filter((p:string)=>!currentPaths.has(p));
+      if(stale.length){const removed=await db.storage.from(BUCKET).remove(stale);if(removed.error)throw Error('storage');}
       return reply(200,{ok:true});
     }
 

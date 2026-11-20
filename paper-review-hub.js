@@ -122,7 +122,7 @@
     c.onView=function(view){basics.hidden=view!=='upload';body().querySelector('.ph-section-title').hidden=view!=='upload';c.host.classList.toggle('ph-creating',view==='upload');};
     if(draft && !data.pages){
       note('正在恢复已保存的扫描件…');var source=await api('sources',{request_id:draft.request_id});
-      data.pages=await Promise.all(source.pages.map(async function(p){var response=await fetch(p.url);if(!response.ok)throw new Error('扫描件读取失败，请重试');var prepared=await window.ScorePaperReview.prepare(await response.blob());return Object.assign(prepared,{role:p.role,name:'第'+p.page+'页'});}));
+      data.pages=await Promise.all(source.pages.map(async function(p){var response=await window.ScorePaperSupport.fetchScan(p);if(!response.ok)throw new Error('扫描件读取失败，请重试');var prepared=await window.ScorePaperReview.prepare(await response.blob());return Object.assign(prepared,{role:p.role,name:'第'+p.page+'页'});}));
     }
     if(gen!==generation)return;
     if(data.pages)c.sessions[selectedSubject]={pages:data.pages,workOnPaper:data.workOnPaper!==undefined?data.workOnPaper:opts.work_location!=='none'&&opts.work_location!=='separate',workLocation:opts.work_location,consent:false,pending:null,cloudDraftId:draft&&draft.request_id};

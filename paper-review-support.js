@@ -135,5 +135,15 @@
     });
     flush(); return '<div class="pr-text pr-prose">' + html + '</div>';
   }
-  window.ScorePaperSupport = { uploads: uploads, renderMath: renderMath, legacyFormula: legacyFormula, wins: wins, prose: prose, nextExamTips: nextExamTips };
+  async function fetchScan(page) {
+    async function read(url) { var controller=new AbortController(), timer=setTimeout(function(){controller.abort();},5000); try { var response=await fetch(url,{signal:controller.signal}); if(!response.ok)throw new Error('扫描件读取失败'); return response; } finally { clearTimeout(timer); } }
+    try { return await read(page.url); }
+    catch (e) { if(!page.fallback_url)throw e; var response=await read(page.fallback_url); page.url=page.fallback_url; return response; }
+  }
+  function useFallbackImages(root,pages) {
+    var entries=pages.filter(function(p){return p.fallback_url;}).map(function(p){return {page:p,url:p.url,fallback:p.fallback_url};});
+    function recover(e) { var img=e.target;if(!img||img.tagName!=='IMG')return;var entry=entries.find(function(v){return img.src===v.url;});if(!entry)return;entry.page.url=entry.fallback;img.src=entry.fallback;var link=img.closest('a');if(link&&link.href===entry.url)link.href=entry.fallback; }
+    root.addEventListener('error',recover,true);return function(){root.removeEventListener('error',recover,true);};
+  }
+  window.ScorePaperSupport = { uploads: uploads, renderMath: renderMath, legacyFormula: legacyFormula, wins: wins, prose: prose, nextExamTips: nextExamTips, fetchScan: fetchScan, useFallbackImages: useFallbackImages };
 })();

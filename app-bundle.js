@@ -15245,7 +15245,17 @@ window.ScorePaperEntryOnly = true;
     });
     flush(); return '<div class="pr-text pr-prose">' + html + '</div>';
   }
-  window.ScorePaperSupport = { uploads: uploads, renderMath: renderMath, legacyFormula: legacyFormula, wins: wins, prose: prose, nextExamTips: nextExamTips };
+  async function fetchScan(page) {
+    async function read(url) { var controller=new AbortController(), timer=setTimeout(function(){controller.abort();},5000); try { var response=await fetch(url,{signal:controller.signal}); if(!response.ok)throw new Error('扫描件读取失败'); return response; } finally { clearTimeout(timer); } }
+    try { return await read(page.url); }
+    catch (e) { if(!page.fallback_url)throw e; var response=await read(page.fallback_url); page.url=page.fallback_url; return response; }
+  }
+  function useFallbackImages(root,pages) {
+    var entries=pages.filter(function(p){return p.fallback_url;}).map(function(p){return {page:p,url:p.url,fallback:p.fallback_url};});
+    function recover(e) { var img=e.target;if(!img||img.tagName!=='IMG')return;var entry=entries.find(function(v){return img.src===v.url;});if(!entry)return;entry.page.url=entry.fallback;img.src=entry.fallback;var link=img.closest('a');if(link&&link.href===entry.url)link.href=entry.fallback; }
+    root.addEventListener('error',recover,true);return function(){root.removeEventListener('error',recover,true);};
+  }
+  window.ScorePaperSupport = { uploads: uploads, renderMath: renderMath, legacyFormula: legacyFormula, wins: wins, prose: prose, nextExamTips: nextExamTips, fetchScan: fetchScan, useFallbackImages: useFallbackImages };
 })();
 
 /* ===== paper-scan-views.js ===== */
@@ -15493,7 +15503,7 @@ window.ScorePaperEntryOnly = true;
     for (var page of scans.pages || []) {
       if (page.has_details || page.role === 'reference') continue;
       update('正在准备第 ' + page.page + ' 页清晰图…');
-      var response = await fetch(page.url);
+      var response = await support.fetchScan(page);
       if (!response.ok) throw new Error('扫描件读取失败，请重试');
       var blob = await response.blob(), hash = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
       var digest = Array.from(new Uint8Array(hash)).map(function (n) { return n.toString(16).padStart(2, '0'); }).join('');
@@ -15895,7 +15905,7 @@ window.ScorePaperEntryOnly = true;
         main.innerHTML = runningReport(r) + button(r.pause_requested ? '完成当前步骤后暂停' : '暂停并保存进度', 'pause');
         clearTimeout(timer); timer = setTimeout(function () { load(r.request_id); }, 3000); return;
       }
-      
+
       if (r.status === 'failed' && !r.result) {
         var p = r.progress || {}, recovery = r.recovery || { available: p.version >= 2 && (p.resume_remaining == null || p.resume_remaining > 0), completed: p.completed_questions || 0, total: p.total_questions || 0, questions: [] };
         var matching = session.pending === r.request_id || session.cacheId === r.request_id;
@@ -16271,7 +16281,7 @@ window.ScorePaperEntryOnly = true;
   var roles = { paper: '原题', work: '作答', reference: '参考答案' };
   function validRegion(r,pages){return r&&roles[r.kind]&&pages.some(function(p){return p.page===r.page;})&&Array.isArray(r.box)&&r.box.length===4&&r.box.every(function(n){return typeof n==='number'&&Number.isFinite(n)&&n>=0&&n<=1;})&&r.box[2]>.01&&r.box[3]>.01&&r.box[0]+r.box[2]<=1.001&&r.box[1]+r.box[3]<=1.001;}
   function layoutCrop(img,box){function layout(){if(!img.naturalWidth||!img.naturalHeight)return;img.parentElement.style.aspectRatio=(box[2]*img.naturalWidth)/(box[3]*img.naturalHeight);img.style.cssText='width:'+(100/box[2])+'%;max-width:none;left:'+(-box[0]/box[2]*100)+'%;top:'+(-box[1]/box[3]*100)+'%';}img.onload=layout;if(img.complete)layout();}
-  function enlarge(region,page,opener){var modal=document.createElement('dialog');modal.className='ps-enlarge';modal.innerHTML='<header><strong>'+roles[region.kind]+'截图 · 第 '+region.page+' 页</strong><button type="button" class="pr-button" data-close-crop>关闭</button></header><div class="ps-crop"><img alt="'+roles[region.kind]+'截图放大"></div><p class="pr-muted">显示的是已保存扫描件的对应区域，未调用 AI。</p>';document.body.appendChild(modal);var image=modal.querySelector('img');image.src=page.url;layoutCrop(image,region.box);modal.querySelector('[data-close-crop]').onclick=function(){modal.close();};modal.onclick=function(e){if(e.target===modal)modal.close();};modal.onclose=function(){modal.remove();if(opener&&opener.isConnected)opener.focus();};modal.showModal();}
+  function enlarge(region,page,opener){var modal=document.createElement('dialog');modal.className='ps-enlarge';modal.innerHTML='<header><strong>'+roles[region.kind]+'截图 · 第 '+region.page+' 页</strong><button type="button" class="pr-button" data-close-crop>关闭</button></header><div class="ps-crop"><img alt="'+roles[region.kind]+'截图放大"></div><p class="pr-muted">显示的是已保存扫描件的对应区域，未调用 AI。</p>';document.body.appendChild(modal);window.ScorePaperSupport.useFallbackImages(modal,[page]);var image=modal.querySelector('img');image.src=page.url;layoutCrop(image,region.box);modal.querySelector('[data-close-crop]').onclick=function(){modal.close();};modal.onclick=function(e){if(e.target===modal)modal.close();};modal.onclose=function(){modal.remove();if(opener&&opener.isConnected)opener.focus();};modal.showModal();}
   function btn(s, action) { return '<button type="button" class="pr-button" data-scan="' + action + '">' + s + '</button>'; }
   function cropEditor(parent, pages, current, save) {
     var editor = document.createElement('section'); editor.className = 'ps-editor';
@@ -16322,6 +16332,8 @@ window.ScorePaperEntryOnly = true;
     try { source = await api('sources'); } catch (err) { if (main.isConnected) hooks.note(err.message, true); return; }
     if (!main.isConnected || main.dataset.scanGeneration !== generation) return;
     var pages = source.pages || [], regions = source.regions || {}, panel = document.createElement('details'); panel.className = 'ps-library';
+    if(main.paperFallbackDispose)main.paperFallbackDispose();
+    main.paperFallbackDispose=window.ScorePaperSupport.useFallbackImages(main,pages);
     panel.innerHTML = '<summary>扫描件 · ' + pages.length + ' 页</summary><p class="pr-muted">扫描件保存在当前账号。关联分析共用原始扫描件；原录入删除后，分析仍保留已保存的题目文字。</p><div class="ps-pages">' + pages.map(function (p) { return '<a target="_blank" rel="noopener" href="' + esc(p.url) + '"><img loading="lazy" src="' + esc(p.url) + '" alt="第' + p.page + '页扫描件"><span>第' + p.page + '页 · ' + roles[p.role] + '</span></a>'; }).join('') + '</div>' + (r.status !== 'running' && !source.readonly ? '<label>补充扫描件类别<select data-add-kind><option value="paper">原题</option><option value="work">作答</option><option value="reference">参考答案</option></select></label><label class="pr-check"><input type="checkbox" data-scan-consent>同意在账号中保存补充扫描件；裁掉姓名、考号等无关信息</label><label class="pr-button pr-file-label">补充扫描件<input type="file" accept="image/jpeg,image/png,image/webp" data-add-page></label>' : '') + '<p class="ps-upload-note" role="status"></p>';
     var materials = main.querySelector('.pr-materials'); if (materials) materials.appendChild(panel); else main.prepend(panel);
     var file = panel.querySelector('[data-add-page]'); if (file) file.onchange = async function () {
@@ -16495,7 +16507,7 @@ window.ScorePaperEntryOnly = true;
     c.onView=function(view){basics.hidden=view!=='upload';body().querySelector('.ph-section-title').hidden=view!=='upload';c.host.classList.toggle('ph-creating',view==='upload');};
     if(draft && !data.pages){
       note('正在恢复已保存的扫描件…');var source=await api('sources',{request_id:draft.request_id});
-      data.pages=await Promise.all(source.pages.map(async function(p){var response=await fetch(p.url);if(!response.ok)throw new Error('扫描件读取失败，请重试');var prepared=await window.ScorePaperReview.prepare(await response.blob());return Object.assign(prepared,{role:p.role,name:'第'+p.page+'页'});}));
+      data.pages=await Promise.all(source.pages.map(async function(p){var response=await window.ScorePaperSupport.fetchScan(p);if(!response.ok)throw new Error('扫描件读取失败，请重试');var prepared=await window.ScorePaperReview.prepare(await response.blob());return Object.assign(prepared,{role:p.role,name:'第'+p.page+'页'});}));
     }
     if(gen!==generation)return;
     if(data.pages)c.sessions[selectedSubject]={pages:data.pages,workOnPaper:data.workOnPaper!==undefined?data.workOnPaper:opts.work_location!=='none'&&opts.work_location!=='separate',workLocation:opts.work_location,consent:false,pending:null,cloudDraftId:draft&&draft.request_id};

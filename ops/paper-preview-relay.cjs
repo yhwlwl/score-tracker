@@ -2,7 +2,7 @@
 'use strict';
 const http=require('node:http');
 const crypto=require('node:crypto');
-const {run,savePrimaryAsset,readPrimaryAsset,removePrimaryAsset}=require('./paper-preview-mirror.cjs');
+const {run,savePrimaryAsset,readPrimaryAsset,withPrimaryLock,signBridgeAsset}=require('./paper-preview-mirror.cjs');
 const ORIGIN='https://feat-paper-entry-analysis-fl.score-tracker-d83.pages.dev';
 const UPSTREAM='https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-paper-credits-preview';
 const MAX=3900000, ASSET_MAX=2100000;
@@ -30,32 +30,30 @@ async function upstream(body){
 }
 function assetInput(image){return {ecs_ref:crypto.randomUUID(),ecs_read_token:crypto.randomBytes(32).toString('base64url'),mime:image.mime,bytes:image.data.length,sha256:crypto.createHash('sha256').update(image.data).digest('hex')};}
 async function persistAsset(requestId,image){
-  const a=assetInput(image);await savePrimaryAsset(requestId,a.ecs_ref,a.ecs_read_token,a.mime,image.data,a.sha256);return a;
+  const a=assetInput(image);a.ecs_bridge_sig=await signBridgeAsset(requestId,a.ecs_ref,a.ecs_read_token);await savePrimaryAsset(requestId,a.ecs_ref,a.ecs_read_token,a.mime,image.data,a.sha256);return a;
 }
-async function cleanup(requestId,assets){await Promise.all((assets||[]).map(a=>removePrimaryAsset(requestId,a.ecs_ref).catch(()=>{})));}
 async function handleUpload(body){
   if(typeof body.token!=='string'||!body.token||body.token.length>512||!uuid.test(body.request_id||''))throw Object.assign(Error('请求格式不正确'),{status:400});
+  return withPrimaryLock(body.request_id,async()=>{
   if(body.action==='upload_page'){
     const main=decodeImage(body.url),regions=Array.isArray(body.regions)?body.regions:[];
     if(regions.length>10)throw Object.assign(Error('图片局部过多'),{status:400});
     const details=regions.map(v=>decodeImage(v,true)),separate=body.separate_views===true;
     await upstream(pick(body,{action:'authorize_ecs_page',detail_count:details.length}));
-    const saved=[];
-    try{
-      const mainAsset=await persistAsset(body.request_id,main);saved.push(mainAsset);
-      const detailAssets=[];for(const img of details){const a=await persistAsset(body.request_id,img);saved.push(a);detailAssets.push(a);}
-      return await upstream(pick(body,{action:'prepare_ecs_page',asset:mainAsset,detail_assets:detailAssets,detail_count:details.length,separate_views:separate}));
-    }catch(e){await cleanup(body.request_id,saved);throw e;}
+    const mainAsset=await persistAsset(body.request_id,main),detailAssets=[];
+    for(const img of details)detailAssets.push(await persistAsset(body.request_id,img));
+    // A timeout can occur after the database committed. Keep local assets until
+    // a later generation proves they are unreferenced.
+    return upstream(pick(body,{action:'prepare_ecs_page',asset:mainAsset,detail_assets:detailAssets,detail_count:details.length,separate_views:separate}));
   }
   if(body.action==='upload_page_view'){
     if(!Array.isArray(body.regions)||body.regions.length!==1)throw Object.assign(Error('请逐张上传局部图'),{status:400});
     const image=decodeImage(body.regions[0],true);
     await upstream(pick(body,{action:'authorize_ecs_page_view'}));
-    let saved;
-    try{saved=await persistAsset(body.request_id,image);return await upstream(pick(body,{action:'prepare_ecs_page_view',asset:saved}));}
-    catch(e){if(saved)await cleanup(body.request_id,[saved]);throw e;}
+    const saved=await persistAsset(body.request_id,image);return upstream(pick(body,{action:'prepare_ecs_page_view',asset:saved}));
   }
   throw Object.assign(Error('请求格式不正确'),{status:400});
+  });
 }
 function start(){
   const server=http.createServer(async(req,res)=>{
@@ -65,7 +63,7 @@ function start(){
         const u=new URL(req.url,'http://127.0.0.1'),requestId=u.searchParams.get('request_id')||'',ref=u.searchParams.get('asset')||'',cap=u.searchParams.get('token')||'';
         if(!uuid.test(requestId)||!uuid.test(ref)||!token.test(cap)||[...u.searchParams.keys()].some(k=>!['request_id','asset','token'].includes(k)))throw Error('not found');
         const asset=await readPrimaryAsset(requestId,ref,cap);
-        res.writeHead(200,{...base,'Content-Type':asset.mime,'Content-Length':String(asset.bytes),'Content-Security-Policy':"default-src 'none'",'X-Robots-Tag':'noindex, nofollow, noarchive'});
+        res.writeHead(200,{...base,'Access-Control-Allow-Origin':ORIGIN,'Vary':'Origin','Referrer-Policy':'no-referrer','Content-Type':asset.mime,'Content-Length':String(asset.bytes),'Content-Security-Policy':"default-src 'none'",'X-Robots-Tag':'noindex, nofollow, noarchive'});
         if(req.method==='HEAD')return res.end();return res.end(asset.data);
       }catch(_){res.writeHead(404,{...base,'Content-Type':'text/plain; charset=utf-8'});return res.end('not found');}
     }

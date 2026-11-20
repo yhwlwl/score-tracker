@@ -98,7 +98,7 @@
     for (var page of scans.pages || []) {
       if (page.has_details || page.role === 'reference') continue;
       update('正在准备第 ' + page.page + ' 页清晰图…');
-      var response = await fetch(page.url);
+      var response = await support.fetchScan(page);
       if (!response.ok) throw new Error('扫描件读取失败，请重试');
       var blob = await response.blob(), hash = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
       var digest = Array.from(new Uint8Array(hash)).map(function (n) { return n.toString(16).padStart(2, '0'); }).join('');
@@ -500,7 +500,7 @@
         main.innerHTML = runningReport(r) + button(r.pause_requested ? '完成当前步骤后暂停' : '暂停并保存进度', 'pause');
         clearTimeout(timer); timer = setTimeout(function () { load(r.request_id); }, 3000); return;
       }
-      
+
       if (r.status === 'failed' && !r.result) {
         var p = r.progress || {}, recovery = r.recovery || { available: p.version >= 2 && (p.resume_remaining == null || p.resume_remaining > 0), completed: p.completed_questions || 0, total: p.total_questions || 0, questions: [] };
         var matching = session.pending === r.request_id || session.cacheId === r.request_id;
