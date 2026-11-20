@@ -200,6 +200,52 @@ function persistGoal(){
   document.head.appendChild(st);
 })();
 
+/* Goal display uses a separate, scoped style sheet because base v33 styles may
+   already be embedded in index.html, and appearance themes own the color tokens. */
+(function goalDisplayCss(){
+  if(document.getElementById("app-v33-goal-display-style"))return;
+  var st=document.createElement("style");st.id="app-v33-goal-display-style";
+  st.textContent=[
+    "#goalHeroV33 .gh-chip{display:flex;flex-direction:column;gap:2px;min-width:104px;max-width:100%;box-sizing:border-box;color:var(--text,#18212f)}",
+    "#goalHeroV33 .gh-chip b{display:block;font-size:calc(18px * var(--ui-scale,1));line-height:1.25;font-weight:700}",
+    "#goalHeroV33 .gh-chip .gh-raw-v33{font-size:var(--ui-caption,11px);line-height:1.45;color:var(--muted,#788392);font-variant-numeric:tabular-nums}",
+    "#goalHeroV33 .gh-chip em{margin-top:auto;padding-top:2px;line-height:1.5;white-space:nowrap}",
+    "#goalHeroV33 .gh-chip small{line-height:1.45;white-space:nowrap}",
+    "#goalHeroV33 .gh-total{display:block;margin-top:12px;min-width:0}",
+    "#goalHeroV33 .gh-summary-head{display:flex;justify-content:space-between;align-items:baseline;gap:6px;flex-wrap:wrap;color:var(--muted,#788392);font-size:var(--ui-caption,11px);line-height:1.4}",
+    "#goalHeroV33 .gh-total > b{display:block;font-size:calc(21px * var(--ui-scale,1));font-weight:700;line-height:1.35;white-space:normal;margin:4px 0 8px;color:var(--text,#18212f)}",
+    "#goalHeroV33 .gh-total > b.ok{color:var(--green,#32a77a)}#goalHeroV33 .gh-total > b.no{color:var(--danger,#d9534f)}#goalHeroV33 .gh-total > b.na{color:var(--muted,#788392)}",
+    "#goalHeroV33 .gh-summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}",
+    "#goalHeroV33 .gh-summary-item{min-width:0;padding:9px 11px;background:var(--panel-solid,#fff);border:1px solid var(--line,#e8ebf0);border-radius:13px;box-sizing:border-box}",
+    "#goalHeroV33 .gh-summary-label,#goalHeroV33 .gh-summary-raw,#goalHeroV33 .gh-summary-note{display:block;font-size:var(--ui-caption,11px);line-height:1.5;color:var(--muted,#788392);overflow-wrap:anywhere}",
+    "#goalHeroV33 .gh-summary-value{display:block;font-variant-numeric:tabular-nums;font-size:calc(19px * var(--ui-scale,1));line-height:1.35;font-weight:700;color:var(--text,#18212f);overflow-wrap:anywhere}",
+    "#goalHeroV33 .gh-summary-note{margin-top:5px}",
+    "@media(max-width:520px){#goalHeroV33 .gh-title-row{flex-wrap:wrap;gap:4px}#goalHeroV33 .gh-summary-grid{gap:6px}#goalHeroV33 .gh-summary-item{padding:8px 10px}}"
+  ].join("\n");
+  document.head.appendChild(st);
+})();
+
+function goalFraction(value,max){
+  if(value==null||max==null||!Number.isFinite(Number(value))||!Number.isFinite(Number(max))||Number(max)<=0)return "";
+  return String(goalNumber(Number(value)))+"/"+String(goalNumber(Number(max)));
+}
+function goalSummaryHtml(rec){
+  var target=totalGoalValue(),targetRaw=goalFraction(target,rec.totalMax);
+  var valid=rec.comparable,asScore=rec.asScore;
+  var cls=rec.comparison.diff==null?"na":rec.comparison.diff<0?"no":"ok";
+  var gap=!rec.has?"尚未有出分记录":!valid?"待补成绩或满分":target==null?"未设总目标":rec.comparison.gap;
+  var label=rec.singleExam?"最近一次":"各科最近";
+  var raw=valid?goalFraction(rec.sum,rec.rawMax):"";
+  var mode=valid?(asScore?"分数比较":"得分率比较"):"";
+  function item(label,value,sub){
+    return '<div class="gh-summary-item"><small class="gh-summary-label">'+esc(label)+'</small><strong class="gh-summary-value">'+esc(value)+'</strong>'+(sub?'<small class="gh-summary-raw">'+esc(sub)+'</small>':"")+'</div>';
+  }
+  return '<div class="gh-total"><div class="gh-summary-head"><small>综合目标达成情况</small>'+(mode?'<small>'+mode+'</small>':"")+'</div><b class="'+cls+'">'+esc(gap)+'</b>'
+    +'<div class="gh-summary-grid">'+item(label,valid?rec.comparison.valueText+(asScore?" 分":""):"—",raw?(asScore?raw+" 分":"原始 "+raw+" 分"):"")
+    +item("目标",target==null?"—":asScore?rec.comparison.targetText+" 分":valid?rec.comparison.targetText:String(goalNumber(target))+" 分",targetRaw?targetRaw+" 分":"")+'</div>'
+    +(valid&&!asScore?'<small class="gh-summary-note">综合得分率按科目设置满分加权</small>':rec.has&&!valid?'<small class="gh-summary-note">缺少成绩或有效满分</small>':"")+'</div>';
+}
+
 /* ================= 首页通栏卡 ================= */
 function daysLeft(){
   if(!G.data||!G.data.date)return null;
@@ -218,8 +264,12 @@ function chipHtml(s){
   else{cls=diff>=0?"ok":"no";tail=comparison.gap}
   if(goal!=null&&!sc&&!examSource().length)tail="成绩读取中…";
   var detail=sc?'实际 '+sc.v+'/'+sc.max+(goal==null?'':'；目标 '+goal+'/'+s.max)+(asScore?'；满分相同，按分数比较':'；满分不同，按得分率比较'):'查看统计分析';
+  var targetRaw=!asScore?goalFraction(goal,s.max):"";
+  var actualRaw=sc&&!asScore?goalFraction(sc.v,sc.max):"";
   return '<span class="gh-chip '+cls+'" data-subject="'+esc(s.name)+'" title="'+esc(detail)+'">'
-    +"<small>"+esc(s.name)+" · "+(goal==null?"—":"目标 "+comparison.targetText)+"</small><b>"+comparison.valueText+"</b><em>"+tail+"</em></span>";
+    +"<small>"+esc(s.name)+" · "+(goal==null?"—":"目标 "+comparison.targetText+(targetRaw&&(v!=null&&target!=null)?" · "+targetRaw:""))+"</small><b>"+comparison.valueText+"</b>"
+    +(actualRaw?'<small class="gh-raw-v33">实际 '+actualRaw+'</small>':"")
+    +"<em>"+tail+"</em></span>";
 }
 function renderHomeCard(mount){
   var hero=heroAnchor();if(!hero)return;
@@ -251,8 +301,7 @@ function renderHomeCard(mount){
   card.innerHTML='<div class="gh-main-v33"><div class="gh-title-row"><span class="gh-title">我的目标 · '+esc(G.data.name||"本学期")
     +'</span><span class="gh-hint">点击编辑</span></div>'
     +'<div class="gh-chips">'+chips+'</div>'
-    +'<div class="gh-total"><b>'+recent.comparison.gap+"</b><span>"
-    +(recent.has?(recent.comparable?(recent.asScore?"最近总分 ":"最近综合得分率 ")+recent.comparison.valueText+(totalGoalValue()!=null?" / 目标 "+recent.comparison.targetText:"")+" · "+(recent.asScore?"各科最近成绩合计，满分与目标一致":"各科最近得分率按科目设置满分加权"):"部分科目缺少成绩或有效满分，暂无法比较总目标"):"尚未有出分记录")+"</span></div></div>"
+    +goalSummaryHtml(recent)+"</div>"
     +(side?'<div class="gh-side">'+side+"</div>":"");
   hero.insertAdjacentElement("afterend",card);
   try{
@@ -299,17 +348,20 @@ function renderHomeCard(mount){
   }
 }
 function SUB_TOTALS(){
-  var subs=activeSubjects(),weighted=0,totalMax=0,sum=0,has=false,comparable=true,sameScale=true;
+  var subs=activeSubjects(),weighted=0,totalMax=0,sum=0,rawMax=0,has=false,comparable=true,sameScale=true,latestExam=null,singleExam=true;
   subs.forEach(function(s){
     var max=Number(s.max),r=latestScore(s.name),rate=r?goalRate(r.v,r.max):null;
-    if(r){has=true;sum+=r.v;if(Number(r.max)!==max)sameScale=false;}
+    if(r){has=true;sum+=r.v;if(Number(r.max)!==max)sameScale=false;
+      if(Number.isFinite(r.max)&&r.max>0)rawMax+=r.max;
+      if(latestExam&&latestExam!==r.exam)singleExam=false;else if(!latestExam)latestExam=r.exam;
+    }
     if(!Number.isFinite(max)||max<=0){comparable=false;return;}
     totalMax+=max;
     if(rate==null)comparable=false;else weighted+=rate*max;
   });
   comparable=has&&comparable&&totalMax>0;
   var rate=comparable?weighted/totalMax:null,targetRate=goalRate(totalGoalValue(),totalMax),asScore=comparable&&sameScale;
-  return {sum:goalNumber(sum),rate:rate,targetRate:targetRate,has:has,comparable:comparable,asScore:asScore,
+  return {sum:goalNumber(sum),rawMax:goalNumber(rawMax),totalMax:goalNumber(totalMax),singleExam:has&&singleExam,rate:rate,targetRate:targetRate,has:has,comparable:comparable,asScore:asScore,
     comparison:goalComparison(asScore?sum:rate,asScore?totalGoalValue():targetRate,asScore)};
 }
 
