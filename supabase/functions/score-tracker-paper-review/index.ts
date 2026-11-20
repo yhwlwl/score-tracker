@@ -285,7 +285,7 @@ Deno.serve(async (req: Request) => {
     if (body.action === "start") {
       stage = "input_validation";
       let input: any;
-      if (body.use_saved === true) { const m = await materialFor(db, user, body.request_id); if (!m) throw new Failure("请先保存资料"); body.pages = await storedPages(db, user, body.request_id, []); body.subject = m.subject; body.draft_id = m.draft_id; body.exam_id = m.exam_id; body.options = m.options; body.title = m.title; }
+      if (body.use_saved === true) { const m = await materialFor(db, user, body.request_id); if (!m) throw new Failure("请先保存资料"); body.pages = await storedPages(db, user, body.request_id, [], m); body.subject = m.subject; body.draft_id = m.draft_id; body.exam_id = m.exam_id; body.options = m.options; body.title = m.title; }
       try { input = validateStart(body, body.use_saved === true); } catch (e) { throw new Failure((e as Error).message); }
       if(input.options?.purpose!=='record')throw new Failure('试卷分析暂未开放',403);
       input.saved_materials = body.use_saved === true;

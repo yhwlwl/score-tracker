@@ -58,8 +58,11 @@ export async function materialFor(db: any, user: string, id: string) {
   if (!UUID.test(id || '')) throw new WorkspaceError('分析编号无效');
   return materialQuery(db.from(MATERIALS).select('*').eq('request_id', id).eq('user_id', user).maybeSingle());
 }
-export async function storedPages(db: any, user: string, id: string, loadPages?: number[]) {
-  const m = await materialFor(db, user, id);
+export async function storedPages(db: any, user: string, id: string, loadPages?: number[], knownMaterial?: any) {
+  // Callers that already performed the owner-checked material lookup can pass
+  // it through. The saved-material start path otherwise pays for the same
+  // metadata round trip twice before downloading the ECS pages.
+  const m = knownMaterial || await materialFor(db, user, id);
   if (!m?.pages?.length) throw new WorkspaceError('请先添加试卷图片');
   if (m.pages.some((p: any) => p.expected_views != null && p.expected_views !== (p.detail_images || []).length)) throw new WorkspaceError('局部图尚未上传完成，请继续保存扫描件', 409);
   const primary = m.options?.ecs_mirror === ECS_PRIMARY;
@@ -144,9 +147,13 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
   // important for the preview save path: the request still has to create or
   // update the Supabase draft, but it should not pay two sequential round trips
   // before the ECS-first page uploads can begin.
-  const [row, m] = await Promise.all([
+  const collision = action === 'save_materials'
+    ? materialQuery(db.from(reviews).select('request_id').eq('request_id', body.request_id).maybeSingle())
+    : Promise.resolve(null);
+  const [row, m, collisionRow] = await Promise.all([
     materialQuery(db.from(reviews).select('*').eq('request_id', body.request_id).eq('user_id', user).maybeSingle()),
-    materialFor(db, user, body.request_id)
+    materialFor(db, user, body.request_id),
+    collision
   ]);
   if (action === 'material_status') {
     const expected = Number.isInteger(body.page_count) ? Math.max(0, Math.min(MAX_PAGES, body.page_count)) : 0;
@@ -163,7 +170,10 @@ export async function workspaceAction(db: any, user: string, body: any, ownedExa
     // This flag is set by the deployed function identity, never trusted from the browser.
     const options = { ...reviewSettings(body.options), ...(mirrorPreview ? { ecs_mirror: ECS_PRIMARY } : {}) };
     if (!m) {
-      if (!row && await materialQuery(db.from(reviews).select('request_id').eq('request_id', body.request_id).maybeSingle())) throw new WorkspaceError('分析编号已使用，请重新新建', 409);
+      // The collision guard runs in parallel with the owner reads above. Keep
+      // it even though request IDs are random: it prevents a caller from
+      // creating a material row around another user's existing review.
+      if (!row && collisionRow) throw new WorkspaceError('分析编号已使用，请重新新建', 409);
       const drafts = await materialQuery(db.from(MATERIALS).select('request_id').eq('user_id', user).eq('submitted', false).limit(20));
       if (drafts.length >= 20) throw new WorkspaceError('先完成或删除已有草稿，再新建分析');
       // INSERT only: a colliding ID must never replace another account's material.
