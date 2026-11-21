@@ -89,3 +89,25 @@ assert.ok(p.previewArt('stats-comp').includes('stroke-dasharray'));
   p.renderQuote(node,'新的一句。',false);assert.equal(node.hidden,false);
   console.log('PASS: safe quote text, decorative accessibility, hidden state and stable rendering');
 })();
+
+(function(){
+  const f={subjects:['数学','物理','化学'],series:{数学:[{pos:10}],物理:[{rate:80}],化学:[{actual:null}]},valid:{数学:[{i:0,pos:10,cls:8,N:100,actual:90}]},exams:[{name:'月考'}],totalSeries:[{pos:50}],overallLatest:50};
+  assert.deepEqual(p.chartSubjects(f),['数学','物理']);
+  assert.equal(p.chartSelection('s:数学',p.chartSubjects(f)),'s:数学');
+  assert.equal(p.chartSelection('s:化学',p.chartSubjects(f)),'');
+  assert.equal(p.chartDefaultLabel('compare'),'总分');
+  assert.equal(p.chartDefaultLabel('distribution'),'总分');
+  assert.equal(p.chartDefaultLabel('matrix'),'全部科目');
+  const scopes=p.normalizeChartScopes({compare:'s:数学',matrix:'s:物理',bad:'s:化学',speed:'invalid'});
+  assert.deepEqual({...scopes},{compare:'s:数学',matrix:'s:物理'});
+  const scoped=p.rankChartScope(f,'数学');
+  assert.equal(scoped.totalSeries[0].pos,10);
+  assert.equal(scoped.totalSeries[0].cls,8);
+  assert.equal(scoped.totalSeries[0].name,'月考');
+  assert.equal(scoped.overallLatest,10);
+  assert.equal(f.totalSeries[0].pos,50);
+  assert.deepEqual(f.subjects,['数学','物理','化学']);
+  assert.equal(p.rankChartScope(f,'物理').scopeMissing,true);
+  assert.deepEqual(p.rankChartScope(f,'物理').totalSeries,[]);
+  console.log('PASS: independent chart scopes, missing subjects, true subject rankings and unchanged base data');
+})();
