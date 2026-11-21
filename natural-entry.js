@@ -836,6 +836,31 @@
     }
   }
 
+  function imagePickerFile(file) {
+    if (!file) return false;
+    var type = String(file.type || '').trim().toLowerCase();
+    return /^image\//.test(type) || ((!type || type === 'application/octet-stream') && /\.(png|jpe?g|webp|gif|bmp|heic|heif|avif|tiff?)$/i.test(String(file.name || '')));
+  }
+  function collectPickerImages(files, remaining) {
+    var all = Array.prototype.slice.call(files || []), images = all.filter(imagePickerFile);
+    return { files: images.slice(0, Math.max(0, remaining)), invalid: all.length - images.length, overflow: images.length > Math.max(0, remaining) };
+  }
+  function bindImagePicker(input, source, addFiles, track) {
+    input.addEventListener('click', function () {
+      track('quick_entry_file_picker_clicked', { source: source });
+      if (source === 'single') track('quick_entry_file_picker_fallback', { source: source });
+    });
+    input.addEventListener('change', function () {
+      var files = Array.prototype.slice.call(input.files || []);
+      input.value = '';
+      track('quick_entry_file_picker_changed', { source: source, returned_count: files.length });
+      if (files.length) addFiles(files, source);
+    });
+    input.addEventListener('cancel', function () {
+      track('quick_entry_file_picker_cancelled', { source: source });
+    });
+  }
+
   function openQuickEntry(modal) {
     trackUsage('quick_entry_opened', { source: 'exam_modal' });
     var backdrop = document.createElement('div');
@@ -850,7 +875,7 @@
       '<div class="modal-body">' +
       '<section class="nl-entry-pane nl-entry-image-pane" data-entry-pane="image" hidden>' +
       '<div class="nl-entry-quota"><div class="nl-entry-quota-head"><strong class="nl-entry-quota-count" role="status">正在读取今日额度…</strong><button class="secondary nl-entry-quota-refresh" type="button">刷新额度</button></div><p class="nl-entry-quota-note"></p><details class="nl-entry-quota-details" hidden><summary>额度规则与下一档</summary><div class="nl-entry-quota-rules"></div></details></div>' +
-      '<div class="nl-entry-upload-card"><label class="nl-entry-file-button"><span>选择成绩单图片</span><small>支持多选，最多 6 张</small><input class="nl-entry-files" type="file" accept="image/*" multiple></label><p>可按成绩单顺序选择多张截图，系统会合并识别同一次考试。长图会自动分段，保留小字细节。</p><details class="nl-entry-help"><summary>图片及识别结果留存说明</summary><p>成功识别的图片及结果会留存，供管理员核验；请勿上传无关个人信息。</p></details></div>' +
+      '<div class="nl-entry-upload-card"><label class="nl-entry-file-button"><span aria-hidden="true">选择成绩单图片</span><small aria-hidden="true">支持多选，最多 6 张</small><input class="nl-entry-files" type="file" accept="image/*" multiple aria-label="选择成绩单图片，最多6张"></label><p>可按成绩单顺序选择多张截图，系统会合并识别同一次考试。长图会自动分段，保留小字细节。</p><details class="nl-entry-picker-help"><summary>无法选择图片？</summary><div class="nl-entry-picker-options"><label class="nl-entry-native-label">兼容模式（每次选择一张）<input class="nl-entry-single-file" type="file" accept="image/*" aria-label="兼容模式选择单张图片"></label><button class="secondary nl-entry-paste-image" type="button" hidden>从剪贴板粘贴图片</button><p>支持时可直接粘贴截图。若主屏幕应用仍无法打开相册，请用普通浏览器访问网站后选择图片。</p></div></details><details class="nl-entry-help"><summary>图片及识别结果留存说明</summary><p>成功识别的图片及结果会留存，供管理员核验；请勿上传无关个人信息。</p></details></div>' +
       '<div class="nl-entry-image-list" aria-live="polite"><span class="nl-entry-empty">还没有选择图片</span></div>' +
       '<div class="nl-entry-progress" hidden aria-live="polite"><div class="nl-entry-progress-head"><span>识别进度 · 总计</span><strong class="nl-entry-elapsed">0.0s</strong></div><ol class="nl-entry-progress-steps"><li class="nl-entry-progress-step" data-progress-step="0"><span class="nl-entry-progress-dot">1</span><span class="nl-entry-progress-step-label">检查登录与额度</span><strong class="nl-entry-progress-step-time" data-progress-time="0">—</strong></li><li class="nl-entry-progress-step" data-progress-step="1"><span class="nl-entry-progress-dot">2</span><span class="nl-entry-progress-step-label">测试识别服务连通性</span><strong class="nl-entry-progress-step-time" data-progress-time="1">—</strong></li><li class="nl-entry-progress-step" data-progress-step="2"><span class="nl-entry-progress-dot">3</span><span class="nl-entry-progress-step-label">准备清晰图片</span><strong class="nl-entry-progress-step-time" data-progress-time="2">—</strong></li><li class="nl-entry-progress-step" data-progress-step="3"><span class="nl-entry-progress-dot">4</span><span class="nl-entry-progress-step-label">上传并识别图片</span><strong class="nl-entry-progress-step-time" data-progress-time="3">—</strong></li><li class="nl-entry-progress-step" data-progress-step="4"><span class="nl-entry-progress-dot">5</span><span class="nl-entry-progress-step-label">读取识别结果</span><strong class="nl-entry-progress-step-time" data-progress-time="4">—</strong></li><li class="nl-entry-progress-step" data-progress-step="5"><span class="nl-entry-progress-dot">6</span><span class="nl-entry-progress-step-label">整理可编辑结果</span><strong class="nl-entry-progress-step-time" data-progress-time="5">—</strong></li></ol></div>' +
       '<p class="nl-entry-vision-edit-hint" hidden>识别结果可直接编辑，确认无误后再点击“确认并填入”。</p>' +
@@ -875,6 +900,10 @@
     var textarea = backdrop.querySelector('.nl-entry-text');
     var error = backdrop.querySelector('.nl-entry-error');
     var fileInput = backdrop.querySelector('.nl-entry-files');
+    var singleInput = backdrop.querySelector('.nl-entry-single-file');
+    var pasteButton = backdrop.querySelector('.nl-entry-paste-image');
+    var pickerHelp = backdrop.querySelector('.nl-entry-picker-help');
+    var imagePaneForPaste = backdrop.querySelector('[data-entry-pane="image"]');
     var imageList = backdrop.querySelector('.nl-entry-image-list');
     var visionOutput = backdrop.querySelector('.nl-entry-vision-output');
     var visionEditHint = backdrop.querySelector('.nl-entry-vision-edit-hint');
@@ -1192,24 +1221,70 @@
       });
       syncVisionButton();
     }
-    fileInput.onchange = function () {
-      var incoming = Array.prototype.slice.call(fileInput.files || []).filter(function (file) {
-        return /^image\//i.test(file.type);
-      });
-      var allowed = Math.max(0, 6 - selectedFiles.length);
-      selectedFiles = selectedFiles.concat(incoming.slice(0, allowed));
-      if (incoming.length > allowed) error.textContent = '最多选择 6 张图片。';
+    function addPickerFiles(files, source) {
+      if (visionBusy || !backdrop.isConnected) return;
+      var batch = collectPickerImages(files, 6 - selectedFiles.length);
+      if (batch.overflow) error.textContent = '最多选择 6 张图片。';
+      else if (batch.invalid) error.textContent = '部分文件不是可识别的图片，请重新选择。';
       else clearError();
+      if (!batch.files.length) {
+        if (batch.invalid) trackUsage('quick_entry_file_picker_rejected', { source: source, invalid_count: batch.invalid });
+        return;
+      }
+      selectedFiles = selectedFiles.concat(batch.files);
       visionText = '';
       visionPayload = null;
       visionOutput.hidden = true;
       visionOutput.value = '';
       resetVisionProgress();
       visionSubmitButton.textContent = '识别图片';
-      fileInput.value = '';
       renderFiles();
-      trackUsage('quick_entry_images_selected', { image_count: selectedFiles.length });
-    };
+      trackUsage('quick_entry_images_selected', { image_count: selectedFiles.length, source: source, added_count: batch.files.length });
+    }
+    bindImagePicker(fileInput, 'multiple', addPickerFiles, trackUsage);
+    bindImagePicker(singleInput, 'single', addPickerFiles, trackUsage);
+    pickerHelp.addEventListener('toggle', function () {
+      if (pickerHelp.open) trackUsage('quick_entry_file_picker_help_opened', {});
+    });
+    function pasteAvailable() {
+      return !visionBusy && backdrop.isConnected && !imagePaneForPaste.hidden;
+    }
+    // The paste event bubbles from the focused modal. Never intercept text-mode paste.
+    backdrop.addEventListener('paste', function (event) {
+      if (!pasteAvailable()) return;
+      var data = event.clipboardData;
+      var files = Array.prototype.slice.call(data && data.files || []);
+      if (!files.length) files = Array.prototype.slice.call(data && data.items || []).filter(function (item) { return item.kind === 'file'; }).map(function (item) { return item.getAsFile(); }).filter(Boolean);
+      if (!files.some(imagePickerFile)) return;
+      event.preventDefault();
+      trackUsage('quick_entry_file_picker_fallback', { source: 'paste_event' });
+      addPickerFiles(files, 'paste_event');
+    });
+    if (navigator.clipboard && typeof navigator.clipboard.read === 'function') {
+      pasteButton.hidden = false;
+      pasteButton.onclick = async function () {
+        if (!pasteAvailable() || pasteButton.disabled) return;
+        pasteButton.disabled = true;
+        trackUsage('quick_entry_file_picker_fallback', { source: 'clipboard_button' });
+        try {
+          var items = await navigator.clipboard.read(), files = [];
+          for (var item of items) {
+            var type = item.types.find(function (t) { return /^image\//i.test(t); });
+            if (type) {
+              var blob = await item.getType(type);
+              files.push(new File([blob], 'clipboard.' + (type === 'image/jpeg' ? 'jpg' : type === 'image/png' ? 'png' : 'img'), { type: type }));
+            }
+          }
+          if (!pasteAvailable()) return;
+          if (files.length) addPickerFiles(files, 'clipboard_button');
+          else error.textContent = '剪贴板里没有图片，请先复制截图。';
+        } catch (_) {
+          if (pasteAvailable()) error.textContent = '无法读取剪贴板，请试试单张选择或普通浏览器。';
+        } finally {
+          pasteButton.disabled = visionBusy;
+        }
+      };
+    }
 
     function visionContext() {
       var grade = modal.querySelector('#gradeLevelV14');
@@ -1400,7 +1475,7 @@
       var files = selectedFiles.slice();
       visionBusy = true;
       visionSubmitButton.disabled = true;
-      fileInput.disabled = true;
+      fileInput.disabled = singleInput.disabled = pasteButton.disabled = true;
       imageList.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
       visionSubmitButton.textContent = '识别中…';
       visionRequestId = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) { var n = Math.random() * 16 | 0; return (c === 'x' ? n : (n & 3 | 8)).toString(16); });
@@ -1446,7 +1521,7 @@
         visionSubmitButton.textContent = '识别图片';
       } finally {
         visionBusy = false;
-        fileInput.disabled = false;
+        fileInput.disabled = singleInput.disabled = pasteButton.disabled = false;
         imageList.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
         syncVisionButton();
         await loadQuota();
@@ -1544,9 +1619,9 @@
     '.nl-entry-quota-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.nl-entry-quota-count{color:var(--accent,#5d72e8);font-size:12px}.nl-entry-quota-refresh{padding:5px 8px;font-size:10px;white-space:nowrap}',
     '.nl-entry-quota-note{margin:7px 0 0;color:var(--muted,#788392)}.nl-entry-quota-details{margin-top:8px;color:var(--text,#18212f)}.nl-entry-quota-details summary{cursor:pointer}.nl-entry-quota-rules p{margin:6px 0 0}',
     '.nl-entry-upload-card{border:1px dashed #9aa9ec;border-radius:14px;background:linear-gradient(135deg,#f6f7ff,#fbfcff);padding:18px;text-align:center}',
-    '.nl-entry-file-button{display:inline-flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:var(--accent,#5d72e8);font-weight:750;font-size:13px}',
+    '.nl-entry-file-button{position:relative;display:flex;min-height:52px;flex-direction:column;justify-content:center;align-items:center;gap:4px;cursor:pointer;color:var(--accent,#5d72e8);font-weight:750;font-size:13px;overflow:hidden;border-radius:8px}.nl-entry-file-button:focus-within{outline:2px solid var(--accent,#5d72e8);outline-offset:2px}',
     '.nl-entry-file-button small{font-size:10px;color:var(--muted,#788392);font-weight:500}',
-    '.nl-entry-files{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}',
+    '.nl-entry-files{position:absolute;inset:0;z-index:1;width:100%;height:100%;min-height:100%;margin:0;padding:0;opacity:0;pointer-events:auto;cursor:pointer;font-size:16px}.nl-entry-picker-help{margin-top:12px;font-size:11px;color:var(--muted,#788392)}.nl-entry-picker-help summary{cursor:pointer}.nl-entry-picker-options{display:grid;gap:8px;margin-top:8px;text-align:left}.nl-entry-native-label{display:grid;gap:5px;min-width:0}.nl-entry-single-file{display:block;width:100%;max-width:100%;font-size:12px;color:var(--text,#18212f)}.nl-entry-picker-options p{margin:0}.nl-entry-paste-image[hidden]{display:none}',
     '.nl-entry-upload-card p{margin:10px 0 0;color:var(--muted,#788392);font-size:11px;line-height:1.55}',
     '.nl-entry-image-list{display:grid;gap:7px;margin-top:12px}',
     '.nl-entry-empty{display:block;padding:14px;border:1px solid var(--line,#e8ebf0);border-radius:12px;color:var(--muted,#788392);font-size:11px;text-align:center}',
