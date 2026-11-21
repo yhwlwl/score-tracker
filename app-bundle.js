@@ -9450,6 +9450,67 @@ function persistGoal(){
   document.head.appendChild(st);
 })();
 
+/* Goal display uses a separate, scoped style sheet because base v33 styles may
+   already be embedded in index.html, and appearance themes own the color tokens. */
+(function goalDisplayCss(){
+  if(document.getElementById("app-v33-goal-display-style"))return;
+  var st=document.createElement("style");st.id="app-v33-goal-display-style";
+  st.textContent=[
+    "#goalHeroV33 .gh-chips{align-items:flex-start}",
+    "#goalHeroV33 .gh-chip{display:flex;flex-direction:column;gap:2px;min-width:104px;max-width:100%;box-sizing:border-box;color:var(--text,#18212f)}",
+    "#goalHeroV33 .gh-chip b{display:block;font-size:calc(18px * var(--ui-scale,1));line-height:1.25;font-weight:700}",
+    "#goalHeroV33 .gh-chip .gh-raw-v33{font-size:var(--ui-caption,11px);line-height:1.45;color:var(--muted,#788392);font-variant-numeric:tabular-nums}",
+    "#goalHeroV33 .gh-chip em{margin-top:0;padding-top:2px;line-height:1.5;white-space:nowrap}",
+    "#goalHeroV33 .gh-chip small{line-height:1.45;white-space:nowrap}",
+    "#goalHeroV33 .gh-total{display:block;margin-top:12px;min-width:0}",
+    "#goalHeroV33 .gh-summary-head{display:flex;justify-content:space-between;align-items:baseline;gap:6px;flex-wrap:wrap;color:var(--muted,#788392);font-size:var(--ui-caption,11px);line-height:1.4}",
+    "#goalHeroV33 .gh-total > b{display:block;font-size:calc(21px * var(--ui-scale,1));font-weight:700;line-height:1.35;white-space:normal;margin:4px 0 8px;color:var(--text,#18212f)}",
+    "#goalHeroV33 .gh-total > b.ok{color:var(--green,#32a77a)}#goalHeroV33 .gh-total > b.no{color:var(--danger,#d9534f)}#goalHeroV33 .gh-total > b.na{color:var(--muted,#788392)}",
+    "#goalHeroV33 .gh-summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}",
+    "#goalHeroV33 .gh-summary-item{min-width:0;padding:9px 11px;background:var(--panel-solid,#fff);border:1px solid var(--line,#e8ebf0);border-radius:13px;box-sizing:border-box}",
+    "#goalHeroV33 .gh-summary-label,#goalHeroV33 .gh-summary-raw{display:block;font-size:var(--ui-caption,11px);line-height:1.5;color:var(--muted,#788392);overflow-wrap:anywhere}",
+    "#goalHeroV33 .gh-summary-value{display:block;font-variant-numeric:tabular-nums;font-size:calc(19px * var(--ui-scale,1));line-height:1.35;font-weight:700;color:var(--text,#18212f);overflow-wrap:anywhere}",
+    "#goalBkV33 .gmodal{display:flex;flex-direction:column;overflow:hidden;max-height:min(88vh,840px);max-height:min(88dvh,840px);box-sizing:border-box}",
+    "#goalBkV33 .gm-head{flex:none;position:relative}",
+    "#goalBkV33 .gm-body{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:16px}",
+    "#goalBkV33 .gm-foot{flex:none;margin:0;padding:10px 20px max(10px,env(safe-area-inset-bottom));border-top:1px solid var(--line,#e8ebf0);background:var(--panel-solid,#fff)}",
+    "#goalBkV33 .gm-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}",
+    "#goalBkV33 .gm-sf{min-width:0;padding:9px 12px;box-sizing:border-box}",
+    "#goalBkV33 .gm-sf label{margin-bottom:4px;line-height:1.45;overflow-wrap:anywhere}",
+    "#goalBkV33 .gm-subject-name{display:block;color:var(--text,#18212f);font-weight:600;font-size:var(--ui-small,13px)}",
+    "#goalBkV33 .gm-subject-meta{display:block;color:var(--muted,#788392);font-size:var(--ui-caption,11px)}",
+    "#goalBkV33 .gm-sf input{box-sizing:border-box;min-height:34px;padding:3px 0;font-size:calc(18px * var(--ui-scale,1))}",
+    "#goalBkV33 .gm-edit-section{min-width:0}#goalBkV33 .gm-edit-pair{display:grid;gap:12px;margin-top:13px}#goalBkV33 .gm-edit-section .gm-label{margin-top:0}",
+    "#goalBkV33 .gm-mode-row,#goalBkV33 .gm-date-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}#goalBkV33 .gm-mode-row{margin-bottom:8px}#goalBkV33 .gm-mode-row .gm-input,#goalBkV33 .gm-date-row .gm-input{flex:1 1 110px;min-width:0;max-width:none!important;box-sizing:border-box}#goalBkV33 #gv33Date{flex-basis:140px}#goalBkV33 #gv33School{box-sizing:border-box}",
+    "#goalBkV33 .gm-hint:empty{display:none}#goalBkV33 .gm-save{background:var(--accent,#5d72e8);color:#fff}",
+    "@media(min-width:768px){#goalHeroV33{display:grid;grid-template-columns:minmax(0,1fr);gap:10px 14px}#goalHeroV33.gh-has-side{grid-template-columns:minmax(0,1fr) minmax(156px,19%)}#goalHeroV33 .gh-main-v33{display:contents}#goalHeroV33 .gh-title-row,#goalHeroV33 .gh-chips{grid-column:1/-1;min-width:0;margin:0}#goalHeroV33 .gh-chip{flex:1 0 116px;min-width:116px;padding:10px 12px;gap:3px}#goalHeroV33 .gh-chip small,#goalHeroV33 .gh-chip em{white-space:normal;overflow-wrap:anywhere}#goalHeroV33 .gh-total{margin:0;grid-column:1;align-self:stretch}#goalHeroV33 .gh-side{grid-column:2;align-self:stretch;width:auto;min-width:0;flex-direction:column;justify-content:flex-start;gap:8px}#goalHeroV33 .gh-side>*{flex:none;min-width:0}#goalHeroV33 .gh-cd{padding:10px 12px}#goalHeroV33 .gh-cd b{font-size:calc(25px * var(--ui-scale,1))}#goalHeroV33 .gh-summary-head{justify-content:flex-start;gap:8px}#goalBkV33 .gmodal{width:min(760px,100%);max-height:min(92vh,840px);max-height:min(92dvh,840px)}#goalBkV33 .gm-grid{grid-template-columns:repeat(3,minmax(0,1fr))}#goalBkV33 .gm-grid[data-columns='4']{grid-template-columns:repeat(4,minmax(0,1fr))}#goalBkV33 .gm-edit-pair{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px}#goalBkV33 .gm-edit-section+.gm-edit-section{border-left:1px solid var(--line,#e8ebf0);padding-left:16px}}",
+    "@media(min-width:1000px){#goalHeroV33 .gh-total{display:grid;grid-template-columns:minmax(145px,.85fr) minmax(0,1.65fr);align-content:start;align-items:start;gap:3px 12px}#goalHeroV33 .gh-summary-head{grid-column:1;grid-row:1}#goalHeroV33 .gh-total > b{grid-column:1;grid-row:2;margin:1px 0 0}#goalHeroV33 .gh-summary-grid{grid-column:2;grid-row:1/span 2}}",
+    "@media(max-width:520px){#goalHeroV33 .gh-title-row{flex-wrap:wrap;gap:4px}#goalHeroV33 .gh-summary-grid{gap:6px}#goalHeroV33 .gh-summary-item{padding:8px 10px}#goalBkV33{padding:10px}#goalBkV33 .gm-body{padding:12px 14px}#goalBkV33 .gm-head,#goalBkV33 .gm-foot{padding-left:14px;padding-right:14px}}"
+  ].join("\n");
+  document.head.appendChild(st);
+})();
+
+function goalFraction(value,max){
+  if(value==null||max==null||!Number.isFinite(Number(value))||!Number.isFinite(Number(max))||Number(max)<=0)return "";
+  return String(goalNumber(Number(value)))+"/"+String(goalNumber(Number(max)));
+}
+function goalSummaryHtml(rec){
+  var target=totalGoalValue(),targetRaw=rec.totalMaxValid?goalFraction(target,rec.totalMax):"";
+  var valid=rec.comparable,asScore=rec.asScore;
+  var cls=rec.comparison.diff==null?"na":rec.comparison.diff<0?"no":"ok";
+  var gap=!rec.has?"尚未有出分记录":!valid?"待补成绩或满分":target==null?"未设总目标":rec.comparison.gap;
+  var label=!rec.has||rec.singleExam?"最近一次":"各科最近";
+  var raw=valid?goalFraction(rec.sum,rec.rawMax):"";
+  var method=valid&&!asScore?' title="综合得分率按科目设置满分加权"':"";
+  function item(label,value,sub){
+    return '<div class="gh-summary-item"><small class="gh-summary-label">'+esc(label)+'</small><strong class="gh-summary-value">'+esc(value)+'</strong>'+(sub?'<small class="gh-summary-raw">'+esc(sub)+'</small>':"")+'</div>';
+  }
+  return '<div class="gh-total"'+method+'><div class="gh-summary-head"><small>总分</small></div><b class="'+cls+'">'+esc(gap)+'</b>'
+    +'<div class="gh-summary-grid">'+item(label,valid?rec.comparison.valueText+(asScore?" 分":""):"—",raw?(asScore?raw+" 分":"原始 "+raw+" 分"):"")
+    +item("目标",target==null?"—":asScore?rec.comparison.targetText+" 分":valid?rec.comparison.targetText:String(goalNumber(target))+" 分",targetRaw?targetRaw+" 分":"")+'</div>'
+    +'</div>';
+}
+
 /* ================= 首页通栏卡 ================= */
 function daysLeft(){
   if(!G.data||!G.data.date)return null;
@@ -9468,8 +9529,12 @@ function chipHtml(s){
   else{cls=diff>=0?"ok":"no";tail=comparison.gap}
   if(goal!=null&&!sc&&!examSource().length)tail="成绩读取中…";
   var detail=sc?'实际 '+sc.v+'/'+sc.max+(goal==null?'':'；目标 '+goal+'/'+s.max)+(asScore?'；满分相同，按分数比较':'；满分不同，按得分率比较'):'查看统计分析';
+  var targetRaw=!asScore?goalFraction(goal,s.max):"";
+  var actualRaw=sc&&!asScore?goalFraction(sc.v,sc.max):"";
   return '<span class="gh-chip '+cls+'" data-subject="'+esc(s.name)+'" title="'+esc(detail)+'">'
-    +"<small>"+esc(s.name)+" · "+(goal==null?"—":"目标 "+comparison.targetText)+"</small><b>"+comparison.valueText+"</b><em>"+tail+"</em></span>";
+    +"<small>"+esc(s.name)+" · "+(goal==null?"—":"目标 "+comparison.targetText+(targetRaw&&target!=null?" · "+targetRaw:""))+"</small><b>"+comparison.valueText+"</b>"
+    +(actualRaw?'<small class="gh-raw-v33">实际 '+actualRaw+'</small>':"")
+    +"<em>"+tail+"</em></span>";
 }
 function renderHomeCard(mount){
   var hero=heroAnchor();if(!hero)return;
@@ -9496,13 +9561,11 @@ function renderHomeCard(mount){
       :'<div class="gh-cd"><small>'+esc(G.data.dateName||"目标")+"倒计时</small><b>"+dl+" 天</b></div>";
   }
   if(G.data.school)side+='<div class="gh-school">理想学校<b>'+esc(G.data.school)+"</b></div>";
-  var card=document.createElement("div");card.id="goalHeroV33";card.className="goal-hero-v33";
+  var card=document.createElement("div");card.id="goalHeroV33";card.className="goal-hero-v33"+(side?" gh-has-side":"");
   card.onclick=function(e){if(e.target&&e.target.closest&&e.target.closest('.gh-chips'))return;openEditor("card")};
-  card.innerHTML='<div class="gh-main-v33"><div class="gh-title-row"><span class="gh-title">我的目标 · '+esc(G.data.name||"本学期")
-    +'</span><span class="gh-hint">点击编辑</span></div>'
+  card.innerHTML='<div class="gh-main-v33"><div class="gh-title-row"><span class="gh-title">我的目标</span><span class="gh-hint">点击编辑</span></div>'
     +'<div class="gh-chips">'+chips+'</div>'
-    +'<div class="gh-total"><b>'+recent.comparison.gap+"</b><span>"
-    +(recent.has?(recent.comparable?(recent.asScore?"最近总分 ":"最近综合得分率 ")+recent.comparison.valueText+(totalGoalValue()!=null?" / 目标 "+recent.comparison.targetText:"")+" · "+(recent.asScore?"各科最近成绩合计，满分与目标一致":"各科最近得分率按科目设置满分加权"):"部分科目缺少成绩或有效满分，暂无法比较总目标"):"尚未有出分记录")+"</span></div></div>"
+    +goalSummaryHtml(recent)+"</div>"
     +(side?'<div class="gh-side">'+side+"</div>":"");
   hero.insertAdjacentElement("afterend",card);
   try{
@@ -9549,17 +9612,20 @@ function renderHomeCard(mount){
   }
 }
 function SUB_TOTALS(){
-  var subs=activeSubjects(),weighted=0,totalMax=0,sum=0,has=false,comparable=true,sameScale=true;
+  var subs=activeSubjects(),weighted=0,totalMax=0,sum=0,rawMax=0,has=false,comparable=true,sameScale=true,latestExam=null,singleExam=true,totalMaxValid=subs.length>0;
   subs.forEach(function(s){
     var max=Number(s.max),r=latestScore(s.name),rate=r?goalRate(r.v,r.max):null;
-    if(r){has=true;sum+=r.v;if(Number(r.max)!==max)sameScale=false;}
-    if(!Number.isFinite(max)||max<=0){comparable=false;return;}
+    if(r){has=true;sum+=r.v;if(Number(r.max)!==max)sameScale=false;
+      if(Number.isFinite(r.max)&&r.max>0)rawMax+=r.max;
+      if(latestExam&&latestExam!==r.exam)singleExam=false;else if(!latestExam)latestExam=r.exam;
+    }
+    if(!Number.isFinite(max)||max<=0){comparable=false;totalMaxValid=false;return;}
     totalMax+=max;
     if(rate==null)comparable=false;else weighted+=rate*max;
   });
   comparable=has&&comparable&&totalMax>0;
   var rate=comparable?weighted/totalMax:null,targetRate=goalRate(totalGoalValue(),totalMax),asScore=comparable&&sameScale;
-  return {sum:goalNumber(sum),rate:rate,targetRate:targetRate,has:has,comparable:comparable,asScore:asScore,
+  return {sum:goalNumber(sum),rawMax:goalNumber(rawMax),totalMax:goalNumber(totalMax),totalMaxValid:totalMaxValid,singleExam:has&&singleExam,rate:rate,targetRate:targetRate,has:has,comparable:comparable,asScore:asScore,
     comparison:goalComparison(asScore?sum:rate,asScore?totalGoalValue():targetRate,asScore)};
 }
 
@@ -9570,35 +9636,35 @@ function openEditor(via){
   var bk=$("#goalBkV33");
   if(!bk){
     bk=document.createElement("div");bk.id="goalBkV33";bk.className="gmodal-backdrop";
-    bk.innerHTML='<div class="gmodal" role="dialog" aria-modal="true"><div class="gm-head"><h3>编辑长期目标<small>改动即时生效；随时可以回来修改</small></h3><button class="gm-x" aria-label="关闭">×</button></div><div class="gm-body"></div></div>';
+    bk.innerHTML='<div class="gmodal" role="dialog" aria-modal="true" aria-label="编辑长期目标"><div class="gm-head"><h3>编辑长期目标</h3><button class="gm-x" aria-label="关闭">×</button></div><div class="gm-body"></div><div class="gm-foot"><button class="gm-clear" id="gv33Clear">清除全部目标</button><button class="gm-save" id="gv33Save">保存</button></div></div>';
     document.body.appendChild(bk);
     bk.addEventListener("click",function(e){if(e.target===bk)closeEditor()});
     $(".gm-x",bk).onclick=closeEditor;
   }
   var d=G.data=G.data||{subjects:{},totalGoal:null,school:"",date:"",dateName:""};
-  var grid=activeSubjects().map(function(s){
-    var g=d.subjects[s.name];var best=bestOf(s.name);
-    return '<div class="gm-sf"><label>'+esc(s.name)+(s.max?" · 满分 "+s.max:"")+" · 最佳得分率 "+goalPercent(best)
-      +'</label><input inputmode="decimal" data-gsubject="'+esc(s.name)+'" value="'+(g==null?"":g)+'"/></div>';
+  var subjects=activeSubjects(),grid=subjects.map(function(s){
+    var g=d.subjects[s.name];var best=bestRawOf(s.name);
+    return '<div class="gm-sf"><label><span class="gm-subject-name">'+esc(s.name)+'</span><span class="gm-subject-meta">'+(s.max?"满分 "+esc(s.max)+" · ":"")+"最高分 "+(best?esc(goalFraction(best.score,best.max)||String(goalNumber(best.score))):"—")
+      +'</span><input inputmode="decimal" data-gsubject="'+esc(s.name)+'" value="'+esc(g==null?"":g)+'"/></label></div>';
   }).join("");
   if(!grid)grid='<p class="gm-hint" style="color:var(--muted,#788392)">还没有科目数据——先去添加一次考试,或检查科目设置。</p>';
   var dateOpts=["高考","中考","期末考试","自定义…"].map(function(o){
     return '<option'+((o===d.dateName)||(o==="自定义…"&&!d.dateName)?' selected':"")+">"+o+"</option>";
   }).join("");
   $(".gm-body",bk).innerHTML=
-    '<div class="gm-label">① 各科目标分数 <span>按科目设置的满分填写；满分相同时显示分数与分差，不同时显示得分率与百分点差距 · 留空表示暂不定</span></div>'
-    +'<div class="gm-grid">'+grid+'</div>'
-    +'<div class="gm-label">② 总分与理想学校</div>'
+    '<div class="gm-label">① 各科目标分数 <span>按科目设置的满分填写 · 留空暂不定</span></div>'
+    +'<div class="gm-grid" data-columns="'+(subjects.length===7||subjects.length===8?"4":"3")+'">'+grid+'</div>'
+    +'<div class="gm-edit-pair"><section class="gm-edit-section"><div class="gm-label">② 总分与理想学校</div>'
     +'<div class="gm-total"><span style="font-size:12px;color:var(--muted,#788392)">总分目标</span><b id="gv33Total">—</b><span class="an" id="gv33ModeTxt"></span></div>'
     +'<p class="gm-hint" id="gv33Hint"></p>'
-    +'<div style="display:flex;gap:8px;margin-bottom:10px"><button class="gm-mini" id="gv33Auto">自动求和</button><button class="gm-mini" id="gv33Manu">手动指定</button>'
+    +'<div class="gm-mode-row"><button class="gm-mini" id="gv33Auto">自动求和</button><button class="gm-mini" id="gv33Manu">手动指定</button>'
     +'<input class="gm-input" id="gv33Manual" style="display:none;max-width:140px" inputmode="decimal" placeholder="如 675"/></div>'
     +'<input class="gm-input" id="gv33School" style="width:100%" maxlength="40" placeholder="理想学校（选填），例如 浙江大学"/>'
-    +'<div class="gm-label">③ 目标日期 <span>用于首页倒计时，可不填</span></div>'
-    +'<div style="display:flex;gap:8px;flex-wrap:wrap"><select class="gm-input" id="gv33DateName" style="max-width:150px">'+dateOpts+'</select>'
+    +'</section><section class="gm-edit-section"><div class="gm-label">③ 目标日期 <span>选填</span></div>'
+    +'<div class="gm-date-row"><select class="gm-input" id="gv33DateName" style="max-width:150px">'+dateOpts+'</select>'
     +'<input class="gm-input" id="gv33Custom" style="display:none;max-width:150px" maxlength="20" placeholder="名称，如 一模"/>'
     +'<input class="gm-input" id="gv33Date" type="date" style="max-width:190px"/></div>'
-    +'<div class="gm-foot"><button class="gm-clear" id="gv33Clear">清除全部目标</button><button class="gm-save" id="gv33Save">保存</button></div>';
+    +'</section></div>';
   $("#gv33School").value=d.school||"";
   $("#gv33Date").value=d.date||"";
   EDIT.mode=d.totalGoal!=null?"manu":"auto";
@@ -9615,6 +9681,19 @@ function openEditor(via){
   $("#gv33Save").onclick=saveEditor;
   $("#gv33Clear").onclick=clearEditor;
   bk.classList.add("open");
+}
+/* Editor reference: highest recorded raw score, not the highest rate.
+   Show its own exam maximum so different scales remain explicit.
+   Keep bestOf() unchanged for rate-based historical analysis. */
+function bestRawOf(name){
+  var best=null;
+  examSource().forEach(function(e){
+    if(e.is_hidden)return;
+    var sc=(e.scores&&e.scores[name])||(e.subjects&&e.subjects[name]),v=scoreOf(sc),m=maxOf(sc,0);
+    if(v==null||!Number.isFinite(v))return;
+    if(best==null||v>best.score||(v===best.score&&!(Number.isFinite(best.max)&&best.max>0)&&Number.isFinite(m)&&m>0))best={score:v,max:m};
+  });
+  return best;
 }
 function bestOf(name){
   var best=null;
