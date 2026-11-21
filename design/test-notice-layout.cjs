@@ -12,4 +12,9 @@ assert(!l.render('<script>alert(1)</script>','announcement',base).includes('<scr
 assert(!l.render('![X](https://evil.invalid/a.jpg)','announcement',base).includes('<img'));
 const legacy='旧公告\n**加粗**\n![图片](/assets/announcements/beta-appearance.svg)';assert.equal(l.parse(legacy).notes,legacy);
 d.items[0].image='https://evil.invalid/a.jpg';assert(l.validate(d));d.items[0].image='';d.items[0].title='';assert(l.validate(d));
+const v10=fs.readFileSync('design/release-v10.0-notice.md','utf8'),v10Html=l.render(v10,'release',base);
+assert.equal((v10Html.match(/data-nl-span="2"/g)||[]).length,3,'long middle feature must not stretch adjacent cards or create an orphan column');
+const pair=l.blank();pair.items=[{...l.item(),featured:true,title:'短功能一',desc:'一句介绍'},{...l.item(),featured:true,title:'短功能二',desc:'另一句介绍'},{...l.item(),featured:true,title:'短功能三',desc:'最后一项'}];
+const paired=l.render(l.encode(pair),'release',base);assert.equal((paired.match(/data-nl-span="1"/g)||[]).length,2);assert.equal((paired.match(/data-nl-span="2"/g)||[]).length,1);
+assert(paired.indexOf('短功能一')<paired.indexOf('短功能二')&&paired.indexOf('短功能二')<paired.indexOf('短功能三'),'preserve author order');
 console.log('PASS: structured notice round trip, shared rendering, legacy prose, safe images/links and validation');

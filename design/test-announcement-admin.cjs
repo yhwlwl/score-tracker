@@ -1,5 +1,5 @@
 const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('node:assert/strict'),crypto=require('node:crypto');
-const {JSDOM,VirtualConsole}=require(require.resolve('jsdom',{paths:[process.cwd(),process.env.NODE_PATH||'']}));
+const {JSDOM,VirtualConsole}=require('jsdom');
 const root=path.resolve(__dirname,'..'),sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const config={version:'v8.0',enabled:true,title:'更新',content:'更新内容',tip_enabled:false,tip_content:'',announcement_enabled:false,announcement_title:'公告',announcement_content:'已关闭公告',announcement_comments_enabled:false,announcement_comments_public:false,announcement_comment_title:'你的想法',revision:1};
 const noticeId=crypto.createHash('sha256').update(config.announcement_title+'\n'+config.announcement_content).digest('hex').slice(0,24);
@@ -28,7 +28,7 @@ async function run(){
     d.querySelector('[data-notice-preview="'+kind+'"]').click();assert.equal(d.querySelector('[data-preview-support]').textContent,label);d.getElementById('closeDrawer').click();
   }
   const draftField=d.getElementById('notice_content');draftField.value=fs.readFileSync(path.join(root,'design/release-v10.0-notice.md'),'utf8');draftField.dispatchEvent(new dom.window.Event('input',{bubbles:true}));d.getElementById('notice_version').value='v10.0';d.getElementById('notice_title').value='让记录更简单，让进步更清晰';d.querySelector('[data-notice-preview="release"]').click();
-  assert.equal(d.querySelectorAll('.notice-preview-content .nl-featured').length,3,'actual admin preview uses structured cards');assert.equal(d.querySelectorAll('.notice-preview-content [data-notice-feature]').length,4);assert(d.querySelector('.notice-preview-content').textContent.includes('网站目前仍然完全免费'));assert(d.querySelector('.nl-version').textContent.includes('v10.0'));d.getElementById('closeDrawer').click();
+  assert.equal(d.querySelectorAll('.notice-preview-content .nl-featured[data-nl-span="2"]').length,3,'actual admin preview uses full-width feature cards for this release');assert.equal(d.querySelectorAll('.notice-preview-content [data-notice-feature]').length,4);assert(d.querySelector('.notice-preview-content').textContent.includes('网站目前仍然完全免费'));assert(d.querySelector('.nl-version').textContent.includes('v10.0'));d.getElementById('closeDrawer').click();
   d.getElementById('notice_announcement_content').value='## 更新摘要\n\n普通公告';d.querySelector('[data-notice-preview="announcement"]').click();assert(!d.querySelector('.notice-preview-content .nl-featured'));d.getElementById('closeDrawer').click();
   const field=d.getElementById('notice_content');field.value='';field.setSelectionRange(0,0);d.querySelector('[data-notice-support-link="content"]').click();assert.equal(field.value,'[支持作者](#author-support)');
   console.log('PASS: update/announcement editors insert selected or default appreciation links and preview them in the existing notice');
