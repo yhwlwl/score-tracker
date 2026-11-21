@@ -2,7 +2,7 @@ const API = '/api/score-tracker-api';
 const SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治'];
 const SUBJECT_SHORT = { 语文: '语', 数学: '数', 英语: '英', 物理: '物', 化学: '化', 生物: '生', 历史: '史', 地理: '地', 政治: '政' };
 const SUBJECT_MAX = { 语文: 150, 数学: 150, 英语: 150, 物理: 100, 化学: 100, 生物: 100, 历史: 100, 地理: 100, 政治: 100 };
-const RADAR_COLORS = ['#5d72e8', '#32a77a', '#e59b45', '#df5f68'];
+const RADAR_COLORS = ['#5d72e8', '#32a77a', '#e59b45', '#df5f68', '#8f62db'];
 const state = {
   token: localStorage.getItem('st_token') || '',
   user: null,
@@ -180,7 +180,7 @@ function radarAvailableExams(mode = state.radarMode) {
 function ensureRadarSelection() {
   const available = radarAvailableExams();
   const availableIds = new Set(available.map((exam) => exam.id));
-  state.radarSelection = state.radarSelection.filter((id) => availableIds.has(id)).slice(0, 4);
+  state.radarSelection = state.radarSelection.filter((id) => availableIds.has(id)).slice(0, 5);
   if (!state.radarSelection.length && available.length) {
     state.radarSelection = available.slice(-2).map((exam) => exam.id);
   }
@@ -358,7 +358,7 @@ function radarCardHtml() {
   const available = radarAvailableExams();
   const selected = selectedRadarExams();
   return `<div class="card radar-card"><div class="card-title-row"><div><h3 class="card-title">全部科目雷达图</h3><p class="card-sub">按得分率绘制，支持叠加多次考试，直观看出弱项是否改善</p></div></div>
-    <div class="radar-toolbar"><div class="toggle-row"><span class="label">查看内容</span><button class="chip ${state.radarMode === 'actual' ? 'active' : ''}" data-radar-mode="actual">真实成绩</button><button class="chip ${state.radarMode === 'target' ? 'active' : ''}" data-radar-mode="target">目标成绩</button></div><div><div class="subtle-note">最多可叠加 4 次考试，推荐对比最近几次，找出最薄弱学科和进步最明显的学科。</div><div class="multi-select" style="margin-top:8px">${available.length ? available.map((exam) => `<button class="select-pill ${state.radarSelection.includes(exam.id) ? 'active' : ''}" data-radar-exam="${exam.id}">${escapeHtml(exam.name)} · ${fmtDate(exam.exam_date)}</button>`).join('') : '<span class="subtle-note">当前还没有可用于雷达图的数据</span>'}</div></div></div>
+    <div class="radar-toolbar"><div class="toggle-row"><span class="label">查看内容</span><button class="chip ${state.radarMode === 'actual' ? 'active' : ''}" data-radar-mode="actual">真实成绩</button><button class="chip ${state.radarMode === 'target' ? 'active' : ''}" data-radar-mode="target">目标成绩</button></div><div><div class="subtle-note">最多可叠加 5 次考试，推荐对比最近几次，找出最薄弱学科和进步最明显的学科。</div><div class="multi-select" style="margin-top:8px">${available.length ? available.map((exam) => `<button class="select-pill ${state.radarSelection.includes(exam.id) ? 'active' : ''}" data-radar-exam="${exam.id}">${escapeHtml(exam.name)} · ${fmtDate(exam.exam_date)}</button>`).join('') : '<span class="subtle-note">当前还没有可用于雷达图的数据</span>'}</div></div></div>
     <div class="radar-wrap" id="radarChart">${radarChartHtml(selected)}</div>${radarLegendHtml(selected)}${radarSummaryHtml(selected)}</div>`;
 }
 
@@ -503,7 +503,7 @@ function toggleRadarExam(id) {
     selected.delete(id);
   } else {
     if (selected.size >= 4) {
-      toast('最多叠加 4 次考试');
+      toast('最多叠加 5 次考试');
       return;
     }
     selected.add(id);

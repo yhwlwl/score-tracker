@@ -6,7 +6,11 @@ const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..");
 const OUT = path.join(ROOT, "deploy");
+if(process.env.CF_PAGES_BRANCH==='main')require('node:child_process').execFileSync(process.execPath,[path.join(ROOT,'tools/check-ai-release-backend.mjs')],{cwd:ROOT,stdio:'inherit'});
 const FILES = [
+  "first-run-setup.css",
+  "first-run-setup.js",
+  "setup-preferences-guide.js",
   "index.html",
   "styles.css",
   "appearance-studio.css",
@@ -22,6 +26,7 @@ const FILES = [
   "app-bundle.js",
   "public-assets.js",
   "notice-media.js",
+  "notice-layout.js",
   "notice-embed.js",
   "community-qr-20261024.jpg",
   "vision-image-prep.js",
@@ -31,6 +36,8 @@ const FILES = [
   "app-v37.js",
   "app-v38.js",
   "exam-record-sort.js",
+  "page-display.js",
+  "page-display-goals.css",
   "study-planner-promo.webp",
   "robots.txt",
   "_headers",

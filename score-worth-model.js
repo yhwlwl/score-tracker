@@ -95,16 +95,16 @@
     if (!cur.scoreValid) { out.reason = '补齐这次的成绩和满分，就能开始比较。'; return out; }
     if (out.referenceMode === 'exam' && Number(options.exam) === index) {
       out.kind = 'identity'; out.value = cur.score; out.targetMax = cur.max; out.low = cur.score; out.high = cur.score; out.references = [cur]; out.referenceLabel = e.name || '本次考试'; out.quality = 'identity';
-      var self = context(exams, subject).byIndex[index];
+      var self = context(exams, subject, true).byIndex[index];
       if (self && self.group.model) { out.modelN = self.group.points.length; out.difficulty = out.referenceDifficulty = difficultyIndex(hardness(self, self.group.model)); }
       return out;
     }
     if (!cur.rankValid) { out.reason = '还需要这科的年级排名（或排名位置）和参考人数。少于 30 人时，暂不估计难度。'; return out; }
     if (cur.day === null) { out.reason = '补齐有效的考试日期，就能建立参考尺子。'; return out; }
-    var ctx = context(exams, subject, out.referenceMode === 'history'), point = ctx.byIndex[index];
+    var ctx = context(exams, subject, out.referenceMode !== 'period'), point = ctx.byIndex[index];
     if (!point) { out.reason = '这场考试有重复记录，已避免重复计入参考尺子。'; return out; }
     var group = point.group, model = group.model; out.modelN = group.points.length;
-    if (!model) { out.reason = (out.referenceMode === 'history' ? '这科全部历史中的有效记录还不足 3 场。' : '这组可比较的记录还不足 3 场。') + '补齐成绩、满分和年级排名后，就能估计相对难度。'; return out; }
+    if (!model) { out.reason = (out.referenceMode !== 'period' ? '这科全部历史中的有效记录还不足 3 场。' : '这组可比较的记录还不足 3 场。') + '补齐成绩、满分和年级排名后，就能估计相对难度。'; return out; }
     var refs = group.points, max = cur.max, label = '历史平均';
     if (out.referenceMode === 'period') {
       var start = day({ exam_date: options.start }), end = day({ exam_date: options.end });
@@ -112,7 +112,7 @@
       refs = refs.filter(function (p) { return p.day >= start && p.day <= end; }); label = options.start + ' 至 ' + options.end;
     } else if (out.referenceMode === 'exam') {
       var ref = ctx.byIndex[Number(options.exam)];
-      if (!ref || ref.group !== group) { out.reason = '参照考试需要有完整的单科成绩和排名，并属于同一分类、同一参考人群阶段。'; return out; }
+      if (!ref || ref.group !== group) { out.reason = '参照考试需要有效的同科成绩、满分、年级排名、参考人数和日期。'; return out; }
       refs = [ref]; max = ref.max; label = ref.e.name || '参照考试';
     }
     if (!refs.length) { out.reason = '这个时间段内没有可用的参照考试，试试扩大日期范围。'; return out; }

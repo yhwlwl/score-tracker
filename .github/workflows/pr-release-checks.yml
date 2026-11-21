@@ -1,0 +1,20 @@
+name: PR release checks
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  entry-growth-credits:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: design/package-lock.json
+      - run: npm ci --prefix design --ignore-scripts
+      - run: node design/run-release-checks.cjs

@@ -1,0 +1,27 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),{JSDOM,VirtualConsole}=require('jsdom');
+const wait=()=>new Promise(r=>setTimeout(r,30));
+const account={enabled:true,budget_status:'available',growth:{level:2,points:110,valid_exams:1,active_months:1,registered_days:2,levels:[{level:1,threshold:0,monthly_credits:0},{level:2,threshold:50,monthly_credits:400},{level:3,threshold:120,monthly_credits:500}],features:[{feature:'record',points:30,earned:true}]},credits:{balance:550,available:550,held:0,monthly:400,cap:3000,welcome:150}};
+(async()=>{
+ const errors=[],calls=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));
+ const dom=new JSDOM('<html><head></head><body><main></main></body></html>',{url:'https://fixture.test',runScripts:'dangerously',virtualConsole:vc});const w=dom.window;
+ w.state={token:'first',page:'account',modal:null};w.accountHtml=()=>'<div class="account-chip">本人</div><div class="username-origin-v19">原始用户名</div>';w.bindPage=()=>{};w.dataApiV7=async()=>({ok:true});
+ let fail=false;w.fetch=async(url,init)=>{const body=JSON.parse(init.body);calls.push(body);return {ok:!fail,json:async()=>fail?{error:'服务暂不可用'}:body.action==='account_status'?{account:structuredClone(account)}:{usage:[{feature:'vision',status:'failed',charged_credits:0,created_at:'2026-11-14T00:00:00Z'}]}};};
+ w.eval(fs.readFileSync('account-growth.js','utf8'));const render=()=>{w.document.querySelector('main').innerHTML=w.accountHtml();w.bindPage();};
+ render();await wait();assert.equal(w.document.querySelector('.ag-level').textContent,'Lv.2');assert(w.document.querySelector('.ag-wallet').textContent.includes('550'));assert(w.document.querySelector('#accountGrowth').previousElementSibling.classList.contains('account-chip'));
+ const creditTable=w.document.querySelector('[aria-label="识别选项与开始所需积分"]');
+ assert([...creditTable.rows].some(r=>r.textContent.includes('成绩图片识别')&&r.textContent.includes('13')));assert(!creditTable.textContent.includes('仅上传题目'));assert(!creditTable.textContent.includes('在答题卡上'));
+ assert(!w.document.querySelector('#accountGrowth').textContent.includes('含作答核对'));
+ assert(w.document.querySelector('.ag-table').closest('details')&&!w.document.querySelector('.ag-table').closest('details').open,'detailed rules are collapsed');
+ render();await wait();assert.equal(calls.length,1,'same-account status reads are cached');
+ w.document.querySelector('.ag-usage').click();await wait();assert(w.document.querySelector('.ag-history').textContent.includes('失败未扣分'));
+ account.credits.available=0;account.credits.held=550;await w.ScoreAccountBenefits.refresh();assert.equal(w.document.querySelector('.ag-wallet b').textContent,'0');assert(w.document.querySelector('.ag-wallet').textContent.includes('任务预留'));
+ w.state.token='second';fail=true;render();await wait();assert(!w.document.querySelector('.ag-level'),'a new account cannot see the previous account status');assert(w.document.querySelector('#accountGrowth').textContent.includes('重试'));
+ w.state.token='';assert(!w.accountHtml().includes('accountGrowth'));assert.deepEqual(errors,[]);w.close();
+ console.log('PASS: settings username placement, real zero balance, pending holds, cached reads, usage, failed-load and account isolation.');
+ const html=vm.runInNewContext(fs.readFileSync('api/mg-ui.js','utf8').replace('export const MG_HTML','const MG_HTML')+';MG_HTML'),adminCalls=[];
+ const adm=new JSDOM(html,{url:'https://fixture.test/mg?view=vision',runScripts:'dangerously',pretendToBeVisual:true,virtualConsole:vc,beforeParse(w){w.localStorage.setItem('st_admin_token','fixture');w.fetch=async(url,init)=>{const action=new URL(url,'https://fixture.test').searchParams.get('action');adminCalls.push({action,body:init.body&&JSON.parse(init.body)});const data=action==='ai_config'?{enabled:true,configured:true,beta_only:false,tier_rules:[]}:action==='ai_budget'?{policy:{enabled:false,warning_cny:15,hard_limit_cny:20,cost_multiplier:1},budget:{spent_cny:0,reserved_cny:2},opening_required:true,unresolved:[]}:action==='vision_requests'?{rows:[],total:0,summary:{}}:{ok:true};return {ok:true,json:async()=>data};};}});
+ await wait();adm.window.document.querySelector('[data-vision-tab="settings"]').click();await wait();const d=adm.window.document;
+ assert(d.querySelector('#aiBudgetOpening'));assert(d.querySelector('#aiBudgetSave'));assert.equal(d.querySelector('#aiBudgetLimit').max,'20');assert(d.querySelector('#aiVisionDailyLimit').closest('[hidden]'),'legacy count quota editor is hidden');
+ d.querySelector('#aiBudgetOpening').value='0.43';d.querySelector('#aiBudgetEnabled').checked=true;d.querySelector('#aiBudgetSave').click();await wait();const saved=adminCalls.find(c=>c.action==='ai_budget_save');assert.equal(saved.body.opening_cny,.43);assert.equal(saved.body.hard_limit_cny,20);assert.equal(saved.body.enabled,true);assert.deepEqual(errors,[]);adm.window.close();
+ console.log('PASS: admin budget, opening-period cost input, hard-limit setting and retired count quota UI.');
+})().catch(e=>{console.error(e);process.exitCode=1});

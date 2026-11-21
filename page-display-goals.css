@@ -1,0 +1,49 @@
+/* Responsive goal dashboard: existing data, existing interaction, no extra cards or text. */
+#content #goalHeroV33{display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:"title" "chips" "total";gap:11px;align-items:start;min-width:0;padding:16px 18px}
+#content #goalHeroV33.gh-has-side{grid-template-areas:"title" "chips" "total" "side"}
+#content #goalHeroV33 .gh-main-v33{display:contents}
+#content #goalHeroV33 .gh-title-row{grid-area:title;margin:0;min-width:0}
+#content #goalHeroV33 .gh-title{font-size:calc(15px * var(--ui-scale,1));font-weight:650}
+#content #goalHeroV33 .gh-chips{grid-area:chips;min-width:0;display:flex;align-items:stretch;gap:8px;margin:0;padding:0 0 2px}
+#content #goalHeroV33 .gh-chip{flex:0 0 clamp(126px,42vw,166px);min-width:0;max-width:100%;display:flex;flex-direction:column;gap:3px;padding:10px 11px;box-sizing:border-box;border-radius:12px;text-align:left}
+#content #goalHeroV33 .gh-chip small{font-size:calc(12px * var(--ui-scale,1));line-height:1.4;white-space:normal;overflow-wrap:anywhere}
+#content #goalHeroV33 .gh-chip b{font-size:calc(20px * var(--ui-scale,1));font-weight:650;line-height:1.25;letter-spacing:-.025em;overflow-wrap:anywhere}
+#content #goalHeroV33 .gh-chip .gh-raw-v33{font-size:calc(11px * var(--ui-scale,1));line-height:1.35}
+#content #goalHeroV33 .gh-chip em{font-size:calc(12px * var(--ui-scale,1));line-height:1.45;white-space:normal;overflow-wrap:anywhere;margin-top:auto;padding-top:3px}
+#content #goalHeroV33 .gh-total{grid-area:total;display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-areas:"label gap" "metrics metrics";gap:9px 8px;align-items:baseline;align-self:start;margin:0;padding:12px;border:1px solid var(--line);background:var(--panel-solid);border-radius:13px;min-width:0;text-align:left}
+#content #goalHeroV33 .gh-summary-head{grid-area:label;min-width:0;margin:0;font-size:var(--ui-caption,12px);font-weight:600;line-height:1.4}
+#content #goalHeroV33 .gh-summary-head small{font-size:inherit}
+#content #goalHeroV33 .gh-total>b{grid-area:gap;justify-self:end;text-align:right;font-size:calc(16px * var(--ui-scale,1));font-weight:650;line-height:1.4;margin:0;white-space:normal;overflow-wrap:anywhere;letter-spacing:-.015em}
+#content #goalHeroV33 .gh-summary-grid{grid-area:metrics;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;padding-top:9px;border-top:1px solid var(--line);min-width:0}
+#content #goalHeroV33 .gh-summary-item{background:transparent;border:0;border-radius:0;padding:0 10px 0 0;min-width:0}
+#content #goalHeroV33 .gh-summary-item+.gh-summary-item{border-left:1px solid var(--line);padding:0 0 0 10px}
+#content #goalHeroV33 .gh-summary-label,#content #goalHeroV33 .gh-summary-raw{font-size:calc(12px * var(--ui-scale,1));line-height:1.4;overflow-wrap:anywhere}
+#content #goalHeroV33 .gh-summary-value{font-size:calc(21px * var(--ui-scale,1));font-weight:650;line-height:1.3;margin:2px 0;overflow-wrap:anywhere;letter-spacing:-.02em}
+#content #goalHeroV33 .gh-side{grid-area:side;display:flex;flex-direction:row;gap:8px;width:100%;min-width:0;justify-content:stretch;align-items:stretch;align-self:start}
+#content #goalHeroV33 .gh-side>*{flex:1 1 0;min-width:0;border-radius:12px;padding:9px 11px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;text-align:left}
+#content #goalHeroV33 .gh-cd{background:var(--accent-soft);color:var(--accent);border:1px solid var(--line)}
+#content #goalHeroV33 .gh-cd.expired{color:var(--warn,#b97f24);background:var(--panel-solid)}
+#content #goalHeroV33 .gh-cd small{font-size:calc(12px * var(--ui-scale,1));line-height:1.4;color:var(--muted);opacity:1;overflow-wrap:anywhere}
+#content #goalHeroV33 .gh-cd b{font-size:calc(21px * var(--ui-scale,1));line-height:1.3;font-weight:650;margin-top:2px;overflow-wrap:anywhere}
+#content #goalHeroV33 .gh-school{font-size:calc(12px * var(--ui-scale,1));line-height:1.4;overflow-wrap:anywhere}
+#content #goalHeroV33 .gh-school b{font-size:calc(14px * var(--ui-scale,1));font-weight:650;line-height:1.4;overflow-wrap:anywhere}
+@media(max-width:639px){#content #goalHeroV33{padding:13px 14px;gap:9px}#content #goalHeroV33 .gh-chip{padding:9px 10px}#content #goalHeroV33 .gh-title-row{gap:6px}#content #goalHeroV33 .gh-hint{font-size:calc(10px * var(--ui-scale,1));text-align:right}}
+@media(min-width:640px){
+ #content #goalHeroV33 .gh-chips{flex-wrap:wrap;overflow:visible;touch-action:auto;overscroll-behavior-x:auto;cursor:default;padding:0;--pd-goal-basis:calc((100% - 16px)/3)}
+ #content #goalHeroV33 .gh-chip{flex:1 1 var(--pd-goal-basis);max-width:none}
+ #content #goalHeroV33 .gh-chips:has(.gh-chip:nth-child(4)):not(:has(.gh-chip:nth-child(5))){--pd-goal-basis:calc((100% - 8px)/2)}
+}
+@media(min-width:720px){
+ #content #goalHeroV33.gh-has-side{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);grid-template-areas:"title title" "chips chips" "total side";gap:10px}
+ #content #goalHeroV33.gh-has-side .gh-side{align-self:stretch}
+}
+@media(min-width:900px){
+ #content #goalHeroV33.gh-has-side:has(.gh-chip:nth-child(4)):not(:has(.gh-chip:nth-child(7))){grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);grid-template-areas:"title title" "chips total" "chips side";grid-template-rows:auto auto 1fr;gap:10px 12px}
+ #content #goalHeroV33.gh-has-side:has(.gh-chip:nth-child(4)):not(:has(.gh-chip:nth-child(7))) .gh-chips{align-self:start}
+ #content #goalHeroV33.gh-has-side:has(.gh-chip:nth-child(4)):not(:has(.gh-chip:nth-child(7))) .gh-side{align-self:start}
+ #content #goalHeroV33 .gh-chips:has(.gh-chip:nth-child(7)):not(:has(.gh-chip:nth-child(9))){--pd-goal-basis:calc((100% - 24px)/4)}
+ #content #goalHeroV33 .gh-chips:has(.gh-chip:nth-child(9)){--pd-goal-basis:calc((100% - 32px)/5)}
+ #content #goalHeroV33:not(.gh-has-side) .gh-chips:has(.gh-chip:nth-child(4)):not(:has(.gh-chip:nth-child(5))){--pd-goal-basis:calc((100% - 24px)/4)}
+ #content #goalHeroV33:not(.gh-has-side) .gh-chips:has(.gh-chip:nth-child(5)):not(:has(.gh-chip:nth-child(6))){--pd-goal-basis:calc((100% - 32px)/5)}
+ #content #goalHeroV33:not(.gh-has-side) .gh-chips:has(.gh-chip:nth-child(6)):not(:has(.gh-chip:nth-child(7))){--pd-goal-basis:calc((100% - 40px)/6)}
+}

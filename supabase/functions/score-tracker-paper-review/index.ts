@@ -1,0 +1,3 @@
+// Production release 10.0 deliberately does not expose paper recognition.
+const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type','Content-Type':'application/json'};
+Deno.serve(async(req:Request)=>{if(req.method==='OPTIONS')return new Response('ok',{headers:cors});if(req.method!=='POST')return new Response(JSON.stringify({error:'Method not allowed'}),{status:405,headers:cors});const b=await req.json().catch(()=>({}));if(b?.action==='release_capabilities')return new Response(JSON.stringify({paper_entry:false,analysis:false,production_disabled:true}),{headers:cors});return new Response(JSON.stringify({error:'试卷识别与分析暂未开放',code:'paper_not_released'}),{status:403,headers:cors});});

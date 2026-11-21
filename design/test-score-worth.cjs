@@ -69,9 +69,9 @@ async function run() {
     const weak = [exam(0, 90, 80), exam(1, 80, 60), exam(2, 70, 40), exam(3, 60, 20)]; const r = c(weak, '物理', 3);
     assert.equal(r.quality, 'limited'); assert.equal(r.model.b, 0); assert(r.warnings.some(x => x.includes('关系较弱')));
   });
-  check('history includes all groups, while explicit exam references retain their existing group limits', () => {
+  check('history and explicit exam references use all groups', () => {
     const a = [exam(0), exam(1), exam(2), exam(3), exam(4), exam(5)]; for (let i = 3; i < 6; i++) a[i].scores.物理.participants = 500;
-    assert.equal(c(a, '物理', 5).modelN, 6); assert.equal(c(a, '物理', 5).references.length, 6); assert.equal(c(a, '物理', 5, { mode: 'exam', exam: 0 }).kind, 'empty');
+    assert.equal(c(a, '物理', 5).modelN, 6); assert.equal(c(a, '物理', 5).references.length, 6); assert.equal(c(a, '物理', 5, { mode: 'exam', exam: 0 }).kind, 'estimate');
     a[2].grade_level = '高一'; assert.equal(c(a, '物理', 0).kind, 'estimate');
   });
   check('invalid input is not clamped, total rank is not used as a subject rank; missing population can fall back', () => {

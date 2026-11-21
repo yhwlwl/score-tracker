@@ -55,5 +55,6 @@
   "exam-reflection.js",
   "exam-detail.js",
   "supabase/functions/_shared/backup-format.js",
-  "backup-import.js"
+  "backup-import.js",
+  "account-growth.js"
 ]
