@@ -90,9 +90,7 @@
   function html(f) {
     var s = selection(f), r = result(f, s), cur = r.current;
     var p = M.context(f.exams, s.subject).byIndex[s.index], candidates = p ? p.group.points.map(function (o) { return o.index; }) : [s.index];
-    var reference = '<div class="worth-ref-modes" role="group" aria-label="选择参照难度">' + [ ['history', '历史平均'], ['period', '一段时间'], ['exam', '某次考试'] ].map(function (pair) {
-      return '<button type="button" class="chip' + (s.mode === pair[0] ? ' active' : '') + '" data-worth-mode="' + pair[0] + '" aria-pressed="' + (s.mode === pair[0]) + '">' + pair[1] + '</button>';
-    }).join('') + '</div>';
+    var reference = '<select class="compact-select-v60" data-worth-control="mode" aria-label="参照难度">'+[['history','历史平均'],['period','一段时间'],['exam','某次考试']].map(function(o){return '<option value="'+o[0]+'"'+(s.mode===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>';
     if (s.mode === 'period') reference += '<div class="worth-controls worth-dates"><label>开始日期<input type="date" value="' + esc(s.start || '') + '" data-worth-control="start"></label><label>结束日期<input type="date" value="' + esc(s.end || '') + '" data-worth-control="end"></label></div>';
     if (s.mode === 'exam') reference += '<label class="worth-ref-exam">参照考试<select data-worth-control="reference">' + examOptions(f.exams, s.refIndex, candidates) + '</select></label>';
     var body = '';
@@ -124,7 +122,7 @@
       }
       body += '<p class="worth-note">个人发挥、赋分和参考人群变化都可能影响估算，不能当作试卷的真实难度或正式等值分。</p></details>';
     }
-    return '<section class="card worth-card" id="scoreWorthCard" aria-labelledby="scoreWorthTitle" data-worth-result="' + r.kind + '" data-worth-quality="' + (r.quality || 'missing') + '"><div class="card-title-row"><h3 class="card-title" id="scoreWorthTitle">成绩含金量</h3></div><div class="worth-controls"><label>科目<select data-worth-control="subject">' + f.subjects.map(function (sub) { return '<option' + (sub === s.subject ? ' selected' : '') + '>' + esc(sub) + '</option>'; }).join('') + '</select></label><label>本次考试<select data-worth-control="exam">' + examOptions(f.exams, s.index) + '</select></label></div><div class="worth-reference-choice"><span>参照难度</span>' + reference + '</div>' + body + '<p class="worth-note worth-limit">估算仅供参考，实际成绩不会改变。</p></section>';
+    return '<section class="card worth-card" id="scoreWorthCard" aria-labelledby="scoreWorthTitle" data-worth-result="' + r.kind + '" data-worth-quality="' + (r.quality || 'missing') + '"><div class="card-title-row"><h3 class="card-title" id="scoreWorthTitle">成绩含金量</h3></div><div class="worth-controls"><label'+(f.subjects.length===1?' hidden':'')+'>科目<select data-worth-control="subject">' + f.subjects.map(function (sub) { return '<option' + (sub === s.subject ? ' selected' : '') + '>' + esc(sub) + '</option>'; }).join('') + '</select></label><label>本次考试<select data-worth-control="exam">' + examOptions(f.exams, s.index) + '</select></label></div><div class="worth-reference-choice"><span>参照难度</span>' + reference + '</div>' + body + '<p class="worth-note worth-limit">估算仅供参考，实际成绩不会改变。</p></section>';
   }
   function track(name, metadata) { try { if (window.__stTrack) window.__stTrack(name, metadata); } catch (_) {} }
   function report(f, source) { var s = selection(f), r = result(f, s); track('score_worth_view', { source: source, result: r.kind, reference_mode: s.mode, model_count: r.modelN || 0, reference_count: r.references.length, quality: r.quality || 'missing', version: 2 }); }
@@ -145,6 +143,7 @@
       var control = ev.target.closest('[data-worth-control]'); if (!control) return;
       var s = selection(f), type = control.dataset.worthControl;
       if (type === 'subject' && f.subjects.indexOf(control.value) >= 0) s.subject = control.value;
+      else if (type === 'mode' && ['history','period','exam'].includes(control.value)) {s.mode=control.value;track('score_worth_reference_mode',{mode:s.mode,version:2});}
       else if (type === 'exam' && f.exams[Number(control.value)]) s.exam = M.key(f.exams[Number(control.value)]);
       else if (type === 'reference' && f.exams[Number(control.value)]) s.refExam = M.key(f.exams[Number(control.value)]);
       else if (type === 'start' || type === 'end') s[type] = control.value;

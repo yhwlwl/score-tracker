@@ -46,12 +46,7 @@
         if (n.textContent.trim().length > 20) explain(n);
       });
       var head = page.querySelector('.page-head');
-      if (head && !page.dataset.foldV38) {
-        var controls = Array.from(page.children).filter(function(n) { return n.classList.contains('sv31-controls') || (!n.classList.contains('card') && n.querySelector('.combo-chips-v25')); });
-        fold(page, controls, 'analysis-filters', '分析筛选', head);
-        var current=Array.from(page.querySelectorAll('[data-sv31-combo].active,[data-sv31-scope].active,#sv31Mode .active')).map(function(n){return n.textContent.trim();}).filter(function(t){return t!=='全部';}).join(' · ');
-        var hint=document.createElement('span');hint.className='filter-summary-v38';hint.textContent=current||'筛选';head.insertBefore(hint,head.lastElementChild);
-      }
+      // Global scope is always visible, without a redundant accordion.
       page.querySelectorAll(':scope > .card').forEach(function (card) {
         var title = card.querySelector('.card-title-row,.dsb-head'); if (!title) return;
         var name = (title.querySelector('.card-title') || title.querySelector('span') || title).textContent.trim();
@@ -59,19 +54,26 @@
         fold(card, nodes, 'section:' + name, name, title);
       });
     }
-    // Other dense chip groups get the same small toggle as the home trend.
-    document.querySelectorAll('#content .combo-chips-v25,#content .chips,#content .dsb-controls').forEach(function(row) {
-      if (row.dataset.denseV38 || row.closest('.trend-controls-v36,.sv31-page > .fold-body-v38') || row.querySelectorAll('button').length < 6) return;
-      row.dataset.denseV38 = '1';
-      var host = document.createElement('div'); host.className = 'dense-v38'; row.before(host);
-      var title = document.createElement('div'); title.className = 'dense-head-v38';
-      var label = document.createElement('span'); label.textContent = '筛选'; title.appendChild(label); host.appendChild(title); host.appendChild(row);
-      var labels = Array.from(row.querySelectorAll('button')).map(function(b){return b.textContent.trim();}).join('|');
-      var key = 'chips:' + (row.id || row.className) + ':' + labels;
-      fold(host, [row], key, '筛选', title);
-      function selected() { label.textContent = Array.from(row.querySelectorAll('.active,.on,[aria-pressed="true"]')).map(function(b){return b.textContent.trim();}).join(' · ') || '筛选'; }
-      selected();
-    });
+    compactFiltersV60();
+  }
+  function compactChoiceV60(rows,selector,label,groups){
+    rows=rows.filter(Boolean);if(!rows.length||rows.some(function(r){return r.dataset.compactV60;}))return;
+    var entries=[];rows.forEach(function(r,i){Array.from(r.querySelectorAll(selector)).forEach(function(b){entries.push({button:b,group:groups?groups[i]:''});});});if(!entries.length)return;
+    var select=document.createElement('select');select.className='compact-select-v60';select.setAttribute('aria-label',label);
+    var current=entries.findIndex(function(x){return x.button.classList.contains('active')||x.button.getAttribute('aria-pressed')==='true';});
+    if(current<0){var empty=document.createElement('option');empty.value='';empty.disabled=true;empty.textContent=label;select.appendChild(empty);}
+    var gs={};entries.forEach(function(x,i){var o=document.createElement('option');o.value=String(i);o.textContent=x.button.textContent.trim();o.disabled=x.button.disabled;o.selected=i===current;var parent=select;if(x.group){if(!gs[x.group]){var g=document.createElement('optgroup');g.label=x.group;select.appendChild(g);gs[x.group]=g;}parent=gs[x.group];}parent.appendChild(o);});
+    if(current<0)select.value='';
+    select.addEventListener('change',function(){var x=entries[Number(select.value)];if(x&&!x.button.disabled)x.button.click();});
+    rows[0].before(select);rows.forEach(function(r){r.dataset.compactV60='1';r.hidden=true;});
+  }
+  function compactFiltersV60(){
+    var root=document.getElementById('content');if(!root)return;
+    root.querySelectorAll('.trend-controls-v36').forEach(function(n){var rows=Array.from(n.querySelectorAll(':scope > .combo-chips-v25,:scope > .chips')).filter(function(r){return r.querySelector('[data-subject]');});compactChoiceV60(rows,'button[data-subject]','科目或组合',['总览与组合','单科']);});
+    root.querySelectorAll('.grade-filter-v13').forEach(function(n){compactChoiceV60([n],'button[data-grade-filter-v13]',n.querySelector('.label')?.textContent||'考试分类');});
+    root.querySelectorAll('.radar-toolbar').forEach(function(n){var row=n.querySelector('.toggle-row');compactChoiceV60([row],'button[data-radar-mode],button[data-radar-scope-v16]','雷达图指标');var picked=n.querySelector('.radar-picked-v25');if(picked&&!picked.dataset.compactV60){var wrap=document.createElement('details');wrap.className='radar-picked-details-v60';var summary=document.createElement('summary');summary.textContent='已选考试 · '+picked.querySelectorAll('button').length+' 场';picked.before(wrap);wrap.append(summary,picked);picked.dataset.compactV60='1';}});
+    root.querySelectorAll('.st-peer-controls').forEach(function(n){compactChoiceV60([n.querySelector('[role="group"]')],'button[data-peer-metric]','轨迹比较指标');});
+    root.querySelectorAll('#dsbRoot [data-dsb-view],#dsbRoot [data-dsb-bin],#dsbRoot [data-dsb-zbins]').forEach(function(b){var r=b.parentElement;if(r&&Array.from(r.children).every(function(x){return x.matches('button[data-dsb-view],button[data-dsb-bin],button[data-dsb-zbins]');}))compactChoiceV60([r],'button','图表显示');});
   }
   function schedule() { if (pending) return; pending = true; requestAnimationFrame(function () { pending = false; enhance(); }); }
 
@@ -159,13 +161,13 @@
     if(!selected.size)return '';
     var api=window.__v32, chronological=exams.slice().sort(function(a,b){return -newest(a,b);});
     var f=api.applySubjectModule(api.buildFeatures(chronological));
-    var mode=(state.sv31||{}).mode||'rank';
-    var scopeLabel=(f.totalLabel||'总分')+' · '+(mode==='score'?'分数模式':'排名模式');
+    var mode='combined';
+    var scopeLabel=(f.totalLabel||'总分')+' · 综合分析';
     return '<div class="report-analysis"><h2>成绩分析</h2><p>'+esc(scopeLabel)+' · '+exams.length+' 次考试</p>'+sections.filter(function(s){return selected.has(s[0]);}).map(function(s){
-      var html=s[0]==='deep'?window.__v34.sectionHtml(chronological):s[0]==='worth'?window.__stScoreWorth.html(f):api[s[0]](f,mode);
+      var html=s[0]==='deep'?window.__v34.sectionHtml(chronological):s[0]==='worth'?window.__stScoreWorth.html(f):api[s[0]](f,s[0]==='kpi'||s[0]==='trend'||s[0]==='matrix'?mode:'rank');
       var box=document.createElement('div');box.innerHTML=html;
       // Keep chart labels and evidence; omit interactive controls in the printed report.
-      box.querySelectorAll('.worth-controls,.worth-reference-choice,.combo-chips-v25,.dsb-privacy-note,.dsb-note,.sv31-seg,.dsb-level-head small,input,select,.sv31-evi,.ev').forEach(function(n){n.remove();});
+      box.querySelectorAll('.worth-controls,.worth-reference-choice,.combo-chips-v25,.deep-filters-v60,.compact-matrix-v60,.dsb-privacy-note,.dsb-note,.sv31-seg,.dsb-level-head small,input,select,.sv31-evi,.ev').forEach(function(n){n.remove();});
       box.querySelectorAll('button,a').forEach(function(n){var span=document.createElement('span');span.innerHTML=n.innerHTML;n.replaceWith(span);});
       box.querySelectorAll('details').forEach(function(n){n.open=true;});
       box.querySelectorAll('.sv31-pane').forEach(function(n){n.style.display='block';});
@@ -195,6 +197,7 @@
   var reportStyles=':root{--text:#18212f;--muted:#667085;--accent:#5d72e8;--panel-solid:#fff;--line:#e8ebf0;--accent-soft:#eef1ff;--cell:#f6f7fa;--green:#32a77a;--danger:#d9534f;--chip-bg:#f4f6fa}body{margin:auto}.report-analysis h2{font-size:17px;break-after:avoid-page;page-break-after:avoid}.analysis-section-v38{margin:20px 0;border-top:1px solid #ddd;padding-top:12px}.report-analysis .card-title{font-size:15px}.report-analysis .card-sub,.report-analysis .dsb-fig-cap{font-size:10px;color:#667085}.report-analysis svg{max-width:100%;height:auto}.report-analysis table{table-layout:auto;font-size:9px}.report-analysis th,.report-analysis td{overflow-wrap:anywhere;padding:4px}.report-analysis .sv31-kpi,.report-analysis .dsb-summary-row{display:flex;flex-wrap:wrap;gap:12px}.report-analysis .sv31-stat,.report-analysis .dsb-summary-item{flex:1 1 28%;padding:10px;background:#f6f7fa}.report-analysis .v,.report-analysis .dsb-summary-value{font-size:20px;font-weight:700}.report-analysis details{margin:8px 0}.report-analysis .sv31-scroll,.report-analysis .dsb-scroll{overflow:visible}.report-analysis .sv31-heat{min-width:0!important;width:100%!important}.report-analysis .sv31-insight{display:flex;gap:9px;align-items:flex-start;border:1px solid #e6eaf1;border-left-width:3px;border-radius:10px;padding:8px 10px;background:#fff;margin:8px 0;break-inside:avoid;page-break-inside:avoid}.report-analysis .sv31-insight .ico{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;flex:none}.report-analysis .sv31-insight .ico svg{width:16px;height:16px;display:block;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.report-analysis .sv31-insight>div:last-child{min-width:0;flex:1}.report-analysis .sv31-insight b{font-size:12px}.report-analysis .sv31-insight p{margin:3px 0 0;font-size:10.5px;line-height:1.65;color:#667085}.report-analysis .i-mile{border-left-color:#32a77a}.report-analysis .i-mile .ico{background:#e9f8f2;color:#2f9d76}.report-analysis .i-up{border-left-color:#5d72e8}.report-analysis .i-up .ico{background:#eef1ff;color:#5d72e8}.report-analysis .i-warn{border-left-color:#e59b45}.report-analysis .i-warn .ico{background:#fdf3e4;color:#a06a1c}.report-analysis .i-risk{border-left-color:#d95c5c}.report-analysis .i-risk .ico{background:#fceeee;color:#c54d4d}.report-analysis .i-info{border-left-color:#8b9af0}.report-analysis .i-info .ico{background:#eef1ff;color:#5b6bd5}.report-analysis .chart-wrap,.report-analysis .mx-wrap,.report-analysis .rank-grid,.report-analysis .dsb-fig,.report-analysis .dsb-grid2,.report-analysis .dsb-summary-row,.exam-block{break-inside:avoid;page-break-inside:avoid}.report-analysis .dsb-fig-title{font-weight:700;margin:10px 0}.report-analysis .worth-result{padding:12px;background:#f6f7fa}.report-analysis .sv31-evbody,.report-analysis .sv31-evib{white-space:pre-line;font-size:10px}.report-analysis .sv31-evi{display:none}.rank-grid{break-inside:avoid;page-break-inside:avoid}.foot{margin-top:6px;padding-top:5px;font-size:8px;break-before:avoid-page;page-break-before:avoid}svg,tr{break-inside:avoid}';
   reportStyles += '.report-analysis .sv31-insight{flex-wrap:wrap;width:100%;box-sizing:border-box;min-height:0}.report-analysis .sv31-insight>div:nth-child(2){min-width:0;flex:1 1 calc(100% - 38px)}.report-analysis .sv31-insight .sv31-evbody{display:block;flex:0 0 100%;width:100%;box-sizing:border-box;min-width:0;margin:5px 0 0;padding:7px 0 0 37px;border-top:1px solid #edf0f4;white-space:pre-line;overflow-wrap:anywhere;word-break:normal;line-height:1.55;color:#667085;font-size:10px}';
   var css=document.createElement('style');css.textContent=[
+    "#content .compact-select-v60{box-sizing:border-box;min-width:0;max-width:100%;min-height:38px;padding:7px 22px 7px 10px;border:1px solid var(--line);border-radius:10px;background-color:var(--panel-solid);color:var(--text);font:inherit;font-size:var(--ui-small,13px);line-height:1.4;text-overflow:ellipsis;cursor:pointer}#content .compact-select-v60:focus-visible{outline:2px solid var(--accent);outline-offset:2px}#content [data-compact-v60][hidden],#content .worth-controls>label[hidden]{display:none!important}#content .compact-scope-v60{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 12px;padding:0;align-items:center}#content .compact-scope-v60 select{width:100%}#content .sv31-trend-card>.card-title-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}#content .sv31-trend-card>.card-title-row select{margin-left:auto;max-width:54%}#content .sv31-trend-card>.card-title-row .fold-toggle-v38{margin-left:0}#content .compact-matrix-v60{display:flex;justify-content:flex-end;margin:0 0 8px}#content .deep-filters-v60{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:8px 0}#content .deep-filters-v60 select{width:100%}#content .radar-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}#content .radar-toolbar>.compact-select-v60{flex:1 1 120px}#content .radar-toolbar .rank-view-v16{display:flex;gap:5px;align-items:center;margin:0;width:auto}#content .radar-toolbar .rank-view-v16 button{width:auto}#content .radar-toolbar .rank-view-v16 .label{display:none}#content .radar-toolbar .subtle-note,#content .radar-toolbar .rank-compat-v16{font-size:var(--ui-caption,12px);line-height:1.5;margin:5px 0}#content .radar-picked-details-v60{font-size:var(--ui-caption,12px);color:var(--muted)}#content .radar-picked-details-v60 summary{cursor:pointer;padding:4px 0}#content .radar-pick-v25{margin-top:0}#content .radar-pick-v25 button{padding:7px 10px}#content .st-peer-controls{gap:8px;flex-wrap:wrap}#content .st-peer-controls>.compact-select-v60{flex:1 1 120px}#content .st-peer-settings summary{font-size:var(--ui-caption,12px);line-height:1.4}#content .worth-reference-choice{display:flex;align-items:center;gap:7px;flex-wrap:wrap}#content .worth-reference-choice>select{flex:1;min-width:100px}#content .worth-controls{gap:8px}#content .worth-controls select{min-height:38px;padding:7px 10px;font-size:var(--ui-small,13px)}#content .worth-dates,#content .worth-ref-exam{flex:1 1 100%}#content .trend-controls-v36>.compact-select-v60{width:100%}#content .exam-record-controls-v1 select{min-height:38px;font-size:var(--ui-small,13px)}@media(min-width:850px){#content .compact-scope-v60{grid-template-columns:repeat(2,minmax(0,220px))}#content .trend-controls-v36{grid-template-columns:minmax(0,1fr) minmax(0,240px);align-items:start}#content .trend-controls-v36>.trend-options-v36{grid-column:1/-1}}@media(max-width:360px){#content .compact-select-v60{padding-left:8px;font-size:12px}#content .deep-filters-v60{gap:5px}}",
     '.fold-body-v38[hidden],[data-report-options][hidden],[data-exam-category][hidden]{display:none!important}',
     '.fold-toggle-v38{flex:none;width:32px;height:32px;border:1px solid var(--line,#e8ebf0);border-radius:10px;background:var(--panel-solid,#fff);color:var(--muted,#788392);padding:7px;cursor:pointer;margin-left:auto}.fold-toggle-v38 svg{width:16px;height:16px;display:block}.fold-toggle-v38[aria-expanded="true"] svg{transform:rotate(180deg)}.fold-toggle-v38:focus-visible{outline:2px solid var(--accent,#5d72e8);outline-offset:3px}',
     '.filter-summary-v38{font-size:11px;color:var(--muted,#788392);margin-left:auto}.sv31-page>.page-head{gap:10px}.sv31-page>.page-head>.fold-toggle-v38{margin-left:0}',

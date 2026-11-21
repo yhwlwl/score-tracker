@@ -1323,10 +1323,10 @@ var PAL2NS = (window.PAL = window.PAL || {});
   function track(ev, meta) { try { if (typeof window.__stTrack === "function") window.__stTrack(ev, meta || {}); } catch (e) { } }
 
   /* ---------- 数据适配(对齐 app-v32 字段口径) ---------- */
+  function deepCfg(){return typeof state!=='undefined'&&state.sv31||{};}
+  function syncDeepSubject(){var c=deepCfg();if(!S.localSubject)S.cur=c.subjModule?'__combo:'+c.subjModule:c.subjMod&&c.subjMod.length===1?c.subjMod[0]:'__total__';}
   function prodExams() {
-    try { if (typeof allExamsV32 === "function") return allExamsV32() || []; } catch (e) { }
-    try { var s = state; if (s && s.exams) return s.exams || []; } catch (e) { }
-    return [];
+    try{var a=Array.isArray(state.allExams)?state.allExams:state.exams||[],c=S.fullHistory?'__all__':deepCfg().scope;return c&&c!=='__all__'?a.filter(function(e){return c==='__none__'?!e.grade_level:e.grade_level===c;}):a;}catch(e){return [];}
   }
   function obsTotal(exams) {
     var out = [];
@@ -1395,7 +1395,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
   }
 
   /* ---------- 状态 ---------- */
-  var S = { cur: "__total__", goalPct: 20, distBin: 5, zmapBins: 20, view: "band" };
+  var S = { cur: "__total__", localSubject:false, fullHistory:false, goalPct: 20, distBin: 5, zmapBins: 20, view: "band" };
   var REP = null; /* 当前报告缓存,供交互处理器使用 */
 
   /* 生产冻结配置。区间先验取五折 user-level 校准中 no-SE 版本的
@@ -2094,7 +2094,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
 
   /* ---------- 整个板块的 HTML(单一根节点,便于事件绑定与自愈挂载) ---------- */
   function sectionHtml(examsOverride) {
-    var exams = examsOverride || prodExams();
+    syncDeepSubject();var exams = examsOverride || prodExams();
     var combo = curCombo();
     var obs = combo ? obsCombo(exams, combo)
       : (S.cur === '__total__' ? obsTotal(exams) : obsSubject(exams, S.cur));
@@ -2186,10 +2186,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
       '<sup style="font-size:9.5px;opacity:.55">Beta</sup>' +
       '</div>' +
       '<div class="dsb-privacy-note" role="note">为改进预测质量，本模块会使用经匿名化、去标识化处理的使用数据进行统计分析；不会记录密码等敏感内容。</div>' +
-      '<div style="margin:2px 0 10px">' +
-      (comboList().length ? '<div class="combo-chips-v25">' + comboChipsHtml(combo) + '</div>' : '') +
-      '<div class="combo-chips-v25"><span class="label">单科：</span>' + chips + '</div>' +
-      '</div>' +
+      '<div class="deep-filters-v60"><select class="compact-select-v60" data-deep-subject-v60 aria-label="深度分析对象"><option value="__inherit__"'+(!S.localSubject?' selected':'')+'>跟随全局 · '+esc(combo?combo.name:S.cur==='__total__'?'总分':S.cur)+'</option><optgroup label="独立分析">'+chipsOk.map(function(e){return '<option value="'+esc(e.key)+'"'+(S.localSubject&&S.cur===e.key?' selected':'')+'>'+esc(e.label)+' · '+e.n+' 场</option>';}).join('')+chipsPoor.map(function(e){return '<option value="'+esc(e.key)+'" disabled'+(S.localSubject&&S.cur===e.key?' selected':'')+'>'+esc(e.label)+' · '+e.n+' 场（不足4场）</option>';}).join('')+comboList().map(function(m){return '<option value="__combo:'+esc(String(m.id))+'"'+(S.localSubject&&S.cur==='__combo:'+String(m.id)?' selected':'')+'>'+esc(m.name)+'</option>';}).join('')+'</optgroup></select><select class="compact-select-v60" data-deep-history-v60 aria-label="深度分析历史范围"><option value="inherit"'+(!S.fullHistory?' selected':'')+'>跟随考试分类</option><option value="all"'+(S.fullHistory?' selected':'')+'>全部历史</option></select></div>' +
       caliberNote +
       body +
       '</div>';
@@ -2197,7 +2194,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
 
   /* ---------- 文档级事件委托(chips 与目标按钮在重渲染后依然可用) ---------- */
   function curReport() {
-    var exams = prodExams();
+    syncDeepSubject();var exams = prodExams();
     var cob = curCombo();
     var obs = cob ? obsCombo(exams, cob)
       : (S.cur === '__total__' ? obsTotal(exams) : obsSubject(exams, S.cur));
@@ -2228,14 +2225,14 @@ var PAL2NS = (window.PAL = window.PAL || {});
     }
     var chip = t.closest("[data-dsb-subj]");
     if (chip) {
-      S.cur = chip.getAttribute("data-dsb-subj");
+      S.localSubject=true;S.cur = chip.getAttribute("data-dsb-subj");
       refresh();
       track("deep_beta_switch", { subject: S.cur });
       return;
     }
     var coc = t.closest("[data-dsb-combo]");
     if (coc) {
-      var cid = coc.getAttribute("data-dsb-combo");
+      S.localSubject=true;var cid = coc.getAttribute("data-dsb-combo");
       if (cid === "__exit__") { S.cur = S.lastScope || "__total__"; }
       else {
         if (S.cur.indexOf("__combo:") !== 0) S.lastScope = S.cur;
@@ -2424,6 +2421,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
   function boot() {
     try { injectStyle(); } catch (e) { }
     document.addEventListener("click", onDocClick, false);
+    document.addEventListener('change',function(ev){var t=ev.target;if(t.matches('[data-deep-subject-v60]')){S.localSubject=t.value!=='__inherit__';if(S.localSubject)S.cur=t.value;else syncDeepSubject();refresh();}else if(t.matches('[data-deep-history-v60]')){S.fullHistory=t.value==='all';refresh();}},false);
     /* 目标输入实时联动分布图 */
     document.addEventListener("input", function (ev) {
       var t = ev.target;
@@ -2465,7 +2463,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
     sectionHtml: sectionHtml,
     refresh: refresh,
     mountIfMissing: mountIfMissing,
-    setSubject: function (s) { S.cur = s; },
+    setSubject: function (s) { S.localSubject=true;S.cur = s; },
     analysisOptions: {
       seWeighting: PROD_ANALYSIS_OPTS.seWeighting,
       ewmaForecastAlpha: PROD_ANALYSIS_OPTS.ewmaForecastAlpha,
