@@ -93,8 +93,8 @@
     if(!rankMetricV26(year,'年级',false)&&!rankMetricV26(cls,'班级',false))return '';
     return '<div class="record-rankgrid-v26">'+rankMetricV26(year,'年级',true)+rankMetricV26(cls,'班级',true)+'</div>';
   }
-  function subGridV26(raw,target){
-    return '<div class="record-subgrid-v26">'+metricV26('原始',presentV26(raw)?formatScore(raw):'—',null,!presentV26(raw))+metricV26('目标',presentV26(target)?formatScore(target):'—',null,!presentV26(target))+'</div>';
+  function subGridV26(raw,target,single){
+    return '<div class="record-subgrid-v26">'+(single?'':metricV26('原始',presentV26(raw)?formatScore(raw):'—',null,!presentV26(raw)))+metricV26('目标',presentV26(target)?formatScore(target):'—',null,!presentV26(target))+'</div>';
   }
   function scoreValueV26(value,max){
     return '<div class="sc-val-v26"><span>'+escapeHtml(presentV26(value)?formatScore(value):'—')+'</span>'+(presentV26(value)&&presentV26(max)&&Number(max)>0?'<small>/'+escapeHtml(formatScore(max))+'</small>':'')+'</div>';
@@ -106,11 +106,11 @@
     var year=rankInfoByScopeV16(exam,name,'year'),cls=rankInfoByScopeV16(exam,name,'class');
     var rank=rankPairV26(year,cls);
     if(eff===null&&raw===null&&t===null&&!rank)return '';
-    var rawShown=raw!==null&&(a===null||Number(raw)!==Number(a))?raw:null;
+    var single=finalOnlySubjectV62(name),rawShown=raw!==null&&(a===null||Number(raw)!==Number(a))?raw:null;
     return '<div class="score-cell-v26">'
       +'<div class="sc-name-v26" title="'+escapeHtml(name)+'">'+escapeHtml(name)+(row.excludeFromTotal?'<span class="stat-badge-v17">统计项</span>':'')+'</div>'
-      +scoreValueV26(eff,null)
-      +subGridV26(rawShown,t)
+      +scoreValueV26(eff,single?(a===null?(row.rawMax??row.max):row.max):null)
+      +subGridV26(rawShown,t,single)
       +rank
       +'</div>';
   }
@@ -128,14 +128,14 @@
     return '<div class="score-cell-v26 combo">'
       +'<div class="sc-name-v26" title="'+escapeHtml(m.name)+'">'+escapeHtml(m.name)+'</div>'
       +scoreValueV26(shown,fin!==null?max:null)
-      +subGridV26(rawShown,tgt)
+      +subGridV26(rawShown,tgt,finalOnlyGroupV62(m.subjects))
       +rank
       +'</div>';
   }
   function totalStripV26(exam){
     var fin=totalFor(exam,'actual');
     var raw=(typeof totalRawForV13==='function')?totalRawForV13(exam):null;
-    if(raw!==null&&fin!==null&&Math.abs(Number(fin)-Number(raw))<0.000001)raw=null;
+    if(finalOnlyExamV62(exam)||(raw!==null&&fin!==null&&Math.abs(Number(fin)-Number(raw))<0.000001))raw=null;
     var year=rankInfoByScopeV16(exam,'总分','year'),cls=rankInfoByScopeV16(exam,'总分','class');
     var city=typeof window.ScoreRecordCityRanksV33==='function'?window.ScoreRecordCityRanksV33(exam):{};
     var ranks=rankMetricV26(year,'年级',false)+rankMetricV26(cls,'班级',false)

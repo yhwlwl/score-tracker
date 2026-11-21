@@ -2983,7 +2983,7 @@ function categoryOptionsV14(){
   return [...new Set([...configured,...used])];
 }
 function categoryLabelV14(){ return String(state.classification?.label||'分类').trim() || '分类'; }
-function rawMaxV14(exam,subject){ const row=exam?.scores?.[subject]||{}; return num(row.rawMax) ?? num(row.max) ?? defaultMax(subject); }
+function rawMaxV14(exam,subject){ const row=exam?.scores?.[subject]||{}; return finalOnlySubjectV62(subject)&&num(row.raw)===null ? (num(row.max)??defaultMax(subject)) : (num(row.rawMax) ?? num(row.max) ?? defaultMax(subject)); }
 rawScoreRateV13=function rawScoreRateV14(exam,subject){ const score=examRawScoreV13(exam,subject),max=rawMaxV14(exam,subject); return score===null||!max?null:Math.max(0,Math.min(100,score/max*100)); };
 totalRawMaxV13=function totalRawMaxV14(exam){ const names=Object.keys(exam?.scores||{});let sum=0,count=0;names.forEach(subject=>{const value=examRawScoreV13(exam,subject);if(value!==null){sum+=rawMaxV14(exam,subject);count++;}});return count?sum:null; };
 
@@ -3267,9 +3267,19 @@ radarCardHtml = function radarCardHtmlV16(){
     <div class="radar-wrap" id="radarChart">${radarChartHtml(selected)}</div>${radarLegendHtml(selected)}${radarSummaryHtml(selected)}</div>`;
 };
 
+// Entry/display policy only; existing raw fields are retained for historical records.
+function finalOnlySubjectV62(name){return /^(语文|数学|英语|历史|物理)$/.test(String(name||'').trim());}
+function finalOnlyGroupV62(names){return Array.isArray(names)&&names.length>0&&names.every(finalOnlySubjectV62);}
+function finalOnlyExamV62(exam){return finalOnlyGroupV62(Object.keys(exam.scores||{}).filter(function(n){return !exam.scores[n].excludeFromTotal&&!((state.modulesV18||[]).some(function(m){return m.name===n;}));}));}
+function finalOnlyRowV62(row){
+  var next=Object.assign({},row);
+  if(num(next.actual)===null&&num(next.raw)!==null){next.actual=next.raw;next.max=next.rawMax??next.max;}
+  if(num(next.raw)===null)next.rawMax=next.max;
+  return next;
+}
 function seedRowsV16(exam){
   if(exam) return Object.entries(exam.scores||{}).map(function(entry){
-    var name=entry[0],row=entry[1]||{};
+    var name=entry[0],row=entry[1]||{};if(finalOnlySubjectV62(name))row=finalOnlyRowV62(row);
     return {name:name,target:row.target??'',raw:row.raw??'',actual:row.actual??'',rawMax:row.rawMax??row.max??defaultMax(name),max:row.max??defaultMax(name),rank:row.rank??'',participants:row.participants??'',classRank:row.classRank??'',classParticipants:row.classParticipants??''};
   });
   var source=state.exams&&state.exams.length?state.exams[state.exams.length-1]:((state.unfilteredVisibleExamsV13||[]).length?state.unfilteredVisibleExamsV13[state.unfilteredVisibleExamsV13.length-1]:null);
@@ -3293,7 +3303,7 @@ openExam = function openExamV16(exam=null){
   modal.className='modal-backdrop';
   modal.innerHTML=`<div class="modal"><div class="modal-head"><h3>${editing?'编辑考试':'记录一次考试'}</h3><button class="close-btn">×</button></div><div class="modal-body"><div class="form-grid"><div class="field"><label>考试名称</label><input id="examName" maxlength="60" value="${escapeHtml(exam?.name||'')}" placeholder="例如：期中考试"></div><div class="field"><label>考试日期</label><input id="examDate" type="date" value="${exam?.exam_date||today}"></div><div class="field"><label>${escapeHtml(categoryLabelV14())}</label><select id="gradeLevelV14" class="grade-select-v13"><option value="">未分类</option>${options.map(function(v){return `<option value="${escapeHtml(v)}" ${selected===v?'selected':''}>${escapeHtml(v)}</option>`;}).join('')}</select></div></div>
   <div class="section-head-v7"><div><h4>本次考试科目</h4><p>科目可自由增减；原始分和最终分可以使用不同满分。</p></div></div><div class="exam-subjects-v10" id="examSubjectsV16"></div><div class="exam-subject-toolbar-v10"><button class="secondary" id="addExamSubjectV16">＋ 添加科目 / 模块</button></div>
-  <div class="score-total-preview-v13"><div class="score-total-box-v13"><span>原始总分</span><b id="rawTotalV16">—</b></div><div class="score-total-box-v13"><span>赋分 / 最终总分</span><b id="finalTotalV16">—</b></div></div>
+  <div class="score-total-preview-v13"><div class="score-total-box-v13"><span>原始总分</span><b id="rawTotalV16">—</b></div><div class="score-total-box-v13"><span>最终总分</span><b id="finalTotalV16">—</b></div></div>
   <div class="section-head-v7"><div><h4>排名（可选）</h4><p>旧版“名次”已统一视为年排；班排是新增字段，不会改动已有数据。</p></div></div><div class="total-ranks-v16"><div class="rank-scope-card-v16"><b>年级排名</b><div class="rank-pair-v16"><div><label>名次</label><input id="totalRankV16" inputmode="numeric" pattern="[0-9]*" value="${exam?.total_rank??''}" placeholder="如 36"></div><div><label>年级人数</label><input id="totalParticipantsV16" inputmode="numeric" pattern="[0-9]*" value="${exam?.total_participants??''}" placeholder="如 620"></div></div></div><div class="rank-scope-card-v16"><b>班级排名</b><div class="rank-pair-v16"><div><label>名次</label><input id="totalClassRankV16" inputmode="numeric" pattern="[0-9]*" value="${exam?.total_class_rank??''}" placeholder="如 8"></div><div><label>班级人数</label><input id="totalClassParticipantsV16" inputmode="numeric" pattern="[0-9]*" value="${exam?.total_class_participants??''}" placeholder="如 45"></div></div></div></div>
   <div class="rank-compat-v16">各科的年级/班级人数可以留空，分别自动沿用上面的总年级人数 / 总班级人数。</div>
   <div class="visibility-box-v10"><div><b>图表显示</b><span>${exam?.is_hidden?'已隐藏，不参与图表。':'正常参与图表。'}</span></div><button class="secondary" id="toggleHiddenV16">${exam?.is_hidden?'恢复显示':'隐藏'}</button><input type="hidden" id="examHiddenV16" value="${exam?.is_hidden?'1':'0'}"></div>${editing?'<div class="modal-danger-row-v10"><button class="delete-exam-v10" id="deleteExamV16">删除这次考试</button></div>':''}<div class="modal-actions"><button class="secondary cancel-btn">取消</button><button class="primary save-btn">${editing?'保存修改':'保存考试'}</button></div></div></div>`;
@@ -3315,7 +3325,7 @@ openExam = function openExamV16(exam=null){
     rows.splice(0,rows.length,...next);
   }
   function totals(){sync();document.getElementById('rawTotalV16').textContent=formatScore(rawTotalFromRowsV13(rows));document.getElementById('finalTotalV16').textContent=formatScore(finalTotalFromRowsV13(rows));}
-  function card(row){return `<div class="exam-subject-card-v10"><div class="exam-subject-head-v10"><input class="exam-subject-name-v10" maxlength="40" value="${escapeHtml(row.name||'')}" placeholder="科目 / 模块"><button class="remove-exam-subject-v10" type="button">×</button></div><div class="score-compact-v14"><div class="mini-field-v10 target-box-v14"><label>目标</label><input class="target-v16" inputmode="decimal" value="${row.target??''}" placeholder="可留空"></div><div class="mini-field-v10 final-box-v14"><label>最终分（赋分后）<span class="score-entry-tip-v16">无赋分也填这里</span></label><div class="score-with-max-v14"><input class="actual-v16" inputmode="decimal" value="${row.actual??''}" placeholder="得分"><span>/</span><input class="max-v16" inputmode="decimal" value="${row.max??100}" placeholder="满分"></div></div><div class="mini-field-v10 raw-box-v14"><label>原始分</label><div class="score-with-max-v14"><input class="raw-v16" inputmode="decimal" value="${row.raw??''}" placeholder="得分"><span>/</span><input class="rawmax-v16" inputmode="decimal" value="${row.rawMax??row.max??100}" placeholder="满分"></div></div></div><div class="subject-ranks-v16"><div class="subject-rank-row-v16"><span>年排</span><input class="year-rank-v16" inputmode="numeric" pattern="[0-9]*" value="${row.rank??''}" placeholder="名次"><input class="year-participants-v16" inputmode="numeric" pattern="[0-9]*" value="${row.participants??''}" placeholder="年级人数"></div><div class="subject-rank-row-v16"><span>班排</span><input class="class-rank-v16" inputmode="numeric" pattern="[0-9]*" value="${row.classRank??''}" placeholder="名次"><input class="class-participants-v16" inputmode="numeric" pattern="[0-9]*" value="${row.classParticipants??''}" placeholder="班级人数"></div></div></div>`;}
+  function card(row){return `<div class="exam-subject-card-v10" data-final-only-v62="${finalOnlySubjectV62(row.name)?'1':'0'}"><div class="exam-subject-head-v10"><input class="exam-subject-name-v10" maxlength="40" value="${escapeHtml(row.name||'')}" placeholder="科目 / 模块"><button class="remove-exam-subject-v10" type="button">×</button></div><div class="score-compact-v14"><div class="mini-field-v10 target-box-v14"><label>目标</label><input class="target-v16" inputmode="decimal" value="${row.target??''}" placeholder="可留空"></div><div class="mini-field-v10 final-box-v14"><label>最终分<span class="graded-label-v62">（赋分后）</span><span class="score-entry-tip-v16">无赋分也填这里</span></label><div class="score-with-max-v14"><input class="actual-v16" inputmode="decimal" value="${row.actual??''}" placeholder="得分"><span>/</span><input class="max-v16" inputmode="decimal" value="${row.max??100}" placeholder="满分"></div></div><div class="mini-field-v10 raw-box-v14"><label>原始分</label><div class="score-with-max-v14"><input class="raw-v16" inputmode="decimal" value="${row.raw??''}" placeholder="得分"><span>/</span><input class="rawmax-v16" inputmode="decimal" value="${row.rawMax??row.max??100}" placeholder="满分"></div></div></div><div class="subject-ranks-v16"><div class="subject-rank-row-v16"><span>年排</span><input class="year-rank-v16" inputmode="numeric" pattern="[0-9]*" value="${row.rank??''}" placeholder="名次"><input class="year-participants-v16" inputmode="numeric" pattern="[0-9]*" value="${row.participants??''}" placeholder="年级人数"></div><div class="subject-rank-row-v16"><span>班排</span><input class="class-rank-v16" inputmode="numeric" pattern="[0-9]*" value="${row.classRank??''}" placeholder="名次"><input class="class-participants-v16" inputmode="numeric" pattern="[0-9]*" value="${row.classParticipants??''}" placeholder="班级人数"></div></div></div>`;}
   function renderRows(){
     list.innerHTML=rows.map(card).join('');
     $$('.remove-exam-subject-v10',list).forEach(function(button,index){button.onclick=function(){sync();rows.splice(index,1);renderRows();totals();};});
@@ -4214,13 +4224,26 @@ function decorateExamV21(exam,modal){
     var comboList=document.createElement('div');comboList.className='combo-list-v21';comboList.id='comboListV21';totalCard.insertAdjacentElement('afterend',comboList);
     var comboPicker=document.createElement('div');comboPicker.className='combo-picker-v21';comboPicker.innerHTML='<select id="comboPickerV21"><option value="">＋ 添加组合</option>'+ (state.modulesV18||[]).map(function(m){return `<option value="${escapeHtml(m.id)}">${escapeHtml(m.name)}</option>`}).join('') +'</select><span class="template-note-v10">组合内容在账号设置里维护。</span>';comboList.insertAdjacentElement('afterend',comboPicker);
     modal._moduleIdsV21=[...(exam?.moduleIds||[])].map(String).filter(function(id){return moduleIdSetV21().has(id)});
-    function renderCombos(){comboList.innerHTML=modal._moduleIdsV21.map(function(id){var m=(state.modulesV18||[]).find(function(x){return String(x.id)===String(id)});if(!m)return'';return `<div class="combo-card-v21" data-combo-id="${escapeHtml(id)}"><div class="combo-head-v21"><div><b>${escapeHtml(m.name)}</b><span>${(m.subjects||[]).map(escapeHtml).join(' + ')}</span></div><button type="button" class="combo-remove-v21">移除</button></div><div class="combo-score-v21"><span>最终分 <b data-combo-final>—</b></span><span>原始分 <b data-combo-raw>—</b></span></div></div>`;}).join('');comboList.querySelectorAll('.combo-remove-v21').forEach(function(btn){btn.onclick=function(){var id=this.closest('[data-combo-id]').dataset.comboId;modal._moduleIdsV21=modal._moduleIdsV21.filter(function(x){return x!==id});renderCombos();};});updateComboScores();}
-    function currentValue(name,klass){var card=[...modal.querySelectorAll('.exam-subject-card-v10')].find(function(c){return cardNameV21(c)===name});if(!card)return null;return num(card.querySelector(klass)?.value);}
+    function renderCombos(){comboList.innerHTML=modal._moduleIdsV21.map(function(id){var m=(state.modulesV18||[]).find(function(x){return String(x.id)===String(id)});if(!m)return'';return `<div class="combo-card-v21" data-final-only-v62="${finalOnlyGroupV62(m.subjects)?'1':'0'}" data-combo-id="${escapeHtml(id)}"><div class="combo-head-v21"><div><b>${escapeHtml(m.name)}</b><span>${(m.subjects||[]).map(escapeHtml).join(' + ')}</span></div><button type="button" class="combo-remove-v21">移除</button></div><div class="combo-score-v21"><span>最终分 <b data-combo-final>—</b></span><span>原始分 <b data-combo-raw>—</b></span></div></div>`;}).join('');comboList.querySelectorAll('.combo-remove-v21').forEach(function(btn){btn.onclick=function(){var id=this.closest('[data-combo-id]').dataset.comboId;modal._moduleIdsV21=modal._moduleIdsV21.filter(function(x){return x!==id});renderCombos();};});updateComboScores();}
+    function currentValue(name,klass){var card=[...modal.querySelectorAll('.exam-subject-card-v10')].find(function(c){return cardNameV21(c)===name});if(!card)return null;if(klass==='.raw-v16'&&finalOnlySubjectV62(name))return num(card.querySelector('.actual-v16')?.value);return num(card.querySelector(klass)?.value);}
     function comboSum(m,klass){var sum=0;for(var s of m.subjects||[]){var v=currentValue(s,klass);if(v===null)return null;sum+=v;}return sum;}
     function updateComboScores(){comboList.querySelectorAll('[data-combo-id]').forEach(function(card){var m=(state.modulesV18||[]).find(function(x){return String(x.id)===card.dataset.comboId});if(!m)return;var final=comboSum(m,'.actual-v16'),raw=comboSum(m,'.raw-v16');card.querySelector('[data-combo-final]').textContent=formatScore(final);card.querySelector('[data-combo-raw]').textContent=formatScore(raw);});}
     comboPicker.querySelector('select').onchange=function(){var id=this.value;if(!id)return;if(modal._moduleIdsV21.includes(id)){toast('这个组合已经添加了');this.value='';return;}modal._moduleIdsV21.push(id);renderCombos();this.value='';};modal.addEventListener('input',function(){setTimeout(updateComboScores,0)});renderCombos();
   }
-  decorateCards();var obs=new MutationObserver(function(){decorateCards();});obs.observe(list,{childList:true,subtree:true});
+  function syncSingleScores(event){
+    var cards=[...list.querySelectorAll('.exam-subject-card-v10')];
+    cards.forEach(function(card){
+      var single=finalOnlySubjectV62(cardNameV21(card));card.dataset.finalOnlyV62=single?'1':'0';if(!single)return;
+      var actual=card.querySelector('.actual-v16'),raw=card.querySelector('.raw-v16'),max=card.querySelector('.max-v16'),rawMax=card.querySelector('.rawmax-v16');
+      if(!actual||!raw||!max||!rawMax)return;
+      if(event&&event.target===actual&&actual.value===''){raw.value='';rawMax.value=max.value;}
+      if(raw.value==='')rawMax.value=max.value;
+    });
+    modal.dataset.finalOnlyV62=finalOnlyGroupV62(cards.map(cardNameV21))?'1':'0';
+  }
+  modal.addEventListener('input',syncSingleScores,true);
+  modal.addEventListener('change',syncSingleScores,true);
+  decorateCards();syncSingleScores();var obs=new MutationObserver(function(){if(!modal.isConnected){obs.disconnect();return;}decorateCards();syncSingleScores();});obs.observe(list,{childList:true,subtree:true});
 }
 
 var openExamBeforeV21=openExam;
@@ -4234,6 +4257,8 @@ saveExam=async function saveExamV21(id,modal){
   for(var card of modal.querySelectorAll('.exam-subject-card-v10')){var name=cardNameV21(card);if(!name)return toast('请选择科目');if(seen.has(name))return toast(`科目「${name}」重复了`);seen.add(name);var historical=!configured.has(name);exam.scores[name]={target:card.querySelector('.target-v16')?.value||'',raw:card.querySelector('.raw-v16')?.value||'',actual:card.querySelector('.actual-v16')?.value||'',rawMax:card.querySelector('.rawmax-v16')?.value||'',max:card.querySelector('.max-v16')?.value||'',rank:mode==='rank'?(card.querySelector('.year-rank-v16')?.value||''):'',participants:mode==='rank'?(card.querySelector('.year-participants-v16')?.value||''):'',classRank:mode==='rank'?(card.querySelector('.class-rank-v16')?.value||''):'',classParticipants:mode==='rank'?(card.querySelector('.class-participants-v16')?.value||''):'',yearPositionPercent:mode==='percent'?(card.querySelector('.year-position-v17')?.value||''):'',classPositionPercent:mode==='percent'?(card.querySelector('.class-position-v17')?.value||''):'',excludeFromTotal:historical?!!card.querySelector('.exclude-total-check-v17')?.checked:false};}
   if(!exam.name||!exam.exam_date)return toast('请填写考试名称和日期');var error=validateExam(exam);if(error)return toast(error);button.disabled=true;button.textContent='保存中…';try{await dataApiV7('save_exam',{exam:exam});await loadExams();modal.remove();state.modal=null;render();toast(id?'已保存修改':'考试已记录');}catch(e){toast(e.message);button.disabled=false;button.textContent=id?'保存修改':'保存考试';}
 };
+
+;(function(){var s=document.createElement('style');s.textContent='.exam-subject-card-v10[data-final-only-v62="1"] .score-compact-v14{grid-template-columns:minmax(0,1fr) minmax(0,1.65fr)}.exam-subject-card-v10[data-final-only-v62="1"] .target-box-v14{grid-column:auto}.exam-subject-card-v10[data-final-only-v62="1"] :is(.raw-box-v14,.graded-label-v62,.score-entry-tip-v16),.combo-card-v21[data-final-only-v62="1"] .combo-score-v21>span:has([data-combo-raw]),.modal-backdrop[data-final-only-v62="1"] :is(.score-total-box-v13:has(#rawTotalV16),.manual-total-field-v24:has(.total-raw-override-v24)){display:none!important}.modal-backdrop[data-final-only-v62="1"] :is(.score-total-preview-v13,.manual-total-grid-v24){grid-template-columns:minmax(0,1fr)}.modal-backdrop[data-final-only-v62="1"] .score-total-preview-v13 .score-total-box-v13{grid-column:1/-1}@media(max-width:380px){.exam-subject-card-v10[data-final-only-v62="1"] .score-compact-v14{grid-template-columns:minmax(0,1fr)}.exam-subject-card-v10[data-final-only-v62="1"] .target-box-v14{grid-column:1/-1}}';document.head.appendChild(s);})();
 
 /* ===== app-v22.js ===== */
 // v22 / product v1.1: keep raw-only fallback scientifically safe across different score scales.
@@ -4472,7 +4497,7 @@ saveExam=async function saveExamV21(id,modal){
       var rawMax=num(card.querySelector('.rawmax-v16')?.value)??finalMax;
       if(actual===null&&raw!==null&&finalMax!==null&&rawMax===finalMax)actual=raw;
       if(actual!==null){finalSum+=actual;finalCount++;}
-      var rawEffective=raw!==null?raw:actual;
+      var rawEffective=finalOnlySubjectV62(cardNameV21(card))?actual:(raw!==null?raw:actual);
       if(rawEffective!==null){rawSum+=rawEffective;rawCount++;}
     });
     return{final:finalCount?Math.round(finalSum*100)/100:null,raw:rawCount?Math.round(rawSum*100)/100:null};
@@ -4485,7 +4510,7 @@ saveExam=async function saveExamV21(id,modal){
     modal.dataset.v24Totals='1';
     var box=document.createElement('div');
     box.className='manual-total-v24';
-    box.innerHTML=`<div class="manual-total-title-v24"><b>总分计算</b><span>可选手动值</span></div><div class="manual-total-grid-v24"><div class="manual-total-field-v24"><label>最终 / 赋分总分</label><input class="total-actual-override-v24" inputmode="decimal" value="${exam?.total_actual_score??''}" placeholder="自动计算"></div><div class="manual-total-field-v24"><label>原始总分</label><input class="total-raw-override-v24" inputmode="decimal" value="${exam?.total_raw_score??''}" placeholder="自动计算"></div></div><div class="manual-total-note-v24">留空时按本次科目自动汇总；如当地规则需要加权，可直接填写学校给出的总分。<b>手动值会用于记录、趋势和首页最近成绩。</b></div>`;
+    box.innerHTML=`<div class="manual-total-title-v24"><b>总分计算</b><span>可选手动值</span></div><div class="manual-total-grid-v24"><div class="manual-total-field-v24"><label>最终总分</label><input class="total-actual-override-v24" inputmode="decimal" value="${exam?.total_actual_score??''}" placeholder="自动计算"></div><div class="manual-total-field-v24"><label>原始总分</label><input class="total-raw-override-v24" inputmode="decimal" value="${exam?.total_raw_score??''}" placeholder="自动计算"></div></div><div class="manual-total-note-v24">留空时按本次科目自动汇总；如当地规则需要加权，可直接填写学校给出的总分。<b>手动值会用于记录、趋势和首页最近成绩。</b></div>`;
     var head=totalCard.querySelector('.combo-head-v21');
     if(head)head.insertAdjacentElement('afterend',box);else totalCard.insertBefore(box,totalCard.firstChild);
     var finalInput=box.querySelector('.total-actual-override-v24'),rawInput=box.querySelector('.total-raw-override-v24');
@@ -5734,8 +5759,8 @@ saveExam=async function saveExamV21(id,modal){
     if(!rankMetricV26(year,'年级',false)&&!rankMetricV26(cls,'班级',false))return '';
     return '<div class="record-rankgrid-v26">'+rankMetricV26(year,'年级',true)+rankMetricV26(cls,'班级',true)+'</div>';
   }
-  function subGridV26(raw,target){
-    return '<div class="record-subgrid-v26">'+metricV26('原始',presentV26(raw)?formatScore(raw):'—',null,!presentV26(raw))+metricV26('目标',presentV26(target)?formatScore(target):'—',null,!presentV26(target))+'</div>';
+  function subGridV26(raw,target,single){
+    return '<div class="record-subgrid-v26">'+(single?'':metricV26('原始',presentV26(raw)?formatScore(raw):'—',null,!presentV26(raw)))+metricV26('目标',presentV26(target)?formatScore(target):'—',null,!presentV26(target))+'</div>';
   }
   function scoreValueV26(value,max){
     return '<div class="sc-val-v26"><span>'+escapeHtml(presentV26(value)?formatScore(value):'—')+'</span>'+(presentV26(value)&&presentV26(max)&&Number(max)>0?'<small>/'+escapeHtml(formatScore(max))+'</small>':'')+'</div>';
@@ -5747,11 +5772,11 @@ saveExam=async function saveExamV21(id,modal){
     var year=rankInfoByScopeV16(exam,name,'year'),cls=rankInfoByScopeV16(exam,name,'class');
     var rank=rankPairV26(year,cls);
     if(eff===null&&raw===null&&t===null&&!rank)return '';
-    var rawShown=raw!==null&&(a===null||Number(raw)!==Number(a))?raw:null;
+    var single=finalOnlySubjectV62(name),rawShown=raw!==null&&(a===null||Number(raw)!==Number(a))?raw:null;
     return '<div class="score-cell-v26">'
       +'<div class="sc-name-v26" title="'+escapeHtml(name)+'">'+escapeHtml(name)+(row.excludeFromTotal?'<span class="stat-badge-v17">统计项</span>':'')+'</div>'
-      +scoreValueV26(eff,null)
-      +subGridV26(rawShown,t)
+      +scoreValueV26(eff,single?(a===null?(row.rawMax??row.max):row.max):null)
+      +subGridV26(rawShown,t,single)
       +rank
       +'</div>';
   }
@@ -5769,14 +5794,14 @@ saveExam=async function saveExamV21(id,modal){
     return '<div class="score-cell-v26 combo">'
       +'<div class="sc-name-v26" title="'+escapeHtml(m.name)+'">'+escapeHtml(m.name)+'</div>'
       +scoreValueV26(shown,fin!==null?max:null)
-      +subGridV26(rawShown,tgt)
+      +subGridV26(rawShown,tgt,finalOnlyGroupV62(m.subjects))
       +rank
       +'</div>';
   }
   function totalStripV26(exam){
     var fin=totalFor(exam,'actual');
     var raw=(typeof totalRawForV13==='function')?totalRawForV13(exam):null;
-    if(raw!==null&&fin!==null&&Math.abs(Number(fin)-Number(raw))<0.000001)raw=null;
+    if(finalOnlyExamV62(exam)||(raw!==null&&fin!==null&&Math.abs(Number(fin)-Number(raw))<0.000001))raw=null;
     var year=rankInfoByScopeV16(exam,'总分','year'),cls=rankInfoByScopeV16(exam,'总分','class');
     var city=typeof window.ScoreRecordCityRanksV33==='function'?window.ScoreRecordCityRanksV33(exam):{};
     var ranks=rankMetricV26(year,'年级',false)+rankMetricV26(cls,'班级',false)
@@ -14829,6 +14854,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     var moduleNames = new Set((state.modulesV18 || []).map(function (m) { return m.name; }));
     var rows = Object.keys(exam.scores || {}).filter(function (name) { return !moduleNames.has(name); }).map(function (name) {
       var s = exam.scores[name], actual = number(examScore(exam, name, 'actual')), max = number(examMax(exam, name));
+      if(finalOnlySubjectV62(name)&&number(s.actual)===null&&number(s.raw)!==null)max=number(s.rawMax)||max;
       return { name: name, actual: actual, max: max, raw: number(s.raw), rawMax: number(s.rawMax) || max,
         fallback: number(s.actual) === null && actual !== null, target: number(s.target), excluded: !!s.excludeFromTotal,
         rate: actual !== null && actual >= 0 && max > 0 && actual <= max ? actual / max * 100 : null,
@@ -14959,11 +14985,11 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   }
   function scores(exam, m) {
     var hasAverages = false; // Reference cards replace the mean-only column.
-    return '<section class="ed-section" id="ed-scores" tabindex="-1"><div class="ed-section-head"><div><span class="ed-eyebrow">01 / 成绩</span><h2>各科得分与排名</h2><p>最终分与原始分分开展示，目标差按最终分计算。</p></div></div>' +
-      (m.rows.length ? '<div class="ed-table-wrap"><table class="ed-table"><thead><tr>' + ['科目','最终分 / 满分','原始分 / 满分','得分率','目标 / 差值','年级排名','班级排名'].concat(hasAverages ? ['平均分'] : []).map(function (s) { return '<th scope="col">' + s + '</th>'; }).join('') + '</tr></thead><tbody>' + m.rows.map(function (r) {
+    return '<section class="ed-section" id="ed-scores" tabindex="-1"><div class="ed-section-head"><div><span class="ed-eyebrow">01 / 成绩</span><h2>各科得分与排名</h2><p>目标差按最终分计算。</p></div></div>' +
+      (m.rows.length ? '<div class="ed-table-wrap"><table class="ed-table"><thead><tr>' + ['科目','最终分 / 满分','得分率','目标 / 差值','年级排名','班级排名'].concat(hasAverages ? ['平均分'] : []).map(function (s) { return '<th scope="col">' + s + '</th>'; }).join('') + '</tr></thead><tbody>' + m.rows.map(function (r) {
         return '<tr><th scope="row">' + esc(r.name) + (r.excluded ? '<small>统计项 · 不计总分</small>' : '') + '</th>' +
-          cell('最终分', '<b>' + fmt(r.actual) + '</b> / ' + fmt(r.max) + (r.fallback ? '<small>同满分原始分</small>' : '')) +
-          cell('原始分', r.raw === null ? '—' : fmt(r.raw) + ' / ' + fmt(r.rawMax)) + cell('得分率', r.rate === null ? '—' : fmt(r.rate) + '%') +
+          cell('最终分', '<b>' + fmt(r.actual) + '</b> / ' + fmt(r.max) + (r.fallback && !finalOnlySubjectV62(r.name) ? '<small>同满分原始分</small>' : '') + (!finalOnlySubjectV62(r.name)&&r.raw!==null?'<small>原始分 '+fmt(r.raw)+' / '+fmt(r.rawMax)+'</small>':'')) +
+          cell('得分率', r.rate === null ? '—' : fmt(r.rate) + '%') +
           cell('目标', r.target === null ? '未设置' : fmt(r.target) + (r.actual !== null ? '<small>' + (r.actual === r.target ? '已达标' : signed(r.actual - r.target) + ' 分') + '</small>' : '')) +
           cell('年级排名', rankCell(r.year)) + cell('班级排名', rankCell(r.class)) + (hasAverages ? cell('平均分', averageCell(exam, r)) : '') + '</tr>';
       }).join('') + '</tbody></table></div>' : '<p class="ed-empty">还没有科目数据，点击“编辑 / 补录”添加成绩。</p>') + combinations(exam, m) + referenceCards(exam,m) + '</section>';
