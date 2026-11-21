@@ -180,7 +180,11 @@ Deno.serve(async req => {
         return json({ok:true});
       }
       const {status,...page}=await announcementCommentPage(db,user,notice,isCurrent,body.before);
-      page.threads_enabled=notice.comments_public!==false;
+      if(!status&&notice.comments_public!==false){
+        const rows=[...(page.rows||[]),...(page.pinned||[])];
+        if(rows.length){const summary=await db.rpc('score_tracker_thread_root_summary',{p_roots:rows.map(r=>r.id),p_user:user.id});if(summary.error)throw summary.error;const byId=new Map((summary.data||[]).map(r=>[r.root_id,r]));for(const row of rows){const stats=byId.get(row.id);row.root_likes={count:Number(stats?.like_count)||0,liked:stats?.liked===true};row.reply_count=Number(stats?.reply_count)||0;}}
+        page.threads_enabled=true;
+      }
       return json(page,status||200);
     }
     if(action==='notice_check'&&req.method==='POST'){
