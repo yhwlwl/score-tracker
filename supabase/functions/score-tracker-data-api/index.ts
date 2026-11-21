@@ -419,7 +419,7 @@ async function cleanAverages(uid: string, exam: any, rows: any[]) {
       if ((typeof v !== "number" && typeof v !== "string") || !String(v).trim()) throw new Error("均分请输入有效数字");
       const n = score(v);
       if (n === null || Math.abs(Number(v) * 100 - Math.round(Number(v) * 100)) > 0.000001) throw new Error("均分请输入 0～99999，最多两位小数");
-      if (!(key === "total" && score(exam.total_actual_score) !== null) && n > max) throw new Error("均分不能超过对应科目的最终满分");
+      if (!(key === "total" && score(exam.total_actual_score) !== null) && n > max) throw new Error((scope.endsWith("Max") ? "最高分" : "均分") + "不能超过对应科目的最终满分");
       entry[scope] = n;
     }
     const personal = key === "total" && score(exam.total_actual_score) !== null ? score(exam.total_actual_score) : selected.length && selected.every((r) => r.actual_score !== null) ? selected.reduce((sum, r) => sum + r.actual_score, 0) : null;
@@ -779,6 +779,7 @@ Deno.serve(async (req: Request) => {
     const user = await auth(String(body.token ?? ""));
     if (!user) return out({ error: "登录已失效，请重新登录", code: "UNAUTHORIZED" }, 401);
     const action = String(body.action ?? "");
+    if (action === "reference_scores_capability") return out({ reference_scores_version: 1 });
     if (action === "get_exam_reflection" || action === "save_exam_reflection") {
       const result = await examReflection(db, user.id, body);
       return out(result.data, result.status);

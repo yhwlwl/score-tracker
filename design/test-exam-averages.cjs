@@ -26,6 +26,7 @@ async function backend(){
   const exam={name:'均分测试',exam_date:'2026-10-17',moduleIds:[mid],scores:{数学:{actual:110,max:150},历史:{actual:80,max:100}},averages:{total:{class:170.5,year:160},'s:数学':{class:100,year:0},['m:'+mid]:{class:168,year:158}}};
   let r=await request({action:'save_exam',exam,user_id:'other'});assert.equal(r.status,200);const id=(await r.json()).id,stored=tables.score_tracker_exams[0];
   assert.equal(stored.user_id,'owner');assert.equal(stored.averages['s:数学'].year,0);assert.equal(stored.averages.total.basis,'[["历史",100],["数学",150]]');
+  assert.equal((await (await request({action:'reference_scores_capability'})).json()).reference_scores_version,1);
   const highExam={...exam,id,reference_scores_version:1,averages:{...exam.averages,'s:数学':{class:100,year:0,classMax:140,yearMax:150}}};
   assert.equal((await request({action:'save_exam',exam:highExam})).status,200);assert.equal(stored.averages['s:数学'].yearMax,150);
   assert.equal((await request({action:'save_exam',exam:{...highExam,averages:{'s:数学':{yearMax:109}}}})).status,400);
@@ -46,10 +47,10 @@ async function ui(listed){
   const errors=[],calls=[],vc=new VirtualConsole();vc.on('jsdomError',e=>{if(!e.message.includes('CSS'))errors.push(e.message)});
   const dom=new JSDOM(read('index.html').replace(/<script[\s\S]*?<\/script>/g,''),{url:'https://fixture.test/',runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:vc}),w=dom.window,d=w.document;
   w.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){},addListener(){}});w.scrollTo=()=>{};w.setInterval=()=>1;
-  w.fetch=async(url,opts)=>{const body=JSON.parse(opts&&opts.body||'{}');calls.push(body);const data=body.action==='list_modules'?{modules}:['bootstrap','list_exams'].includes(body.action)?{user:{id:'owner',username:'owner'},subjects,modules,exams:[],participantDefaults:{},classification:{label:'年级',options:['高二']}}:{ok:true,id:'new',created:true};return new Response(JSON.stringify(data));};
+  w.fetch=async(url,opts)=>{const body=JSON.parse(opts&&opts.body||'{}');calls.push(body);const data=body.action==='reference_scores_capability'?{reference_scores_version:1}:body.action==='list_modules'?{modules}:['bootstrap','list_exams'].includes(body.action)?{user:{id:'owner',username:'owner'},subjects,modules,exams:[],participantDefaults:{},classification:{label:'年级',options:['高二']}}:{ok:true,id:'new',created:true};return new Response(JSON.stringify(data));};
   w.eval(read('app-bundle.js')+'\nwindow.state=state;');for(const f of ['app-v36.js','app-v37.js','app-v38.js'])w.eval(read(f));await tick();
   Object.assign(w.state,{user:{id:'owner',username:'owner'},token:'token',page:'home',subjectConfigs:subjects,modulesV18:modules,allExams:[],exams:[],subject:'数学',trendMetric:'score',scoreBasis:'final',scoreViewV25:'score'});w.applyExamSubjectsV10([],subjects);
-  w.openExam();await tick();let modal=w.state.modal;assert.equal(modal.querySelectorAll('.exam-averages').length,3);assert(modal.querySelector('details.exam-averages'));assert.equal(modal.querySelector('details.exam-averages').open,false);
+  w.openExam();await tick();let modal=w.state.modal;assert.equal(modal.querySelectorAll('.exam-averages').length,3);assert(modal.querySelector('details.exam-averages'));assert.equal(modal.querySelector('details.exam-averages').open,false);assert(modal.querySelector('details.exam-averages summary').textContent.includes('参考分数（选填：平均分，最高分）'));
   modal.querySelectorAll('.exam-subject-card-v10').forEach(card=>{assert.equal(card.querySelectorAll('.exam-averages input').length,4);assert(card.querySelector('.score-compact-v14').nextElementSibling.matches('.exam-averages'));});
   assert.equal(modal.querySelector('.combo-total-v21 .exam-averages').dataset.averageKey,'total');
   const mean=(key,scope)=>Array.from(modal.querySelectorAll('input[data-average-row]')).find(n=>n.dataset.averageRow===key&&n.dataset.averageScope===scope),input=(n,v)=>{n.value=v;n.dispatchEvent(new w.Event('input',{bubbles:true}));};

@@ -12577,6 +12577,8 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       exam.scores[name]={target:(card.querySelector('.target-v16')||{}).value||'',raw:(card.querySelector('.raw-v16')||{}).value||'',actual:(card.querySelector('.actual-v16')||{}).value||'',rawMax:(card.querySelector('.rawmax-v16')||{}).value||'',max:(card.querySelector('.max-v16')||{}).value||'',rank:mode==='rank'?((card.querySelector('.year-rank-v16')||{}).value||''):'',participants:mode==='rank'?((card.querySelector('.year-participants-v16')||{}).value||''):'',classRank:mode==='rank'?((card.querySelector('.class-rank-v16')||{}).value||''):'',classParticipants:mode==='rank'?((card.querySelector('.class-participants-v16')||{}).value||''):'',yearPositionPercent:mode==='percent'?((card.querySelector('.year-position-v17')||{}).value||''):'',classPositionPercent:mode==='percent'?((card.querySelector('.class-position-v17')||{}).value||''):'',excludeFromTotal:!!(card.querySelector('.exclude-total-check-v17')||{}).checked};
     });
     modal.querySelectorAll('.combo-card-v21').forEach(function(card){var id=card.dataset.comboId;if(!id)return;exam.moduleRanks[id]={yearRank:(card.querySelector('.combo-yr-v25')||{}).value||'',yearParticipants:(card.querySelector('.combo-yp-v25')||{}).value||'',classRank:(card.querySelector('.combo-cr-v25')||{}).value||'',classParticipants:(card.querySelector('.combo-cp-v25')||{}).value||''};});
+    exam.averages={};
+    modal.querySelectorAll('input[data-average-row]').forEach(function(input){if(input.value==='')return;var key=input.dataset.averageRow,scope=input.dataset.averageScope;var row=exam.averages[key]||(exam.averages[key]={});row[scope]=input.value;});
     return exam;
   }
   function readDraft61(){try{var d=JSON.parse(localStorage.getItem(draftKey61())||'null');return d&&d.exam?d:null;}catch(e){return null;}}
@@ -12588,7 +12590,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     if(actions){var clear=document.createElement('button');clear.type='button';clear.className='secondary text-danger draft-clear-v61';clear.textContent='一键清空';actions.insertBefore(clear,actions.firstChild);clear.onclick=function(){clearDraft61();modal.remove();if(state.modal===modal)state.modal=null;openExam(null);toast('未保存内容已清空');};}
     var note=document.createElement('div');note.className='draft-note-v61';note.textContent=restored?'已恢复上次未保存的内容；保存成功后草稿会自动删除。':'填写内容会自动留在本机；误关后再次打开即可继续。';
     var body=modal.querySelector('.modal-body');if(body)body.insertBefore(note,body.firstChild);
-    function schedule(){dirty=true;clearTimeout(timer);timer=setTimeout(function(){saveDraft61(modal);},220);}
+    function schedule(){dirty=true;clearTimeout(timer);timer=setTimeout(function(){if(modal.isConnected&&state.modal===modal)saveDraft61(modal);},220);}
     modal.addEventListener('input',schedule);modal.addEventListener('change',schedule);
     modal.addEventListener('click',function(e){if(dirty&&(e.target===modal||e.target.closest('.close-btn,.cancel-btn')))saveDraft61(modal);},true);
   }
@@ -12597,6 +12599,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   openExam=function openExamV61(exam){
     var draft=!exam?readDraft61():null,result=openExamBefore61(draft?draft.exam:exam),modal=state.modal;
     if(draft&&modal){
+      modal._restoredExamV61=draft.exam;
       var title=modal.querySelector('.modal-head h3');if(title)title.textContent='继续未保存的考试';
       modal.querySelectorAll('.delete-exam-v10,#deleteExamV16,#deleteExamModalV13').forEach(function(x){var row=x.closest('.modal-danger-row-v10');(row||x).remove();});
       var save=modal.querySelector('.save-btn');if(save)save.textContent='保存考试';
@@ -14505,14 +14508,15 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     if (!modal || !modal.querySelector('#examSubjectsV16') || modal._averageDraft) return result;
     modal._averagesForExam = String(exam && exam.id || '');
     modal._averageOwner = state.token;
-    modal._averageDraft = JSON.parse(JSON.stringify(exam && exam.averages || {}));
+    var sourceExam=exam||modal._restoredExamV61;
+    modal._averageDraft = JSON.parse(JSON.stringify(sourceExam && sourceExam.averages || {}));
     function decorate(card,key,name,anchor) {
       var block = card.querySelector('.exam-averages');
       if (block && block.dataset.averageKey === key) return;
       if (block) block.remove();
       block = document.createElement('details'); block.className = 'exam-averages'; block.dataset.averageKey = key;
       var summary=document.createElement('summary'),heading=document.createElement('span'),excerpt=document.createElement('small'),fields=document.createElement('div');
-      heading.textContent='参考成绩（选填）';summary.append(heading,excerpt);block.append(summary,fields);fields.className='reference-fields';
+      heading.textContent='参考分数（选填：平均分，最高分）';summary.append(heading,excerpt);block.append(summary,fields);fields.className='reference-fields';
       var labels={class:'班级均分',year:'年级均分',classMax:'班级最高分',yearMax:'年级最高分'};
       function updateSummary(){var draft=modal._averageDraft[key]||{};excerpt.textContent=['classMax','yearMax','class','year'].filter(function(s){return number(draft[s])!==null;}).map(function(s){return labels[s]+' '+draft[s];}).join(' · ');}
       updateSummary();
@@ -14562,6 +14566,15 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
         var row = averages[input.dataset.averageRow] || (averages[input.dataset.averageRow] = {}); row[input.dataset.averageScope] = n;
       });
       payload = Object.assign({},payload,{exam:Object.assign({},payload.exam,{averages:averages,reference_scores_version:1})});
+      // Older server versions silently discarded highest scores. Check capability before writing.
+      var hasHighest=Object.values(averages).some(function(r){return r.classMax!==undefined||r.yearMax!==undefined;});
+      if(hasHighest){
+        var self=this;
+        return Promise.resolve().then(function(){return apiBefore.call(self,'reference_scores_capability',{});}).catch(function(){throw new Error('最高分暂不能保存，请保留本次录入并稍后重试');}).then(function(cap){
+          if(!cap||cap.reference_scores_version!==1)throw new Error('最高分保存服务尚未更新，请保留本次录入');
+          return apiBefore.call(self,action,payload);
+        });
+      }
     }
     return apiBefore.call(this,action,payload);
   };

@@ -64,14 +64,15 @@
     if (!modal || !modal.querySelector('#examSubjectsV16') || modal._averageDraft) return result;
     modal._averagesForExam = String(exam && exam.id || '');
     modal._averageOwner = state.token;
-    modal._averageDraft = JSON.parse(JSON.stringify(exam && exam.averages || {}));
+    var sourceExam=exam||modal._restoredExamV61;
+    modal._averageDraft = JSON.parse(JSON.stringify(sourceExam && sourceExam.averages || {}));
     function decorate(card,key,name,anchor) {
       var block = card.querySelector('.exam-averages');
       if (block && block.dataset.averageKey === key) return;
       if (block) block.remove();
       block = document.createElement('details'); block.className = 'exam-averages'; block.dataset.averageKey = key;
       var summary=document.createElement('summary'),heading=document.createElement('span'),excerpt=document.createElement('small'),fields=document.createElement('div');
-      heading.textContent='参考成绩（选填）';summary.append(heading,excerpt);block.append(summary,fields);fields.className='reference-fields';
+      heading.textContent='参考分数（选填：平均分，最高分）';summary.append(heading,excerpt);block.append(summary,fields);fields.className='reference-fields';
       var labels={class:'班级均分',year:'年级均分',classMax:'班级最高分',yearMax:'年级最高分'};
       function updateSummary(){var draft=modal._averageDraft[key]||{};excerpt.textContent=['classMax','yearMax','class','year'].filter(function(s){return number(draft[s])!==null;}).map(function(s){return labels[s]+' '+draft[s];}).join(' · ');}
       updateSummary();
@@ -121,6 +122,15 @@
         var row = averages[input.dataset.averageRow] || (averages[input.dataset.averageRow] = {}); row[input.dataset.averageScope] = n;
       });
       payload = Object.assign({},payload,{exam:Object.assign({},payload.exam,{averages:averages,reference_scores_version:1})});
+      // Older server versions silently discarded highest scores. Check capability before writing.
+      var hasHighest=Object.values(averages).some(function(r){return r.classMax!==undefined||r.yearMax!==undefined;});
+      if(hasHighest){
+        var self=this;
+        return Promise.resolve().then(function(){return apiBefore.call(self,'reference_scores_capability',{});}).catch(function(){throw new Error('最高分暂不能保存，请保留本次录入并稍后重试');}).then(function(cap){
+          if(!cap||cap.reference_scores_version!==1)throw new Error('最高分保存服务尚未更新，请保留本次录入');
+          return apiBefore.call(self,action,payload);
+        });
+      }
     }
     return apiBefore.call(this,action,payload);
   };

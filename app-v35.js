@@ -80,6 +80,8 @@
       exam.scores[name]={target:(card.querySelector('.target-v16')||{}).value||'',raw:(card.querySelector('.raw-v16')||{}).value||'',actual:(card.querySelector('.actual-v16')||{}).value||'',rawMax:(card.querySelector('.rawmax-v16')||{}).value||'',max:(card.querySelector('.max-v16')||{}).value||'',rank:mode==='rank'?((card.querySelector('.year-rank-v16')||{}).value||''):'',participants:mode==='rank'?((card.querySelector('.year-participants-v16')||{}).value||''):'',classRank:mode==='rank'?((card.querySelector('.class-rank-v16')||{}).value||''):'',classParticipants:mode==='rank'?((card.querySelector('.class-participants-v16')||{}).value||''):'',yearPositionPercent:mode==='percent'?((card.querySelector('.year-position-v17')||{}).value||''):'',classPositionPercent:mode==='percent'?((card.querySelector('.class-position-v17')||{}).value||''):'',excludeFromTotal:!!(card.querySelector('.exclude-total-check-v17')||{}).checked};
     });
     modal.querySelectorAll('.combo-card-v21').forEach(function(card){var id=card.dataset.comboId;if(!id)return;exam.moduleRanks[id]={yearRank:(card.querySelector('.combo-yr-v25')||{}).value||'',yearParticipants:(card.querySelector('.combo-yp-v25')||{}).value||'',classRank:(card.querySelector('.combo-cr-v25')||{}).value||'',classParticipants:(card.querySelector('.combo-cp-v25')||{}).value||''};});
+    exam.averages={};
+    modal.querySelectorAll('input[data-average-row]').forEach(function(input){if(input.value==='')return;var key=input.dataset.averageRow,scope=input.dataset.averageScope;var row=exam.averages[key]||(exam.averages[key]={});row[scope]=input.value;});
     return exam;
   }
   function readDraft61(){try{var d=JSON.parse(localStorage.getItem(draftKey61())||'null');return d&&d.exam?d:null;}catch(e){return null;}}
@@ -91,7 +93,7 @@
     if(actions){var clear=document.createElement('button');clear.type='button';clear.className='secondary text-danger draft-clear-v61';clear.textContent='一键清空';actions.insertBefore(clear,actions.firstChild);clear.onclick=function(){clearDraft61();modal.remove();if(state.modal===modal)state.modal=null;openExam(null);toast('未保存内容已清空');};}
     var note=document.createElement('div');note.className='draft-note-v61';note.textContent=restored?'已恢复上次未保存的内容；保存成功后草稿会自动删除。':'填写内容会自动留在本机；误关后再次打开即可继续。';
     var body=modal.querySelector('.modal-body');if(body)body.insertBefore(note,body.firstChild);
-    function schedule(){dirty=true;clearTimeout(timer);timer=setTimeout(function(){saveDraft61(modal);},220);}
+    function schedule(){dirty=true;clearTimeout(timer);timer=setTimeout(function(){if(modal.isConnected&&state.modal===modal)saveDraft61(modal);},220);}
     modal.addEventListener('input',schedule);modal.addEventListener('change',schedule);
     modal.addEventListener('click',function(e){if(dirty&&(e.target===modal||e.target.closest('.close-btn,.cancel-btn')))saveDraft61(modal);},true);
   }
@@ -100,6 +102,7 @@
   openExam=function openExamV61(exam){
     var draft=!exam?readDraft61():null,result=openExamBefore61(draft?draft.exam:exam),modal=state.modal;
     if(draft&&modal){
+      modal._restoredExamV61=draft.exam;
       var title=modal.querySelector('.modal-head h3');if(title)title.textContent='继续未保存的考试';
       modal.querySelectorAll('.delete-exam-v10,#deleteExamV16,#deleteExamModalV13').forEach(function(x){var row=x.closest('.modal-danger-row-v10');(row||x).remove();});
       var save=modal.querySelector('.save-btn');if(save)save.textContent='保存考试';

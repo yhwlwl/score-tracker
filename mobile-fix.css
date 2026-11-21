@@ -139,3 +139,11 @@ html,body,#app{max-width:100%;overflow-x:hidden}
     max-width:100%;
   }
 }
+
+/* Exam metadata: prevent intrinsic Safari date widths from overflowing their grid tracks, including iPad. */
+.modal-backdrop:has(#examName) .form-grid{grid-template-columns:minmax(0,1fr) minmax(0,180px);min-width:0;max-width:100%}
+.modal-backdrop:has(#examName) .form-grid>.field{min-width:0;max-width:100%}
+.modal-backdrop:has(#examName) .form-grid :is(input,select){display:block;box-sizing:border-box;width:100%;min-width:0;max-width:100%}
+.modal-backdrop:has(#examName) .form-grid input[type=date]{-webkit-appearance:none;appearance:none;min-height:44px;text-align:left}
+.modal-backdrop:has(#examName) .form-grid input[type=date]::-webkit-date-and-time-value{text-align:left;min-width:0}
+@media(max-width:620px){.modal-backdrop:has(#examName) .form-grid{grid-template-columns:minmax(0,1fr)}}
