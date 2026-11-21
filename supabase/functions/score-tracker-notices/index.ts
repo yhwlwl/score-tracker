@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { readSupport, saveSupport } from './support.ts';
 import { readCommunity, saveCommunity } from './community.ts';
 import { announcementReplies } from './replies.ts';
+import { announcementThread } from './threads.ts';
 import { developerCommentAdmin, announcementCommentPage } from './developer-comments.ts';
 
 const db = createClient(Deno.env.get('SUPABASE_URL') || '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '', {auth:{persistSession:false,autoRefreshToken:false}});
@@ -59,6 +60,17 @@ Deno.serve(async req => {
     if(action==='notice_public'&&req.method==='POST')return json({config:await config()});
     if(action==='notice_history'&&req.method==='POST'){const c=await config(true),releases=releaseHistory(c,c),announcements=announcementHistory(c);delete c.release_history;delete c.announcement_history;return json({config:c,releases,announcements});}
     user=await auth(req.headers.get('x-score-token')||String(body.token||''));if(!user)return json({error:'登录已失效，请重新登录'},401);
+    if(['centenary_preview','centenary_status','centenary_seen'].includes(action)&&req.method==='POST'){
+      // Always derive the user from the authenticated session, never the request body.
+      const r=await db.rpc('score_tracker_centenary_data',{p_user:user.id});if(r.error)throw r.error;
+      const data=r.data;if(!data)return json({error:'纪念数据不存在'},404);
+      if(action==='centenary_status'&&(!data.published||data.paused))return json({published:false});
+      if(action==='centenary_seen'){
+        if(!data.published||data.paused||!data.eligible)return json({error:'活动暂未开放'},403);
+        const saved=await db.from('score_tracker_centenary_accounts').update({seen_at:new Date().toISOString()}).eq('user_id',user.id).is('seen_at',null);if(saved.error)throw saved.error;return json({ok:true});
+      }
+      return json({...data,preview:action==='centenary_preview'});
+    }
     if((action.startsWith('notification_')||['feature_completion_admin','feature_option_complete','feature_option_active'].includes(action))&&!user.is_admin)return json({error:'只有管理员可以修改这些内容'},403);
     if(['announcement_reply_inbox','announcement_reply_detail','announcement_reply_read'].includes(action)&&req.method==='POST'){
       const result=await announcementReplies(db,user,action,body,async()=>{const c=await config(true);return {notices:announcementHistory(c),current:c.announcement_id,commentsEnabled:c.announcement_enabled&&c.announcement_comments_enabled};});
@@ -152,6 +164,13 @@ Deno.serve(async req => {
       if(!['notification_previewed','notification_admin_tab_opened'].includes(body.event_type))return json({error:'不支持的操作'},400);
       await audit(body.event_type,user,body,req,{kind:['release','announcement','tip'].includes(body.kind)?body.kind:null});return json({ok:true});
     }
+    if(['announcement_thread_read','announcement_thread_add','announcement_thread_like','announcement_thread_delete'].includes(action)&&req.method==='POST'){
+      const flag=await db.from('score_tracker_announcement_thread_settings').select('enabled').eq('id',1).maybeSingle();if(flag.error||flag.data?.enabled!==true)return json({error:'新版讨论暂未开放'},403);
+      const c=await config(true),isCurrent=body.notice_id===c.announcement_id;
+      const notice=isCurrent?announcementSnapshot(c):announcementHistory(c).find(n=>n.id===body.notice_id);
+      const {status,...data}=await announcementThread(db,user,action,body,notice,isCurrent&&c.announcement_enabled===true);
+      return json(data,status||200);
+    }
     if(['announcement_comments','announcement_comment_add','announcement_comment_delete'].includes(action)&&req.method==='POST'){
       const c=await config(action==='announcement_comments');
       const isCurrent=body.notice_id===c.announcement_id;
@@ -173,6 +192,12 @@ Deno.serve(async req => {
         return json({ok:true});
       }
       const {status,...page}=await announcementCommentPage(db,user,notice,isCurrent,body.before);
+      const flag=await db.from('score_tracker_announcement_thread_settings').select('enabled').eq('id',1).maybeSingle();
+      if(!status&&notice.comments_public!==false&&!flag.error&&flag.data?.enabled===true){
+        const rows=[...(page.rows||[]),...(page.pinned||[])];
+        if(rows.length){const summary=await db.rpc('score_tracker_thread_root_summary',{p_roots:rows.map(r=>r.id),p_user:user.id});if(summary.error){console.error('announcement_thread_summary_failed',summary.error.code);return json(page,status||200);}const byId=new Map((summary.data||[]).map(r=>[r.root_id,r]));for(const row of rows){const stats=byId.get(row.id);row.root_likes={count:Number(stats?.like_count)||0,liked:stats?.liked===true};row.reply_count=(Number(stats?.reply_count)||0)+(row.reply?1:0);row.reply_preview=(stats?.preview||[]).map(r=>({id:r.id,parent_id:r.parent_legacy?'legacy':r.parent_id,content:r.content,created_at:r.created_at,author:r.author||'***',is_developer:r.is_developer===true,is_mine:r.is_mine===true,can_delete:isCurrent&&notice.comments_enabled===true&&(user.is_admin||r.is_mine===true),count:Number(r.count)||0,liked:r.liked===true}));if(row.reply){row.reply_legacy={id:'legacy',author:'开发者',is_developer:true,content:row.reply.content,created_at:row.reply.created_at,can_delete:false,count:Number(stats?.legacy_count)||0,liked:stats?.legacy_liked===true};}}}
+        page.threads_enabled=true;
+      }
       return json(page,status||200);
     }
     if(action==='notice_check'&&req.method==='POST'){
