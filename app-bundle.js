@@ -13219,6 +13219,16 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     async function load(append){if(loading)return;loading=true;more.disabled=true;status.textContent='正在加载评论…';try{var data=await call('announcement_comments',{notice_id:item.id,before:append?next:null},item.user);if(!current())return;if(!append&&!item.commentsEnabled&&!(data.rows||[]).length&&!(data.pinned||[]).length){section.remove();return;}threadsEnabled=data.threads_enabled===true;if(threadsEnabled){section.classList.add('rn-threads-enabled');form.querySelector('label').hidden=true;input.placeholder='说说你的想法…';submit.textContent='发送';if(!compact&&!item.commentsReadOnly&&data.comments_enabled!==false){compact=true;panel.classList.add('rn-compact-thread-modal');form.classList.add('rn-compact-composer');var line=node('div',null,'rn-compact-line');line.append(input,submit);form.append(line);panel.append(form);back.querySelector('.rn-actions').hidden=true;restoreDraft();}}if(data.read_only===true)archiveComments();if(!append){list.innerHTML='';var pins=section.querySelector('.rn-pinned-list');pins.innerHTML='';(data.pinned||[]).forEach(function(row){appendRow(row,pins);});}if(data.comments_enabled===false)hideCommentForm();(data.rows||[]).forEach(function(row){appendRow(row);});if(!list.children.length)list.textContent=item.commentsReadOnly?'这条公告还没有评论。':'还没有评论，欢迎说说你的想法。';next=data.next;more.hidden=!next;status.textContent='';}catch(e){if(current())status.textContent=e.message;}finally{loading=false;more.disabled=false;}}
     more.onclick=function(){load(true);};
     form.onsubmit=async function(e){e.preventDefault();if(!current()||item.commentsReadOnly||!item.commentsEnabled||submit.disabled)return;var content=input.value.trim(),chosen=replyTarget;if(!content){status.textContent='写点内容再发送吧';return;}if(chosen&&content.length>300){status.textContent='回复最多300字';return;}submit.disabled=true;status.textContent='正在发送…';try{if(chosen){var result=await chosen.thread.send('announcement_thread_add',{parent_id:chosen.parent,content:content});if(!current())return;replyDrafts.delete(keyFor(chosen));input.value='';resetTarget();flash('回复已发送');try{await chosen.thread.afterSend(result,content,chosen.parent);}catch(e){status.textContent='已发送，可重新展开查看。';}}else{await call('announcement_comment_add',{notice_id:item.id,content:content},item.user);if(!current())return;replyDrafts.delete(keyFor(null));input.value='';resizeInput();var sc=scrollBody(),y=sc.scrollTop;await load(false);sc.scrollTop=y;if(!status.textContent)flash('评论已发送');}}catch(e){if(current())status.textContent=e.message;}finally{submit.disabled=false;}};
+    if(item.focusedThreadNotification){
+      hideCommentForm();section.querySelector('h3').textContent='收到的回复';var n=item.focusedThreadNotification;
+      var target=node('article',null,'rn-comment');target.append(node('div',n.target_author||'我的评论','rn-comment-meta'),node('div',n.target_content,'rn-comment-text'));
+      var reply=node('div',null,'rn-thread-group'),replyRow=node('div',null,'rn-thread-reply rn-thread-highlight');replyRow.append(node('div',(n.is_developer?'开发者':n.author||'用户')+' 回复了你','rn-comment-meta'),node('div',n.content,'rn-thread-text'),node('time',shortTime(n.created_at),'rn-thread-actions'));reply.append(replyRow);target.append(reply);list.append(target);
+      var reading=false,done=false,observer=null;
+      async function acknowledge(){if(reading||done||!current()||document.visibilityState!=='visible')return;reading=true;try{var r=await call('announcement_reply_read',{id:n.id,kind:'thread'},item.user);if(!current())return;done=true;if(observer)observer.disconnect();window.dispatchEvent(new Event('announcement-replies-changed'));try{localStorage.setItem('st_announcement_reply_read:'+item.user.id,String(Date.now()));}catch(_){} }catch(_){}finally{reading=false;}}
+      function visible(){var a=replyRow.getBoundingClientRect(),b=panel.getBoundingClientRect();if(a.height>0&&a.bottom>b.top&&a.top<b.bottom)acknowledge();}
+      if(typeof IntersectionObserver==='function'){observer=new IntersectionObserver(function(entries){if(entries.some(function(e){return e.isIntersecting;}))acknowledge();},{root:panel,threshold:0.1});observer.observe(replyRow);}else{panel.addEventListener('scroll',visible);observer={disconnect:function(){panel.removeEventListener('scroll',visible);}};}
+      (back.replyObservers||(back.replyObservers=[])).push(observer);requestAnimationFrame(function(){if(current()){replyRow.scrollIntoView({block:'center'});visible();}});return;
+    }
     if(item.user.id==='guest'){if(!item.commentsEnabled){section.remove();return;}hideCommentForm();list.textContent=item.commentsReadOnly?'登录后可以查看当时的评论':'登录后可以查看和发表评论';return;}if(item.focusedComment){hideCommentForm();section.querySelector('h3').textContent='我的评论与作者回复';appendRow(item.focusedComment);requestAnimationFrame(function(){if(!current())return;var reply=list.querySelector('.rn-admin-reply');if(reply&&reply.scrollIntoView)reply.scrollIntoView({block:'center'});});return;}load(false);
   }
   function watchReply(row,article,item,back) {
@@ -13241,16 +13251,16 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     document.addEventListener('visibilitychange',checkVisible);var disconnect=observer.disconnect.bind(observer);observer.disconnect=function(){document.removeEventListener('visibilitychange',checkVisible);disconnect();};
     article.__legacyObserver=observer;(back.replyObservers||(back.replyObservers=[])).push(observer);
   }
-  async function openAnnouncementReply(id){
+  async function openAnnouncementReply(id,kind){
     var u=user();if(!u)throw Error('请先登录再查看回复');
-    var result=await call('announcement_reply_detail',{id:id},u),now=user();
+    var result=await call('announcement_reply_detail',{id:id,kind:kind==='thread'?'thread':'legacy'},u),now=user();
     if(!now||now.id!==u.id||now.token!==u.token)return;
     if(modal)close('open_reply');
     var notice=result.notice;
     pending.unshift({user:u,kind:'announcement',id:notice.id,title:notice.title,content:notice.content,updated_at:notice.updated_at,
       commentsEnabled:true,commentsReadOnly:result.read_only,commentsPublic:notice.comments_public!==false,
-      focusedComment:result.comment,source:'reply_notification',manual:true});pump();
-    track('announcement_reply_opened',{comment_id:id,notice_id:notice.id});
+      focusedComment:result.comment,focusedThreadNotification:result.thread_notification||null,source:'reply_notification',manual:true});pump();
+    track('announcement_reply_opened',{comment_id:id,notice_id:notice.id,reply_kind:kind==='thread'?'thread':'legacy'});
   }
   function showTip(item) {
     var existing=document.getElementById('releaseTip');if(existing)existing.remove();var b=document.createElement('div');b.className='rn-banner';b.id='releaseTip';b.innerHTML='<span>'+esc(item.content)+'</span><button class="rn-close" type="button" aria-label="关闭提示">×</button>';document.body.appendChild(b);mark(item.user,item.kind,item.id);track('tip_shown',{notice_id:item.id,source:item.source});b.querySelector('button').onclick=function(){b.remove();track('tip_dismissed',{notice_id:item.id,reason:'close_button'});};
@@ -13989,10 +13999,10 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     // Do not replace the focused button during an unrelated background repaint.
     var signature=JSON.stringify([count,expanded,rows]);if(guide.dataset.signature===signature)return;
     guide.dataset.signature=signature;
-    guide.innerHTML='<h3 class="card-title">公告有新回复</h3><p class="card-sub">你收到了作者的 '+count+' 条回复，点开可直接查看对应公告里的评论与回复。</p><div class="announcement-reply-list">'+rows.slice(0,expanded?20:3).map(function(row){return '<button type="button" class="announcement-reply-entry" data-announcement-reply="'+esc(row.id)+'"><span><small>关于你的评论</small>'+esc(row.comment_preview)+'</span><b>查看回复 →</b></button>';}).join('')+'</div>'+(rows.length>3?'<button class="secondary" type="button" id="expandAnnouncementReplies" style="margin-top:12px">'+(expanded?'收起':'查看更多回复')+'</button>':'')+'<p class="announcement-replies-status" role="status"></p>';
+    guide.innerHTML='<h3 class="card-title">公告有新回复</h3><p class="card-sub">你有 '+count+' 条新回复，点开查看。</p><div class="announcement-reply-list">'+rows.slice(0,expanded?20:3).map(function(row){return '<button type="button" class="announcement-reply-entry" data-announcement-reply="'+esc(row.id)+'" data-reply-kind="'+esc(row.kind||'legacy')+'"><span><small>'+esc(row.kind==='thread'?(row.author||'用户')+' 回复了你':'开发者回复了你')+'</small>'+esc(row.comment_preview)+'</span><b>查看回复 →</b></button>';}).join('')+'</div>'+(rows.length>3?'<button class="secondary" type="button" id="expandAnnouncementReplies" style="margin-top:12px">'+(expanded?'收起':'查看更多回复')+'</button>':'')+'<p class="announcement-replies-status" role="status"></p>';
     guide.querySelectorAll('[data-announcement-reply]').forEach(function(button){button.onclick=async function(){
       var status=guide.querySelector('[role="status"]');button.disabled=true;status.textContent='正在打开回复…';
-      try{if(!window.__releaseNotices?.openAnnouncementReply)throw Error('请刷新页面后再查看回复');await window.__releaseNotices.openAnnouncementReply(button.dataset.announcementReply);if(status.isConnected)status.textContent='';}
+      try{if(!window.__releaseNotices?.openAnnouncementReply)throw Error('请刷新页面后再查看回复');await window.__releaseNotices.openAnnouncementReply(button.dataset.announcementReply,button.dataset.replyKind);if(status.isConnected)status.textContent='';}
       catch(e){if(status.isConnected)status.textContent=e.message||'暂时无法读取回复，请稍后重试';}
       finally{if(button.isConnected)button.disabled=false;}
     };});
@@ -14010,7 +14020,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     lastPoll=Date.now();
     var job=Promise.resolve().then(async function(){
       try{
-        var response=await fetch('/api/score-tracker-notices',{method:'POST',cache:'no-store',signal:controller.signal,headers:{'content-type':'application/json'},body:JSON.stringify({action:'announcement_reply_inbox',token:u.token})});
+        var response=await fetch('/api/score-tracker-notices',{method:'POST',cache:'no-store',signal:controller.signal,headers:{'content-type':'application/json'},body:JSON.stringify({action:'announcement_reply_inbox',token:u.token,include_threads:true})});
         if(!response.ok)return;var data=await response.json();
         if(!same(u)||generation!==currentGeneration)return;
         count=Math.max(0,Number(data.count)||0);rows=Array.isArray(data.rows)?data.rows:[];paint();

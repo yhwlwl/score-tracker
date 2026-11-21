@@ -31,10 +31,10 @@
     // Do not replace the focused button during an unrelated background repaint.
     var signature=JSON.stringify([count,expanded,rows]);if(guide.dataset.signature===signature)return;
     guide.dataset.signature=signature;
-    guide.innerHTML='<h3 class="card-title">公告有新回复</h3><p class="card-sub">你收到了作者的 '+count+' 条回复，点开可直接查看对应公告里的评论与回复。</p><div class="announcement-reply-list">'+rows.slice(0,expanded?20:3).map(function(row){return '<button type="button" class="announcement-reply-entry" data-announcement-reply="'+esc(row.id)+'"><span><small>关于你的评论</small>'+esc(row.comment_preview)+'</span><b>查看回复 →</b></button>';}).join('')+'</div>'+(rows.length>3?'<button class="secondary" type="button" id="expandAnnouncementReplies" style="margin-top:12px">'+(expanded?'收起':'查看更多回复')+'</button>':'')+'<p class="announcement-replies-status" role="status"></p>';
+    guide.innerHTML='<h3 class="card-title">公告有新回复</h3><p class="card-sub">你有 '+count+' 条新回复，点开查看。</p><div class="announcement-reply-list">'+rows.slice(0,expanded?20:3).map(function(row){return '<button type="button" class="announcement-reply-entry" data-announcement-reply="'+esc(row.id)+'" data-reply-kind="'+esc(row.kind||'legacy')+'"><span><small>'+esc(row.kind==='thread'?(row.author||'用户')+' 回复了你':'开发者回复了你')+'</small>'+esc(row.comment_preview)+'</span><b>查看回复 →</b></button>';}).join('')+'</div>'+(rows.length>3?'<button class="secondary" type="button" id="expandAnnouncementReplies" style="margin-top:12px">'+(expanded?'收起':'查看更多回复')+'</button>':'')+'<p class="announcement-replies-status" role="status"></p>';
     guide.querySelectorAll('[data-announcement-reply]').forEach(function(button){button.onclick=async function(){
       var status=guide.querySelector('[role="status"]');button.disabled=true;status.textContent='正在打开回复…';
-      try{if(!window.__releaseNotices?.openAnnouncementReply)throw Error('请刷新页面后再查看回复');await window.__releaseNotices.openAnnouncementReply(button.dataset.announcementReply);if(status.isConnected)status.textContent='';}
+      try{if(!window.__releaseNotices?.openAnnouncementReply)throw Error('请刷新页面后再查看回复');await window.__releaseNotices.openAnnouncementReply(button.dataset.announcementReply,button.dataset.replyKind);if(status.isConnected)status.textContent='';}
       catch(e){if(status.isConnected)status.textContent=e.message||'暂时无法读取回复，请稍后重试';}
       finally{if(button.isConnected)button.disabled=false;}
     };});
@@ -52,7 +52,7 @@
     lastPoll=Date.now();
     var job=Promise.resolve().then(async function(){
       try{
-        var response=await fetch('/api/score-tracker-notices',{method:'POST',cache:'no-store',signal:controller.signal,headers:{'content-type':'application/json'},body:JSON.stringify({action:'announcement_reply_inbox',token:u.token})});
+        var response=await fetch('/api/score-tracker-notices',{method:'POST',cache:'no-store',signal:controller.signal,headers:{'content-type':'application/json'},body:JSON.stringify({action:'announcement_reply_inbox',token:u.token,include_threads:true})});
         if(!response.ok)return;var data=await response.json();
         if(!same(u)||generation!==currentGeneration)return;
         count=Math.max(0,Number(data.count)||0);rows=Array.isArray(data.rows)?data.rows:[];paint();
