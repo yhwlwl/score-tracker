@@ -32,6 +32,7 @@ const FILES = [
   "app-v38.js",
   "exam-record-sort.js",
   "page-display.js",
+  "page-display-goals.css",
   "study-planner-promo.webp",
   "robots.txt",
   "_headers",

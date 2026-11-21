@@ -422,7 +422,7 @@
       if (card.querySelector(':scope > [data-peer-host]') && !card.querySelector('.card-title-row,.dsb-head')) setOff(card, hidden.indexOf('stats-peer') !== -1);
     });
     if(state.page==='stats'){compactCopy(root);shortcuts(root);}
-    if(state.page==='home'){layoutTop(root);homeCharts(root);layoutHome(root);}
+    if(state.page==='home'){layoutTop(root);mountGoalLayout(root);homeCharts(root);layoutHome(root);}
   }
   function mountWelcome(root){
     var welcome=root.querySelector('.hero-main'),headline=welcome&&welcome.querySelector('h2');if(!headline)return;
@@ -438,6 +438,15 @@
     if(quick&&!wide&&side&&quick.parentElement!==side)side.prepend(quick);
     hero.classList.add('pd-top');
     hero.classList.toggle('pd-with-summary',!!quick&&wide&&!quick.hasAttribute('data-display-off-v1'));
+  }
+  function mountGoalLayout(root){
+    var card=root.querySelector('#goalHeroV33');
+    if(!card||card.hasAttribute('data-display-off-v1'))return;
+    var chips=card.querySelector('.gh-chips'),hint=card.querySelector('.gh-hint');
+    if(!chips||!hint)return;
+    var swipe=window.matchMedia('(max-width:639px)').matches&&chips.scrollWidth>chips.clientWidth+6;
+    var label=swipe?'左右滑看各科 · 点卡片编辑':'点击编辑';
+    if(hint.textContent!==label)hint.textContent=label;
   }
   function layoutHome(root){
     var grid=root.querySelector('.grid-main');if(!grid)return;
@@ -553,6 +562,7 @@
   function boot() {
     sync();
     var mq=window.matchMedia('(min-width:881px)');if(mq.addEventListener)mq.addEventListener('change',schedule);else if(mq.addListener)mq.addListener(schedule);
+    var goalMq=window.matchMedia('(min-width:640px)');if(goalMq.addEventListener)goalMq.addEventListener('change',schedule);else if(goalMq.addListener)goalMq.addListener(schedule);
     document.addEventListener('visibilitychange',function(){if(!document.hidden)schedule();});
     new MutationObserver(function (records) {
       if (state.page !== 'home' && state.page !== 'stats' && state.page !== 'account') return;
