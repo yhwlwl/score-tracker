@@ -11,7 +11,7 @@ assert.deepEqual(p.movePin(['best','quad'],'quad',-1),['quad','best']);
 assert.deepEqual(p.movePin(['best','quad'],'best',-1),['best','quad']);
 assert.notEqual(p.storageKey('a'),p.storageKey('b'));
 const src=fs.readFileSync(path.join(__dirname,'../app-v32.js'),'utf8');
-for(const marker of ['id="sv31Quad"','id="sv31Scissor"','个人最佳殿堂','进步速度榜','worth-matrix-scroll','你的总分常落在哪个区间'])assert.ok(src.includes(marker),marker);
+for(const marker of ['id="sv31Quad"','id="sv31Scissor"','个人最佳殿堂','进步速度榜','worth-matrix-scroll','data-matrix-distribution-heading'])assert.ok(src.includes(marker),marker);
 assert.ok(fs.readFileSync(path.join(__dirname,'../app-v5.js'),'utf8').includes('let html = homeHtmlV3();'));
 console.log('PASS: display preferences, chart pins, order, migration and renderer source anchors');
 

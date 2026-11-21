@@ -122,15 +122,19 @@
         var row = averages[input.dataset.averageRow] || (averages[input.dataset.averageRow] = {}); row[input.dataset.averageScope] = n;
       });
       payload = Object.assign({},payload,{exam:Object.assign({},payload.exam,{averages:averages,reference_scores_version:1})});
+      var refMeta={row_count:Object.keys(averages).length,mean_count:0,highest_count:0};
+      Object.values(averages).forEach(function(r){refMeta.mean_count+=Number(r.class!==undefined)+Number(r.year!==undefined);refMeta.highest_count+=Number(r.classMax!==undefined)+Number(r.yearMax!==undefined);});
+      function saveAndTrack(self){return Promise.resolve(apiBefore.call(self,action,payload)).then(function(result){if(result&&!result.error&&refMeta.row_count){try{window.__scoreTrackerTrack?.('reference_scores_saved',refMeta,'records');}catch(_){}}return result;});}
       // Older server versions silently discarded highest scores. Check capability before writing.
       var hasHighest=Object.values(averages).some(function(r){return r.classMax!==undefined||r.yearMax!==undefined;});
       if(hasHighest){
         var self=this;
         return Promise.resolve().then(function(){return apiBefore.call(self,'reference_scores_capability',{});}).catch(function(){throw new Error('最高分暂不能保存，请保留本次录入并稍后重试');}).then(function(cap){
           if(!cap||cap.reference_scores_version!==1)throw new Error('最高分保存服务尚未更新，请保留本次录入');
-          return apiBefore.call(self,action,payload);
+          return saveAndTrack(self);
         });
       }
+      return saveAndTrack(this);
     }
     return apiBefore.call(this,action,payload);
   };

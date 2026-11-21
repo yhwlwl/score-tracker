@@ -746,7 +746,8 @@
       [{name:'未分类',list:available.filter(function(e){return !e.grade_level;})}]
     ).filter(function(g){return g.list.length;});
     groups.forEach(function(g){g.list.sort(function(a,b){return String(a.exam_date||'').localeCompare(String(b.exam_date||''));});});
-    var picked=new Set((state.radarSelection||[]).map(String));
+    var picked=new Set((state.radarSelection||[]).map(String)),selectionSource='manual';
+    try{window.__scoreTrackerTrack?.('radar_picker_opened',{available_count:available.length},'home');}catch(_){}
     var modal=document.createElement('div');
     modal.className='modal-backdrop';
     modal.innerHTML='<div class="modal"><div class="modal-head"><h3>选择考试（最多 5 次）</h3><button class="close-btn" type="button">×</button></div><div class="modal-body">'
@@ -765,16 +766,19 @@
     modal.onclick=function(e){if(e.target===modal)close();};
     modal.querySelectorAll('input[type="checkbox"]').forEach(function(b){
       b.addEventListener('change',function(){
+        selectionSource='manual';
         if(modal.querySelectorAll('input[type="checkbox"]:checked').length>5){toast('最多选择 5 次考试');b.checked=false;}
       });
     });
     modal.querySelector('#radarRecentFiveV25').onclick=function(){
+      selectionSource='recent_five';
       var latest=new Set(available.slice().sort(function(a,b){return String(b.exam_date||'').localeCompare(String(a.exam_date||''))||String(b.id).localeCompare(String(a.id));}).slice(0,5).map(function(e){return String(e.id);}));
       modal.querySelectorAll('input[type="checkbox"]').forEach(function(b){b.checked=latest.has(b.value);});
     };
     modal.querySelector('#radarPickOkV25').onclick=function(){
       state.radarSelection=[].slice.call(modal.querySelectorAll('input[type="checkbox"]:checked')).slice(0,5).map(function(b){return b.value;});
       if(state.radarSelection.length&&typeof ensureRadarSelection==='function')ensureRadarSelection();
+      try{window.__scoreTrackerTrack?.('radar_picker_confirmed',{selection_count:state.radarSelection.length,source:selectionSource},'home');}catch(_){}
       close();render();
     };
   }
