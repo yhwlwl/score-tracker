@@ -65,3 +65,27 @@ console.log('PASS: slogan modes, daily rotation, unicode length, 21 chart previe
 
 assert.ok(p.previewArt('home-summary').includes('达标'));assert.ok(p.previewArt('stats-worth').includes('参考分'));
 assert.ok(p.previewArt('stats-comp').includes('stroke-dasharray'));
+
+(function(){
+  function element(doc){
+    return {ownerDocument:doc,children:[],attrs:new Map(),className:'',classList:{add(){}},textContent:'',hidden:false,mutations:0,
+      querySelector(s){return this.children.find(x=>'.'+x.className===s)||null;},
+      setAttribute(k,v){this.attrs.set(k,v);},toggleAttribute(k,v){if(v)this.attrs.set(k,'');else this.attrs.delete(k);},
+      replaceChildren(...x){this.children=x;this.mutations++;}
+    };
+  }
+  const doc={createElement(){return element(doc);}};
+  const node=element(doc);
+  p.renderQuote(node,'山有来路，海有归途。',false);
+  assert.equal(node.children[0].attrs.get('aria-hidden'),'true');
+  assert.equal(node.children[1].textContent,'山有来路，海有归途。');
+  const text=node.children[1];
+  p.renderQuote(node,'山有来路，海有归途。',false);
+  assert.equal(node.children[1],text);assert.equal(node.mutations,1);
+  p.renderQuote(node,'<img src=x onerror=alert(1)>',false);
+  assert.equal(text.textContent,'<img src=x onerror=alert(1)>');assert.equal(text.children.length,0);
+  p.renderQuote(node,'长'.repeat(80),false);assert.ok(node.attrs.has('data-quote-long'));
+  p.renderQuote(node,'',false);assert.equal(node.hidden,true);assert.ok(!node.attrs.has('data-quote-long'));
+  p.renderQuote(node,'新的一句。',false);assert.equal(node.hidden,false);
+  console.log('PASS: safe quote text, decorative accessibility, hidden state and stable rendering');
+})();
