@@ -18,33 +18,49 @@
     var style=document.createElement('style');
     style.id='app-v26-style';
     style.textContent=`
-      .record-scores.record-scores-v26{display:block!important;min-width:0}
-      .score-total-strip-v26{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;background:#eef4ff;border-radius:11px;padding:9px 13px}
-      .score-total-strip-v26 .t-label{font-size:11px;font-weight:700;color:#2f6bff;letter-spacing:.02em}
-      .score-total-strip-v26 .t-big{font-size:20px;font-weight:800;color:var(--text);line-height:1.1;font-variant-numeric:tabular-nums}
-      .score-total-strip-v26 .t-sub{font-size:11px;color:#6b7a99;font-variant-numeric:tabular-nums}
-      .score-total-strip-v26 .t-pill{font-size:10px;font-weight:700;color:#41506b;background:#fff;border-radius:999px;padding:3px 9px;font-variant-numeric:tabular-nums;box-shadow:inset 0 0 0 1px #e3eaf8}
-      .score-grid-v26{display:grid;grid-template-columns:repeat(auto-fill,minmax(97px,1fr));gap:6px;min-width:0}
-      .score-total-strip-v26+.score-grid-v26{margin-top:7px}
-      .score-cell-v26{background:#f6f7fa;border-radius:10px;padding:8px 10px 7px;min-width:0}
-      .score-cell-v26.combo{background:#f6f9ff;box-shadow:inset 0 0 0 1px #d8e4fd}
-      .sc-name-v26{display:flex;align-items:center;font-size:11px;font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden}
-      .score-cell-v26.combo .sc-name-v26{color:#2f6bff}
-      .sc-name-v26 .stat-badge-v17{flex:none;margin-left:5px}
-      .sc-val-v26{font-size:17px;font-weight:700;color:var(--text);line-height:1.35;margin-top:1px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .sc-sub-v26,.sc-rank-v26{font-size:10px;color:#98a2b3;line-height:1.55;font-variant-numeric:tabular-nums;overflow-wrap:break-word}
-      .records-empty-v26{font-size:11px;color:var(--muted)}
-      /* 手机端操作区：右侧竖列 → 独立底行横排（日期/分数/按钮三段式）。
-         双类名 + !important 用于稳定覆盖 mobile-fix.css 的竖排规则 */
-      @media(max-width:620px){
-        .record.record{grid-template-columns:minmax(0,1fr)!important;grid-template-areas:"date" "scores" "actions";gap:12px 10px!important}
-        .record-actions.record-actions-v10{grid-area:actions;display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:flex-end;flex-wrap:nowrap;max-width:none!important}
-        .record-action-btn-v10.record-action-btn-v10{width:auto;min-width:0;padding:6px 10px!important}
-        .order-btn-v25.order-btn-v25{width:28px!important;height:28px!important}
+      /* Full-width record blocks; size the score grid from its own container. */
+      .record.record[data-record-structured-v26]{display:grid!important;grid-template-columns:minmax(0,1fr)!important;grid-template-areas:"date" "scores" "actions"!important;align-items:start!important;gap:10px!important;min-width:0;width:100%;box-sizing:border-box}
+      .record[data-record-structured-v26]>.record-date{grid-area:date;min-width:0;overflow-wrap:anywhere}
+      .record[data-record-structured-v26]>.record-date b{margin-top:2px;overflow-wrap:anywhere}
+      .record[data-record-structured-v26]>.record-scores-v26{grid-area:scores;display:block!important;min-width:0;width:100%;container:record-scores / inline-size}
+      .record[data-record-structured-v26]>.record-actions.record-actions-v10{grid-area:actions;display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:flex-end!important;flex-wrap:wrap!important;max-width:none!important;width:100%;min-width:0;gap:6px!important}
+      .record[data-record-structured-v26] .record-action-btn-v10{width:auto!important;min-width:0!important;padding:6px 10px!important}
+      .record[data-record-structured-v26] .order-btn-v25{flex:none}
+      .score-total-strip-v26{display:grid;gap:10px;background:var(--accent-soft,#eef4ff);border-radius:13px;padding:11px 13px;min-width:0}
+      .record-total-head-v26{display:flex;align-items:baseline;flex-wrap:wrap;gap:3px 9px;min-width:0}
+      .score-total-strip-v26 .t-label{font-weight:650;color:var(--accent,#5d72e8)}
+      .score-total-strip-v26 .t-big{font-size:calc(24px * var(--ui-scale,1));line-height:1.2;color:var(--text);font-variant-numeric:tabular-nums;overflow-wrap:anywhere;min-width:0}
+      .score-total-strip-v26 .t-sub{margin-left:auto;color:var(--muted);font-variant-numeric:tabular-nums;overflow-wrap:anywhere;min-width:0}
+      .record-total-ranks-v26{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;padding-top:9px;border-top:1px solid var(--line)}
+      .score-grid-v26{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,calc(148px * var(--ui-scale,1))),1fr));gap:8px;min-width:0}
+      .score-total-strip-v26+.score-grid-v26:not(:empty){margin-top:8px}
+      .score-cell-v26{background:var(--cell,#f6f7fa);border:1px solid transparent;border-radius:12px;padding:10px;min-width:0;display:grid;grid-template-rows:auto auto 1fr auto;align-content:start;gap:4px}
+      .score-cell-v26.combo{background:var(--combo-cell,#f6f9ff);border-color:var(--combo-line,#d8e4fd)}
+      .sc-name-v26{display:flex;align-items:center;flex-wrap:wrap;gap:3px;font-weight:600;color:var(--muted);min-width:0;overflow-wrap:anywhere}
+      .score-cell-v26.combo .sc-name-v26{color:var(--accent,#5d72e8)}
+      .sc-name-v26 .stat-badge-v17{flex:none;margin-left:2px}
+      .score-cell-v26 .sc-val-v26{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 2px;font-size:calc(21px * var(--ui-scale,1));font-weight:650;line-height:1.25;color:var(--text);font-variant-numeric:tabular-nums;min-width:0;overflow-wrap:anywhere}
+      .score-cell-v26 .sc-val-v26 small{font-size:calc(12px * var(--ui-scale,1));font-weight:400;color:var(--muted);white-space:nowrap;max-width:100%}
+      .record-subgrid-v26,.record-rankgrid-v26{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 8px;min-width:0;align-items:start}
+      .record-subgrid-v26{min-height:0;align-self:start}
+      .record-rankgrid-v26{border-top:1px solid var(--line);padding-top:7px;margin-top:3px}
+      .record-metric-v26{display:grid;gap:1px;min-width:0}
+      .record-metric-label-v26{font-size:calc(11px * var(--ui-scale,1));line-height:1.35;color:var(--muted);overflow-wrap:anywhere}
+      .record-metric-value-v26{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 1px;font-size:calc(14px * var(--ui-scale,1));line-height:1.35;font-variant-numeric:tabular-nums;color:var(--text);min-width:0}
+      .record-metric-value-v26 strong{font-weight:650;min-width:0;overflow-wrap:anywhere}
+      .record-metric-value-v26 small{font-size:calc(11px * var(--ui-scale,1));color:var(--muted);font-weight:400;white-space:normal;overflow-wrap:anywhere;min-width:0}
+      .record-subgrid-v26 .record-metric-value-v26{font-size:calc(13px * var(--ui-scale,1));font-weight:500;color:var(--muted)}
+      .record-total-ranks-v26 .record-metric-value-v26{font-size:calc(17px * var(--ui-scale,1))}
+      .record-metric-empty-v26 .record-metric-value-v26{color:var(--muted)}
+      .records-empty-v26{font-size:var(--ui-caption,12px);color:var(--muted)}
+      @container record-scores (min-width:500px){
+        .record-total-ranks-v26{grid-template-columns:repeat(auto-fit,minmax(min(100%,calc(96px * var(--ui-scale,1))),1fr))}
       }
-      @media(max-width:420px){
-        .record.record{gap:10px 8px!important}
-        .record-action-btn-v10.record-action-btn-v10{padding:6px 9px!important}
+      @media(min-width:900px){
+        .record.record[data-record-structured-v26]{grid-template-columns:minmax(0,1fr) auto!important;grid-template-areas:"date actions" "scores scores"!important}
+      }
+      @media(max-width:620px){
+        .record[data-record-structured-v26] .order-btn-v25{width:28px!important;height:28px!important}
       }
     `;
     document.head.appendChild(style);
@@ -64,31 +80,38 @@
       return (d&&typeof d==='object')?(d[exam.exam_date+'|'+exam.name]||{}):{};
     }catch(e){return{};}
   }
-  // 单个 scope 的排名文案；prefix 为「年」或「班」。紧凑分数写法（12/450）减少窄格换行
-  function scopeTextV26(info,prefix){
-    if(!info)return '';
-    if(info.directPercent)return prefix+'位比 前'+formatPercent(info.positionPercent);
-    if(info.rank!==null&&info.rank!==undefined){
-      return prefix+'排 '+formatScore(info.rank)+(info.participants!==null&&info.participants!==undefined?('/'+formatScore(info.participants)):'');
-    }
-    return '';
+  function presentV26(v){return v!==null&&v!==undefined&&v!=='';}
+  function metricV26(label,value,denominator,empty){
+    return '<div class="record-metric-v26'+(empty?' record-metric-empty-v26':'')+'"><span class="record-metric-label-v26">'+escapeHtml(label)+'</span><span class="record-metric-value-v26"><strong>'+escapeHtml(value)+'</strong>'+(presentV26(denominator)?'<small>/'+escapeHtml(denominator)+'</small>':'')+'</span></div>';
+  }
+  function rankMetricV26(info,label,withEmpty){
+    if(info&&info.directPercent&&presentV26(info.positionPercent))return metricV26(label+'位比','前 '+formatPercent(info.positionPercent),null,false);
+    if(info&&presentV26(info.rank))return metricV26(label+'排名',formatScore(info.rank),presentV26(info.participants)?formatScore(info.participants):null,false);
+    return withEmpty?metricV26(label+'排名','—',null,true):'';
+  }
+  function rankPairV26(year,cls){
+    if(!rankMetricV26(year,'年级',false)&&!rankMetricV26(cls,'班级',false))return '';
+    return '<div class="record-rankgrid-v26">'+rankMetricV26(year,'年级',true)+rankMetricV26(cls,'班级',true)+'</div>';
+  }
+  function subGridV26(raw,target){
+    return '<div class="record-subgrid-v26">'+metricV26('原始',presentV26(raw)?formatScore(raw):'—',null,!presentV26(raw))+metricV26('目标',presentV26(target)?formatScore(target):'—',null,!presentV26(target))+'</div>';
+  }
+  function scoreValueV26(value,max){
+    return '<div class="sc-val-v26"><span>'+escapeHtml(presentV26(value)?formatScore(value):'—')+'</span>'+(presentV26(value)&&presentV26(max)&&Number(max)>0?'<small>/'+escapeHtml(formatScore(max))+'</small>':'')+'</div>';
   }
   function subjectCellV26(exam,name){
     var row=(exam.scores&&exam.scores[name])||{};
     var a=num(row.actual),raw=num(row.raw),t=num(row.target);
     var eff=(a!==null)?a:raw; // 记录页沿用 v20 口径：actual 缺失时以原始分呈现
     var year=rankInfoByScopeV16(exam,name,'year'),cls=rankInfoByScopeV16(exam,name,'class');
-    var rank=[scopeTextV26(year,'年'),scopeTextV26(cls,'班')].filter(Boolean).join(' · ');
+    var rank=rankPairV26(year,cls);
     if(eff===null&&raw===null&&t===null&&!rank)return '';
-    var sub=[];
-    if(raw!==null&&(eff===null||Number(raw)!==Number(eff)))sub.push('原始 '+formatScore(raw));
-    if(t!==null)sub.push('目标 '+(t===null?'—':formatScore(t)));
-    var subText=sub.join(' · ');
+    var rawShown=raw!==null&&(a===null||Number(raw)!==Number(a))?raw:null;
     return '<div class="score-cell-v26">'
       +'<div class="sc-name-v26" title="'+escapeHtml(name)+'">'+escapeHtml(name)+(row.excludeFromTotal?'<span class="stat-badge-v17">统计项</span>':'')+'</div>'
-      +'<div class="sc-val-v26">'+(eff===null?'—':formatScore(eff))+'</div>'
-      +(subText?'<div class="sc-sub-v26" title="'+escapeHtml(subText)+'">'+subText+'</div>':'')
-      +(rank?'<div class="sc-rank-v26" title="'+escapeHtml(rank)+'">'+rank+'</div>':'')
+      +scoreValueV26(eff,null)
+      +subGridV26(rawShown,t)
+      +rank
       +'</div>';
   }
   function comboCellV26(exam,m,ranksMap){
@@ -99,20 +122,14 @@
     var r=(ranksMap&&ranksMap[String(m.id)])||{};
     var yr=num(r.yearRank),yp=num(r.yearParticipants),cr=num(r.classRank),cp=num(r.classParticipants);
     if(fin===null&&raw===null&&tgt===null&&yr===null&&cr===null)return '';
-    var val=(fin!==null)?(formatScore(fin)+(max?'/'+formatScore(max):'')):(raw!==null?formatScore(raw):'—');
-    var sub=[];
-    if(raw!==null&&(fin===null||Number(raw)!==Number(fin)))sub.push('原始 '+formatScore(raw));
-    if(tgt!==null)sub.push('目标 '+formatScore(tgt));
-    var rank=[];
-    if(yr!==null)rank.push('年排 '+formatScore(yr)+(yp!==null?('/'+formatScore(yp)):''));
-    if(cr!==null)rank.push('班排 '+formatScore(cr)+(cp!==null?('/'+formatScore(cp)):''));
-    var subText=sub.join(' · ');
-    var rankText=rank.join(' · ');
+    var shown=fin!==null?fin:raw;
+    var rawShown=raw!==null&&(fin===null||Number(raw)!==Number(fin))?raw:null;
+    var rank=rankPairV26({rank:yr,participants:yp},{rank:cr,participants:cp});
     return '<div class="score-cell-v26 combo">'
       +'<div class="sc-name-v26" title="'+escapeHtml(m.name)+'">'+escapeHtml(m.name)+'</div>'
-      +'<div class="sc-val-v26">'+val+'</div>'
-      +(subText?'<div class="sc-sub-v26" title="'+escapeHtml(subText)+'">'+subText+'</div>':'')
-      +(rankText?'<div class="sc-rank-v26" title="'+escapeHtml(rankText)+'">'+rankText+'</div>':'')
+      +scoreValueV26(shown,fin!==null?max:null)
+      +subGridV26(rawShown,tgt)
+      +rank
       +'</div>';
   }
   function totalStripV26(exam){
@@ -120,14 +137,15 @@
     var raw=(typeof totalRawForV13==='function')?totalRawForV13(exam):null;
     if(raw!==null&&fin!==null&&Math.abs(Number(fin)-Number(raw))<0.000001)raw=null;
     var year=rankInfoByScopeV16(exam,'总分','year'),cls=rankInfoByScopeV16(exam,'总分','class');
-    var pills=[scopeTextV26(year,'年'),scopeTextV26(cls,'班')].filter(Boolean)
-      .map(function(x){return '<span class="t-pill">'+x+'</span>';}).join('');
-    if(fin===null&&raw===null&&!pills)return '';
-    // 标签用中性「总分」：无赋分学段只见一个数，零歧义；有原始总分时并列展示自然区分口径
-    return '<div class="score-total-strip-v26"><span class="t-label">总分</span>'
-      +'<span class="t-big">'+(fin===null?'—':formatScore(fin))+'</span>'
-      +(raw!==null?'<span class="t-sub">原始总分 '+formatScore(raw)+'</span>':'')
-      +pills+'</div>';
+    var city=typeof window.ScoreRecordCityRanksV33==='function'?window.ScoreRecordCityRanksV33(exam):{};
+    var ranks=rankMetricV26(year,'年级',false)+rankMetricV26(cls,'班级',false)
+      +rankMetricV26({rank:num(city.cityRank),participants:num(city.cityParticipants)},'市级',false)
+      +rankMetricV26({rank:num(city.districtRank),participants:num(city.districtParticipants)},'区级',false);
+    if(fin===null&&raw===null&&!ranks)return '';
+    return '<div class="score-total-strip-v26"><div class="record-total-head-v26"><span class="t-label">总分</span>'
+      +'<span class="t-big">'+escapeHtml(fin===null?'—':formatScore(fin))+'</span>'
+      +(raw!==null?'<span class="t-sub">原始总分 '+escapeHtml(formatScore(raw))+'</span>':'')
+      +'</div>'+(ranks?'<div class="record-total-ranks-v26">'+ranks+'</div>':'')+'</div>';
   }
 
   // ---------- rewrite recordHtml ----------
@@ -146,7 +164,7 @@
       ?(strip+'<div class="score-grid-v26">'+cells+combos+'</div>')
       :'<div class="records-empty-v26">尚未填写分数或排名</div>';
     var dateHtml=fmtYearDate(exam.exam_date)+(exam.end_date?(' - '+fmtYearDate(exam.end_date)):'');
-    return '<div class="record '+(exam.is_hidden?'hidden-record-v10':'')+'">'
+    return '<div class="record '+(exam.is_hidden?'hidden-record-v10':'')+'" data-record-structured-v26="1">'
       +'<div class="record-date">'+dateHtml
       +'<b>'+escapeHtml(exam.name)
       +'<span class="grade-badge-v13">'+escapeHtml(exam.grade_level||'未分类')+'</span>'

@@ -621,6 +621,7 @@ function citySourceV33(exam){
     districtRank:pick("districtRank","district_rank"),districtParticipants:pick("districtParticipants","district_participants")
   };
 }
+window.ScoreRecordCityRanksV33=citySourceV33;
 function cityLineV33(exam){
   var c=citySourceV33(exam),parts=[];
   if(c.cityRank)parts.push("市排 "+c.cityRank+(c.cityParticipants?"/"+c.cityParticipants:""));
@@ -691,6 +692,7 @@ if(recordHtmlBeforeV33City){
   recordHtml=function recordHtmlV33City(exam){
     var html=recordHtmlBeforeV33City.apply(this,arguments);
     try{
+      if(html.indexOf('data-record-structured-v26=')>=0)return html; // already included in the total score card
       var line=cityLineV33(exam);
       if(line&&html.indexOf('<div class="record-actions')>-1)html=html.replace('<div class="record-actions',line+'<div class="record-actions');
     }catch(e){}
