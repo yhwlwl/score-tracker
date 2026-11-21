@@ -6,7 +6,7 @@ function check(source,citySource,run){
   const number=v=>v===null||v===undefined||v===''?null:Number(v);
   const esc=v=>String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
   let css='';
-  const finalOnlySubjectV62=n=>/^(语文|数学|英语|历史|物理)$/.test(n),finalOnlyGroupV62=ns=>Array.isArray(ns)&&ns.length>0&&ns.every(finalOnlySubjectV62),finalOnlyExamV62=e=>finalOnlyGroupV62(Object.keys(e.scores||{}));
+  const finalOnlySubjectV62=n=>/^(语文|数学|英语)$/.test(n),finalOnlyGroupV62=ns=>Array.isArray(ns)&&ns.length>0&&ns.every(finalOnlySubjectV62),finalOnlyExamV62=e=>finalOnlyGroupV62(Object.keys(e.scores||{}));
   const env={finalOnlySubjectV62,finalOnlyGroupV62,finalOnlyExamV62,window:{ScoreRecordCityRanksV33:e=>({cityRank:e.city_rank,cityParticipants:e.city_participants,districtRank:e.district_rank,districtParticipants:e.district_participants})},document:{getElementById:()=>null,querySelector:()=>null,createElement:()=>({}),head:{appendChild:s=>{css=s.textContent;}}},state:{modulesV18:[{id:'m',name:'组合'}]},recordHtml:()=>'',num:number,escapeHtml:esc,formatScore:v=>String(v),formatPercent:v=>v+'%',fmtYearDate:s=>s,moduleNameSetV21:()=>new Set(['组合']),totalFor:e=>number(e.total),totalRawForV13:e=>number(e.rawTotal),rankInfoByScopeV16:(e,n,scope)=>e.ranks?.[n]?.[scope]||{},examScore:(e,n,k)=>number(e.combo?.[k]),examRawScoreV13:e=>number(e.combo?.raw),examMax:e=>number(e.combo?.max)};
   run(source,env);
   const exam={id:'fixture',name:'期中<测验>',exam_date:'2026.10.25',end_date:'2026.10.26',grade_level:'高二',is_hidden:true,total:563,rawTotal:573,city_rank:570,city_participants:4200,district_rank:223,district_participants:1600,scores:{化学:{actual:81,raw:73,target:85},数学:{actual:146,target:145},物理:{actual:0,target:0,excludeFromTotal:true},地理:{raw:67}},ranks:{总分:{year:{rank:124,participants:824},class:{rank:7,participants:50}},化学:{year:{rank:159,participants:799},class:{rank:9,participants:49}},数学:{year:{directPercent:true,positionPercent:0},class:{rank:1}},物理:{year:{rank:404,participants:824}}},moduleIds:['m'],moduleRanks:{m:{yearRank:89,yearParticipants:800,classRank:7,classParticipants:50}},combo:{actual:372,max:450,target:390,raw:370}};
@@ -18,6 +18,10 @@ function check(source,citySource,run){
   const fixed=env.recordHtml({id:'fixed',name:'不赋分',scores:{数学:{actual:134,max:150,raw:120,target:140}},total:134,rawTotal:120});
   assert.ok(fixed.includes('<span>134</span><small>/150</small>'));
   assert.ok(!fixed.includes('>原始<')&&!fixed.includes('原始总分'));
+  for(const subject of ['物理','历史']){
+    const graded=env.recordHtml({id:'graded',name:'赋分',scores:{[subject]:{actual:86,max:100,raw:72,rawMax:100,target:90}},total:86,rawTotal:72});
+    assert.ok(graded.includes('>86<')&&graded.includes('>72<')&&graded.includes('原始总分 72'),subject+' must retain both scores');
+  }
   const rankOnly=env.recordHtml({id:'r',name:'仅排名',scores:{},city_rank:77,city_participants:100});
   assert.ok(rankOnly.includes('市级排名')&&rankOnly.includes('<strong>77</strong><small>/100</small>'));
   const empty=env.recordHtml({id:'e',name:'空记录',scores:{}});

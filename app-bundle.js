@@ -3268,7 +3268,7 @@ radarCardHtml = function radarCardHtmlV16(){
 };
 
 // Entry/display policy only; existing raw fields are retained for historical records.
-function finalOnlySubjectV62(name){return /^(语文|数学|英语|历史|物理)$/.test(String(name||'').trim());}
+function finalOnlySubjectV62(name){return /^(语文|数学|英语)$/.test(String(name||'').trim());}
 function finalOnlyGroupV62(names){return Array.isArray(names)&&names.length>0&&names.every(finalOnlySubjectV62);}
 function finalOnlyExamV62(exam){return finalOnlyGroupV62(Object.keys(exam.scores||{}).filter(function(n){return !exam.scores[n].excludeFromTotal&&!((state.modulesV18||[]).some(function(m){return m.name===n;}));}));}
 function finalOnlyRowV62(row){
@@ -8075,8 +8075,8 @@ function buildInsightsV32(f){
     }
     if(run3>=2&&sum3>=8&&start3>=0){
       add({sev:2,type:"tdecl",icon:"warn",
-        title:(f.totalLabel||"总分")+"连续"+run3+"场退步",
-        body:(f.totalLabel||"总分")+"位置从"+fmtPos32(ts[start3].pos)+"退到当前"+fmtPos32(ts[ts.length-1].pos)+",累计约"+Math.round(sum3)+"个百分点——看看是哪科拖了后腿(可回「学科结构」对比)。",
+        title:esc32(f.totalLabel||"总分")+"连续"+run3+"场退步",
+        body:esc32(f.totalLabel||"总分")+"位置从"+fmtPos32(ts[start3].pos)+"退到当前"+fmtPos32(ts[ts.length-1].pos)+",累计约"+Math.round(sum3)+"个百分点——看看是哪科拖了后腿(可回「学科结构」对比)。",
         ev:"依据:总分位比相邻场变化,连续"+run3+"场变大(累计约"+Math.round(sum3)+"pp),参考人数口径一致。"});
     }
     run3=0;sum3=0;start3=-1;
@@ -8086,8 +8086,8 @@ function buildInsightsV32(f){
     }
     if(run3>=2&&sum3<=-8&&start3>=0){
       add({sev:4,type:"tprog",icon:"up",
-        title:(f.totalLabel||"总分")+"连续"+run3+"场前进",
-        body:(f.totalLabel||"总分")+"位置从"+fmtPos32(ts[start3].pos)+"进到当前"+fmtPos32(ts[ts.length-1].pos)+",累计约"+Math.round(Math.abs(sum3))+"个百分点,势头不错。",
+        title:esc32(f.totalLabel||"总分")+"连续"+run3+"场前进",
+        body:esc32(f.totalLabel||"总分")+"位置从"+fmtPos32(ts[start3].pos)+"进到当前"+fmtPos32(ts[ts.length-1].pos)+",累计约"+Math.round(Math.abs(sum3))+"个百分点,势头不错。",
         ev:"依据:总分位比相邻场变化,连续"+run3+"场变小(累计约"+Math.round(Math.abs(sum3))+"pp),参考人数口径一致。"});
     }
   }

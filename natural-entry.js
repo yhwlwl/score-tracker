@@ -726,7 +726,7 @@
         card.querySelectorAll('.max-v16,.rawmax-v16').forEach(function (input) { delete input.dataset.nlDefault; });
       }
       count += applyField(card, '.target-v16', data.target, result);
-      if (/^(语文|数学|英语|历史|物理)$/.test(name.trim())) {
+      if (/^(语文|数学|英语)$/.test(name.trim())) {
         var present=function(v){return v!==undefined&&v!==null&&v!=='';};
         var useFinal=present(data.actual);
         count += applyField(card, '.actual-v16', useFinal?data.actual:data.raw, result);

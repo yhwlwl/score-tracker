@@ -136,7 +136,7 @@ radarCardHtml = function radarCardHtmlV16(){
 };
 
 // Entry/display policy only; existing raw fields are retained for historical records.
-function finalOnlySubjectV62(name){return /^(语文|数学|英语|历史|物理)$/.test(String(name||'').trim());}
+function finalOnlySubjectV62(name){return /^(语文|数学|英语)$/.test(String(name||'').trim());}
 function finalOnlyGroupV62(names){return Array.isArray(names)&&names.length>0&&names.every(finalOnlySubjectV62);}
 function finalOnlyExamV62(exam){return finalOnlyGroupV62(Object.keys(exam.scores||{}).filter(function(n){return !exam.scores[n].excludeFromTotal&&!((state.modulesV18||[]).some(function(m){return m.name===n;}));}));}
 function finalOnlyRowV62(row){
