@@ -1,5 +1,13 @@
 /* Mobile consistency patch */
 html,body,#app{max-width:100%;overflow-x:hidden}
+
+/* iOS portrait: horizontal clipping must not turn the page wrappers into
+   nested scroll containers. Keep fixed navigation/feedback viewport-bound. */
+@supports (overflow-x:clip){
+  @media(max-width:880px){
+    html,body,#app{overflow-x:clip;overflow-y:visible}
+  }
+}
 .shell,main,.hero,.grid-main,.stack-main,.side-stack{min-width:0;max-width:100%}
 
 @media(max-width:620px){
