@@ -1,3 +1,4 @@
+import { maskThreadName } from './threads.ts';
 const COMMENT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const COMMENT_FIELDS = 'id,notice_id,content,created_at,is_developer,pinned_at,comment_revision';
 
@@ -36,7 +37,7 @@ export async function developerCommentAdmin(db, user, action, body, notices) {
 
 export function publicComment(row, user, isCurrent) {
   return {id:String(row.id),sequence:String(row.sequence),content:row.content,created_at:row.created_at,
-    author:row.is_developer?'开发者':row.author?.username||'用户',is_developer:row.is_developer===true,pinned_at:row.pinned_at||null,
+    author:row.is_developer?'开发者':maskThreadName(row.author?.username),is_developer:row.is_developer===true,pinned_at:row.pinned_at||null,
     reply:row.admin_reply?{content:row.admin_reply,created_at:row.admin_replied_at}:null,
     is_mine:row.user_id===user.id,reply_unread:row.user_id===user.id&&!!row.admin_reply&&!row.admin_reply_read_at,
     reply_revision:row.user_id===user.id?row.reply_revision:undefined,
