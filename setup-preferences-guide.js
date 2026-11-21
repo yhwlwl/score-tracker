@@ -118,6 +118,17 @@
       if(!current())return;
       profile=result.profile;state.setupProfile=profile;
     }
+    function clearCounts(prefix) {
+      Object.keys(counts).forEach(key=>{if(key.startsWith(prefix))delete counts[key];});
+    }
+    function reindexCounts(prefix, length, removed) {
+      const old=clone(counts);
+      clearCounts(prefix);
+      for(let n=0;n<length;n++)counts[prefix+n]=old[prefix+(n>=removed?n+1:n)]||{};
+    }
+    function validateCounts(keys) {
+      keys.forEach(key=>['year','class'].forEach(scope=>number((counts[key]||{})[scope],'人数',10000000,true)));
+    }
     async function saveCounts(items) {
       const defaults={};
       items.forEach(([draftKey,savedKey])=>{const row=counts[draftKey]||{},prev=initial.defaults[savedKey]||{},patch={};['year','class'].forEach(scope=>{const n=number(row[scope],'人数',10000000,true);if(n!==(prev[scope]??null))patch[scope]=n;});if(Object.keys(patch).length)defaults[savedKey]=patch;});
@@ -126,7 +137,7 @@
     function recommend() {
       if(selected.length!==3)throw Error('请选择 3 门选科');
       const primary=selected.includes('物理')?'物理':selected.includes('历史')?'历史':selected[0];
-      [CORE,CORE.concat(primary),CORE.concat(selected)].forEach((names,i)=>{let m=modules.find(m=>m.name===BUILTINS[i]);if(m)m.subjects=names.slice();else modules.push({name:BUILTINS[i],subjects:names.slice(),isBuiltin:true});});
+      [CORE,CORE.concat(primary),CORE.concat(selected)].forEach((names,i)=>{let m=modules.find(m=>m.name===BUILTINS[i]);if(m)m.subjects=names.slice();else {counts['m:'+modules.length]={};modules.push({name:BUILTINS[i],subjects:names.slice(),isBuiltin:true});}});
     }
     async function advance(skip) {
       if(busy||!current())return;
@@ -135,8 +146,8 @@
       if(step===1&&!credentialSaved){credentialSaved=true;draw();return;}
       if(!ready)return;
       if(skip){
-        if(step===2){subjects=clone(initial.subjects);counts.total=clone(initial.defaults.total||{});subjects.forEach((s,i)=>counts['s:'+i]=clone(initial.defaults['s:'+s.name]||{}));}
-        if(step===3){modules=clone(initial.modules);selected=clone(profile.selected_subjects||[]);modules.forEach((m,i)=>counts['m:'+i]=clone(initial.defaults['m:'+m.id]||{}));}
+        if(step===2){clearCounts('s:');subjects=clone(initial.subjects);counts.total=clone(initial.defaults.total||{});subjects.forEach((s,i)=>counts['s:'+i]=clone(initial.defaults['s:'+s.name]||{}));}
+        if(step===3){clearCounts('m:');modules=clone(initial.modules);selected=clone(profile.selected_subjects||[]);modules.forEach((m,i)=>counts['m:'+i]=clone(initial.defaults['m:'+m.id]||{}));}
         if(step===4){classification=clone(initial.classification);grade=profile.current_grade||'';}
         if(step===5){school=clone(initial.school);schoolQuery=school?.name||'';}
         if(step===6)goal=clone(initial.goal);
@@ -152,14 +163,14 @@
         if(!skip&&step===2){
           if(!subjects.length||subjects.some(s=>!s.name)||new Set(subjects.map(s=>s.name)).size!==subjects.length)throw Error('请填写科目名称，且不要重复');
           subjects.forEach(s=>{s.defaultMax=number(s.defaultMax,'满分',9999,false);if(!s.defaultMax)throw Error('满分需大于 0');});
-          Object.entries(counts).filter(([k])=>k==='total'||k.startsWith('s:')).forEach(([,r])=>['year','class'].forEach(k=>number(r[k],'人数',10000000,true)));
+          validateCounts(['total',...subjects.map((_,i)=>'s:'+i)]);
           if(!same(subjects,initial.subjects)){const d=await dataApiV7('save_subjects',{subjects});if(!current())return;state.subjectConfigs=d.subjects;subjects=clone(d.subjects);initial.subjects=clone(subjects);}
           await saveCounts([['total','total'],...subjects.map((s,i)=>['s:'+i,'s:'+s.name])]);if(!current())return;
         }
         if(!skip&&step===3){
           const allowed=selected.filter(n=>subjects.some(s=>s.name===n)&&!CORE.includes(n));
           modules.forEach(m=>{if(!m.name||new Set(modules.map(m=>m.name)).size!==modules.length)throw Error('请填写组合名称，且不要重复');const n=m.subjects.length,i=BUILTINS.indexOf(m.name);if(n<2||i>=0&&n!==[3,4,6][i])throw Error(m.name+'需要 '+(i>=0?[3,4,6][i]:'至少 2')+' 门科目');});
-          Object.entries(counts).filter(([k])=>k.startsWith('m:')).forEach(([,r])=>['year','class'].forEach(k=>number(r[k],'人数',10000000,true)));
+          validateCounts(modules.map((_,i)=>'m:'+i));
           if(!same(modules,initial.modules)){const d=await modulesApiV18('save_modules',{modules});if(!current())return;state.modulesV18=d.modules;modules=clone(d.modules);initial.modules=clone(modules);}
           await saveCounts(modules.map((m,i)=>['m:'+i,'m:'+m.id]));if(!current())return;
           await checkpoint(4,{selected_subjects:allowed});
@@ -206,12 +217,12 @@
       root.querySelector('[data-retry-level]')?.addEventListener('click',loadBenefits);
       root.querySelectorAll('[data-copy]').forEach(b=>b.onclick=async()=>{try{await navigator.clipboard.writeText(credentials[b.dataset.copy]);if(current())b.textContent='已复制';}catch(_){message='请长按复制，或截图保存';draw(false);}});
       root.querySelector('[data-reveal]')?.addEventListener('click',()=>{capture();showPassword=!showPassword;draw(false);});
-      root.querySelector('[data-add-subject]')?.addEventListener('click',()=>{capture();if(subjects.length>=20)return;subjects.push({name:'',defaultMax:100});draw(false);root.querySelector('[data-subject-row="'+(subjects.length-1)+'"] input')?.focus();});
-      root.querySelectorAll('[data-remove-subject]').forEach(b=>b.onclick=()=>{capture();if(subjects.length<=1)return;const i=+b.dataset.removeSubject;subjects.splice(i,1);const old=clone(counts);subjects.forEach((s,n)=>counts['s:'+n]=old['s:'+(n>=i?n+1:n)]||{});draw(false);});
+      root.querySelector('[data-add-subject]')?.addEventListener('click',()=>{capture();if(subjects.length>=20)return;counts['s:'+subjects.length]={};subjects.push({name:'',defaultMax:100});draw(false);root.querySelector('[data-subject-row="'+(subjects.length-1)+'"] input')?.focus();});
+      root.querySelectorAll('[data-remove-subject]').forEach(b=>b.onclick=()=>{capture();if(subjects.length<=1)return;const i=+b.dataset.removeSubject;subjects.splice(i,1);reindexCounts('s:',subjects.length,i);draw(false);});
       root.querySelectorAll('[data-elective]').forEach(b=>b.onclick=()=>{capture();const name=b.dataset.elective;if(selected.includes(name))selected=selected.filter(n=>n!==name);else if(selected.length<3)selected.push(name);else{message='最多选择 3 门';draw(false);return;}if(isNew&&selected.length===3){try{recommend();}catch(_){}}message='';draw(false);});
       root.querySelector('[data-recommend]')?.addEventListener('click',()=>{capture();try{recommend();message='';}catch(e){message=e.message;}draw(false);});
-      root.querySelector('[data-add-module]')?.addEventListener('click',()=>{capture();if(modules.length>=12)return;modules.push({name:'',subjects:[],isBuiltin:false});draw(false);});
-      root.querySelectorAll('[data-remove-module]').forEach(b=>b.onclick=()=>{capture();const i=+b.dataset.removeModule;modules.splice(i,1);const old=clone(counts);modules.forEach((m,n)=>counts['m:'+n]=old['m:'+(n>=i?n+1:n)]||{});draw(false);});
+      root.querySelector('[data-add-module]')?.addEventListener('click',()=>{capture();if(modules.length>=12)return;counts['m:'+modules.length]={};modules.push({name:'',subjects:[],isBuiltin:false});draw(false);});
+      root.querySelectorAll('[data-remove-module]').forEach(b=>b.onclick=()=>{capture();const i=+b.dataset.removeModule;modules.splice(i,1);reindexCounts('m:',modules.length,i);draw(false);});
       root.querySelectorAll('[data-member]').forEach(b=>b.onclick=()=>{capture();const m=modules[+b.dataset.module],n=b.dataset.member;m.subjects=m.subjects.includes(n)?m.subjects.filter(s=>s!==n):m.subjects.concat(n);draw(false);});
       root.querySelector('[data-add-category]')?.addEventListener('click',()=>{capture();if(classification.options.length<12){classification.options.push('');draw(false);root.querySelector('[data-field="category-option:'+(classification.options.length-1)+'"]')?.focus();}});
       root.querySelectorAll('[data-remove-category]').forEach(b=>b.onclick=()=>{capture();if(classification.options.length>1){classification.options.splice(+b.dataset.removeCategory,1);draw(false);}});
@@ -240,7 +251,7 @@
         school=clone(profile.school||null);schoolQuery=school?.name||'';
         goal={subjects:{},totalGoal:null,targetRank:null,school:'',date:'',dateName:'',...g.goal};
         const savedDefaults=window.ScoreParticipantDefaults?.snapshot?.()||{};
-        counts.total=clone(savedDefaults.total||{});subjects.forEach((s,i)=>counts['s:'+i]=clone(savedDefaults['s:'+s.name]||{}));modules.forEach((m,i)=>counts['m:'+i]=clone(savedDefaults['m:'+m.id]||{}));
+        clearCounts('s:');clearCounts('m:');counts.total=clone(savedDefaults.total||{});subjects.forEach((s,i)=>counts['s:'+i]=clone(savedDefaults['s:'+s.name]||{}));modules.forEach((m,i)=>counts['m:'+i]=clone(savedDefaults['m:'+m.id]||{}));
         initial={subjects:clone(subjects),modules:clone(modules),classification:clone(classification),school:clone(school),goal:clone(goal),defaults:clone(savedDefaults)};
         state.setupProfile=profile;ready=true;state.setupGuideLoading=false;draw(false);loadBenefits();
       }catch(e){if(current()){message=e.message||'设置加载失败';draw(false);}}
