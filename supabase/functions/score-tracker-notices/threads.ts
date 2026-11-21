@@ -13,7 +13,7 @@ export async function announcementThread(db,user,action,body,notice,isCurrent) {
   const writable=isCurrent&&notice.comments_enabled===true;
   if(action==='announcement_thread_read'){
     const after=Number(body.offset||0);if(!Number.isSafeInteger(after)||after<0||after>10000)return fail('分页无效',400);
-    const q=await db.from('score_tracker_announcement_thread_replies').select('id,parent_id,parent_legacy,user_id,content,created_at,deleted_at,author:score_tracker_users(username,is_admin)',{count:'exact'}).eq('root_id',body.root_id).order('created_at',{ascending:true}).order('id',{ascending:true}).range(after,after+29);
+    const q=await db.from('score_tracker_announcement_thread_replies').select('id,parent_id,parent_legacy,user_id,content,created_at,deleted_at,author:score_tracker_users!score_tracker_announcement_thread_replies_user_id_fkey(username,is_admin)',{count:'exact'}).eq('root_id',body.root_id).order('created_at',{ascending:true}).order('id',{ascending:true}).range(after,after+29);
     if(q.error)throw q.error;
     const ids=(q.data||[]).map(r=>r.id);
     async function likes(table,column,id){
