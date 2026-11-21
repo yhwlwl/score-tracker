@@ -41,3 +41,19 @@ assert.equal(m.subject,'总分');assert.equal(m.ranks[0].percent,12);
 m=p.recentModel(metric,{...api,rank:()=>({}),average:()=>null});
 assert.equal(m.ranks.length,0);
 console.log('PASS: latest exam score, ranked scopes, missing data, zero scores, raw maximum and manual total');
+
+
+const v=p.normalizeSlogan({mode:'bogus',text:'  '+ '😀'.repeat(100)+'  ',offset:-1});
+assert.equal(v.mode,'default');assert.ok(Array.from(v.text).length<=80);assert.equal(v.offset,p.dailySlogans.length-1);
+assert.equal(p.sloganText({mode:'off'}),'');assert.equal(p.sloganText({mode:'custom',text:' <b>自己的话</b> '}),'<b>自己的话</b>');
+assert.equal(p.sloganText({mode:'custom',text:''}),p.sloganText({mode:'default'}));
+const date=new Date(2026,10,21,10,30),daily=p.sloganText({mode:'daily'},date);
+assert.equal(p.sloganText({mode:'daily'},new Date(2026,10,21,23,59)),daily);
+assert.notEqual(p.sloganText({mode:'daily'},new Date(2026,10,22,0,0)),daily);
+assert.notEqual(p.sloganText({mode:'daily',offset:1},date),daily);
+assert.ok(new Set(p.dailySlogans).size>=60);
+for(const id of [...p.ids,...p.charts.map(c=>c[0])])assert.match(p.previewArt(id),/<svg[^>]*>.+<\/svg>/);
+assert.ok(p.previewArt('compare').includes('stroke-dasharray'));
+assert.ok(p.previewArt('distribution').includes('circle'));
+assert.ok(!p.previewArt('home-latest-subjects').includes('opacity="0.08"'));
+console.log('PASS: slogan modes, daily rotation, unicode length, 21 chart previews');
