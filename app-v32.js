@@ -112,7 +112,7 @@ function buildFeaturesV32(exams){
     var ser=[];
     exams.forEach(function(e,i){
       var row=rowV32(e,s);
-      var has=n32(row.actual)!==null||n32(row.target)!==null||n32(row.rank)!==null;
+      var has=n32(row.actual)!==null||n32(row.target)!==null||posYearOf32(e,row)!==null||posClassOf32(e,row)!==null;
       if(!has)return;
       ser.push({i:i,pos:posYearOf32(e,row),cls:posClassOf32(e,row),
         rate:rateOf32(row),target:n32(row.target),actual:n32(row.actual),
@@ -472,8 +472,8 @@ function buildInsightsV32(f){
     }
     if(run3>=2&&sum3>=8&&start3>=0){
       add({sev:2,type:"tdecl",icon:"warn",
-        title:"总分连续"+run3+"场退步",
-        body:"总分位置从"+fmtPos32(ts[start3].pos)+"退到当前"+fmtPos32(ts[ts.length-1].pos)+",累计约"+Math.round(sum3)+"个百分点——看看是哪科拖了后腿(可回「学科结构」对比)。",
+        title:(f.totalLabel||"总分")+"连续"+run3+"场退步",
+        body:(f.totalLabel||"总分")+"位置从"+fmtPos32(ts[start3].pos)+"退到当前"+fmtPos32(ts[ts.length-1].pos)+",累计约"+Math.round(sum3)+"个百分点——看看是哪科拖了后腿(可回「学科结构」对比)。",
         ev:"依据:总分位比相邻场变化,连续"+run3+"场变大(累计约"+Math.round(sum3)+"pp),参考人数口径一致。"});
     }
     run3=0;sum3=0;start3=-1;
@@ -483,8 +483,8 @@ function buildInsightsV32(f){
     }
     if(run3>=2&&sum3<=-8&&start3>=0){
       add({sev:4,type:"tprog",icon:"up",
-        title:"总分连续"+run3+"场前进",
-        body:"总分位置从"+fmtPos32(ts[start3].pos)+"进到当前"+fmtPos32(ts[ts.length-1].pos)+",累计约"+Math.round(Math.abs(sum3))+"个百分点,势头不错。",
+        title:(f.totalLabel||"总分")+"连续"+run3+"场前进",
+        body:(f.totalLabel||"总分")+"位置从"+fmtPos32(ts[start3].pos)+"进到当前"+fmtPos32(ts[ts.length-1].pos)+",累计约"+Math.round(Math.abs(sum3))+"个百分点,势头不错。",
         ev:"依据:总分位比相邻场变化,连续"+run3+"场变小(累计约"+Math.round(Math.abs(sum3))+"pp),参考人数口径一致。"});
     }
   }
@@ -701,14 +701,14 @@ function controlsHtmlV32(f){
   return '<div class="sv31-controls compact-scope-v60"><select class="compact-select-v60" data-analysis-scope-v60 aria-label="考试分类">'+cat+'</select><select class="compact-select-v60" data-analysis-subject-v60 aria-label="分析科目或组合">'+items+'</select></div>';
 }
 function scopedScoreV60(e,f){
-  var sel=f.analysisSelection,actual=0,target=0,max=0,valid=true,targetValid=true;
+  var sel=f.analysisSelection,actual=0,target=0,max=0,valid=true,maxValid=true,targetValid=true;
   if(!sel||!sel.length){
     var a=totalActualV32(e),t=totalTargetV32(e),m=0,complete=true;
     Object.keys(e.scores||{}).forEach(function(s){var r=e.scores[s]||{},v=n32(r.actual),mx=n32(r.max);if(r.excludeFromTotal)return;if(v!==null&&mx>0)m+=mx;else if(v!==null||mx>0)complete=false;});
     return {actual:a,target:t,rate:a!==null&&m>0&&complete&&a<=m?r32(a/m*100):null};
   }
-  sel.forEach(function(s){var r=rowV32(e,s),a=n32(r.actual),t=n32(r.target),m=n32(r.max);if(a===null||!(m>0))valid=false;else{actual+=a;max+=m;}if(t===null)targetValid=false;else target+=t;});
-  return {actual:valid?actual:null,target:targetValid?target:null,rate:valid&&max?r32(actual/max*100):null};
+  sel.forEach(function(s){var r=rowV32(e,s),a=n32(r.actual),t=n32(r.target),m=n32(r.max);if(a===null)valid=false;else actual+=a;if(!(m>0))maxValid=false;else max+=m;if(t===null)targetValid=false;else target+=t;});
+  return {actual:valid?actual:null,target:targetValid?target:null,rate:valid&&maxValid&&max>0&&actual<=max?r32(actual/max*100):null};
 }
 function scopedClassV60(e,f){
   var sel=f.analysisSelection;
@@ -879,10 +879,10 @@ function hallHtmlV32(f,mode){
     push((f.totalLabel||"总分")+(f.totalSynthetic?"*":""),f.totalSeries.map(function(x){return 100-x.pos;}),fmtPos32(best),f.exams[bestEntry.i].name,
       gap<=0.05?"0":r32(Math.abs(gap))+"个百分点",
       '<span class="pill '+(st==="ok"?"ok":(st==="warn"?"warn":"acc"))+'" title="依据:距个人最佳 '+r32(Math.abs(gap))+' 个百分点">'+pbLabelV32(st,gap)+"</span>");
-  }else if(!f.scopeMissing&&f.scoreSeries&&f.scoreSeries.length>=1){
+  }else if(f.scoreSeries&&f.scoreSeries.length>=1){
     var bS=f.scoreSeries[0];f.scoreSeries.forEach(function(x){if(x.score>bS.score)bS=x;});
     fallback=true;
-    push("总分",f.scoreSeries.map(function(x){return x.score;}),Math.round(bS.score)+"分",f.exams[bS.i].name,"—",
+    push(f.totalLabel||"总分",f.scoreSeries.map(function(x){return x.score;}),Math.round(bS.score)+"分",f.exams[bS.i].name,"—",
       '<span class="pill flat">分数参考</span>');
   }
   f.subjects.forEach(function(s){
@@ -1231,10 +1231,10 @@ function statsPageV32(f){
     'title="与账户「组合设置」联动；选中后，下方所有板块只分析该组合/科目">'+comboRow+subjRow+"</div>":"";
   var head='<div class="page-head"><div><h2>统计分析</h2><p>'+f.exams.length+" 次考试 · "+Math.max(f.scoredExams,f.totalSeries.length,f.rateCount)+" 场可分析</p></div>"
     +'</div>';
-  if(f.scoredExams<1){
+  if(f.scoredExams<1&&f.posCount<1&&!f.exams.some(function(e){return scopedClassV60(e,f)!==null;})){
     return '<div class="sv31-page">'+head+controlsHtmlV32(f)
-      +'<div class="card"><div class="card-title-row"><div><h3 class="card-title">记录第一场考试</h3></div></div>'
-      +'<p class="card-sub">去「考试记录」填入成绩，就能在这里看趋势和强弱科。</p></div>'
+      +'<div class="card"><div class="card-title-row"><div><h3 class="card-title">当前范围暂无可分析成绩</h3></div></div>'
+      +'<p class="card-sub">切换筛选范围，或在考试记录中补录成绩。</p></div>'
       +(window.__stTrajectories?'<div class="card">'+window.__stTrajectories.html()+"</div>":"")+qualityHtmlV32(f)+"</div>";
   }
   var ins=buildInsightsV32(f);
@@ -1354,7 +1354,6 @@ function applySubjectModuleV32(f){
   var sel=(typeof state!=="undefined"&&state.sv31&&state.sv31.subjMod)||null;
   f.analysisSelection=sel&&sel.length?sel.slice():null;f.analysisModule=state.sv31&&state.sv31.subjModule||null;
   if(!sel||!sel.length){f.totalLabel="总分";delete f.scopeSubject;return f;}
-  var orig=f.subjects.slice();
   var keep={};sel.forEach(function(s){keep[s]=1;});
   f.subjects=f.subjects.filter(function(s){return keep[s];});
   ["series","valid","latestN","mom","stab","pb","streaks","tgt"].forEach(function(k){
@@ -1368,8 +1367,8 @@ function applySubjectModuleV32(f){
   f.scopeMissing=false;
   f.totalLabel="总分";
   /* 组合=全部科目(如六科组合)时也要进组合分支:总分排名可直接充当组合排名 */
-  if(f.subjects.length>=1&&(Object.keys(keep).length<orig.length||sel.length>1)){
-    f.totalLabel=f.subjects.length===1?f.subjects[0]:"所选"+f.subjects.length+"科";
+  {
+    f.totalLabel=sel.length===1?sel[0]:"所选"+sel.length+"科";
     if(!f.scopeSubject){
       /* 组合口径:排名只用「考试录入时为组合填写的排名」(exam.moduleRanks[组合id],含本地兜底)——
          没填就跳过该场、全部没填就不显示,绝不拿成员科目位比中位数去合成年排/班排 */
@@ -1377,7 +1376,7 @@ function applySubjectModuleV32(f){
       var mod=null;
       if(modId){try{mod=(state.modulesV18||[]).filter(function(m){return String(m&&m.id)===String(modId);})[0]||null;}catch(e){}}
       var comSel={},comSelN=sel.length;
-      f.subjects.forEach(function(s){comSel[s]=1;});
+      sel.forEach(function(s){comSel[s]=1;});
       var syn=[];
       f.exams.forEach(function(e,i){
         var mr=moduleRanksForExamV32(e,modId);
@@ -1423,7 +1422,6 @@ function applySubjectModuleV32(f){
       var byExam={};
       f.subjects.forEach(function(s){
         (f.valid[s]||[]).forEach(function(v){
-          if(!v.N)return;
           (byExam[v.i]=byExam[v.i]||[]).push({pos:v.pos,N:v.N,cls:v.cls});
         });
       });
@@ -1431,7 +1429,7 @@ function applySubjectModuleV32(f){
       Object.keys(byExam).map(Number).sort(function(a,b){return a-b;}).forEach(function(i){
         var arr=byExam[i];
         var pos=median32(arr.map(function(x){return x.pos;}));
-        var N=Math.round(median32(arr.map(function(x){return x.N;})));
+        var nums=arr.map(function(x){return x.N;}).filter(function(x){return x>0;}),N=nums.length?Math.round(median32(nums)):null;
         var cls=null;
         var cvs=arr.map(function(x){return x.cls;}).filter(function(c){return c!==null&&c!==undefined;});
         if(cvs.length)cls=median32(cvs);
@@ -1453,6 +1451,16 @@ function applySubjectModuleV32(f){
       }
     }
   }
+  f.scoreSeries=[];f.scoredExams=0;f.rateCount=0;f.posCount=0;var years=new Set(f.totalSeries.map(function(x){return x.i;}));
+  f.exams.forEach(function(e,i){var x=scopedScoreV60(e,f);if(x.actual!==null){f.scoredExams++;f.scoreSeries.push({i:i,score:x.actual,rate:x.rate,name:e.name,date:e.exam_date});}if(x.rate!==null)f.rateCount++;if(years.has(i)||scopedClassV60(e,f)!==null||f.subjects.some(function(s){return posYearOf32(e,rowV32(e,s))!==null||posClassOf32(e,rowV32(e,s))!==null;}))f.posCount++;});
+  f.latestScore=f.scoreSeries.length?f.scoreSeries[f.scoreSeries.length-1].score:null;f.prevScore=f.scoreSeries.length>=2?f.scoreSeries[f.scoreSeries.length-2].score:null;
+  f.cohTotal=f.totalSeries.slice(1).map(function(x,i){var a=f.totalSeries[i].N,b=x.N;return !!(a&&b&&Math.abs(a-b)/Math.max(a,b)>=.3&&Math.abs(a-b)>=100);});
+  Object.keys(f.cohSub||{}).forEach(function(s){if(!keep[s])delete f.cohSub[s];});
+  f.cohortChange=f.cohTotal.filter(Boolean).length+Object.values(f.cohSub||{}).reduce(function(t,a){return t+a.filter(Boolean).length;},0);
+  f.quality.pending=f.exams.filter(function(e){var x=scopedScoreV60(e,f);return x.target!==null&&x.actual===null;});
+  f.quality.missCls=f.exams.filter(function(e,i){return years.has(i)&&scopedClassV60(e,f)===null;});
+  f.quality.smallSubs=f.quality.smallSubs.filter(function(s){return keep[s];});f.quality.zeroRankSubs=f.quality.zeroRankSubs.filter(function(s){return keep[s];});
+  f.quality.smallCohort=f.exams.filter(function(e){return f.subjects.some(function(s){var n=effYearN32(e,rowV32(e,s));return n!==null&&n<=30;});});f.quality.cohortChange=f.cohortChange;
   return f;
 }
 /* 该场「计入总分的科目」与所选组合完全一致?(如六科组合且总分=这六科 → 总分排名即组合排名) */
@@ -1487,7 +1495,7 @@ function routeStatsV32(){
   var cfg=(typeof state!=="undefined"&&state.sv31)||(state.sv31={scope:"__all__"});
   var exams=scopeFilterV32(visibleExamsV32(cfg.includeHidden),cfg.scope);
   var f=buildFeaturesV32(exams);
-  window.__v32AllSubjects=f.subjects.slice(); /* 选择器需要全量学科清单(先于过滤) */
+  window.__v32AllSubjects=subjectListV32(allExamsV32()); /* 选择器需要全量学科清单(先于过滤) */
   f=applySubjectModuleV32(f);
   f.worthHistoryExams=worthHistoryExamsV32(cfg.includeHidden); /* 独立于全局和统计页分类筛选，保留隐藏记录设置。 */
   delete cfg.mode;delete cfg.modeChosen;
