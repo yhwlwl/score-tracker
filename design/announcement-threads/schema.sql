@@ -81,4 +81,13 @@ language sql stable security invoker set search_path='' as $$
 $$;
 revoke all on function public.score_tracker_thread_root_summary(uuid[],uuid) from public,anon,authenticated;
 grant execute on function public.score_tracker_thread_root_summary(uuid[],uuid) to service_role;
+-- Release switch: keep production comments backward compatible until the discussion system is ready.
+create table public.score_tracker_announcement_thread_settings(
+ id smallint primary key check(id=1),
+ enabled boolean not null default false
+);
+insert into public.score_tracker_announcement_thread_settings(id,enabled) values(1,false);
+alter table public.score_tracker_announcement_thread_settings enable row level security;
+revoke all on public.score_tracker_announcement_thread_settings from public,anon,authenticated;
+grant select,update on public.score_tracker_announcement_thread_settings to service_role;
 commit;
