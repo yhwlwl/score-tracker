@@ -14,7 +14,7 @@
   async function call(endpoint, action, payload, token) {
     const response = await fetch('/api/' + endpoint, {method:'POST',headers:{'Content-Type':'application/json'},signal:AbortSignal.timeout(20000),body:JSON.stringify({action,token:token || state.token,...payload})});
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw Error(data.error || '暂时没有保存成功，请重试');
+    if (!response.ok) {const e=Error(data.error || '暂时没有保存成功，请重试');e.status=response.status;throw e;}
     return data;
   }
   const setup = (action,payload,token) => call('score-tracker-setup',action,payload,token);
@@ -22,10 +22,29 @@
   function applyVisual(v,persist) { window.__v29?.applyTheme(v.theme,true,persist);window.__v29?.applyReading(v.font,v.size,persist); }
   function input(name,value,label,attrs) { return '<label class="sg-field"><span>'+esc(label)+'</span><input data-field="'+esc(name)+'" value="'+esc(value)+'" '+(attrs || '')+'></label>'; }
   function choice(label,attr,selected) { return '<button type="button" class="sg-choice" '+attr+' aria-pressed="'+!!selected+'">'+esc(label)+(selected?'<span aria-hidden="true">✓</span>':'')+'</button>'; }
+  function validation(code,message) { const e=Error(message);e.guideValidation=code;return e; }
+  function failureMeta(error,stage) {
+    const status=Number(error?.status ?? error?.requestStatus ?? 0);
+    const category=error?.guideValidation?'validation':stage==='appearance'?'appearance':error?.name==='TimeoutError'||error?.name==='AbortError'?'timeout_or_abort':status>=400&&status<=499?'request_rejected':status>=500&&status<=599?'server_error':stage==='checkpoint'||stage.endsWith('_save')?'request_error':'unexpected';
+    return {failure_kind:category,failure_stage:stage,...(error?.guideValidation?{failure_code:error.guideValidation}:{}),...(status>=400&&status<=599?{http_status:status}:{})};
+  }
+  function recommendedGroups(selected, subjects) {
+    const available=new Set(subjects.map(s=>s.name));
+    if(!CORE.every(n=>available.has(n))||selected.length!==3||new Set(selected).size!==3||selected.some(n=>CORE.includes(n)||!available.has(n)))return [];
+    const primary=selected.includes('物理')?'物理':selected.includes('历史')?'历史':null;
+    return [[0,CORE.slice()],...(primary?[[1,CORE.concat(primary)]]:[]),[2,CORE.concat(selected)]];
+  }
+  function validateModule(m,modules,subjects) {
+    const n=m.subjects.length,i=BUILTINS.indexOf(m.name),unique=new Set(m.subjects);
+    if(!m.name||new Set(modules.map(m=>m.name)).size!==modules.length)throw validation('module_name','请填写组合名称，且不要重复');
+    if(n<2||unique.size!==n||m.subjects.some(s=>!subjects.some(x=>x.name===s)))throw validation('module_members','请检查组合科目，至少选择 2 门现有科目');
+    if(i>=0&&(n!==[3,4,6][i]||!CORE.every(s=>unique.has(s))))throw validation('builtin_members',m.name+'需要包含语文、数学、英语及对应选科');
+    if(i===1&&!['物理','历史'].some(s=>unique.has(s)))throw validation('four_subject','四科组合只能选择物理或历史之一');
+  }
   function number(raw,label,max,integer) {
     if (String(raw ?? '').trim()==='') return null;
     const n=Number(raw);
-    if (!Number.isFinite(n)||n<(integer?1:0)||n>max||integer&&!Number.isInteger(n))throw Error(label+(integer?'请输入正整数':'请填写有效分数'));
+    if (!Number.isFinite(n)||n<(integer?1:0)||n>max||integer&&!Number.isInteger(n))throw validation(integer?'invalid_integer':'invalid_score',label+(integer?'请输入正整数':'请填写有效分数'));
     return n;
   }
   function open(options = {}) {
@@ -38,7 +57,7 @@
     let goal={subjects:{},totalGoal:null,targetRank:null,school:'',date:'',dateName:''};
     let initial={},appearance=visual(),initialVisual=clone(appearance),benefits=null,benefitError='';
     let shownStep=-1,stepStarted=performance.now();const runId=crypto.randomUUID();
-    function emit(event,n=step){track(event,n,{account_kind:isNew?'new':'existing',guide_run_id:runId,duration_ms:Math.round(performance.now()-stepStarted)});}
+    function emit(event,n=step,extra={}){track(event,n,{account_kind:isNew?'new':'existing',guide_run_id:runId,duration_ms:Math.round(performance.now()-stepStarted),...extra});}
     let rename=user.username,password='',confirmation='',showPassword=false;
     const root=document.createElement('div');root.className='setup-overlay sg-root';
     root.setAttribute('role','dialog');root.setAttribute('aria-modal','true');root.setAttribute('aria-label','账号设置引导');
@@ -70,7 +89,7 @@
     function combinationPage() {
       const options=Array.from(new Set(subjects.map(s=>s.name).filter(n=>!CORE.includes(n))));
       selected=selected.filter(n=>options.includes(n));
-      return heading('选科与组合','选好科目，再看看组合。',!isNew&&modules.length)+'<div class="sg-chips" aria-label="所选科目">'+options.map(n=>choice(n,'data-elective="'+esc(n)+'"',selected.includes(n))).join('')+'</div><div class="sg-section-line"><span>成绩组合</span><button type="button" class="sg-text" data-recommend>应用推荐组合</button></div><div class="sg-combinations">'+modules.map((m,i)=>'<section class="sg-combination" data-module-row="'+i+'"><div class="sg-combination-title">'+(m.isBuiltin?'<b>'+esc(m.name===BUILTINS[0]?'三科组合':m.name===BUILTINS[1]?'四科组合':m.name===BUILTINS[2]?'六科组合':m.name)+'</b>':input('module-name',m.name,'名称','maxlength="30"'))+(!m.isBuiltin?'<button type="button" class="sg-remove" data-remove-module="'+i+'" aria-label="删除组合">×</button>':'')+'</div><p class="sg-members">'+esc(m.subjects.join(' · '))+'</p>'+countFields('m:'+i)+'<details class="sg-fold"><summary>调整科目</summary><div class="sg-chips">'+subjects.map(s=>choice(s.name,'data-member="'+esc(s.name)+'" data-module="'+i+'"',m.subjects.includes(s.name))).join('')+'</div></details></section>').join('')+'</div><button type="button" class="sg-text" data-add-module>＋ 添加组合</button>';
+      return heading('选科与组合','选好科目，再看看组合。',!isNew&&modules.length)+'<div class="sg-chips" aria-label="所选科目">'+options.map(n=>choice(n,'data-elective="'+esc(n)+'"',selected.includes(n))).join('')+'</div><div class="sg-section-line"><span>成绩组合</span><button type="button" class="sg-text" data-recommend>应用推荐组合</button></div><div class="sg-combinations">'+modules.map((m,i)=>'<section class="sg-combination" data-module-row="'+i+'"><div class="sg-combination-title">'+(m.isBuiltin?'<b>'+esc(m.name===BUILTINS[0]?'三科组合':m.name===BUILTINS[1]?'四科组合':m.name===BUILTINS[2]?'六科组合':m.name)+'</b>':input('module-name',m.name,'名称','maxlength="30"'))+(!m.isBuiltin?'<button type="button" class="sg-remove" data-remove-module="'+i+'" aria-label="删除组合">×</button>':'')+'</div><p class="sg-members">'+esc(m.subjects.join(' · '))+'</p>'+countFields('m:'+i)+'<details class="sg-fold"><summary>调整科目</summary><div class="sg-chips">'+subjects.filter(s=>m.name!==BUILTINS[1]||CORE.includes(s.name)||['物理','历史'].includes(s.name)).map(s=>choice(s.name,'data-member="'+esc(s.name)+'" data-module="'+i+'"',m.subjects.includes(s.name))).join('')+'</div></details></section>').join('')+'</div><button type="button" class="sg-text" data-add-module>＋ 添加组合</button>';
     }
     function classificationPage() {
       const preset=classification.label==='年级'&&same(classification.options,['初一','初二','初三'])?'junior':classification.label==='年级'&&same(classification.options,['高一','高二','高三'])?'senior':'custom';
@@ -135,9 +154,9 @@
       if(Object.keys(defaults).length){await dataApiV7('save_participant_defaults',{defaults});if(!current())return;Object.entries(defaults).forEach(([key,row])=>initial.defaults[key]={...initial.defaults[key],...row});}
     }
     function recommend() {
-      if(selected.length!==3)throw Error('请选择 3 门选科');
-      const primary=selected.includes('物理')?'物理':selected.includes('历史')?'历史':selected[0];
-      [CORE,CORE.concat(primary),CORE.concat(selected)].forEach((names,i)=>{let m=modules.find(m=>m.name===BUILTINS[i]);if(m)m.subjects=names.slice();else {counts['m:'+modules.length]={};modules.push({name:BUILTINS[i],subjects:names.slice(),isBuiltin:true});}});
+      const groups=recommendedGroups(selected,subjects);
+      if(!groups.length)throw validation('recommend_subjects','请先配置语数英和 3 门选科');
+      groups.forEach(([i,names])=>{let m=modules.find(m=>m.name===BUILTINS[i]);if(m)m.subjects=names.slice();else {counts['m:'+modules.length]={};modules.push({name:BUILTINS[i],subjects:names.slice(),isBuiltin:true});}});
     }
     async function advance(skip) {
       if(busy||!current())return;
@@ -153,49 +172,50 @@
         if(step===6)goal=clone(initial.goal);
       }
       busy=true;draw(false);
+      let failureStage='validation';
       try {
         if(!skip&&step===1){
-          if(!/^[\p{L}\p{N}_-]{2,24}$/u.test(rename))throw Error('用户名需为 2～24 位中文、字母、数字、横线或下划线');
-          if(password||confirmation){if(!/^[\x21-\x7e]{6,20}$/.test(password))throw Error('密码需为 6～20 位字母、数字或符号');if(password!==confirmation)throw Error('两次密码不一致');}
-          if(rename!==state.user.username){const r=await usernameApiV19('rename',{username:rename});if(!current())return;state.user.username=r.user.username;if(credentials)credentials.username=r.user.username;}
-          if(password){await changePasswordApiV15(password);if(!current())return;if(credentials)credentials.password=password;password=confirmation='';}
+          if(rename!==state.user.username&&!/^[\p{L}\p{N}_-]{2,24}$/u.test(rename))throw validation('username_format','用户名需为 2～24 位中文、字母、数字、横线或下划线');
+          if(password||confirmation){if(!/^[\x21-\x7e]{6,20}$/.test(password))throw validation('password_format','密码需为 6～20 位字母、数字或符号');if(password!==confirmation)throw validation('password_mismatch','两次密码不一致');}
+          if(rename!==state.user.username){failureStage='username_save';const r=await usernameApiV19('rename',{username:rename});if(!current())return;state.user.username=r.user.username;if(credentials)credentials.username=r.user.username;}
+          if(password){failureStage='password_save';await changePasswordApiV15(password);if(!current())return;if(credentials)credentials.password=password;password=confirmation='';}
         }
         if(!skip&&step===2){
-          if(!subjects.length||subjects.some(s=>!s.name)||new Set(subjects.map(s=>s.name)).size!==subjects.length)throw Error('请填写科目名称，且不要重复');
-          subjects.forEach(s=>{s.defaultMax=number(s.defaultMax,'满分',9999,false);if(!s.defaultMax)throw Error('满分需大于 0');});
+          if(!subjects.length||subjects.some(s=>!s.name)||new Set(subjects.map(s=>s.name)).size!==subjects.length)throw validation('subject_name','请填写科目名称，且不要重复');
+          subjects.forEach(s=>{s.defaultMax=number(s.defaultMax,'满分',9999,false);if(!s.defaultMax)throw validation('subject_max','满分需大于 0');});
           validateCounts(['total',...subjects.map((_,i)=>'s:'+i)]);
-          if(!same(subjects,initial.subjects)){const d=await dataApiV7('save_subjects',{subjects});if(!current())return;state.subjectConfigs=d.subjects;subjects=clone(d.subjects);initial.subjects=clone(subjects);}
-          await saveCounts([['total','total'],...subjects.map((s,i)=>['s:'+i,'s:'+s.name])]);if(!current())return;
+          if(!same(subjects,initial.subjects)){failureStage='subjects_save';const d=await dataApiV7('save_subjects',{subjects});if(!current())return;state.subjectConfigs=d.subjects;subjects=clone(d.subjects);initial.subjects=clone(subjects);}
+          failureStage='counts_save';await saveCounts([['total','total'],...subjects.map((s,i)=>['s:'+i,'s:'+s.name])]);if(!current())return;
         }
         if(!skip&&step===3){
           const allowed=selected.filter(n=>subjects.some(s=>s.name===n)&&!CORE.includes(n));
-          modules.forEach(m=>{if(!m.name||new Set(modules.map(m=>m.name)).size!==modules.length)throw Error('请填写组合名称，且不要重复');const n=m.subjects.length,i=BUILTINS.indexOf(m.name);if(n<2||i>=0&&n!==[3,4,6][i])throw Error(m.name+'需要 '+(i>=0?[3,4,6][i]:'至少 2')+' 门科目');});
+          if(!same(modules,initial.modules))modules.forEach(m=>validateModule(m,modules,subjects));
           validateCounts(modules.map((_,i)=>'m:'+i));
-          if(!same(modules,initial.modules)){const d=await modulesApiV18('save_modules',{modules});if(!current())return;state.modulesV18=d.modules;modules=clone(d.modules);initial.modules=clone(modules);}
-          await saveCounts(modules.map((m,i)=>['m:'+i,'m:'+m.id]));if(!current())return;
-          await checkpoint(4,{selected_subjects:allowed});
+          if(!same(modules,initial.modules)){failureStage='modules_save';const d=await modulesApiV18('save_modules',{modules});if(!current())return;state.modulesV18=d.modules;modules=clone(d.modules);initial.modules=clone(modules);}
+          failureStage='counts_save';await saveCounts(modules.map((m,i)=>['m:'+i,'m:'+m.id]));if(!current())return;
+          failureStage='checkpoint';await checkpoint(4,{selected_subjects:allowed});
         }
         if(!skip&&step===4){
-          if(!classification.label||!classification.options.length||new Set(classification.options).size!==classification.options.length)throw Error('请填写分类名称和不重复的选项');
-          if(!same(classification,initial.classification)){const d=await dataApiV7('save_classification',{classification});if(!current())return;state.classification=d.classification;classification=clone(d.classification);initial.classification=clone(classification);}
-          grade=classification.options.includes(grade)?grade:'';await checkpoint(5,{current_grade:grade});
+          if(!classification.label||!classification.options.length||new Set(classification.options).size!==classification.options.length)throw validation('classification','请填写分类名称和不重复的选项');
+          if(!same(classification,initial.classification)){failureStage='classification_save';const d=await dataApiV7('save_classification',{classification});if(!current())return;state.classification=d.classification;classification=clone(d.classification);initial.classification=clone(classification);}
+          grade=classification.options.includes(grade)?grade:'';failureStage='checkpoint';await checkpoint(5,{current_grade:grade});
         }
         if(!skip&&step===5&&schoolQuery.trim()){
           const next=school||{name:schoolQuery.trim(),source:'manual'};
-          if(!same(next,initial.school)){const d=await setup('school_save',{school:next},token);if(!current())return;profile=d.profile;state.setupProfile=profile;initial.school=clone(next);}
+          if(!same(next,initial.school)){failureStage='school_save';const d=await setup('school_save',{school:next},token);if(!current())return;profile=d.profile;state.setupProfile=profile;initial.school=clone(next);}
         }
         if(!skip&&step===6){
           goal.totalGoal=number(goal.totalGoal,'目标总分',9999,false);goal.targetRank=number(goal.targetRank,'目标名次',10000000,true);
           const gs={};Object.entries(goal.subjects).forEach(([n,v])=>{const score=number(v,n+'目标',1000,false);if(score!==null)gs[n]=score;});goal.subjects=gs;
-          if(!same(goal,initial.goal)){await dataApiV7('save_goal',{goal});if(!current())return;initial.goal=clone(goal);window.__v33?.reload();}
+          if(!same(goal,initial.goal)){failureStage='goal_save';await dataApiV7('save_goal',{goal});if(!current())return;initial.goal=clone(goal);window.__v33?.reload();}
         }
-        if(step===7){if(skip){appearance=clone(initialVisual);applyVisual(appearance,true);}else{applyVisual(appearance,true);initialVisual=clone(appearance);}}
-        if(step===8){await checkpoint(8,{preference_guide_version:VERSION,completed:true,step:6});if(!current())return;attempted=key;emit('setup_step_completed',8);emit('setup_completed',8);close(false);render();return;}
+        if(step===7){failureStage='appearance';if(skip){appearance=clone(initialVisual);applyVisual(appearance,true);}else{applyVisual(appearance,true);initialVisual=clone(appearance);}}
+        if(step===8){failureStage='checkpoint';await checkpoint(8,{preference_guide_version:VERSION,completed:true,step:6});if(!current())return;attempted=key;emit('setup_step_completed',8);emit('setup_completed',8);close(false);render();return;}
         if(!current())return;
-        if(step!==3&&step!==4||skip)await checkpoint(step+1);
+        if(step!==3&&step!==4||skip){failureStage='checkpoint';await checkpoint(step+1);}
         if(!current())return;
         emit(skip?'setup_step_skipped':'setup_step_completed',step);step++;busy=false;message='';draw();if(step===8)loadBenefits();
-      }catch(error){if(current()){emit('setup_step_failed');message=error.message||'暂时没有保存成功';busy=false;draw(false);}}
+      }catch(error){if(current()){emit('setup_step_failed',step,failureMeta(error,failureStage));message=error.message||'暂时没有保存成功';busy=false;draw(false);}}
     }
     async function loadBenefits() {
       benefitError='';
@@ -223,7 +243,7 @@
       root.querySelector('[data-recommend]')?.addEventListener('click',()=>{capture();try{recommend();message='';}catch(e){message=e.message;}draw(false);});
       root.querySelector('[data-add-module]')?.addEventListener('click',()=>{capture();if(modules.length>=12)return;counts['m:'+modules.length]={};modules.push({name:'',subjects:[],isBuiltin:false});draw(false);});
       root.querySelectorAll('[data-remove-module]').forEach(b=>b.onclick=()=>{capture();const i=+b.dataset.removeModule;modules.splice(i,1);reindexCounts('m:',modules.length,i);draw(false);});
-      root.querySelectorAll('[data-member]').forEach(b=>b.onclick=()=>{capture();const m=modules[+b.dataset.module],n=b.dataset.member;m.subjects=m.subjects.includes(n)?m.subjects.filter(s=>s!==n):m.subjects.concat(n);draw(false);});
+      root.querySelectorAll('[data-member]').forEach(b=>b.onclick=()=>{capture();const m=modules[+b.dataset.module],n=b.dataset.member,i=BUILTINS.indexOf(m.name);if(i>=0&&CORE.includes(n))return;if(i===0)return;if(i===1){if(!['物理','历史'].includes(n))return;m.subjects=CORE.concat(n);}else if(i===2){const extras=m.subjects.filter(s=>!CORE.includes(s));if(!extras.includes(n)&&extras.length>=3){message='六科组合最多选择 3 门选科';draw(false);return;}m.subjects=CORE.concat(extras.includes(n)?extras.filter(s=>s!==n):extras.concat(n));}else m.subjects=m.subjects.includes(n)?m.subjects.filter(s=>s!==n):m.subjects.concat(n);message='';draw(false);});
       root.querySelector('[data-add-category]')?.addEventListener('click',()=>{capture();if(classification.options.length<12){classification.options.push('');draw(false);root.querySelector('[data-field="category-option:'+(classification.options.length-1)+'"]')?.focus();}});
       root.querySelectorAll('[data-remove-category]').forEach(b=>b.onclick=()=>{capture();if(classification.options.length>1){classification.options.splice(+b.dataset.removeCategory,1);draw(false);}});
       root.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>{classification={label:'年级',options:b.dataset.preset==='junior'?['初一','初二','初三']:['高一','高二','高三']};grade=classification.options.includes(grade)?grade:'';draw(false);});
