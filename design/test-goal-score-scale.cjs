@@ -105,6 +105,32 @@ const { chromium } = require('playwright');
     assert.match(await page.locator('.gm-grid').innerText(), /满分 130 · 最佳得分率 85%/);
     assert.match(await page.locator('.gm-label').first().innerText(), /按科目设置的满分/);
     await page.locator('.gm-x').click();
+    // Tablet regression: six evenly distributed subject cards, balanced editor rows,
+    // and an always-visible save footer on shorter landscape viewports.
+    const names = ['语文','数学','英语','物理','化学','生物'];
+    const configs = names.map(name => ({name,defaultMax:100}));
+    await fixture([{exam_date:'2026-11-01',scores:Object.fromEntries(names.map(name=>[name,{actual:80,max:name==='生物'?90:100}]))}], configs,
+      {subjects:Object.fromEntries(names.map(name=>[name,85])),totalGoal:510,school:'示例学校',date:'2027-01-15',dateName:'期末考试'});
+    for (const width of [768, 1024, 1180, 1366]) {
+      await page.setViewportSize({width,height:700});
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+      const cards=await page.locator('.gh-chip').evaluateAll(els=>els.map(e=>e.getBoundingClientRect().width));
+      assert.equal(cards.length,6);
+      assert(Math.max(...cards)-Math.min(...cards)<2,'tablet subject cards should share width');
+      await page.evaluate(()=>__v33.open());
+      assert.equal(await page.locator('.gm-grid').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),3);
+      const footer=await page.locator('#gv33Save').boundingBox();
+      assert(footer&&footer.y>=0&&footer.y+footer.height<=700,'save must remain in viewport');
+      assert.equal(await page.locator('.gm-body').evaluate(e=>getComputedStyle(e).overflowY),'auto');
+      await page.locator('.gm-x').click();
+    }
+    await page.setViewportSize({width:390,height:844});
+    await page.evaluate(()=>__v33.open());
+    assert.equal(await page.locator('.gm-grid').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),2);
+    await page.locator('.gm-x').click();
+    await fixture([exam(85,100,{scores:{数学:{actual:85,max:100},英语:{actual:60,max:75}}})],
+      [{name:'数学',defaultMax:130},{name:'英语',defaultMax:150}],
+      {subjects:{数学:110.5,英语:120},totalGoal:230.5});
     // The statistics linkage must use the same normalized sum and peak achievement.
     await page.evaluate(() => {
       document.querySelector('[data-page]').dataset.page = 'stats';
