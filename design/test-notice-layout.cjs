@@ -1,0 +1,15 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const ctx={window:{},document:{createElement:()=>({}),head:{appendChild(){}}}};
+vm.createContext(ctx);vm.runInContext(fs.readFileSync('notice-media.js','utf8'),ctx);vm.runInContext(fs.readFileSync('notice-layout.js','utf8'),ctx);
+const l=ctx.window.ScoreNoticeLayout,base=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+const d=l.blank();d.summary='新的功能';d.date='2026-11-21';d.items.push({...l.item(),title:'主题',desc:'**字体**\n第二行',featured:true,type:'improve',image:'/assets/announcements/beta-appearance.svg',caption:'外观预览',action:'account'},{...l.item(),type:'fix',title:'修复日期',desc:'修复溢出'});d.plan='后续计划';d.notes='历史文本\n## 新增功能\n保留原文';
+const encoded=l.encode(d);assert(l.isStructured(encoded));assert.equal(l.encode(l.parse(encoded)),encoded);assert.equal(l.validate(d),'');
+const html=l.render(encoded,'release',base);for(const s of ['nl-summary','nl-featured','nl-rows','问题修复','后续计划','补充说明','<strong>字体</strong>','data-notice-feature="account"','data-notice-image'])assert(html.includes(s),s);
+assert(l.meta('release','v10.0',encoded).includes('2026年11月21日发布'));
+assert(!l.meta('release','v8.0','旧公告').includes('<time>'));
+assert(l.render('**标题**\n\n第一段\n\n第二段','announcement',base).includes('<h3>标题</h3><p>第一段</p><p>第二段</p>'));
+assert(!l.render('<script>alert(1)</script>','announcement',base).includes('<script>'));
+assert(!l.render('![X](https://evil.invalid/a.jpg)','announcement',base).includes('<img'));
+const legacy='旧公告\n**加粗**\n![图片](/assets/announcements/beta-appearance.svg)';assert.equal(l.parse(legacy).notes,legacy);
+d.items[0].image='https://evil.invalid/a.jpg';assert(l.validate(d));d.items[0].image='';d.items[0].title='';assert(l.validate(d));
+console.log('PASS: structured notice round trip, shared rendering, legacy prose, safe images/links and validation');

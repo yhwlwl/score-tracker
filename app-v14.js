@@ -31,7 +31,7 @@ function categoryOptionsV14(){
   return [...new Set([...configured,...used])];
 }
 function categoryLabelV14(){ return String(state.classification?.label||'分类').trim() || '分类'; }
-function rawMaxV14(exam,subject){ const row=exam?.scores?.[subject]||{}; return num(row.rawMax) ?? num(row.max) ?? defaultMax(subject); }
+function rawMaxV14(exam,subject){ const row=exam?.scores?.[subject]||{}; return finalOnlySubjectV62(subject)&&num(row.raw)===null ? (num(row.max)??defaultMax(subject)) : (num(row.rawMax) ?? num(row.max) ?? defaultMax(subject)); }
 rawScoreRateV13=function rawScoreRateV14(exam,subject){ const score=examRawScoreV13(exam,subject),max=rawMaxV14(exam,subject); return score===null||!max?null:Math.max(0,Math.min(100,score/max*100)); };
 totalRawMaxV13=function totalRawMaxV14(exam){ const names=Object.keys(exam?.scores||{});let sum=0,count=0;names.forEach(subject=>{const value=examRawScoreV13(exam,subject);if(value!==null){sum+=rawMaxV14(exam,subject);count++;}});return count?sum:null; };
 

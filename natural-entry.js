@@ -726,10 +726,18 @@
         card.querySelectorAll('.max-v16,.rawmax-v16').forEach(function (input) { delete input.dataset.nlDefault; });
       }
       count += applyField(card, '.target-v16', data.target, result);
-      count += applyField(card, '.raw-v16', data.raw, result);
-      count += applyField(card, '.actual-v16', data.actual, result);
-      count += applyField(card, '.rawmax-v16', data.rawMax, result);
-      count += applyField(card, '.max-v16', data.max, result);
+      if (/^(语文|数学|英语|历史|物理)$/.test(name.trim())) {
+        var present=function(v){return v!==undefined&&v!==null&&v!=='';};
+        var useFinal=present(data.actual);
+        count += applyField(card, '.actual-v16', useFinal?data.actual:data.raw, result);
+        count += applyField(card, '.max-v16', useFinal?(present(data.max)?data.max:data.rawMax):(present(data.rawMax)?data.rawMax:data.max), result);
+        if(useFinal&&present(data.raw)&&Number(data.raw)!==Number(data.actual))result.warnings.push(name+'不赋分，已优先使用最终分，请核对');
+      } else {
+        count += applyField(card, '.raw-v16', data.raw, result);
+        count += applyField(card, '.actual-v16', data.actual, result);
+        count += applyField(card, '.rawmax-v16', data.rawMax, result);
+        count += applyField(card, '.max-v16', data.max, result);
+      }
       if (result.rankMode === 'rank') {
         count += applyField(card, '.year-rank-v16', data.rank, result);
         count += applyField(card, '.year-participants-v16', data.participants, result);
