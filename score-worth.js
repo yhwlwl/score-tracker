@@ -87,6 +87,11 @@
       return '<option value="' + i + '"' + (i === index ? ' selected' : '') + '>' + esc((e.exam_date || '') + ' · ' + (e.name || '未命名考试')) + '</option>';
     }).reverse().join('');
   }
+  function performanceNotice(f,s){
+    var flag=f.flags&&f.flags[s.index+'|'+s.subject];if(!flag||![-1,1,2].includes(flag.lvl))return '';
+    var msg=flag.lvl<0?'本次得分率相对历史排名表现偏高。':'本次得分率相对历史排名表现偏低。';
+    return '<div class="worth-performance-v60"><b>'+(flag.lvl===2?'表现异常':'表现波动')+'</b><span>'+msg+' 原因尚不确定。</span></div>';
+  }
   function html(f) {
     var s = selection(f), r = result(f, s), cur = r.current;
     var p = M.context(f.exams, s.subject).byIndex[s.index], candidates = p ? p.group.points.map(function (o) { return o.index; }) : [s.index];
@@ -98,6 +103,9 @@
       body = '<div class="worth-compare"><div class="worth-number"><span>本次实际成绩</span><strong>' + fmt(cur.score) + '<small> / ' + fmt(cur.max) + '</small></strong><p>' + (cur.rankValid ? '年级前 ' + fmt(cur.pos) + '%' : '还没有可比较的排名') + '</p></div>';
       body += '<div class="worth-number worth-reference"><span>换算参考分 <small>估计</small></span><strong>' + (r.kind === 'empty' ? '—' : '约 ' + fmt(r.value) + '<small> / ' + fmt(r.targetMax) + '</small>') + '</strong><p>' + (r.kind === 'empty' ? '还需要一些数据' : esc(r.referenceLabel)) + '</p></div></div>';
     }
+    var currentDifficulty=cur&&cur.scoreValid&&cur.rankValid?historyCells(f.exams,[s.subject],historyExams(f))[s.index+'|'+s.subject]:null;
+    if(currentDifficulty)body+='<div class="worth-current-difficulty-v60"><span>难度参考</span><b>'+fmt(currentDifficulty.index)+'<small> / 100'+(currentDifficulty.limited?' · 粗略参考':'')+'</small></b></div>';
+    body+=performanceNotice(f,s);
     if (r.kind === 'empty') body += '<p class="worth-message" role="status">' + esc(r.reason) + '</p>';
     else {
       if (r.kind === 'identity') body += '<p class="worth-message">与本次考试相同。</p>';

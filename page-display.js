@@ -357,7 +357,7 @@
     else if(id==='speed'){var h=heading(source,'进步速度榜');n=h&&h.parentElement.querySelector('.sv31-scroll');if(n){note('最近5次典型变化');add(n);}}
     else if(id==='matrix'){
       n=source.querySelector('.worth-matrix-scroll');
-      if(n){var difficulty=!!source.querySelector('.worth-heat-legend');note(difficulty?'难度参考 · 50 为平均，非真实难度；† 粗略参考':mode==='rank'?'排名位置 · 数字越小越靠前':'得分率 · 难度信号仅供参考');add(source.querySelector('.worth-heat-legend,.sv31-nopalette'));add(n);}
+      if(n){var difficulty=!!source.querySelector('.worth-heat-legend');note(difficulty?'难度参考 · 50 为平均，非真实难度；† 粗略参考':mode==='rank'?'排名位置 · 数字越小越靠前':'得分率');add(source.querySelector('.worth-heat-legend'));add(n);}
     }else if(id==='distribution'){var h=source.querySelector('[data-matrix-distribution-heading]')||heading(source,'你的总分常落在哪个区间');n=h&&(h.closest('.matrix-distribution-head-v60')?.nextElementSibling||h.parentElement.querySelector('.sv31-g2'));add(n);}
     if(!n){out.replaceChildren();note('当前筛选下暂无足够数据','pd-empty');}
     return out;

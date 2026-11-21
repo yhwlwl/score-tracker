@@ -48,12 +48,18 @@ f=api.applySubjectModule(api.buildFeatures(es));
 win.__stScoreWorth={heatRamp(){return 'linear-gradient(to right,white,black)'},difficultyCells(){return {}},heatStyle(){return ''}};
 let matrix=api.matrix(f,'combined');
 assert.match(matrix,/data-analysis-matrix-v60="difficulty"[^>]*>难度参考/);
-assert.equal((matrix.match(/<summary>怎么看<\/summary>/g)||[]).length,1);
+assert.equal((matrix.match(/class="matrix-reading-v60"/g)||[]).length,1);
 assert.match(matrix,/90＝前90%/);
 assert.match(matrix,/data-matrix-distribution-heading/);
 state.sv31.matrixMetricV60='difficulty';
 matrix=api.matrix(f,'combined');
 assert.match(matrix,/data-analysis-matrix-v60="difficulty" aria-pressed="true"/);
 assert.match(matrix,/50＝平均难度/);
-assert.equal((matrix.match(/<summary>怎么看<\/summary>/g)||[]).length,1);
+assert.equal((matrix.match(/class="matrix-reading-v60"/g)||[]).length,1);
 assert.match(api.donut([{l:'前10%',v:4,c:'#123456'}],4,'排名分布'),/<circle/);
+
+// Matrix figures no longer contain the older three-colour signal, even for flagged data.
+state.sv31={subjMod:['数学'],matrixMetricV60:'rank'};
+f=api.applySubjectModule(api.buildFeatures(es));f.flags['0|数学']={lvl:2,e:-50};f.flags['1|数学']={lvl:1,e:-20};f.flags['2|数学']={lvl:-1,e:40};
+for(const metric of ['rank','class','score']){state.sv31.matrixMetricV60=metric;matrix=api.matrix(f,'combined',true);assert.equal(matrix.includes('sv31-dot'),false);assert.equal(matrix.includes('matrix-legend-v60'),false);assert.match(matrix,/data-analysis-matrix-v60="difficulty"/);assert.match(matrix,/matrix-reading-v60/);}
+console.log('PASS: matrix indicator isolation');
