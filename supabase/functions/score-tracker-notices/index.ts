@@ -182,7 +182,7 @@ Deno.serve(async req => {
       const {status,...page}=await announcementCommentPage(db,user,notice,isCurrent,body.before);
       if(!status&&notice.comments_public!==false){
         const rows=[...(page.rows||[]),...(page.pinned||[])];
-        if(rows.length){const summary=await db.rpc('score_tracker_thread_root_summary',{p_roots:rows.map(r=>r.id),p_user:user.id});if(summary.error)throw summary.error;const byId=new Map((summary.data||[]).map(r=>[r.root_id,r]));for(const row of rows){const stats=byId.get(row.id);row.root_likes={count:Number(stats?.like_count)||0,liked:stats?.liked===true};row.reply_count=Number(stats?.reply_count)||0;}}
+        if(rows.length){const summary=await db.rpc('score_tracker_thread_root_summary',{p_roots:rows.map(r=>r.id),p_user:user.id});if(summary.error)throw summary.error;const byId=new Map((summary.data||[]).map(r=>[r.root_id,r]));for(const row of rows){const stats=byId.get(row.id);row.root_likes={count:Number(stats?.like_count)||0,liked:stats?.liked===true};row.reply_count=(Number(stats?.reply_count)||0)+(row.reply?1:0);row.reply_preview=(stats?.preview||[]).map(r=>({id:r.id,parent_id:r.parent_legacy?'legacy':r.parent_id,content:r.content,created_at:r.created_at,author:r.author||'***',is_developer:r.is_developer===true,is_mine:r.is_mine===true,can_delete:isCurrent&&notice.comments_enabled===true&&(user.is_admin||r.is_mine===true),count:Number(r.count)||0,liked:r.liked===true}));if(row.reply){row.reply_legacy={id:'legacy',author:'开发者',is_developer:true,content:row.reply.content,created_at:row.reply.created_at,can_delete:false,count:Number(stats?.legacy_count)||0,liked:stats?.legacy_liked===true};}}}
         page.threads_enabled=true;
       }
       return json(page,status||200);
