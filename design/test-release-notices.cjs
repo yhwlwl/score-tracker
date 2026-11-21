@@ -25,12 +25,14 @@ function harness(options={},shared=server(options)) {
     if(b.action==='notice_claim'){if(shared.claimDelay)await sleep(shared.claimDelay);const seen=shared.receipts.get(b.token)||[],claimed=!seen.some(x=>x.kind===b.kind&&x.notice_id===b.notice_id);if(claimed)seen.push({kind:b.kind,notice_id:b.notice_id});shared.receipts.set(b.token,seen);return {ok:true,json:async()=>({claimed})};}
     throw Error('Unexpected action: '+b.action);
   };
+  if(options.structured){for(const file of ['notice-media.js','notice-layout.js'])w.eval(fs.readFileSync(path.join(root,file),'utf8'));w.matchMedia=()=>({matches:false});}
   w.eval(source);return {w,d:w.document,dom,shared,errors,intervals,close:()=>w.close()};
 }
 function click(h,selector){const el=h.d.querySelector(selector);assert(el,selector);el.click();}
 async function initial(h){await sleep(190);}
 function storage(h){return Object.fromEntries(Array.from({length:h.w.localStorage.length},(_,i)=>{const k=h.w.localStorage.key(i);return [k,h.w.localStorage.getItem(k)];}));}
 async function run(){
+  let structured=harness({structured:true,current:'v10.0',config:{version:'v10.0',title:'让记录更简单，让进步更清晰',content:fs.readFileSync(path.join(root,'design/release-v10.0-notice.md'),'utf8')}});await initial(structured);assert.equal(structured.d.querySelectorAll('#rnContent .nl-featured').length,3);assert(structured.d.querySelector('#rnContent').textContent.includes('网站目前仍然完全免费'));assert.deepEqual(structured.errors,[]);structured.close();
   let h=harness();await initial(h);assert.equal(h.d.querySelector('.rn-action').textContent,'我知道了');assert.equal(h.d.querySelector('#releaseTip'),null);assert.equal(h.d.querySelector('#rnTitle').textContent,'v7.0 更新内容');click(h,'.rn-action');await h.w.__releaseNotices.check('login');assert.equal(h.d.querySelector('.rn-back'),null);
   click(h,'#app-version-v17');await sleep(20);assert(h.d.querySelector('.rn-back'));h.d.querySelector('.rn-back').dispatchEvent(new h.w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));assert.equal(h.d.querySelector('.rn-back'),null);const local=storage(h),shared=h.shared;const types=h.w.events.map(x=>x.type);for(const t of ['update_check_started','update_check_completed','update_prompt_shown','update_acknowledged','update_prompt_dismissed','version_update_opened','notice_suppressed'])assert(types.includes(t),t);assert.deepEqual(h.errors,[]);h.close();h=harness({storage:local},shared);await initial(h);assert.equal(h.d.querySelector('.rn-back'),null);h.close();console.log('PASS: current version, reload deduplication, manual access, telemetry');
 
