@@ -57,3 +57,6 @@ assert.ok(p.previewArt('compare').includes('stroke-dasharray'));
 assert.ok(p.previewArt('distribution').includes('circle'));
 assert.ok(!p.previewArt('home-latest-subjects').includes('opacity="0.08"'));
 console.log('PASS: slogan modes, daily rotation, unicode length, 21 chart previews');
+
+assert.ok(p.previewArt('home-summary').includes('达标'));assert.ok(p.previewArt('stats-worth').includes('参考分'));
+assert.ok(p.previewArt('stats-comp').includes('stroke-dasharray'));
