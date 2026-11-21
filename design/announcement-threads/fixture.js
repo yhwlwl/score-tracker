@@ -20,16 +20,16 @@ window.fetch=async function(url,init={}){
  if(['notice_history','notice_check','notice_public'].includes(a))return response({config,announcements:notices,releases:[],seen:[{kind:'announcement',notice_id:id}]});
  if(a==='notice_claim')return response({claimed:true});
  if(a==='announcement_comments'){
-  const n=notices.find(x=>x.id===b.notice_id),rows=roots.filter(x=>x.notice_id===b.notice_id).map(x=>({...x,is_mine:x.owner===u,can_delete:b.notice_id===id&&(u==='demo-admin'||x.owner===u),reply_unread:false}));
+  const n=notices.find(x=>x.id===b.notice_id),rows=roots.filter(x=>x.notice_id===b.notice_id).map(x=>({...x,is_mine:x.owner===u,can_delete:b.notice_id===id&&(u==='demo-admin'||x.owner===u),reply_unread:false,author:x.is_developer?'开发者':mask(x.author),root_likes:stat(x.id,u),reply_count:replies.filter(r=>r.root_id===x.id).length}));
   return response({rows:rows.filter(x=>!x.pinned_at),pinned:rows.filter(x=>x.pinned_at),next:null,threads_enabled:true,read_only:b.notice_id!==id,comments_enabled:n?.comments_enabled});
  }
  if(a==='announcement_comment_add'){roots.unshift({id:'r'+serial++,notice_id:b.notice_id,owner:u,author:users[u],is_developer:u==='demo-admin',content:b.content,created_at:now()});return response({ok:true})}
  if(a==='announcement_comment_delete'){let i=roots.findIndex(x=>x.id===b.id&&(x.owner===u||u==='demo-admin'));if(i<0)return response({error:'无权删除'},403);roots.splice(i,1);return response({ok:true})}
- if(a==='announcement_thread_read'){let list=replies.filter(x=>x.root_id===b.root_id);return response({root_likes:stat(b.root_id,u),rows:list.slice(b.offset||0,(b.offset||0)+30).map(x=>({id:x.id,parent_id:x.parent_id,content:x.content,created_at:x.created_at,author:x.owner==='demo-admin'?'开发者':mask(users[x.owner]),is_developer:x.owner==='demo-admin',is_mine:x.owner===u,can_delete:b.notice_id===id&&(x.owner===u||u==='demo-admin'),...stat(x.id,u)})),writable:b.notice_id===id,next:list.length>(b.offset||0)+30?(b.offset||0)+30:null})}
+ if(a==='announcement_thread_read'){let list=replies.filter(x=>x.root_id===b.root_id);return response({root_likes:stat(b.root_id,u),reply_count:list.length,rows:list.slice(b.offset||0,(b.offset||0)+30).map(x=>({id:x.id,parent_id:x.parent_id,content:x.deleted?'原回复已删除':x.content,deleted:!!x.deleted,created_at:x.created_at,author:x.deleted?'已删除':x.owner==='demo-admin'?'开发者':mask(users[x.owner]),is_developer:!x.deleted&&x.owner==='demo-admin',is_mine:x.owner===u,can_delete:!x.deleted&&b.notice_id===id&&(x.owner===u||u==='demo-admin'),...stat(x.id,u)})),writable:b.notice_id===id,next:list.length>(b.offset||0)+30?(b.offset||0)+30:null})}
  if(b.notice_id!==id)return response({error:'历史公告只读'},403);
- if(a==='announcement_thread_add'){replies.push({id:'t'+serial++,root_id:b.root_id,owner:u,parent_id:b.parent_id,content:b.content,created_at:now()});return response({ok:true})}
- if(a==='announcement_thread_like'){let key=b.reply_id||b.root_id,set=likes.get(key)||new Set();b.liked?set.add(u):set.delete(u);likes.set(key,set);return response({ok:true})}
- if(a==='announcement_thread_delete'){let target=replies.find(x=>x.id===b.reply_id&&x.root_id===b.root_id);if(!target||!(target.owner===u||u==='demo-admin'))return response({error:'无权删除'},403);const remove=new Set([target.id]);for(let i=0;i<replies.length;i++)for(const r of replies)if(remove.has(r.parent_id))remove.add(r.id);replies=replies.filter(x=>!remove.has(x.id));return response({ok:true})}
+ if(a==='announcement_thread_add'){let created={id:'t'+serial++,root_id:b.root_id,owner:u,parent_id:b.parent_id,content:b.content,created_at:now()};replies.push(created);return response({ok:true,id:created.id,author:u==='demo-admin'?'开发者':mask(users[u]),is_developer:u==='demo-admin',created_at:created.created_at})}
+ if(a==='announcement_thread_like'){let key=b.reply_id||b.root_id,set=likes.get(key)||new Set();b.liked?set.add(u):set.delete(u);likes.set(key,set);return response({ok:true,count:set.size})}
+ if(a==='announcement_thread_delete'){let target=replies.find(x=>x.id===b.reply_id&&x.root_id===b.root_id);if(!target||!(target.owner===u||u==='demo-admin'))return response({error:'无权删除'},403);target.deleted=true;target.content='原回复已删除';return response({ok:true})}
  return response({error:'不支持的模拟操作'},400);
 };
 document.addEventListener('DOMContentLoaded',()=>{
