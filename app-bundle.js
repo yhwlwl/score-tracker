@@ -8099,6 +8099,13 @@ function accentRgbV32(){
   return [93,114,232];
 }
 function rgba32(rgb,a){return "rgba("+rgb[0]+","+rgb[1]+","+rgb[2]+","+a+")";}
+function rankHeatInk32(rgb,p){
+  try{if(document.documentElement.getAttribute("data-theme")==="night")return "var(--text)";}catch(e){}
+  var a=clamp32(0.82-(p-8)/46*0.62,0.14,0.85),bg=[255,255,255];
+  try{var panel=getComputedStyle(document.documentElement).getPropertyValue("--panel-solid").trim(),m=panel.match(/^#([0-9a-f]{6})$/i),r=panel.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/);if(m)bg=[0,2,4].map(function(i){return parseInt(m[1].slice(i,i+2),16);});else if(r)bg=[+r[1],+r[2],+r[3]];}catch(e){}
+  var lum=rgb.map(function(c,i){var v=(a*c+(1-a)*bg[i])/255;return v<=.04045?v/12.92:Math.pow((v+.055)/1.055,2.4);}).reduce(function(s,v,i){return s+v*[.2126,.7152,.0722][i];},0);
+  return lum>.179?"#172033":"#fff";
+}
 function rankHeatColor32(rgb,p){
   var alpha=clamp32(0.82-(p-8)/46*0.62,0.14,0.85);
   var night=false;
@@ -8245,19 +8252,27 @@ function quadSvgV32(pts,overallPos){
   return '<svg data-layout="'+(compact?'compact':'wide')+'" data-quad-points="'+esc32(JSON.stringify(pts))+'" data-quad-overall="'+(Number.isFinite(overallPos)?overallPos:'null')+'" viewBox="0 0 '+W+" "+H+'" style="width:100%;height:auto;display:block">'+s+"</svg>"+key;
 }
 function donutSvgV32(data,total,label){
-  var cx=70,cy=70,r=52,ir=30,a0=-Math.PI/2,seg="",sum=total||data.reduce(function(a,b){return a+b.v;},0)||1;
+  var cx=66,cy=68,r=48,ir=29,a0=-Math.PI/2,seg="",sum=total||data.reduce(function(a,b){return a+b.v;},0)||1;
   data.forEach(function(d){
     var a1=a0+(d.v/sum)*Math.PI*2,large=(a1-a0)>Math.PI?1:0;
     function pt(rad,a){return (cx+rad*Math.cos(a)).toFixed(2)+","+(cy+rad*Math.sin(a)).toFixed(2);}
-    if(d.v>0)seg+='<path d="M '+pt(r,a0)+" A "+r+" "+r+" 0 "+large+" 1 "+pt(r,a1)+" L "+pt(ir,a1)+" A "+ir+" "+ir+" 0 "+large+" 0 "+pt(ir,a0)+' Z" fill="'+d.c+'" stroke="var(--panel-solid,#fff)" stroke-width="2"/>';
+    if(d.v===sum)seg+='<circle cx="'+cx+'" cy="'+cy+'" r="'+((r+ir)/2)+'" fill="none" stroke="'+d.c+'" stroke-width="'+(r-ir)+'"/>';
+    else if(d.v>0)seg+='<path d="M '+pt(r,a0)+" A "+r+" "+r+" 0 "+large+" 1 "+pt(r,a1)+" L "+pt(ir,a1)+" A "+ir+" "+ir+" 0 "+large+" 0 "+pt(ir,a0)+' Z" fill="'+d.c+'" stroke="var(--panel-solid,#fff)" stroke-width="1.5"/>';
     a0=a1;
   });
-  var leg=data.map(function(d,i){var y=62+i*20;
-    return '<rect x="150" y="'+(y-8)+'" width="9" height="9" rx="2.5" fill="'+d.c+'"/><text x="165" y="'+y+'" font-size="11" fill="var(--text,#18212f)">'+esc32(d.l)+" · "+d.v+"次</text>";}).join("");
-  return '<svg viewBox="0 0 300 140" style="width:100%;max-width:340px;height:auto">'+seg+
-    '<text x="150" y="50" text-anchor="middle" font-size="11" fill="var(--muted,#788392)">'+esc32(label||"")+"</text>"+leg+"</svg>";
+  var start=68-(data.length-1)*10;
+  var leg=data.map(function(d,i){var y=start+i*20;
+    return '<rect x="130" y="'+(y-8)+'" width="9" height="9" rx="2.5" fill="'+d.c+'"/><text x="145" y="'+y+'" font-size="11" fill="var(--text,#18212f)">'+esc32(d.l)+" · "+d.v+"次</text>";}).join("");
+  return '<svg viewBox="0 0 266 136" role="img" aria-label="'+esc32(label||"排名分布")+'" style="width:100%;max-width:400px;height:auto;display:block">'+seg+'<text x="'+cx+'" y="68" text-anchor="middle" font-size="20" font-weight="700" fill="var(--text,#18212f)">'+sum+'</text><text x="'+cx+'" y="82" text-anchor="middle" font-size="10" fill="var(--muted,#788392)">场考试</text>'+leg+"</svg>";
 }
-
+function matrixToolbarV60(metric,difficulty){
+  var options=[['rank','年排'],['class','班排'],['score','得分率']].concat(window.__stScoreWorth?[['difficulty','难度参考']]:[]);
+  var buttons=options.map(function(o){return '<button type="button" class="matrix-mode-v60'+(o[0]===metric?' active':'')+(o[0]==='difficulty'?' matrix-difficulty-v60':'')+'" data-analysis-matrix-v60="'+o[0]+'" aria-pressed="'+(o[0]===metric)+'">'+o[1]+'</button>';}).join('');
+  var example=difficulty?'50＝平均难度；90＝估计偏难，10＝估计偏易，不是难度概率。':metric==='score'?'90%＝100分的试卷得90分。':'90＝前90%（如100人中第90名），数字越小越靠前。';
+  var explanation=example+(difficulty?' † 表示粗略参考。':' 红、橙、绿点分别为偏难、可能偏难、偏易信号，不等于真实难度。')+' — 表示缺少数据。点击单科格子可查看成绩含金量。';
+  var legend=difficulty?'<div class="worth-heat-legend" aria-label="难度参考色阶"><div class="worth-heat-ramp" data-worth-heat-ramp style="background:'+window.__stScoreWorth.heatRamp()+'" aria-hidden="true"></div><div class="worth-heat-labels"><span>0 · 较易</span><span>50 · 平均</span><span>100 · 较难</span></div></div>':'<div class="legend sv31-nopalette matrix-legend-v60"><span><span class="sv31-dot" style="background:#d95c5c"></span>偏难</span><span><span class="sv31-dot" style="background:#e59b45"></span>可能偏难</span><span><span class="sv31-dot" style="background:#32a77a"></span>偏易</span></div>';
+  return '<div class="compact-matrix-v60 matrix-toolbar-v60"><div class="matrix-seg-v60" role="group" aria-label="矩阵显示内容">'+buttons+'</div><div class="matrix-meta-v60">'+legend+'<details class="matrix-help-v60"><summary>怎么看</summary><p>'+esc32(explanation)+'</p></details></div></div>';
+}
 /* ================= 页面 HTML ================= */
 function controlsHtmlV32(f){
   var cfg=state.sv31||{},cur=cfg.scope||"__all__",cats=catOptionsV32(allExamsV32());
@@ -8606,7 +8621,7 @@ function matrixSectionHtmlV32(f,mode,explicit){
       if(mode!=="score"){
         var p=mode==="class"?posClassOf32(e,rowV32(e,s)):posYearOf32(e,rowV32(e,s));
         if(p===null)return "<td>—</td>";
-        return '<td style="background:'+rankHeatColor32(rgb,p)+';color:#fff">'+worthCellV32(i,s,r32(p)+dot)+"</td>";
+        return '<td style="background:'+rankHeatColor32(rgb,p)+';color:'+rankHeatInk32(rgb,p)+'">'+worthCellV32(i,s,r32(p)+dot)+"</td>";
       }else{
         var rt=rateOf32(rowV32(e,s));
         if(rt===null)return "<td>—</td>";
@@ -8616,12 +8631,12 @@ function matrixSectionHtmlV32(f,mode,explicit){
     }).join("");
     var totCell;
     if(difficultyView){totCell='';}
-    else if(mode==="class"){var cp=scopedClassV60(e,f);totCell=cp===null?"<td class='sv31-tot'>—</td>":'<td class="sv31-tot" style="background:'+rankHeatColor32(rgb,cp)+';color:#fff">'+r32(cp)+'</td>';}
+    else if(mode==="class"){var cp=scopedClassV60(e,f);totCell=cp===null?"<td class='sv31-tot'>—</td>":'<td class="sv31-tot" style="background:'+rankHeatColor32(rgb,cp)+';color:'+rankHeatInk32(rgb,cp)+'">'+r32(cp)+'</td>';}
     else if(f.totalSynthetic){
       /* 合成口径:列值=所选科目位比中位数(与趋势线一致),分数模式=成员得分率中位 */
       var hit=f.totalSeries.filter(function(x){return x.i===i;})[0];
       if(mode==="rank"){
-        totCell=hit?'<td class="sv31-tot" style="background:'+rankHeatColor32(rgb,hit.pos)+';color:#fff">'+r32(hit.pos)+"</td>"
+        totCell=hit?'<td class="sv31-tot" style="background:'+rankHeatColor32(rgb,hit.pos)+';color:'+rankHeatInk32(rgb,hit.pos)+'">'+r32(hit.pos)+"</td>"
           :"<td class='sv31-tot'>—</td>";
       }else{
         var mr=scopedScoreV60(e,f).rate;
@@ -8629,7 +8644,7 @@ function matrixSectionHtmlV32(f,mode,explicit){
       }
     }else{
       var tp=totalPosYear32(e);
-      totCell=mode==="rank"?(tp===null?"<td class='sv31-tot'>—</td>":'<td class="sv31-tot" style="background:'+rankHeatColor32(rgb,tp)+';color:#fff">'+r32(tp)+"</td>"):'<td class="sv31-tot"><b>'+(scopedScoreV60(e,f).rate===null?"—":Math.round(scopedScoreV60(e,f).rate)+"%")+"</b></td>";
+      totCell=mode==="rank"?(tp===null?"<td class='sv31-tot'>—</td>":'<td class="sv31-tot" style="background:'+rankHeatColor32(rgb,tp)+';color:'+rankHeatInk32(rgb,tp)+'">'+r32(tp)+"</td>"):'<td class="sv31-tot"><b>'+(scopedScoreV60(e,f).rate===null?"—":Math.round(scopedScoreV60(e,f).rate)+"%")+"</b></td>";
     }
     rowsHtml+='<tr><th scope="row"><span class="worth-exam-name" title="'+esc32(e.name||'未命名考试')+'">'+esc32(e.name||'未命名考试')+'</span>'+(e.exam_date?'<small class="worth-exam-date">'+esc32(e.exam_date)+'</small>':'')+'</th>'+cells+totCell+'</tr>';
   });
@@ -8647,10 +8662,10 @@ function matrixSectionHtmlV32(f,mode,explicit){
   var dom="";
   if(donutData.length){
     var most=donutData.slice().sort(function(a,b){return b.v-a.v;})[0];
-    dom='<b style="font-size:13px">你的总分常落在哪个区间 <span style="color:var(--muted);font-weight:600">(共'+f.totalSeries.length+'次出分)</span></b>'
-      +'<div class="sv31-g2" style="margin-top:8px;align-items:center"><div class="sv31-chart">'+donutSvgV32(donutData,f.totalSeries.length,"出分落档")+"</div>"
-      +'<div><div class="sv31-ext"><div class="t">最常见的水平</div><div class="v">'+esc32(most.l)+"</div>"
-      +'<div class="s">'+f.totalSeries.length+"次里有"+most.v+"次在这个区间</div></div></div></div>";
+    dom='<div class="matrix-distribution-head-v60"><b data-matrix-distribution-heading>排名分布</b><small>'+esc32(f.totalLabel||'总分')+' · '+f.totalSeries.length+' 场</small></div>'
+      +'<div class="sv31-g2 matrix-distribution-v60"><div class="sv31-chart">'+donutSvgV32(donutData,f.totalSeries.length,"排名分布")+"</div>"
+      +'<div><div class="sv31-ext"><div class="t">最常见的区间</div><div class="v">'+esc32(most.l)+"</div>"
+      +'<div class="s">'+most.v+" / "+f.totalSeries.length+' 场</div></div></div></div>';
   }
   /* 个人纪录 */
   var recs=[];
@@ -8738,16 +8753,9 @@ function matrixSectionHtmlV32(f,mode,explicit){
   var extHtml=recs.map(function(r){
     return '<div class="sv31-ext"><div class="t">'+r.t+'</div><div class="v">'+r.v+'</div><div class="s">'+r.s+"</div>"+eviHtmlV32(r.ev)+"</div>";
   }).join("");
-  return '<div class="card worth-matrix-card"><div class="card-title-row">'
-    +'<div><h3 class="card-title">⑧ 全量统计矩阵</h3><p class="card-sub" id="sv31HeatSub">'
-    +(difficultyView?"颜色越浓，估计相对越难；50 表示这组考试的平均难度。":"格子显示"+(mode==="rank"?"年级排名位置，数字越小越好":mode==="class"?"班级排名位置，数字越小越好":"得分率")+"。点击单科格子，查看成绩含金量。")
-    +'</p></div>'+(difficultyView?'':'<div class="legend sv31-nopalette"><span><span class="sv31-dot" style="background:#d95c5c"></span>偏难信号</span>'
-    +'<span><span class="sv31-dot" style="background:#e59b45"></span>可能偏难</span>'
-    +'<span><span class="sv31-dot" style="background:#32a77a"></span>偏易信号</span></div>')+'</div>'
-    +'<div class="compact-matrix-v60">'+metricSelectV60('matrix',metric,[['rank','年排'],['class','班排'],['score','得分率']].concat(window.__stScoreWorth?[['difficulty','难度参考']]:[]))+'</div>'
-    +(difficultyView?'<div class="worth-heat-legend" aria-label="难度参考色阶，0 到 100，50 为平均难度"><div class="worth-heat-ramp" data-worth-heat-ramp style="background:'+window.__stScoreWorth.heatRamp()+'" aria-hidden="true"></div><div class="worth-heat-labels"><span>0 · 较易</span><span>50 · 平均</span><span>100 · 较难</span></div></div>':'')
-    +(rowsHtml?''+(difficultyView?'<p class="worth-matrix-hint">† 粗略参考；— 数据不足。</p>':'')+'<div class="sv31-scroll worth-matrix-scroll" tabindex="0" role="region" aria-label="全部考试'+(difficultyView?'难度参考热力图':'成绩矩阵')+'"><table class="sv31-heat worth-matrix-table" style="min-width:'+(136+76*colCount)+'px">'+matrixCols+'<thead>'+head+'</thead><tbody>'+rowsHtml+'</tbody></table></div>'
-      +'<p class="card-sub" style="margin-top:8px">'+(difficultyView?"与成绩含金量用同一把尺子。只比较同一科目、同分类且参考人数相近的考试，不同组不直接比较，也不合成总分难度。点击格子，看看换到历史平均或某次考试的难度下，相当于多少分。":"圆点是逐场异常提示，也可能受个人状态影响；难度参考视图则使用完整历史建立统一尺子，两者用途不同，都不是试卷难度的确定结论。")+'</p>':'<p class="card-sub">还没有可展示的成绩。</p>')
+  return '<div class="card worth-matrix-card"><div class="card-title-row"><h3 class="card-title">⑧ 全量统计矩阵</h3></div>'
+    +matrixToolbarV60(metric,difficultyView)
+    +(rowsHtml?'<div class="sv31-scroll worth-matrix-scroll" tabindex="0" role="region" aria-label="全部考试'+(difficultyView?'难度参考热力图':'成绩矩阵')+'"><table class="sv31-heat worth-matrix-table" style="min-width:'+(136+76*colCount)+'px">'+matrixCols+'<thead>'+head+'</thead><tbody>'+rowsHtml+'</tbody></table></div>':'<p class="card-sub">暂无可展示的成绩。</p>')
     +(dom?'<div style="margin-top:18px">'+dom+"</div>":"")
     +(extHtml?'<div style="margin-top:18px"><b style="font-size:13px">个人纪录 <span style="color:var(--muted);font-weight:600">(分数项只和自己那张卷子比)</span></b>'
       +'<div class="sv31-ext-grid" style="margin-top:8px">'+extHtml+"</div></div>":"")
@@ -9109,15 +9117,23 @@ function bindStatsV32(f,root){
       var pane=host.querySelector('[data-pane].on .sv32-trend-scroll');if(pane)pane.scrollLeft=Math.max(0,pane.scrollWidth-pane.clientWidth);
       try{if(window.__v29&&window.__v29.afterRender)window.__v29.afterRender();}catch(e){}return;
     }
-    else if(t.matches('[data-analysis-matrix-v60]')){
-      cfg.matrixMetricV60=t.value;cfg.matrixWorth=t.value==='difficulty'?'difficulty':'original';
-      var card=t.closest('.worth-matrix-card');if(card){card.outerHTML=matrixSectionHtmlV32(f,"combined",true);root.querySelector('[data-analysis-matrix-v60]')?.focus({preventScroll:true});}
-      try{window.__stTrack&&window.__stTrack('score_worth_matrix_metric',{view:cfg.matrixWorth,metric:t.value,version:2});}catch(e){}return;
-    }
     if(k){rerenderStatsV32();document.querySelector('[data-analysis-'+k+'-v60]')?.focus({preventScroll:true});}
   });
   root.addEventListener("click",function(e){
     var t=e.target;
+    var matrix=t.closest("[data-analysis-matrix-v60]");
+    if(matrix){
+      var metric=matrix.dataset.analysisMatrixV60,cfg=state.sv31,card=matrix.closest('.worth-matrix-card');
+      if(!card||!['rank','class','score','difficulty'].includes(metric)||(metric==='difficulty'&&!window.__stScoreWorth))return;
+      if(matrix.getAttribute('aria-pressed')==='true')return;
+      var stage=card.querySelector('.worth-matrix-scroll'),sx=stage?stage.scrollLeft:0,sy=stage?stage.scrollTop:0;
+      cfg.matrixMetricV60=metric;cfg.matrixWorth=metric==='difficulty'?'difficulty':'original';
+      card.outerHTML=matrixSectionHtmlV32(f,"combined",true);
+      var next=root.querySelector('.worth-matrix-card'),scroll=next&&next.querySelector('.worth-matrix-scroll');
+      if(scroll){scroll.scrollLeft=sx;scroll.scrollTop=sy;}
+      if(next)next.querySelector('[data-analysis-matrix-v60][aria-pressed="true"]')?.focus({preventScroll:true});
+      try{window.__stTrack&&window.__stTrack('score_worth_matrix_metric',{view:cfg.matrixWorth,metric:metric,version:2});}catch(e){}return;
+    }
     var sc=t.closest("[data-sv31-scope]");
     if(sc){state.sv31.scope=sc.getAttribute("data-sv31-scope");rerenderStatsV32();return;}
     var evi=t.closest("[data-sv31-evi]");
@@ -12512,14 +12528,33 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     if(typeof ensureRadarSelection==='function')ensureRadarSelection();
   };
 
+  function normalizeHomeCategories61(values,allowed){return Array.from(new Set((values||[]).filter(function(x){return allowed.indexOf(x)>=0;})));}
+  function homeScopeHtml61(selected,opts){
+    var summary=selected.length===0?'全部考试':selected.length===1?selected[0]:'已选 '+selected.length+' 类';
+    return '<details class="home-scope-v60"><summary aria-label="首页考试范围" title="'+esc61(selected.length?selected.join('、'):'全部考试')+'"><span class="home-scope-icon-v60" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 17h16M8 4v6M16 14v6"/></svg></span><span>考试范围 · <b>'+esc61(summary)+'</b></span><span aria-hidden="true" class="home-scope-arrow-v60">⌄</span></summary><form data-home-scope-form-v60><div class="home-scope-options-v60" role="group" aria-label="选择考试分类">'+opts.map(function(v){return '<label><input type="checkbox" name="home-category" value="'+esc61(v)+'"'+(selected.includes(v)?' checked':'')+'><span>'+esc61(v)+'</span></label>';}).join('')+'</div><div class="home-scope-actions-v60"><button type="button" data-home-scope-all-v60>全部考试</button><button type="submit" class="primary">应用</button></div></form></details>';
+  }
   var homeBefore61=homeHtml;
   homeHtml=function homeHtmlV61(){
     cleanFilters61();var html=homeBefore61(),selected=state.gradeFiltersV61||[],opts=categoryValues61();
-    var bar='<div class="grade-filter-v13 grade-filter-v61"><span class="label">'+esc61(categoryLabelV14())+'（可多选）</span>'
-      +'<button class="grade-chip-v13 '+(!selected.length?'active':'')+'" data-grade-filter-v61="全部">全部</button>'
-      +opts.map(function(v){return'<button class="grade-chip-v13 '+(selected.indexOf(v)>-1?'active':'')+'" data-grade-filter-v61="'+esc61(v)+'">'+esc61(v)+'</button>';}).join('')+'</div>';
-    return html.replace(/<div class="grade-filter-v13[^"]*">[\s\S]*?<\/div><section class="grid-main">/,bar+'<section class="grid-main">');
+    var oldBar=/<div class="grade-filter-v13[^"]*">[\s\S]*?<\/div>/;
+    return oldBar.test(html)?html.replace(oldBar,homeScopeHtml61(selected,opts)):html;
   };
+  function applyHomeScope61(values){
+    cleanFilters61();state.gradeFiltersV61=normalizeHomeCategories61(values,categoryValues61());
+    saveFilters61();state.radarSelection=[];applyGradeFilterV13();render();
+  }
+  function bindHomeScope61(){
+    if(state.page!=='home')return;
+    var root=document.getElementById('content'),actions=root&&root.querySelector('.hero-main .hero-actions');if(!root||!actions)return;
+    var panel=root.querySelector('.home-scope-v60');
+    if(!panel){actions.insertAdjacentHTML('beforeend',homeScopeHtml61(state.gradeFiltersV61||[],categoryValues61()));panel=actions.querySelector('.home-scope-v60');}
+    if(panel.parentElement!==actions)actions.appendChild(panel);
+    root.querySelectorAll('.grade-filter-v13').forEach(function(n){n.remove();});
+    var form=panel.querySelector('[data-home-scope-form-v60]');
+    form.onsubmit=function(ev){ev.preventDefault();applyHomeScope61(Array.from(form.querySelectorAll('input[name="home-category"]:checked')).map(function(n){return n.value;}));};
+    form.querySelector('[data-home-scope-all-v60]').onclick=function(){applyHomeScope61([]);};
+    panel.addEventListener('toggle',function(){if(!panel.open)form.querySelectorAll('input[name="home-category"]').forEach(function(n){n.checked=(state.gradeFiltersV61||[]).includes(n.value);});});
+  }
 
   function cityDraft61(modal){
     var box=modal.querySelector('#v33cityBox');if(!box)return{};
@@ -12587,6 +12622,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   var bindBefore61=bindPage;
   bindPage=function bindPageV61(){
     bindBefore61();
+    bindHomeScope61();
     document.querySelectorAll('[data-grade-filter-v61]').forEach(function(button){button.onclick=function(){
       var value=button.dataset.gradeFilterV61;cleanFilters61();
       if(value==='全部')state.gradeFiltersV61=[];
@@ -12596,7 +12632,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   };
 
   var style=document.createElement('style');style.id='app-v35-style';style.textContent='.grade-filter-v61{align-items:center}.grade-filter-v61 .label{white-space:nowrap}.draft-note-v61{border:1px solid var(--line,#e5e9ef);background:var(--cell,#f7f9fc);color:var(--muted,#687386);border-radius:11px;padding:9px 11px;margin-bottom:12px;font-size:11px;line-height:1.6}.draft-clear-v61{margin-right:auto}.gh-chips{touch-action:pan-y!important}';document.head.appendChild(style);
-  window.__v61={captureDraft:captureExam61,readDraft:readDraft61,clearDraft:clearDraft61,filters:function(){return(state.gradeFiltersV61||[]).slice();}};
+  window.__v61={captureDraft:captureExam61,readDraft:readDraft61,clearDraft:clearDraft61,filters:function(){return(state.gradeFiltersV61||[]).slice();},normalizeHomeCategories:normalizeHomeCategories61,homeScopeHtml:homeScopeHtml61};
 })();
 
 /* ===== score-worth-model.js ===== */

@@ -24,13 +24,13 @@ console.log('PASS: analysis scope and independent score/rank rendering');
 state.sv31={subjMod:['数学'],trendMetricV60:'rank',matrixMetricV60:'rank'};
 f=api.applySubjectModule(api.buildFeatures(es.map(e=>({...e,total_rank:null,total_class_rank:null,scores:{数学:{actual:e.scores.数学.actual,max:100}}}))));
 assert.match(api.trend(f,'combined'),/sv31-pane on" data-pane="score"/);
-assert.match(api.matrix(f,'combined'),/value="score" selected/);
+assert.match(api.matrix(f,'combined'),/data-analysis-matrix-v60="score" aria-pressed="true"/);
 assert.match(api.trend(f,'combined'),/得分率参考/);
 assert.match(api.hall(f,'rank'),/96\/100/);
 state.sv31={subjMod:['数学'],trendMetricV60:'score',matrixMetricV60:'score'};
 f=api.applySubjectModule(api.buildFeatures(es.map(e=>({...e,total_rank:null,total_actual_score:null,scores:{数学:{classRank:e.scores.数学.classRank,classParticipants:50}}}))));
 assert.match(api.trend(f,'combined'),/sv31-pane on" data-pane="class"/);
-assert.match(api.matrix(f,'combined'),/value="class" selected/);
+assert.match(api.matrix(f,'combined'),/data-analysis-matrix-v60="class" aria-pressed="true"/);
 assert.match(api.hall(f,'rank'),/班排 前6%/);
 state.sv31={subjMod:['数学']};
 f=api.applySubjectModule(api.buildFeatures(es));
@@ -41,3 +41,19 @@ const merged=api.applySubjectModule(api.buildFeatures(es.slice(0,2).map((e,i)=>(
 assert.match(api.hall(merged,'rank'),/96\/100/);
 assert.match(api.hall(merged,'rank'),/\(96%\)/);
 console.log('PASS: mixed maxima, score/class-only records, metric fallback');
+
+// All four indicators remain visible; help is a single disclosure with concrete examples.
+state.sv31={subjMod:['数学'],matrixMetricV60:'rank'};
+f=api.applySubjectModule(api.buildFeatures(es));
+win.__stScoreWorth={heatRamp(){return 'linear-gradient(to right,white,black)'},difficultyCells(){return {}},heatStyle(){return ''}};
+let matrix=api.matrix(f,'combined');
+assert.match(matrix,/data-analysis-matrix-v60="difficulty"[^>]*>难度参考/);
+assert.equal((matrix.match(/<summary>怎么看<\/summary>/g)||[]).length,1);
+assert.match(matrix,/90＝前90%/);
+assert.match(matrix,/data-matrix-distribution-heading/);
+state.sv31.matrixMetricV60='difficulty';
+matrix=api.matrix(f,'combined');
+assert.match(matrix,/data-analysis-matrix-v60="difficulty" aria-pressed="true"/);
+assert.match(matrix,/50＝平均难度/);
+assert.equal((matrix.match(/<summary>怎么看<\/summary>/g)||[]).length,1);
+assert.match(api.donut([{l:'前10%',v:4,c:'#123456'}],4,'排名分布'),/<circle/);

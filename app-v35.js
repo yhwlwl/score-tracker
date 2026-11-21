@@ -28,14 +28,33 @@
     if(typeof ensureRadarSelection==='function')ensureRadarSelection();
   };
 
+  function normalizeHomeCategories61(values,allowed){return Array.from(new Set((values||[]).filter(function(x){return allowed.indexOf(x)>=0;})));}
+  function homeScopeHtml61(selected,opts){
+    var summary=selected.length===0?'全部考试':selected.length===1?selected[0]:'已选 '+selected.length+' 类';
+    return '<details class="home-scope-v60"><summary aria-label="首页考试范围" title="'+esc61(selected.length?selected.join('、'):'全部考试')+'"><span class="home-scope-icon-v60" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 17h16M8 4v6M16 14v6"/></svg></span><span>考试范围 · <b>'+esc61(summary)+'</b></span><span aria-hidden="true" class="home-scope-arrow-v60">⌄</span></summary><form data-home-scope-form-v60><div class="home-scope-options-v60" role="group" aria-label="选择考试分类">'+opts.map(function(v){return '<label><input type="checkbox" name="home-category" value="'+esc61(v)+'"'+(selected.includes(v)?' checked':'')+'><span>'+esc61(v)+'</span></label>';}).join('')+'</div><div class="home-scope-actions-v60"><button type="button" data-home-scope-all-v60>全部考试</button><button type="submit" class="primary">应用</button></div></form></details>';
+  }
   var homeBefore61=homeHtml;
   homeHtml=function homeHtmlV61(){
     cleanFilters61();var html=homeBefore61(),selected=state.gradeFiltersV61||[],opts=categoryValues61();
-    var bar='<div class="grade-filter-v13 grade-filter-v61"><span class="label">'+esc61(categoryLabelV14())+'（可多选）</span>'
-      +'<button class="grade-chip-v13 '+(!selected.length?'active':'')+'" data-grade-filter-v61="全部">全部</button>'
-      +opts.map(function(v){return'<button class="grade-chip-v13 '+(selected.indexOf(v)>-1?'active':'')+'" data-grade-filter-v61="'+esc61(v)+'">'+esc61(v)+'</button>';}).join('')+'</div>';
-    return html.replace(/<div class="grade-filter-v13[^"]*">[\s\S]*?<\/div><section class="grid-main">/,bar+'<section class="grid-main">');
+    var oldBar=/<div class="grade-filter-v13[^"]*">[\s\S]*?<\/div>/;
+    return oldBar.test(html)?html.replace(oldBar,homeScopeHtml61(selected,opts)):html;
   };
+  function applyHomeScope61(values){
+    cleanFilters61();state.gradeFiltersV61=normalizeHomeCategories61(values,categoryValues61());
+    saveFilters61();state.radarSelection=[];applyGradeFilterV13();render();
+  }
+  function bindHomeScope61(){
+    if(state.page!=='home')return;
+    var root=document.getElementById('content'),actions=root&&root.querySelector('.hero-main .hero-actions');if(!root||!actions)return;
+    var panel=root.querySelector('.home-scope-v60');
+    if(!panel){actions.insertAdjacentHTML('beforeend',homeScopeHtml61(state.gradeFiltersV61||[],categoryValues61()));panel=actions.querySelector('.home-scope-v60');}
+    if(panel.parentElement!==actions)actions.appendChild(panel);
+    root.querySelectorAll('.grade-filter-v13').forEach(function(n){n.remove();});
+    var form=panel.querySelector('[data-home-scope-form-v60]');
+    form.onsubmit=function(ev){ev.preventDefault();applyHomeScope61(Array.from(form.querySelectorAll('input[name="home-category"]:checked')).map(function(n){return n.value;}));};
+    form.querySelector('[data-home-scope-all-v60]').onclick=function(){applyHomeScope61([]);};
+    panel.addEventListener('toggle',function(){if(!panel.open)form.querySelectorAll('input[name="home-category"]').forEach(function(n){n.checked=(state.gradeFiltersV61||[]).includes(n.value);});});
+  }
 
   function cityDraft61(modal){
     var box=modal.querySelector('#v33cityBox');if(!box)return{};
@@ -103,6 +122,7 @@
   var bindBefore61=bindPage;
   bindPage=function bindPageV61(){
     bindBefore61();
+    bindHomeScope61();
     document.querySelectorAll('[data-grade-filter-v61]').forEach(function(button){button.onclick=function(){
       var value=button.dataset.gradeFilterV61;cleanFilters61();
       if(value==='全部')state.gradeFiltersV61=[];
@@ -112,5 +132,5 @@
   };
 
   var style=document.createElement('style');style.id='app-v35-style';style.textContent='.grade-filter-v61{align-items:center}.grade-filter-v61 .label{white-space:nowrap}.draft-note-v61{border:1px solid var(--line,#e5e9ef);background:var(--cell,#f7f9fc);color:var(--muted,#687386);border-radius:11px;padding:9px 11px;margin-bottom:12px;font-size:11px;line-height:1.6}.draft-clear-v61{margin-right:auto}.gh-chips{touch-action:pan-y!important}';document.head.appendChild(style);
-  window.__v61={captureDraft:captureExam61,readDraft:readDraft61,clearDraft:clearDraft61,filters:function(){return(state.gradeFiltersV61||[]).slice();}};
+  window.__v61={captureDraft:captureExam61,readDraft:readDraft61,clearDraft:clearDraft61,filters:function(){return(state.gradeFiltersV61||[]).slice();},normalizeHomeCategories:normalizeHomeCategories61,homeScopeHtml:homeScopeHtml61};
 })();
