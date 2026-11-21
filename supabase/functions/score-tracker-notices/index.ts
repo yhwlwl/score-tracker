@@ -126,7 +126,7 @@ Deno.serve(async req => {
       const params=new URL(req.url).searchParams,scope=params.get('scope')||'all',cursor=params.get('before')||'';
       if(!['all','current'].includes(scope)||(cursor&&!/^\d{1,18}$/.test(cursor)))return json({error:'无效的评论筛选或分页'},400);
       const c=await config(true);
-      let q=db.from('score_tracker_announcement_comments').select('id,sequence,notice_id,content,created_at,is_developer,pinned_at,comment_revision,admin_reply,admin_replied_at,reply_revision,author:score_tracker_users(username)').order('sequence',{ascending:false}).limit(51);
+      let q=db.from('score_tracker_announcement_comments').select('id,sequence,notice_id,content,created_at,is_developer,pinned_at,comment_revision,admin_reply,admin_replied_at,reply_revision,author:score_tracker_users!score_tracker_announcement_comments_user_id_fkey(username)').order('sequence',{ascending:false}).limit(51);
       if(scope==='current')q=q.eq('notice_id',c.announcement_id);
       if(cursor)q=q.lt('sequence',cursor);
       const [seen,current,total,list]=await Promise.all([
