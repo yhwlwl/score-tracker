@@ -95,11 +95,54 @@
       if(!ready)return heading('正在准备你的设置',message||'稍等片刻…')+'<button type="button" class="sg-text" data-retry>重新加载</button>';
       return [null,account,subjectPage,combinationPage,classificationPage,schoolPage,goalPage,appearancePage,levelPage][step]();
     }
+    let renderedModules=[];
+    function savedGuideView() {
+      const main=root.querySelector('.sg-main');
+      if(!main||shownStep!==step)return null;
+      return {top:main.scrollTop,folds:[...main.querySelectorAll('details')].map((el,i)=>{
+        const row=el.closest('[data-module-row]');
+        return {index:i,module:row?renderedModules[+row.dataset.moduleRow]:null,open:el.open};
+      })};
+    }
+    function restoreGuideView(view) {
+      if(!view)return;
+      const main=root.querySelector('.sg-main');
+      if(!main)return;
+      const folds=[...main.querySelectorAll('details')];
+      view.folds.forEach(f=>{
+        let el;
+        if(f.module){
+          const index=modules.findIndex(m=>m===f.module||(m.id&&m.id===f.module.id));
+          if(index>=0)el=main.querySelector('[data-module-row="'+index+'"] details');
+        }else if(step!==3)el=folds[f.index];
+        if(el)el.open=f.open;
+      });
+      main.scrollTop=view.top;
+    }
+    function refreshModuleMembers(button,module) {
+      const row=button.closest('[data-module-row]'),main=root.querySelector('.sg-main');
+      if(!row||!main)return;
+      const oldTop=button.getBoundingClientRect().top,scrollTop=main.scrollTop;
+      row.querySelector('.sg-members').textContent=module.subjects.join(' · ');
+      row.querySelectorAll('[data-member]').forEach(b=>{
+        const on=module.subjects.includes(b.dataset.member);
+        b.setAttribute('aria-pressed',String(on));
+        b.textContent=b.dataset.member;
+        if(on){const mark=document.createElement('span');mark.setAttribute('aria-hidden','true');mark.textContent='✓';b.appendChild(mark);}
+      });
+      // Keep the pressed chip at the same visible height even when chips wrap.
+      const delta=button.getBoundingClientRect().top-oldTop;
+      if(delta)main.scrollTop=main.scrollTop+delta;
+      else if(main.scrollTop!==scrollTop)main.scrollTop=scrollTop;
+      root.querySelector('.sg-error').textContent=message;
+    }
     function draw(animate=true) {
       if(!current())return;
+      const view=savedGuideView();
       if(shownStep!==step){shownStep=step;stepStarted=performance.now();emit('setup_step_shown');}
       root.innerHTML='<div class="sg-shell"><header class="sg-top"><span class="sg-brand"><span class="sg-product-logo logo" aria-hidden="true">'+(window.__v29?.logoSvg||'')+'</span><span>Score Tracker</span></span><span class="sg-position">'+(step===0?'让进步有迹可循':STEPS[step]+' <span>'+step+' / 8</span>')+'</span></header><div class="sg-progress" role="progressbar" aria-label="设置进度" aria-valuenow="'+step+'" aria-valuemin="0" aria-valuemax="8"><i style="width:'+(step/8*100)+'%"></i></div><main class="sg-main '+(step===0?'sg-intro ':'')+(animate?'sg-enter':'')+'">'+content()+'</main><footer class="sg-footer"><div><button type="button" class="sg-back" data-back '+(step===0?'hidden':'')+'>← 上一步</button></div><div class="sg-footer-right">'+(step>1&&step<8?'<button type="button" class="sg-skip" data-skip>稍后设置</button>':'')+'<button type="button" class="sg-next" data-next '+(busy||step>0&&!ready?'disabled':'')+'>'+(busy?'保存中…':step===0?'开始':step===1&&!credentialSaved?'已保存，继续':step===8?'开始记录':'继续')+' <span aria-hidden="true">→</span></button></div><p class="sg-error" role="alert">'+esc(message)+'</p></footer></div>';
-      bind();if(step>0&&animate)root.querySelector('#sg-title')?.focus({preventScroll:true});
+      renderedModules=step===3?modules.slice():[];
+      bind();restoreGuideView(view);if(step>0&&animate&&!view)root.querySelector('#sg-title')?.focus({preventScroll:true});
     }
     function valueIn(row,name) { return row.querySelector('[data-field="'+name+'"]')?.value || ''; }
     function capture() {
@@ -223,7 +266,7 @@
       root.querySelector('[data-recommend]')?.addEventListener('click',()=>{capture();try{recommend();message='';}catch(e){message=e.message;}draw(false);});
       root.querySelector('[data-add-module]')?.addEventListener('click',()=>{capture();if(modules.length>=12)return;counts['m:'+modules.length]={};modules.push({name:'',subjects:[],isBuiltin:false});draw(false);});
       root.querySelectorAll('[data-remove-module]').forEach(b=>b.onclick=()=>{capture();const i=+b.dataset.removeModule;modules.splice(i,1);reindexCounts('m:',modules.length,i);draw(false);});
-      root.querySelectorAll('[data-member]').forEach(b=>b.onclick=()=>{capture();const m=modules[+b.dataset.module],n=b.dataset.member;m.subjects=m.subjects.includes(n)?m.subjects.filter(s=>s!==n):m.subjects.concat(n);draw(false);});
+      root.querySelectorAll('[data-member]').forEach(b=>b.onclick=()=>{capture();const m=modules[+b.dataset.module],n=b.dataset.member;m.subjects=m.subjects.includes(n)?m.subjects.filter(s=>s!==n):m.subjects.concat(n);message='';refreshModuleMembers(b,m);});
       root.querySelector('[data-add-category]')?.addEventListener('click',()=>{capture();if(classification.options.length<12){classification.options.push('');draw(false);root.querySelector('[data-field="category-option:'+(classification.options.length-1)+'"]')?.focus();}});
       root.querySelectorAll('[data-remove-category]').forEach(b=>b.onclick=()=>{capture();if(classification.options.length>1){classification.options.splice(+b.dataset.removeCategory,1);draw(false);}});
       root.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>{classification={label:'年级',options:b.dataset.preset==='junior'?['初一','初二','初三']:['高一','高二','高三']};grade=classification.options.includes(grade)?grade:'';draw(false);});
