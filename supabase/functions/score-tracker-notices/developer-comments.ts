@@ -47,7 +47,7 @@ export function publicComment(row, user, isCurrent) {
 export async function announcementCommentPage(db, user, notice, isCurrent, before) {
   const cursor=String(before||'');
   if(cursor&&!/^\d{1,18}$/.test(cursor))return {error:'无效的分页',status:400};
-  const fields='id,sequence,user_id,content,created_at,is_developer,pinned_at,admin_reply,admin_replied_at,reply_revision,admin_reply_read_at,author:score_tracker_users(username)';
+  const fields='id,sequence,user_id,content,created_at,is_developer,pinned_at,admin_reply,admin_replied_at,reply_revision,admin_reply_read_at,author:score_tracker_users!score_tracker_announcement_comments_user_id_fkey(username)';
   let q=db.from('score_tracker_announcement_comments').select(fields).eq('notice_id',notice.id).is('pinned_at',null).order('sequence',{ascending:false}).limit(31);
   if(!user.is_admin&&notice.comments_public===false)q=q.or('user_id.eq.'+user.id+',is_developer.eq.true');
   if(cursor)q=q.lt('sequence',cursor);
