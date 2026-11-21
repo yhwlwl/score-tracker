@@ -61,7 +61,9 @@ const hidden = { ...exam(7, '隐藏分类'), is_hidden: true };
 context.state.exams = [exams[5]];
 context.state.allExams = exams.concat(hidden);
 context.state.unfilteredVisibleExamsV13 = exams;
-assert.equal(context.visibleExamsV32(false).length, 1, 'ordinary page category selection stays in effect');
+// V60 analysis has its own scope selector; the homepage category filter must not narrow this source.
+assert.equal(context.visibleExamsV32(false).length, 6, 'analysis source ignores homepage category selection; its own scope is applied separately');
+// Scope selection is exercised in test-analysis-scope-v60.cjs.
 assert.equal(context.worthHistoryExamsV32(false).length, 6, 'history bypasses the global category filter too');
 assert.equal(context.worthHistoryExamsV32(true).length, 7, 'the existing include-hidden switch is respected');
 console.log('PASS: all-history model across groups, sparse groups, unchanged period limits, cross-category exam comparison, valid-only evidence, duplicates, cache, order, scoped-page evidence, local index mapping and matrix consistency');
