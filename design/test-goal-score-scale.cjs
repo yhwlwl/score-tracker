@@ -81,7 +81,7 @@ const { chromium } = require('playwright');
     for (const max of [0, -10, null, 'invalid']) {
       await fixture([exam(85, max)]);
       assert.equal(await chip().locator('em').innerText(), '待补满分');
-      assert.match(await page.locator('.gh-total').innerText(), /缺少成绩或有效满分/);
+      assert.match(await page.locator('.gh-total').innerText(), /待补成绩或满分/);
     }
     await fixture([]);
     assert.equal(await chip().locator('b').innerText(), '—');
