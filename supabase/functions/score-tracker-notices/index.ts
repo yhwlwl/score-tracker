@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { readSupport, saveSupport } from './support.ts';
 import { readCommunity, saveCommunity } from './community.ts';
 import { announcementReplies } from './replies.ts';
+import { announcementThread } from './threads.ts';
 import { developerCommentAdmin, announcementCommentPage } from './developer-comments.ts';
 
 const db = createClient(Deno.env.get('SUPABASE_URL') || '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '', {auth:{persistSession:false,autoRefreshToken:false}});
@@ -152,6 +153,12 @@ Deno.serve(async req => {
       if(!['notification_previewed','notification_admin_tab_opened'].includes(body.event_type))return json({error:'不支持的操作'},400);
       await audit(body.event_type,user,body,req,{kind:['release','announcement','tip'].includes(body.kind)?body.kind:null});return json({ok:true});
     }
+    if(['announcement_thread_read','announcement_thread_add','announcement_thread_like','announcement_thread_delete'].includes(action)&&req.method==='POST'){
+      const c=await config(true),isCurrent=body.notice_id===c.announcement_id;
+      const notice=isCurrent?announcementSnapshot(c):announcementHistory(c).find(n=>n.id===body.notice_id);
+      const {status,...data}=await announcementThread(db,user,action,body,notice,isCurrent&&c.announcement_enabled===true);
+      return json(data,status||200);
+    }
     if(['announcement_comments','announcement_comment_add','announcement_comment_delete'].includes(action)&&req.method==='POST'){
       const c=await config(action==='announcement_comments');
       const isCurrent=body.notice_id===c.announcement_id;
@@ -173,6 +180,7 @@ Deno.serve(async req => {
         return json({ok:true});
       }
       const {status,...page}=await announcementCommentPage(db,user,notice,isCurrent,body.before);
+      page.threads_enabled=notice.comments_public!==false;
       return json(page,status||200);
     }
     if(action==='notice_check'&&req.method==='POST'){
