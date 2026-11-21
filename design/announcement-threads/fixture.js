@@ -33,8 +33,19 @@ window.fetch=async function(url,init={}){
  return response({error:'不支持的模拟操作'},400);
 };
 document.addEventListener('DOMContentLoaded',()=>{
- document.getElementById('open').onclick=()=>window.__releaseNotices.openAnnouncement();
- document.getElementById('role').onchange=e=>{state.user={id:e.target.value};state.token=e.target.value;render();window.__releaseNotices.openAnnouncement()};
+ const status=document.getElementById('qa-status');
+ async function openNotice(){
+  status.textContent='正在打开公告…';
+  try{
+   if(!window.__releaseNotices)throw new Error('公告组件未加载');
+   await window.__releaseNotices.openAnnouncement();
+   if(!document.querySelector('.rn-back')){
+    status.textContent=document.visibilityState!=='visible'?'请在浏览器中打开此页面，再点打开公告。':'公告未显示，请重新点击；也可查看下方错误提示。';
+   }else status.textContent='组件已就绪；当前为模拟数据。';
+  }catch(e){status.textContent='打开失败：'+String(e.message||e);}
+ }
+ document.getElementById('open').onclick=openNotice;
+ document.getElementById('role').onchange=e=>{state.user={id:e.target.value};state.token=e.target.value;render();openNotice()};
  document.getElementById('theme').onclick=()=>document.body.classList.toggle('dark');
- window.__releaseNotices.openAnnouncement();
+ openNotice();
 });
