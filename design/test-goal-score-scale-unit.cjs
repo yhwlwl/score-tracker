@@ -5,7 +5,7 @@ const vm = require('node:vm');
 
 // Run the actual feature source; expose private rendering functions only in this test VM.
 const source = fs.readFileSync(path.join(__dirname, '../app-v33.js'), 'utf8')
-  .replace('window.__v33={', 'window.__goalTest={chipHtml:chipHtml,goalSummaryHtml:goalSummaryHtml,bestOf:bestOf,fillCalib:fillCalib};window.__v33={');
+  .replace('window.__v33={', 'window.__goalTest={chipHtml:chipHtml,goalSummaryHtml:goalSummaryHtml,bestOf:bestOf,bestRawOf:bestRawOf,fillCalib:fillCalib};window.__v33={');
 const context = {
   state: { subjectConfigs: [{ name: '数学', defaultMax: 130 }], exams: [] },
   document: { getElementById: () => ({}), querySelector: () => null, querySelectorAll: () => [] },
@@ -31,6 +31,8 @@ const calib = () => { const row = {}; context.__goalTest.fillCalib(row); return 
   assert.match(chip(), /<b>85%<\/b>/);
   assert.match(chip(), /目标 85% · 110\.5\/130/);
   assert.match(chip(), /实际 85\/100/);
+  assert.match(summary(), /<small>总分<\/small>/);
+  assert.doesNotMatch(summary(), /class="gh-summary-note"|综合目标达成情况|得分率比较/);
   assert.match(summary(), /原始 85\/100 分/);
   assert.match(summary(), /110\.5\/130 分/);
   assert.doesNotMatch(summary(), /折合|折算|变化/);
@@ -99,8 +101,14 @@ const calib = () => { const row = {}; context.__goalTest.fillCalib(row); return 
   assert.match(summary(), /各科最近/);
   assert.doesNotMatch(summary(), /最近一次/);
   // Peak achievement must use rates even when the highest raw score came from a larger scale.
-  await fixture([exam(100, 150), exam(85, 100, { exam_date: '2026-10-01' })]);
+  await fixture([exam(100, 150), exam(85, 100, { exam_date: '2026-10-01' }), exam(200, 200, {is_hidden:true})]);
   assert.equal(context.__goalTest.bestOf('数学'), 85);
+  assert.equal(context.__goalTest.bestRawOf('数学').score,100);
+  assert.equal(context.__goalTest.bestRawOf('数学').max,150);
+  await fixture([exam(0,100)]);
+  assert.equal(context.__goalTest.bestRawOf('数学').score,0);
+  await fixture([]);
+  assert.equal(context.__goalTest.bestRawOf('数学'),null);
   await fixture([exam(0.1, 0.3)], [{ name: '数学', defaultMax: 130 }], { subjects: { 数学: 43.33 }, totalGoal: 43.33 });
   assert.match(chip(), /<b>33.33%<\/b>/);
   assert.match(chip(), /<em>已达标<\/em>/);
