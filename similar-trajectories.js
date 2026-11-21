@@ -171,7 +171,7 @@
       var opening=confirmAction===true;
       confirm='<div class="st-peer-confirm" role="presentation"><div class="st-peer-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="stPeerConfirmTitle"><h4 id="stPeerConfirmTitle">'+(opening?'开启匿名匹配？':'关闭匿名匹配？')+'</h4><p>'+(opening?'开启后，其他用户可以匹配到你的匿名成绩趋势，你也可以使用相似轨迹。不会展示用户名、学校或考试名称。':'关闭后，其他用户将无法再匹配到你的匿名成绩趋势，你也无法使用相似轨迹。')+'</p><div class="st-peer-confirm-actions"><button type="button" class="chip" data-peer-confirm-cancel>先不'+(opening?'开启':'关闭')+'</button><button type="button" class="chip active" data-peer-confirm-ok>确认'+(opening?'开启':'关闭')+'</button></div></div></div>';
     }
-    host.innerHTML='<div class="st-peer-heading"><div><h4>相似轨迹</h4><p>'+esc(filters.label)+'</p><small class="st-peer-count">'+esc(countCopy())+'</small></div><span class="sv31-tag">默认展示 3 条</span></div>'+notice+body+confirm;
+    host.innerHTML='<div class="st-peer-heading"><div><h4>相似轨迹</h4><p>'+esc(filters.label)+'</p><small class="st-peer-count">'+esc(countCopy())+'</small></div></div>'+notice+body+confirm;
     var form=host.querySelector('[data-peer-settings]');if(form)form.noValidate=true;
     var chartHost=host.querySelector('.st-peer-chart');if(chartHost)chartHost.scrollLeft=Math.max(0,chartHost.scrollWidth-chartHost.clientWidth);
   }

@@ -19,3 +19,25 @@ const c=api.scopedScore({scores:{数学:{actual:90}}},{analysisSelection:['数�
 state.sv31={scope:'__all__',subjMod:['数学','语文'],subjModule:'m'};f=api.applySubjectModule(api.buildFeatures(es));assert.equal(f.totalLabel,'组合');assert.equal(f.overallLatest,22);assert.equal(f.latestScore,216);assert.equal(api.scopedScore(es[2],f).rate,86.4);
 state.sv31={subjMod:['数学']};f=api.applySubjectModule(api.buildFeatures(es.map(e=>({...e,total_rank:null,total_class_rank:null,scores:{数学:{actual:e.scores.数学.actual,max:100}}}))));assert.equal(f.totalSeries.length,0);assert.equal(f.latestScore,96);assert.match(api.trend(f,'combined'),/data-pane="score"/);assert.match(api.matrix(f,'combined'),/96%/);
 console.log('PASS: analysis scope and independent score/rank rendering');
+
+// Follow-up: selected metrics remain local, unavailable default metrics fall back.
+state.sv31={subjMod:['数学'],trendMetricV60:'rank',matrixMetricV60:'rank'};
+f=api.applySubjectModule(api.buildFeatures(es.map(e=>({...e,total_rank:null,total_class_rank:null,scores:{数学:{actual:e.scores.数学.actual,max:100}}}))));
+assert.match(api.trend(f,'combined'),/sv31-pane on" data-pane="score"/);
+assert.match(api.matrix(f,'combined'),/value="score" selected/);
+assert.match(api.trend(f,'combined'),/得分率参考/);
+assert.match(api.hall(f,'rank'),/96\/100/);
+state.sv31={subjMod:['数学'],trendMetricV60:'score',matrixMetricV60:'score'};
+f=api.applySubjectModule(api.buildFeatures(es.map(e=>({...e,total_rank:null,total_actual_score:null,scores:{数学:{classRank:e.scores.数学.classRank,classParticipants:50}}}))));
+assert.match(api.trend(f,'combined'),/sv31-pane on" data-pane="class"/);
+assert.match(api.matrix(f,'combined'),/value="class" selected/);
+assert.match(api.hall(f,'rank'),/班排 前6%/);
+state.sv31={subjMod:['数学']};
+f=api.applySubjectModule(api.buildFeatures(es));
+assert.match(api.hall(f,'rank'),/最佳得分/);
+assert.match(api.hall(f,'rank'),/96\/100/);
+assert.match(api.hall(f,'rank'),/班排 前6%/);
+const merged=api.applySubjectModule(api.buildFeatures(es.slice(0,2).map((e,i)=>({...e,scores:{数学:{actual:i?110:96,max:i?150:100,rank:i?7:8,participants:100}}}))));
+assert.match(api.hall(merged,'rank'),/96\/100/);
+assert.match(api.hall(merged,'rank'),/\(96%\)/);
+console.log('PASS: mixed maxima, score/class-only records, metric fallback');

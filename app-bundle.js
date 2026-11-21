@@ -8340,7 +8340,7 @@ function speedTableHtmlV32(f){
   var rows=[];
   f.subjects.forEach(function(s){
     var m=f.mom[s],vp=f.valid[s];
-    if(!m||!vp||vp.length<3){var r=(f.series[s]||[]).filter(function(x){return x.rate!==null;}).slice(-5);if(r.length>=3){var ds=r.slice(1).map(function(x,i){return x.rate-r[i].rate;}),v=r32(median32(ds));rows.push({s:s,text:(v>0?'+':'')+v+' pp/场',arrow:'',up:null,st:'<span class="pill flat">得分率参考</span>',pos:null,n:null,rate:r[r.length-1].rate});}return;}
+    if(!m||!vp||vp.length<3){var r=(f.series[s]||[]).filter(function(x){return x.rate!==null;}).slice(-5);if(r.length>=3){var ds=r.slice(1).map(function(x,i){return x.rate-r[i].rate;}),v=r32(median32(ds));rows.push({s:s,text:(v>0?'+':'')+v+' 个百分点/场',arrow:'',up:null,st:'<span class="pill flat">得分率参考</span>',pos:null,n:null,rate:r[r.length-1].rate});}return;}
     var sp=speedTextV32(f,s);
     var st=f.stab[s];
     var pill=st?(st.cls==="ok"?'<span class="pill ok">稳</span>':st.cls==="mid"?'<span class="pill flat">有起伏</span>':'<span class="pill warn">不稳</span>'):'<span class="pill flat">数据少</span>';
@@ -8437,6 +8437,9 @@ function hallHtmlV32(f,mode){
   var rows=[],fallback=false;
   function scoreBest(rows){var a=rows.filter(function(x){return x.actual!==null&&x.actual!==undefined;});if(!a.length)return '—';var maxima=new Set(a.map(function(x){return x.max;})),mixed=maxima.size>1||!a[0].max;var comparable=a.filter(function(x){return x.rate!==null&&x.rate!==undefined;});var b=(mixed&&comparable.length?comparable:a).slice().sort(function(x,y){return mixed&&comparable.length?y.rate-x.rate:y.actual-x.actual;})[0];var name=f.exams[b.i]&&f.exams[b.i].name||'';return '<b>'+r32(b.actual)+(b.max?'/'+r32(b.max):'分')+'</b>'+(mixed&&comparable.length?' <small>('+r32(b.rate)+'%)</small>':'')+'<small class="best-exam-v60">'+esc32(shortName32(name))+'</small>';}
   var totalBest=scoreBest(f.exams.map(function(e,i){return Object.assign({i:i},scopedScoreV60(e,f));}));
+  function classBest(series){var a=series.filter(function(x){return x.cls!==null&&x.cls!==undefined;});if(!a.length)return null;var b=a.reduce(function(x,y){return y.cls<x.cls?y:x;});return {txt:'班排 '+fmtPos32(b.cls),at:f.exams[b.i].name,vals:a.map(function(x){return 100-x.cls;}),gap:r32(a[a.length-1].cls-b.cls)};}
+  var totalCls=classBest(f.exams.map(function(e,i){return {i:i,cls:scopedClassV60(e,f)};}));
+  function pushClass(name,info,score){push(name,info.vals,info.txt,info.at,info.gap+"个百分点",'<span class="pill '+(info.gap<=1?'ok':'flat')+'">'+(info.gap<=1?'接近最佳':'距最佳')+'</span>',score);}
   function push(name,vals,bestTxt,at,gapTxt,pill,score){rows.push({name:name,vals:vals,bestTxt:bestTxt,at:at,gapTxt:gapTxt,pill:pill,score:score||'—'});}
   if(f.totalSeries.length>=1){
     var best=Math.min.apply(null,f.totalSeries.map(function(x){return x.pos;}));
@@ -8447,24 +8450,27 @@ function hallHtmlV32(f,mode){
       var ncT=0;for(var kT=f.totalSeries.length-1;kT>0;kT--){if(f.totalSeries[kT].pos-best>5)ncT++;else break;}
       if(ncT>=2)st="warn";
     }
-    push((f.totalLabel||"总分")+(f.totalSynthetic?"*":""),f.totalSeries.map(function(x){return 100-x.pos;}),fmtPos32(best),f.exams[bestEntry.i].name,
+    push((f.totalLabel||"总分")+(f.totalSynthetic?"*":""),f.totalSeries.map(function(x){return 100-x.pos;}),fmtPos32(best)+(totalCls?'<small class="best-exam-v60">'+totalCls.txt+' · '+esc32(shortName32(totalCls.at))+'</small>':''),f.exams[bestEntry.i].name,
       gap<=0.05?"0":r32(Math.abs(gap))+"个百分点",
       '<span class="pill '+(st==="ok"?"ok":(st==="warn"?"warn":"acc"))+'" title="依据:距个人最佳 '+r32(Math.abs(gap))+' 个百分点">'+pbLabelV32(st,gap)+"</span>",totalBest);
-  }else if(f.scoreSeries&&f.scoreSeries.length>=1){
+  }else if(totalCls){pushClass(f.totalLabel||"总分",totalCls,totalBest);}
+  else if(f.scoreSeries&&f.scoreSeries.length>=1){
     var bS=f.scoreSeries[0];f.scoreSeries.forEach(function(x){if(x.score>bS.score)bS=x;});
     fallback=true;
     push(f.totalLabel||"总分",f.scoreSeries.map(function(x){return x.score;}),Math.round(bS.score)+"分",f.exams[bS.i].name,"—",
       '<span class="pill flat">分数参考</span>',totalBest);
   }
   f.subjects.forEach(function(s){
-    var vp=f.valid[s];
+    if(f.analysisSelection&&f.analysisSelection.length===1&&f.analysisSelection[0]===s&&rows.length)return;
+    var vp=f.valid[s],cb=classBest(f.series[s]);
     if(vp.length){
       var p=f.pb[s],lastP=vp[vp.length-1].pos;
       var cls=p.st==="ok"?"ok":(p.st==="warn"?"warn":"acc");
-      push(s,vp.map(function(x){return 100-x.pos;}),fmtPos32(p.pos),f.exams[p.i].name,
+      push(s,vp.map(function(x){return 100-x.pos;}),fmtPos32(p.pos)+(cb?'<small class="best-exam-v60">'+cb.txt+' · '+esc32(shortName32(cb.at))+'</small>':''),f.exams[p.i].name,
         p.gap<=0.05?"0":r32(Math.abs(p.gap))+"个百分点",
         '<span class="pill '+cls+'" title="依据:距个人最佳 '+r32(Math.abs(p.gap))+' 个百分点">'+pbLabelV32(p.st,p.gap)+"</span>",scoreBest(f.series[s]));
-    }else{
+    }else if(cb){pushClass(s,cb,scoreBest(f.series[s]));}
+    else{
       var rr=f.series[s].filter(function(x){return x.rate!==null;});
       if(rr.length>=1){
         fallback=true;
@@ -8740,7 +8746,7 @@ function matrixSectionHtmlV32(f,mode,explicit){
     +'<span><span class="sv31-dot" style="background:#32a77a"></span>偏易信号</span></div>')+'</div>'
     +'<div class="compact-matrix-v60">'+metricSelectV60('matrix',metric,[['rank','年排'],['class','班排'],['score','得分率']].concat(window.__stScoreWorth?[['difficulty','难度参考']]:[]))+'</div>'
     +(difficultyView?'<div class="worth-heat-legend" aria-label="难度参考色阶，0 到 100，50 为平均难度"><div class="worth-heat-ramp" data-worth-heat-ramp style="background:'+window.__stScoreWorth.heatRamp()+'" aria-hidden="true"></div><div class="worth-heat-labels"><span>0 · 较易</span><span>50 · 平均</span><span>100 · 较难</span></div></div>':'')
-    +(rowsHtml?'<p class="worth-matrix-hint"> '+(difficultyView?' † 暂时只作粗略参考，点格子查看原因；— 表示数据不足。':'')+'</p><div class="sv31-scroll worth-matrix-scroll" tabindex="0" role="region" aria-label="全部考试'+(difficultyView?'难度参考热力图':'成绩矩阵')+'"><table class="sv31-heat worth-matrix-table" style="min-width:'+(136+76*colCount)+'px">'+matrixCols+'<thead>'+head+'</thead><tbody>'+rowsHtml+'</tbody></table></div>'
+    +(rowsHtml?''+(difficultyView?'<p class="worth-matrix-hint">† 粗略参考；— 数据不足。</p>':'')+'<div class="sv31-scroll worth-matrix-scroll" tabindex="0" role="region" aria-label="全部考试'+(difficultyView?'难度参考热力图':'成绩矩阵')+'"><table class="sv31-heat worth-matrix-table" style="min-width:'+(136+76*colCount)+'px">'+matrixCols+'<thead>'+head+'</thead><tbody>'+rowsHtml+'</tbody></table></div>'
       +'<p class="card-sub" style="margin-top:8px">'+(difficultyView?"与成绩含金量用同一把尺子。只比较同一科目、同分类且参考人数相近的考试，不同组不直接比较，也不合成总分难度。点击格子，看看换到历史平均或某次考试的难度下，相当于多少分。":"圆点是逐场异常提示，也可能受个人状态影响；难度参考视图则使用完整历史建立统一尺子，两者用途不同，都不是试卷难度的确定结论。")+'</p>':'<p class="card-sub">还没有可展示的成绩。</p>')
     +(dom?'<div style="margin-top:18px">'+dom+"</div>":"")
     +(extHtml?'<div style="margin-top:18px"><b style="font-size:13px">个人纪录 <span style="color:var(--muted);font-weight:600">(分数项只和自己那张卷子比)</span></b>'
@@ -12414,7 +12420,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
   function boot() {
     try { injectStyle(); } catch (e) { }
     document.addEventListener("click", onDocClick, false);
-    document.addEventListener('change',function(ev){var t=ev.target;if(t.matches('[data-dsb-view-select]')){S.view=t.value;renderDistInto();}else if(t.matches('[data-dsb-bin-select]')){S.distBin=Number(t.value);renderDistInto();}else if(t.matches('[data-dsb-zbins-select]')){S.zmapBins=Number(t.value);renderDistInto();}else if(t.matches('[data-deep-subject-v60]')){S.localSubject=t.value!=='__inherit__';if(S.localSubject)S.cur=t.value;else syncDeepSubject();refresh();}else if(t.matches('[data-deep-history-v60]')){S.fullHistory=t.value==='all';refresh();}},false);
+    document.addEventListener('change',function(ev){var t=ev.target;if(t.matches('[data-dsb-view-select]')){S.view=t.value;renderDistInto();}else if(t.matches('[data-dsb-bin-select]')){S.distBin=Number(t.value);renderDistInto();}else if(t.matches('[data-dsb-zbins-select]')){S.zmapBins=Number(t.value);renderDistInto();}else if(t.matches('[data-deep-subject-v60]')){S.localSubject=t.value!=='__inherit__';if(S.localSubject)S.cur=t.value;else syncDeepSubject();refresh();if(S.cur.indexOf('__combo:')===0)track('deep_beta_combo',{id:S.cur.slice(8)});else track('deep_beta_switch',{subject:S.cur});document.querySelector('[data-deep-subject-v60]')?.focus({preventScroll:true});}else if(t.matches('[data-deep-history-v60]')){S.fullHistory=t.value==='all';refresh();}},false);
     /* 目标输入实时联动分布图 */
     document.addEventListener("input", function (ev) {
       var t = ev.target;
@@ -12858,7 +12864,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     }
     if (r.kind === 'empty') body += '<p class="worth-message" role="status">' + esc(r.reason) + '</p>';
     else {
-      body += '<p class="worth-message">' + (r.kind === 'identity' ? '参照就是本次考试，成绩不变。' : '按' + (s.mode === 'history' ? '历史平均难度' : s.mode === 'period' ? '这段时间的平均难度' : '这场考试的难度') + '，约相当于 <b>' + fmt(r.value) + ' 分</b>。') + '</p>';
+      if (r.kind === 'identity') body += '<p class="worth-message">与本次考试相同。</p>';
       if (r.kind !== 'identity' && r.quality === 'limited') body += '<div class="worth-stability"><p>' + esc(briefWarning(r)) + '</p></div>';
       var rows = r.references.slice().sort(function (a, b) { return b.day - a.day; });
       var history = s.mode === 'history', evidenceExams = history ? historyExams(f) : f.exams;
@@ -12880,7 +12886,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       }
       body += '<p class="worth-note">个人发挥、赋分和参考人群变化都可能影响估算，不能当作试卷的真实难度或正式等值分。</p></details>';
     }
-    return '<section class="card worth-card" id="scoreWorthCard" aria-labelledby="scoreWorthTitle" data-worth-result="' + r.kind + '" data-worth-quality="' + (r.quality || 'missing') + '"><div class="card-title-row"><h3 class="card-title" id="scoreWorthTitle">成绩含金量</h3></div><div class="worth-controls"><label'+(f.subjects.length===1?' hidden':'')+'>科目<select data-worth-control="subject">' + f.subjects.map(function (sub) { return '<option' + (sub === s.subject ? ' selected' : '') + '>' + esc(sub) + '</option>'; }).join('') + '</select></label><label>本次考试<select data-worth-control="exam">' + examOptions(f.exams, s.index) + '</select></label></div><div class="worth-reference-choice"><span>参照难度</span>' + reference + '</div>' + body + '<p class="worth-note worth-limit">估算仅供参考，实际成绩不会改变。</p></section>';
+    return '<section class="card worth-card" id="scoreWorthCard" aria-labelledby="scoreWorthTitle" data-worth-result="' + r.kind + '" data-worth-quality="' + (r.quality || 'missing') + '"><div class="card-title-row"><h3 class="card-title" id="scoreWorthTitle">成绩含金量</h3></div><div class="worth-controls"><label'+(f.subjects.length===1?' hidden':'')+'>科目<select data-worth-control="subject">' + f.subjects.map(function (sub) { return '<option' + (sub === s.subject ? ' selected' : '') + '>' + esc(sub) + '</option>'; }).join('') + '</select></label><label>本次考试<select data-worth-control="exam">' + examOptions(f.exams, s.index) + '</select></label></div><div class="worth-reference-choice"><span>参照难度</span>' + reference + '</div>' + body + '<p class="worth-note worth-limit">估算仅供参考。</p></section>';
   }
   function track(name, metadata) { try { if (window.__stTrack) window.__stTrack(name, metadata); } catch (_) {} }
   function report(f, source) { var s = selection(f), r = result(f, s); track('score_worth_view', { source: source, result: r.kind, reference_mode: s.mode, model_count: r.modelN || 0, reference_count: r.references.length, quality: r.quality || 'missing', version: 2 }); }
@@ -13467,7 +13473,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       var opening=confirmAction===true;
       confirm='<div class="st-peer-confirm" role="presentation"><div class="st-peer-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="stPeerConfirmTitle"><h4 id="stPeerConfirmTitle">'+(opening?'开启匿名匹配？':'关闭匿名匹配？')+'</h4><p>'+(opening?'开启后，其他用户可以匹配到你的匿名成绩趋势，你也可以使用相似轨迹。不会展示用户名、学校或考试名称。':'关闭后，其他用户将无法再匹配到你的匿名成绩趋势，你也无法使用相似轨迹。')+'</p><div class="st-peer-confirm-actions"><button type="button" class="chip" data-peer-confirm-cancel>先不'+(opening?'开启':'关闭')+'</button><button type="button" class="chip active" data-peer-confirm-ok>确认'+(opening?'开启':'关闭')+'</button></div></div></div>';
     }
-    host.innerHTML='<div class="st-peer-heading"><div><h4>相似轨迹</h4><p>'+esc(filters.label)+'</p><small class="st-peer-count">'+esc(countCopy())+'</small></div><span class="sv31-tag">默认展示 3 条</span></div>'+notice+body+confirm;
+    host.innerHTML='<div class="st-peer-heading"><div><h4>相似轨迹</h4><p>'+esc(filters.label)+'</p><small class="st-peer-count">'+esc(countCopy())+'</small></div></div>'+notice+body+confirm;
     var form=host.querySelector('[data-peer-settings]');if(form)form.noValidate=true;
     var chartHost=host.querySelector('.st-peer-chart');if(chartHost)chartHost.scrollLeft=Math.max(0,chartHost.scrollWidth-chartHost.clientWidth);
   }
