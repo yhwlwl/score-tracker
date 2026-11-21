@@ -39,6 +39,25 @@
     ['distribution','排名分布','matrix','.sv31-g2','stats-matrix']
   ];
   function chartFor(id){return charts.find(function(c){return c[0]===id;});}
+  function chartDefaultLabel(id){return id==='compare'||id==='distribution'?'总分':'全部科目';}
+  function normalizeChartScopes(value){
+    var out=Object.create(null);
+    charts.forEach(function(c){var n=value&&value[c[0]];if(typeof n==='string'&&n.indexOf('s:')===0&&n.length>2)out[c[0]]=n;});
+    return out;
+  }
+  function chartSubjects(f){
+    return f.subjects.filter(function(s){return (f.series[s]||[]).some(function(x){return x.pos!=null||x.rate!=null||x.actual!=null;});});
+  }
+  function chartSelection(value,subjects){
+    return typeof value==='string'&&value.indexOf('s:')===0&&subjects.includes(value.slice(2))?value:'';
+  }
+  // Keep the original exam list and feature object unchanged. Rank charts use the selected subject's actual rank series, not the exam total.
+  function rankChartScope(f,subject){
+    var ts=(f.valid[subject]||[]).filter(function(x){return x.pos!=null;}).map(function(x){
+      var exam=f.exams[x.i]||{};return {i:x.i,pos:x.pos,cls:x.cls==null?null:x.cls,N:x.N,score:x.actual,name:exam.name||('第'+(x.i+1)+'次'),date:exam.exam_date||''};
+    });
+    return Object.assign({},f,{subjects:[subject],totalSeries:ts,totalLabel:subject,overallLatest:ts.length?ts[ts.length-1].pos:null,scopeMissing:!ts.length});
+  }
   function normalizePins(a){return (Array.isArray(a)?a:[]).filter(function(id,i,list){return list.indexOf(id)===i&&!!chartFor(id);});}
   function setPin(a,id,on){var out=normalizePins(a);return on?normalizePins(out.concat(id)):out.filter(function(x){return x!==id;});}
   function movePin(a,id,step){var out=normalizePins(a),i=out.indexOf(id),j=i+step;if(i>=0&&j>=0&&j<out.length){var v=out[j];out[j]=id;out[i]=v;}return out;}
@@ -197,21 +216,21 @@
   }
   function storageKey(owner) { return 'st_page_display_v1:' + owner; }
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { renderQuote:renderQuote,normalizeSlogan:normalizeSlogan,sloganText:sloganText,limitSlogan:limitSlogan,dailySlogans:dailySlogans,previewArt:previewArt,recentModel:recentModel,recentHtml:recentHtml,groups:groups, ids:ids, presets:presets, normalize:normalize, presetHidden:presetHidden, currentMode:currentMode, toggle:toggle, titleKey:titleKey, storageKey:storageKey, charts:charts, normalizePins:normalizePins, setPin:setPin, movePin:movePin, layoutSpans:layoutSpans };
+    module.exports = { chartDefaultLabel:chartDefaultLabel,normalizeChartScopes:normalizeChartScopes,chartSubjects:chartSubjects,chartSelection:chartSelection,rankChartScope:rankChartScope,renderQuote:renderQuote,normalizeSlogan:normalizeSlogan,sloganText:sloganText,limitSlogan:limitSlogan,dailySlogans:dailySlogans,previewArt:previewArt,recentModel:recentModel,recentHtml:recentHtml,groups:groups, ids:ids, presets:presets, normalize:normalize, presetHidden:presetHidden, currentMode:currentMode, toggle:toggle, titleKey:titleKey, storageKey:storageKey, charts:charts, normalizePins:normalizePins, setPin:setPin, movePin:movePin, layoutSpans:layoutSpans };
     return;
   }
   if (typeof bindPage !== 'function' || typeof state === 'undefined') return;
-  var userKey = null, hidden = [], pins = [], slogan=normalizeSlogan(), queued = false, cache = null;
+  var userKey = null, hidden = [], pins = [], chartScopes=normalizeChartScopes(), slogan=normalizeSlogan(), queued = false, cache = null;
   function owner() { return String(state.user && (state.user.id || state.user.username) || 'guest'); }
   function hydrate() {
     var key = owner();
     if (key === userKey) return;
-    userKey = key; hidden = []; pins=[]; slogan=normalizeSlogan(); cache=null;
-    try {var saved=JSON.parse(localStorage.getItem(storageKey(key))||'null');hidden=normalize(saved);pins=normalizePins(saved&&saved.pins);slogan=normalizeSlogan(saved&&saved.slogan);} catch (_) {}
+    userKey = key; hidden = []; pins=[]; chartScopes=normalizeChartScopes(); slogan=normalizeSlogan(); cache=null;
+    try {var saved=JSON.parse(localStorage.getItem(storageKey(key))||'null');hidden=normalize(saved);pins=normalizePins(saved&&saved.pins);chartScopes=normalizeChartScopes(saved&&saved.chartScopes);slogan=normalizeSlogan(saved&&saved.slogan);} catch (_) {}
   }
   function save() {
     var saved = true;
-    try { localStorage.setItem(storageKey(userKey), JSON.stringify({hidden:hidden,pins:pins,slogan:slogan})); } catch (_) { saved = false; }
+    try { localStorage.setItem(storageKey(userKey), JSON.stringify({hidden:hidden,pins:pins,chartScopes:chartScopes,slogan:slogan})); } catch (_) { saved = false; }
     return saved;
   }
   function update(card) {
@@ -325,7 +344,7 @@
     clone.querySelectorAll('.sv31-evi,.sv31-evib,.sv31-evbody,.pd-shortcut').forEach(function(x){x.remove();});
     return clone;
   }
-  function compact(id,source,mode){
+  function compact(id,source,mode,subject){
     var out=document.createElement('div'),n;
     function add(x){if(x)out.appendChild(copyNode(x));}
     function note(t,cls){var p=document.createElement('p');p.className=cls||'pd-caption';p.textContent=t;out.appendChild(p);}
@@ -339,8 +358,48 @@
       n=source.querySelector('.worth-matrix-scroll');
       if(n){var difficulty=!!source.querySelector('.worth-heat-legend');note(difficulty?'难度参考 · 50 为平均，非真实难度；† 粗略参考':mode==='rank'?'排名位置 · 数字越小越靠前':'得分率 · 难度信号仅供参考');add(source.querySelector('.worth-heat-legend,.sv31-nopalette'));add(n);}
     }else if(id==='distribution'){var h=heading(source,'你的总分常落在哪个区间');n=h&&h.parentElement.querySelector('.sv31-g2');add(n);}
-    if(!n)note('当前筛选下暂无足够数据','pd-empty');
+    if(n&&subject){
+      if(id==='quad'){
+        var points=Array.from(out.querySelectorAll('.sv31-qpt'));
+        var chosen=points.find(function(x){return x.dataset.n===subject;});
+        if(!chosen)n=null;
+        else{
+          points.forEach(function(x){if(x!==chosen)x.remove();});
+          var d=chosen.dataset,v=Number(d.sp)||0;
+          out.querySelector('.pd-point-detail').textContent=d.n+' · 当前年级前'+d.pos+'% · '+(d.flat==='1'?'近期变化较小':(v>=0?'每场前进约 ':'每场后退约 ')+Math.abs(v)+' 名');
+        }
+      }else if(id==='best'||id==='speed'){
+        var rows=Array.from(out.querySelectorAll('tbody tr'));
+        rows.forEach(function(row){if(!row.cells.length||row.cells[0].textContent.trim()!==subject)row.remove();});
+        if(!out.querySelector('tbody tr'))n=null;
+      }else if(id==='matrix'){
+        if(!source.querySelector('.worth-heat-legend')){
+          out.querySelectorAll('table tr,table colgroup').forEach(function(row){if(row.lastElementChild)row.lastElementChild.remove();});
+        }
+        if(!Array.from(out.querySelectorAll('thead th')).some(function(th){return th.textContent.trim()===subject;}))n=null;
+      }
+    }
+    if(!n){out.replaceChildren();note('当前筛选下暂无足够数据','pd-empty');}
     return out;
+  }
+  function paintHomeChart(card,id,f,api,sources){
+    var c=chartFor(id),field=card.querySelector('[data-pd-chart-subject]'),subject=field.value?field.value.slice(2):'';
+    var scoped=f,mode=f.posCount>0?'rank':'score';
+    if(subject&&(id==='compare'||id==='distribution')){scoped=rankChartScope(f,subject);mode='rank';}
+    else if(subject&&id==='matrix'){
+      scoped=Object.assign({},f,{subjects:[subject]});
+      mode=(f.valid[subject]||[]).length?'rank':'score';
+    }
+    var body;
+    try{
+      var key=JSON.stringify([c[2],scoped===f?'':subject,mode,id==='distribution'&&scoped!==f?'distribution':'']);
+      if(!sources[key]){var src=document.createElement('div');src.innerHTML=api[c[2]](scoped,mode);sources[key]=src;}
+      body=compact(id,sources[key],mode,subject);
+    }catch(e){body=document.createElement('div');var p=document.createElement('p');p.className='pd-empty';p.textContent='暂时无法显示，请前往分析页查看。';body.appendChild(p);console.warn('首页图表',id,e);}
+    body.className='pd-chart-body';
+    var previous=card.querySelector('.pd-chart-body'),foot=card.querySelector('.pd-chart-foot');
+    if(previous)previous.replaceWith(body);else card.insertBefore(body,foot);
+    foot.querySelector('span').textContent='当前分类 · '+(subject||chartDefaultLabel(id));
   }
   function homeCharts(root){
     var grid=root.querySelector('.grid-main'),host=root.querySelector('#pdHomeCharts');
@@ -350,17 +409,20 @@
     if(host&&cache&&cache.grid===grid&&cache.exams===exams&&cache.sig===sig)return;
     var chronological=function(a){return a.filter(function(e){return !e.is_hidden;}).slice().sort(function(a,b){return String(a.exam_date||'').localeCompare(String(b.exam_date||''))||String(a.created_at||'').localeCompare(String(b.created_at||''));});};
     var f;try{f=api.buildFeatures(chronological(exams));f.totalLabel='总分';f.worthHistoryExams=chronological(state.allExams||exams);}catch(e){console.warn('首页分析图表',e);return;}
-    var mode=f.posCount>0?'rank':'score',sources={};
+    var sources={},subjects=chartSubjects(f);
     if(!host){host=document.createElement('section');host.id='pdHomeCharts';host.className='pd-home-charts';grid.appendChild(host);}
     host.replaceChildren();
     pins.forEach(function(id){
       var c=chartFor(id),card=document.createElement('article');card.className='card pd-home-chart';card.dataset.pdHomeChart=id;
-      card.innerHTML='<div class="pd-chart-head"><h3 class="card-title">'+c[1]+'</h3><button type="button" class="pd-remove" data-pin-toggle="'+id+'" aria-label="从首页移除'+c[1]+'" title="从首页移除">×</button></div>';
-      try{if(!sources[c[2]]){var src=document.createElement('div');src.innerHTML=api[c[2]](f,mode);sources[c[2]]=src;}card.appendChild(compact(id,sources[c[2]],mode));}
-      catch(e){var p=document.createElement('p');p.className='pd-empty';p.textContent='暂时无法显示，请前往分析页查看。';card.appendChild(p);console.warn('首页图表',id,e);}
-      var foot=document.createElement('div');foot.className='pd-chart-foot';foot.innerHTML='<span>当前分类 · 全部科目</span><button type="button" data-pin-detail="'+id+'">详细分析 ›</button>';card.appendChild(foot);host.appendChild(card);
+      card.innerHTML='<div class="pd-chart-head"><h3 class="card-title">'+c[1]+'</h3><div class="pd-chart-controls"><select data-pd-chart-subject aria-label="'+c[1]+'科目"></select><button type="button" class="pd-remove" data-pin-toggle="'+id+'" aria-label="从首页移除'+c[1]+'" title="从首页移除">×</button></div></div>';
+      var field=card.querySelector('[data-pd-chart-subject]');
+      function option(value,label){var n=document.createElement('option');n.value=value;n.textContent=label;field.appendChild(n);}
+      option('',chartDefaultLabel(id));subjects.forEach(function(s){option('s:'+s,s);});
+      field.value=chartSelection(chartScopes[id],subjects);field.disabled=!subjects.length;
+      var foot=document.createElement('div');foot.className='pd-chart-foot';foot.innerHTML='<span></span><button type="button" data-pin-detail="'+id+'">详细分析 ›</button>';card.appendChild(foot);
+      paintHomeChart(card,id,f,api,sources);host.appendChild(card);
     });
-    cache={grid:grid,exams:exams,sig:sig};
+    cache={grid:grid,exams:exams,sig:sig,features:f,api:api,sources:sources};
     requestAnimationFrame(function(){if(host.isConnected)host.querySelectorAll('.sv32-trend-scroll').forEach(function(n){n.scrollLeft=Math.max(0,n.scrollWidth-n.clientWidth);});});
   }
   var concise={
@@ -512,11 +574,23 @@
     hydrate();
     var mode = button.hasAttribute('data-display-reset') ? 'full' : button.dataset.displayPreset;
     if (!Object.prototype.hasOwnProperty.call(presets,mode)) return;
-    hidden = presetHidden(mode); if(button.hasAttribute('data-display-reset')){pins=[];slogan=normalizeSlogan();} changed(card, 'preset', {preset:mode});
+    hidden = presetHidden(mode); if(button.hasAttribute('data-display-reset')){pins=[];chartScopes=normalizeChartScopes();slogan=normalizeSlogan();} changed(card, 'preset', {preset:mode});
   });
   document.addEventListener('change', function (event) {
-    if (state.page !== 'account') return;
     var field = event.target;
+    if(state.page==='home'&&field.matches('[data-pd-chart-subject]')){
+      var chart=field.closest('.pd-home-chart'),id=chart&&chart.dataset.pdHomeChart;
+      if(!id||!chartFor(id)||!cache)return;
+      var value=chartSelection(field.value,chartSubjects(cache.features));
+      field.value=value;
+      if(value)chartScopes[id]=value;else delete chartScopes[id];
+      var stored=save();
+      paintHomeChart(chart,id,cache.features,cache.api,cache.sources);
+      if(!stored&&typeof toast==='function')toast('设置未能保存到此设备');
+      track('home_chart_subject',{chart:id,scope:value?'subject':'default'});
+      return;
+    }
+    if (state.page !== 'account') return;
     if(field.matches('[data-slogan-mode]')){var sloganCard=field.closest('#pageDisplaySettingsV1');if(!sloganCard)return;hydrate();slogan=normalizeSlogan(Object.assign({},slogan,{mode:field.value}));changed(sloganCard,'slogan',{slogan_mode:slogan.mode});return;}
     if (!field.matches('[data-display-toggle]')) return;
     var card = field.closest('#pageDisplaySettingsV1');
@@ -553,6 +627,7 @@
     '#content .hero.pd-top{grid-template-columns:minmax(0,1fr);grid-template-areas:"welcome" "latest";gap:14px;align-items:start;align-content:start}#content .pd-top>.hero-main{grid-area:welcome;position:relative;min-height:0;padding:20px 22px}#content .pd-top>.hero-stat{grid-area:latest;min-width:0}#content .pd-top>.quick-card{grid-area:summary;min-width:0;padding:16px 20px}#content .pd-top>.hero-main h2{font-size:clamp(22px,2.5vw,30px);line-height:1.3;letter-spacing:-.3px;margin:10px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}#content .pd-top>.hero-main h2[hidden]{display:none!important}#content .pd-top .hero-actions{margin-top:14px}#content .pd-top .quick-grid{gap:8px;margin-top:10px}#content .pd-top .quick-card .mini-stat{padding:8px 10px}#content .pd-top .quick-card .mini-stat b{font-size:calc(19px * var(--ui-scale,1));margin-bottom:2px}.pd-slogan-edit{display:inline-grid;place-items:center;width:30px;height:30px;padding:0;margin-left:7px;vertical-align:middle;border:0;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}.pd-slogan-edit:hover{background:var(--accent-soft);color:var(--accent)}@media(min-width:881px){#content .hero.pd-top.pd-with-summary{grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);grid-template-areas:"welcome latest" "summary latest";grid-template-rows:auto 1fr;column-gap:18px;row-gap:12px}#content .pd-top:not(.pd-with-summary)>.hero-main{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:16px}#content .pd-top:not(.pd-with-summary)>.hero-main .eyebrow{justify-self:start;grid-column:1;grid-row:1}#content .pd-top:not(.pd-with-summary)>.hero-main .pd-slogan-edit{position:absolute;top:14px;right:12px}#content .pd-top:not(.pd-with-summary)>.hero-main h2{grid-column:1;grid-row:2}#content .pd-top:not(.pd-with-summary)>.hero-main .hero-actions{grid-column:2;grid-row:1/span 2;margin:0 22px 0 0}#content .pd-top:not(.pd-with-summary)>.hero-stat.pd-recent-hero{grid-template-columns:repeat(2,minmax(0,1fr));align-items:center}#content .pd-top:not(.pd-with-summary) .pd-recent-header,#content .pd-top:not(.pd-with-summary) .pd-recent-name,#content .pd-top:not(.pd-with-summary) .pd-recent-subjects{grid-column:1/-1}#content .pd-top:not(.pd-with-summary) .pd-recent-hero:not(:has(.pd-recent-ranks)) .pd-recent-main{grid-column:1/-1}}@media(max-width:620px){#content .pd-top>.hero-main,#content .pd-top>.quick-card{padding:16px 15px}#content .pd-top>.hero-main h2{font-size:23px}#content .pd-top{gap:12px}}',
     '.pd-subhead{display:flex;align-items:center;justify-content:space-between;color:var(--muted);font-size:12px;padding:10px 0 4px}.pd-item{display:flex;align-items:center;gap:12px;min-width:0}.pd-item>span{min-width:0;overflow-wrap:anywhere}.pd-thumb{display:block;flex:none;width:70px;height:46px;padding:2px;border:1px solid var(--line);border-radius:8px;background:var(--panel-solid);box-sizing:border-box}.pd-row,.pd-pin-row{min-height:56px;padding:5px 0;box-sizing:border-box}.pd-pin-row{gap:8px}.pd-pin-actions button{white-space:nowrap}.pd-slogan-settings{border-top:1px solid var(--line);margin-top:10px;padding:14px 0 5px;display:grid;gap:8px}.pd-slogan-head,.pd-slogan-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:14px}.pd-slogan-head select,.pd-slogan-field textarea{font:inherit;font-size:13px;color:var(--text);background:var(--panel-solid);border:1px solid var(--line);border-radius:9px;padding:8px;min-width:0}.pd-slogan-preview{padding:10px 0 8px}.pd-slogan-settings [hidden]{display:none!important}.pd-slogan-field textarea{width:100%;box-sizing:border-box;resize:vertical}.pd-slogan-settings button{justify-self:end;font:inherit;font-size:12px;color:var(--accent);background:var(--accent-soft);border:0;border-radius:7px;padding:7px 12px;cursor:pointer}.pd-sr-only{position:absolute!important;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}@media(min-width:881px){.pd-group>div,[data-pin-list]{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:28px}.pd-subhead,[data-pin-list],.pd-slogan-settings{grid-column:1/-1}.pd-group>div>.pd-row{border-bottom:1px solid var(--line)}}@media(max-width:400px){.pd-thumb{width:56px;height:39px}.pd-item{gap:8px}.pd-pin-actions{gap:3px}.pd-pin-actions button{padding:7px 6px}}',
     ".pd-quote{--pd-quote-color:var(--text);--pd-quote-mark:var(--accent);display:grid;grid-template-columns:18px minmax(0,1fr);column-gap:9px;align-items:start;min-width:0;color:var(--pd-quote-color);text-align:left}\n@supports(color:color-mix(in srgb,black,white)){.pd-quote{--pd-quote-color:color-mix(in srgb,var(--accent) 58%,var(--text));--pd-quote-mark:color-mix(in srgb,var(--accent) 58%,var(--muted))}}\n.pd-quote[hidden]{display:none!important}\n.pd-quote-mark{font-family:Georgia,\"Times New Roman\",serif;font-size:42px;font-weight:400;line-height:.9;letter-spacing:-.1em;color:var(--pd-quote-mark);opacity:.65;user-select:none;height:.52em;display:block;padding-top:1px}\n.pd-quote-text{display:block;min-width:0;max-width:100%;font-family:\"Songti SC\",\"Noto Serif CJK SC\",\"Noto Serif SC\",\"STSong\",\"SimSun\",Georgia,serif;font-weight:500;letter-spacing:.035em;line-height:1.58;white-space:pre-wrap;line-break:strict;overflow-wrap:anywhere;text-wrap:balance}\nhtml[data-st-title]:not([data-st-title=\"system\"]) .pd-quote-text{font-family:var(--st-title-font,var(--ui-font))}\n.pd-quote[data-quote-long] .pd-quote-text{text-wrap:pretty;letter-spacing:.015em}\n#content .pd-top>.hero-main h2.pd-quote{font-size:clamp(calc(22px * var(--ui-scale,1)),calc(2.15vw * var(--ui-scale,1)),calc(29px * var(--ui-scale,1)));font-weight:500;line-height:1.58;letter-spacing:normal;margin:13px 0 0;min-width:0;align-self:start;color:var(--pd-quote-color)}\n#content .pd-top>.hero-main h2.pd-quote[data-quote-long]{font-size:clamp(calc(20px * var(--ui-scale,1)),calc(1.9vw * var(--ui-scale,1)),calc(25px * var(--ui-scale,1)))}\n#content .pd-top>.hero-main h2.pd-quote:not([hidden])+.hero-actions{margin-top:15px}\n.pd-slogan-preview.pd-quote{font-size:calc(21px * var(--ui-scale,1));font-weight:500}\n.pd-slogan-preview.pd-quote[data-quote-long]{font-size:calc(18px * var(--ui-scale,1))}\n.pd-slogan-preview .pd-quote-mark{font-size:36px;opacity:.65}\n.pd-slogan-edit:focus-visible{outline:2px solid var(--accent);outline-offset:2px}\n#content .pd-top>.hero-main.st-decorated>.eyebrow{max-width:calc(100% - var(--st-deco-size,40px) - 48px)}\n@media(min-width:881px){#content .pd-top:not(.pd-with-summary)>.hero-main:not(.st-decorated) h2.pd-quote{margin-top:8px}#content .pd-top:not(.pd-with-summary)>.hero-main:not(.st-decorated) h2.pd-quote+.hero-actions{margin-top:0}#content .pd-top:not(.pd-with-summary)>.hero-main.st-decorated{display:block}#content .pd-top:not(.pd-with-summary)>.hero-main.st-decorated .pd-slogan-edit{position:static}#content .pd-top:not(.pd-with-summary)>.hero-main.st-decorated .hero-actions{margin:14px 0 0}}\n@media(max-width:620px){#content .pd-top>.hero-main h2.pd-quote{font-size:calc(22px * var(--ui-scale,1));column-gap:6px;grid-template-columns:15px minmax(0,1fr);margin-top:10px}#content .pd-top>.hero-main h2.pd-quote[data-quote-long]{font-size:calc(20px * var(--ui-scale,1))}#content .pd-top>.hero-main .pd-quote-mark{font-size:36px}.pd-slogan-preview.pd-quote{font-size:calc(19px * var(--ui-scale,1))}}\n@media(forced-colors:active){.pd-quote{--pd-quote-color:CanvasText;--pd-quote-mark:CanvasText}}",
+    '.pd-chart-head{min-width:0;flex-wrap:wrap}.pd-chart-head .card-title{flex:1 1 100px;min-width:0}.pd-chart-controls{display:flex;align-items:center;gap:4px;min-width:0;max-width:100%}.pd-chart-controls select{font:inherit;font-size:var(--ui-caption,12px);color:var(--text);background:var(--cell,var(--panel-solid));border:1px solid var(--line);border-radius:9px;padding:5px 7px;min-height:34px;max-width:140px;cursor:pointer}.pd-chart-controls select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.pd-chart-controls .pd-remove{flex:none}.pd-chart-body{min-width:0}.pd-chart-controls select:disabled{opacity:.6;cursor:default}',
     '.pd-note{margin:14px 0 4px}.pd-foot{display:flex;align-items:center;justify-content:space-between;gap:10px}.pd-foot button{font:inherit;color:var(--accent);background:none;border:0;padding:8px 0;cursor:pointer}'
   ].join('\n');
   document.head.appendChild(style);
