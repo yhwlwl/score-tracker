@@ -22,6 +22,7 @@ const FILES = [
   "app-bundle.js",
   "public-assets.js",
   "notice-media.js",
+  "notice-layout.js",
   "notice-embed.js",
   "community-qr-20261024.jpg",
   "vision-image-prep.js",
