@@ -39,10 +39,11 @@
     ['distribution','排名分布','matrix','.sv31-g2','stats-matrix']
   ];
   function chartFor(id){return charts.find(function(c){return c[0]===id;});}
-  function chartDefaultLabel(id){return id==='compare'||id==='distribution'?'总分':'全部科目';}
+  function chartHasSubjectFilter(id){return id==='compare'||id==='distribution';}
+  function chartDefaultLabel(id){return chartHasSubjectFilter(id)?'总分':'全部科目';}
   function normalizeChartScopes(value){
     var out=Object.create(null);
-    charts.forEach(function(c){var n=value&&value[c[0]];if(typeof n==='string'&&n.indexOf('s:')===0&&n.length>2)out[c[0]]=n;});
+    charts.forEach(function(c){var n=value&&value[c[0]];if(chartHasSubjectFilter(c[0])&&typeof n==='string'&&n.indexOf('s:')===0&&n.length>2)out[c[0]]=n;});
     return out;
   }
   function chartSubjects(f){
@@ -216,7 +217,7 @@
   }
   function storageKey(owner) { return 'st_page_display_v1:' + owner; }
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { chartDefaultLabel:chartDefaultLabel,normalizeChartScopes:normalizeChartScopes,chartSubjects:chartSubjects,chartSelection:chartSelection,rankChartScope:rankChartScope,renderQuote:renderQuote,normalizeSlogan:normalizeSlogan,sloganText:sloganText,limitSlogan:limitSlogan,dailySlogans:dailySlogans,previewArt:previewArt,recentModel:recentModel,recentHtml:recentHtml,groups:groups, ids:ids, presets:presets, normalize:normalize, presetHidden:presetHidden, currentMode:currentMode, toggle:toggle, titleKey:titleKey, storageKey:storageKey, charts:charts, normalizePins:normalizePins, setPin:setPin, movePin:movePin, layoutSpans:layoutSpans };
+    module.exports = { chartHasSubjectFilter:chartHasSubjectFilter,chartDefaultLabel:chartDefaultLabel,normalizeChartScopes:normalizeChartScopes,chartSubjects:chartSubjects,chartSelection:chartSelection,rankChartScope:rankChartScope,renderQuote:renderQuote,normalizeSlogan:normalizeSlogan,sloganText:sloganText,limitSlogan:limitSlogan,dailySlogans:dailySlogans,previewArt:previewArt,recentModel:recentModel,recentHtml:recentHtml,groups:groups, ids:ids, presets:presets, normalize:normalize, presetHidden:presetHidden, currentMode:currentMode, toggle:toggle, titleKey:titleKey, storageKey:storageKey, charts:charts, normalizePins:normalizePins, setPin:setPin, movePin:movePin, layoutSpans:layoutSpans };
     return;
   }
   if (typeof bindPage !== 'function' || typeof state === 'undefined') return;
@@ -344,7 +345,7 @@
     clone.querySelectorAll('.sv31-evi,.sv31-evib,.sv31-evbody,.pd-shortcut').forEach(function(x){x.remove();});
     return clone;
   }
-  function compact(id,source,mode,subject){
+  function compact(id,source,mode){
     var out=document.createElement('div'),n;
     function add(x){if(x)out.appendChild(copyNode(x));}
     function note(t,cls){var p=document.createElement('p');p.className=cls||'pd-caption';p.textContent=t;out.appendChild(p);}
@@ -358,43 +359,18 @@
       n=source.querySelector('.worth-matrix-scroll');
       if(n){var difficulty=!!source.querySelector('.worth-heat-legend');note(difficulty?'难度参考 · 50 为平均，非真实难度；† 粗略参考':mode==='rank'?'排名位置 · 数字越小越靠前':'得分率 · 难度信号仅供参考');add(source.querySelector('.worth-heat-legend,.sv31-nopalette'));add(n);}
     }else if(id==='distribution'){var h=heading(source,'你的总分常落在哪个区间');n=h&&h.parentElement.querySelector('.sv31-g2');add(n);}
-    if(n&&subject){
-      if(id==='quad'){
-        var points=Array.from(out.querySelectorAll('.sv31-qpt'));
-        var chosen=points.find(function(x){return x.dataset.n===subject;});
-        if(!chosen)n=null;
-        else{
-          points.forEach(function(x){if(x!==chosen)x.remove();});
-          var d=chosen.dataset,v=Number(d.sp)||0;
-          out.querySelector('.pd-point-detail').textContent=d.n+' · 当前年级前'+d.pos+'% · '+(d.flat==='1'?'近期变化较小':(v>=0?'每场前进约 ':'每场后退约 ')+Math.abs(v)+' 名');
-        }
-      }else if(id==='best'||id==='speed'){
-        var rows=Array.from(out.querySelectorAll('tbody tr'));
-        rows.forEach(function(row){if(!row.cells.length||row.cells[0].textContent.trim()!==subject)row.remove();});
-        if(!out.querySelector('tbody tr'))n=null;
-      }else if(id==='matrix'){
-        if(!source.querySelector('.worth-heat-legend')){
-          out.querySelectorAll('table tr,table colgroup').forEach(function(row){if(row.lastElementChild)row.lastElementChild.remove();});
-        }
-        if(!Array.from(out.querySelectorAll('thead th')).some(function(th){return th.textContent.trim()===subject;}))n=null;
-      }
-    }
     if(!n){out.replaceChildren();note('当前筛选下暂无足够数据','pd-empty');}
     return out;
   }
   function paintHomeChart(card,id,f,api,sources){
-    var c=chartFor(id),field=card.querySelector('[data-pd-chart-subject]'),subject=field.value?field.value.slice(2):'';
+    var c=chartFor(id),field=card.querySelector('[data-pd-chart-subject]'),subject=field&&field.value?field.value.slice(2):'';
     var scoped=f,mode=f.posCount>0?'rank':'score';
-    if(subject&&(id==='compare'||id==='distribution')){scoped=rankChartScope(f,subject);mode='rank';}
-    else if(subject&&id==='matrix'){
-      scoped=Object.assign({},f,{subjects:[subject]});
-      mode=(f.valid[subject]||[]).length?'rank':'score';
-    }
+    if(subject&&chartHasSubjectFilter(id)){scoped=rankChartScope(f,subject);mode='rank';}
     var body;
     try{
       var key=JSON.stringify([c[2],scoped===f?'':subject,mode,id==='distribution'&&scoped!==f?'distribution':'']);
       if(!sources[key]){var src=document.createElement('div');src.innerHTML=api[c[2]](scoped,mode);sources[key]=src;}
-      body=compact(id,sources[key],mode,subject);
+      body=compact(id,sources[key],mode);
     }catch(e){body=document.createElement('div');var p=document.createElement('p');p.className='pd-empty';p.textContent='暂时无法显示，请前往分析页查看。';body.appendChild(p);console.warn('首页图表',id,e);}
     body.className='pd-chart-body';
     var previous=card.querySelector('.pd-chart-body'),foot=card.querySelector('.pd-chart-foot');
@@ -414,11 +390,11 @@
     host.replaceChildren();
     pins.forEach(function(id){
       var c=chartFor(id),card=document.createElement('article');card.className='card pd-home-chart';card.dataset.pdHomeChart=id;
-      card.innerHTML='<div class="pd-chart-head"><h3 class="card-title">'+c[1]+'</h3><div class="pd-chart-controls"><select data-pd-chart-subject aria-label="'+c[1]+'科目"></select><button type="button" class="pd-remove" data-pin-toggle="'+id+'" aria-label="从首页移除'+c[1]+'" title="从首页移除">×</button></div></div>';
+      card.innerHTML='<div class="pd-chart-head"><h3 class="card-title">'+c[1]+'</h3><div class="pd-chart-controls">'+(chartHasSubjectFilter(id)?'<select data-pd-chart-subject aria-label="'+c[1]+'科目"></select>':'')+'<button type="button" class="pd-remove" data-pin-toggle="'+id+'" aria-label="从首页移除'+c[1]+'" title="从首页移除">×</button></div></div>';
       var field=card.querySelector('[data-pd-chart-subject]');
       function option(value,label){var n=document.createElement('option');n.value=value;n.textContent=label;field.appendChild(n);}
-      option('',chartDefaultLabel(id));subjects.forEach(function(s){option('s:'+s,s);});
-      field.value=chartSelection(chartScopes[id],subjects);field.disabled=!subjects.length;
+      if(field){option('',chartDefaultLabel(id));subjects.forEach(function(s){option('s:'+s,s);});
+      field.value=chartSelection(chartScopes[id],subjects);field.disabled=!subjects.length;}
       var foot=document.createElement('div');foot.className='pd-chart-foot';foot.innerHTML='<span></span><button type="button" data-pin-detail="'+id+'">详细分析 ›</button>';card.appendChild(foot);
       paintHomeChart(card,id,f,api,sources);host.appendChild(card);
     });
@@ -580,7 +556,7 @@
     var field = event.target;
     if(state.page==='home'&&field.matches('[data-pd-chart-subject]')){
       var chart=field.closest('.pd-home-chart'),id=chart&&chart.dataset.pdHomeChart;
-      if(!id||!chartFor(id)||!cache)return;
+      if(!id||!chartHasSubjectFilter(id)||!cache)return;
       var value=chartSelection(field.value,chartSubjects(cache.features));
       field.value=value;
       if(value)chartScopes[id]=value;else delete chartScopes[id];
