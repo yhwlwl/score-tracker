@@ -705,10 +705,10 @@ function scopedScoreV60(e,f){
   if(!sel||!sel.length){
     var a=totalActualV32(e),t=totalTargetV32(e),m=0,complete=true;
     Object.keys(e.scores||{}).forEach(function(s){var r=e.scores[s]||{},v=n32(r.actual),mx=n32(r.max);if(r.excludeFromTotal)return;if(v!==null&&mx>0)m+=mx;else if(v!==null||mx>0)complete=false;});
-    return {actual:a,target:t,rate:a!==null&&m>0&&complete&&a<=m?r32(a/m*100):null};
+    return {actual:a,target:t,max:complete&&m>0?m:null,rate:a!==null&&m>0&&complete&&a<=m?r32(a/m*100):null};
   }
   sel.forEach(function(s){var r=rowV32(e,s),a=n32(r.actual),t=n32(r.target),m=n32(r.max);if(a===null)valid=false;else actual+=a;if(!(m>0))maxValid=false;else max+=m;if(t===null)targetValid=false;else target+=t;});
-  return {actual:valid?actual:null,target:targetValid?target:null,rate:valid&&maxValid&&max>0&&actual<=max?r32(actual/max*100):null};
+  return {actual:valid?actual:null,target:targetValid?target:null,max:maxValid&&max>0?max:null,rate:valid&&maxValid&&max>0&&actual<=max?r32(actual/max*100):null};
 }
 function scopedClassV60(e,f){
   var sel=f.analysisSelection;
@@ -718,7 +718,7 @@ function scopedClassV60(e,f){
   if(r!==null&&r!==undefined&&r>0){n=n||n32(e.total_class_participants);return n>0?r32(r/n*100):null;}
   var keep={};sel.forEach(function(s){keep[s]=1;});return !mr&&examTotalMatchesCombo(e,keep,sel.length)?totalPosClass32(e):null;
 }
-function metricV60(f,kind,preferred){var opts=kind==='trend'?['rank','score','class']:['rank','score','difficulty'];if(opts.includes(preferred))return preferred;return f.totalSeries.length||f.subjects.some(function(s){return (f.series[s]||[]).some(function(x){return x.pos!==null;});})?'rank':'score';}
+function metricV60(f,kind,preferred){var opts=kind==='trend'?['rank','score','class']:['rank','score','class','difficulty'];if(opts.includes(preferred))return preferred;return f.totalSeries.length||f.subjects.some(function(s){return (f.series[s]||[]).some(function(x){return x.pos!==null;});})?'rank':'score';}
 function metricSelectV60(kind,current,options){return '<select class="compact-select-v60" data-analysis-'+kind+'-v60 aria-label="'+(kind==='trend'?'趋势指标':'矩阵显示内容')+'">'+options.map(function(o){return '<option value="'+o[0]+'"'+(current===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>';}
 /* 名次口径模块在分数模式下打的标 */
 function lockTagV32(mode){return mode==="score"?'<span class="sv31-tag">按排名比较</span>':"";}
@@ -760,18 +760,18 @@ function trendHtmlV32(f,mode){
   if(score.length>=2){var idx={},hard={};score.forEach(function(x,i){idx[x.i]=i;});Object.keys(f.flags||{}).forEach(function(k){var i=k.split('|')[0],v=f.flags[k].lvl;if(v>0)hard[i]=Math.max(v,hard[i]||0);});var marks=function(X,Y,W,H,B){return Object.keys(hard).filter(function(i){return idx[i]!==undefined;}).map(function(i){return '<circle cx="'+X(idx[i])+'" cy="'+(H-B-6)+'" r="4" fill="'+(hard[i]===2?'#d95c5c':'#e59b45')+'"/>';}).join('');};
   panes.score=lineSvgV32([{vals:score.map(function(x){return r32(x.score);}),color:"var(--accent,#5d72e8)"}],score.map(function(x){return shortName32(x.name);}),{unit:"分",marks:marks});}
   var cfg=state.sv31||{},metric=mode==='rank'||mode==='score'||mode==='class'?mode:metricV60(f,'trend',cfg.trendMetricV60);
-  if(!cfg.trendMetricV60&&!panes[metric])metric=['rank','score','class'].find(function(k){return panes[k];})||metric;
+  if(mode==='combined'&&!panes[metric])metric=['rank','score','class'].find(function(k){return panes[k];})||metric;
   var opts=[['rank','排名走势'],['score','分数走势'],['class','班级排名']];
   return '<div class="card sv31-trend-card"><div class="card-title-row"><h3 class="card-title">③ 趋势与进步</h3>'+metricSelectV60('trend',metric,opts)+'</div>'
-  +(metric==='rank'?'<div class="legend" style="margin-bottom:8px"><span class="sv31-legend-t" title="点击打开:显示/颜色"><i style="background:var(--accent,#5d72e8)"></i>年级排名</span>'+(hasCls?'<span class="sv31-legend-t" title="点击打开:显示/颜色"><i style="background:var(--green,#32a77a)"></i>班级排名</span>':'')+'</div>':metric==='score'?'<p class="card-sub">不同满分或难度的试卷分数不宜直接比较。</p>':'')
-  +opts.map(function(o){return '<div class="sv31-pane'+(metric===o[0]?' on':'')+'" data-pane="'+o[0]+'">'+(panes[o[0]]||'<p class="card-sub">至少需要两场有效记录。</p>')+'</div>';}).join('')
+  +'<div class="legend" data-trend-only-v60="rank"'+(metric==='rank'?'':' hidden')+' style="margin-bottom:8px"><span class="sv31-legend-t" title="点击打开:显示/颜色"><i style="background:var(--accent,#5d72e8)"></i>年级排名</span>'+(hasCls?'<span class="sv31-legend-t" title="点击打开:显示/颜色"><i style="background:var(--green,#32a77a)"></i>班级排名</span>':'')+'</div><p class="card-sub" data-trend-only-v60="score"'+(metric==='score'?'':' hidden')+'>分数受满分及难度影响，仅供参考。</p>'
+  +opts.map(function(o){return '<div class="sv31-pane'+(metric===o[0]?' on':'')+'" data-pane="'+o[0]+'" data-available="'+(panes[o[0]]?'1':'0')+'">'+(panes[o[0]]||'<p class="card-sub">至少需要两场有效记录。</p>')+'</div>';}).join('')
   +speedTableHtmlV32(f)+(window.__stTrajectories?window.__stTrajectories.html():"")+"</div>";
 }
 function speedTableHtmlV32(f){
   var rows=[];
   f.subjects.forEach(function(s){
     var m=f.mom[s],vp=f.valid[s];
-    if(!m||!vp||vp.length<3)return;
+    if(!m||!vp||vp.length<3){var r=(f.series[s]||[]).filter(function(x){return x.rate!==null;}).slice(-5);if(r.length>=3){var ds=r.slice(1).map(function(x,i){return x.rate-r[i].rate;}),v=r32(median32(ds));rows.push({s:s,text:(v>0?'+':'')+v+' pp/场',arrow:'',up:null,st:'<span class="pill flat">得分率参考</span>',pos:null,n:null,rate:r[r.length-1].rate});}return;}
     var sp=speedTextV32(f,s);
     var st=f.stab[s];
     var pill=st?(st.cls==="ok"?'<span class="pill ok">稳</span>':st.cls==="mid"?'<span class="pill flat">有起伏</span>':'<span class="pill warn">不稳</span>'):'<span class="pill flat">数据少</span>';
@@ -779,16 +779,16 @@ function speedTableHtmlV32(f){
   });
   if(!rows.length)return "";
   rows.sort(function(a,b){
-    var ra=a.up===true?0:(a.up===null?1:2),rb=b.up===true?0:(b.up===null?1:2);
+    var ra=a.rate!==undefined?3:a.up===true?0:(a.up===null?1:2),rb=b.rate!==undefined?3:b.up===true?0:(b.up===null?1:2);
     if(ra!==rb)return ra-rb;
     return Math.abs(b.n||0)-Math.abs(a.n||0);
   });
   var body=rows.map(function(r){
     var col=r.up===true?"var(--green,#32a77a)":(r.up===false?"var(--danger,#d95c5c)":"var(--muted,#788392)");
-    return "<tr><td>"+esc32(r.s)+"</td><td class=\"num\" style=\"color:"+col+"\"><b>"+r.text+" "+r.arrow+"</b></td><td>"+r.st+'</td><td class="num">'+fmtPos32(r.pos)+"</td></tr>";
+    return "<tr><td>"+esc32(r.s)+"</td><td class=\"num\" style=\"color:"+col+"\"><b>"+r.text+" "+r.arrow+"</b></td><td>"+r.st+'</td><td class="num">'+(r.rate!==undefined?r32(r.rate)+'%（得分率）':fmtPos32(r.pos))+"</td></tr>";
   }).join("");
-  return '<div style="margin-top:14px"><b style="font-size:13px">进步速度榜 <span style="color:var(--muted);font-weight:600">(最近5次典型)</span></b>'
-    +'<div class="sv31-scroll"><table style="margin-top:6px"><thead><tr><th>科目</th><th style="text-align:right">速度</th><th>发挥</th><th style="text-align:right">当前排名</th></tr></thead><tbody>'+body+"</tbody></table></div></div>";
+  return '<div style="margin-top:14px"><b style="font-size:13px">进步速度榜 <span style="color:var(--muted);font-weight:600">(最近5次；得分率仅作参考)</span></b>'
+    +'<div class="sv31-scroll"><table style="margin-top:6px"><thead><tr><th>科目</th><th style="text-align:right">速度</th><th>发挥</th><th style="text-align:right">当前表现</th></tr></thead><tbody>'+body+"</tbody></table></div></div>";
 }
 
 /* ---------- ④ 学科结构 ---------- */
@@ -860,13 +860,15 @@ function structureHtmlV32(f,mode){
       +'<div class="sv31-chart" id="sv31Quad">'+quadSvgV32(quadPts,ov)+"</div>"
       +'<div class="sv31-detail" id="sv31QuadDetail">点击任意科目圆点,这里会显示它的数据。</div></div>'
       +"<div>"+(catchHtml?'<b style="font-size:13px">还差多远 <span style="color:var(--muted);font-weight:600">(先收窄到常见水平)</span></b><div style="margin-top:8px">'+catchHtml+"</div>":"")+"</div></div>"
-      :'<p class="card-sub">排名类结构分析需要每科的「名次 ÷ 人数」。当前考试都只有分数,所以这里是空的——其余模块已自动切换到分数口径。</p>')
+      :'<p class="card-sub">录入科目排名后可查看学科结构。</p>')
     +"</div>";
 }
 /* ---------- ⑤ 个人最佳殿堂 ---------- */
 function hallHtmlV32(f,mode){
   var rows=[],fallback=false;
-  function push(name,vals,bestTxt,at,gapTxt,pill){rows.push({name:name,vals:vals,bestTxt:bestTxt,at:at,gapTxt:gapTxt,pill:pill});}
+  function scoreBest(rows){var a=rows.filter(function(x){return x.actual!==null&&x.actual!==undefined;});if(!a.length)return '—';var maxima=new Set(a.map(function(x){return x.max;})),mixed=maxima.size>1||!a[0].max;var comparable=a.filter(function(x){return x.rate!==null&&x.rate!==undefined;});var b=(mixed&&comparable.length?comparable:a).slice().sort(function(x,y){return mixed&&comparable.length?y.rate-x.rate:y.actual-x.actual;})[0];var name=f.exams[b.i]&&f.exams[b.i].name||'';return '<b>'+r32(b.actual)+(b.max?'/'+r32(b.max):'分')+'</b>'+(mixed&&comparable.length?' <small>('+r32(b.rate)+'%)</small>':'')+'<small class="best-exam-v60">'+esc32(shortName32(name))+'</small>';}
+  var totalBest=scoreBest(f.exams.map(function(e,i){return Object.assign({i:i},scopedScoreV60(e,f));}));
+  function push(name,vals,bestTxt,at,gapTxt,pill,score){rows.push({name:name,vals:vals,bestTxt:bestTxt,at:at,gapTxt:gapTxt,pill:pill,score:score||'—'});}
   if(f.totalSeries.length>=1){
     var best=Math.min.apply(null,f.totalSeries.map(function(x){return x.pos;}));
     var lastP=f.totalSeries[f.totalSeries.length-1].pos,gap=r32(lastP-best);
@@ -878,12 +880,12 @@ function hallHtmlV32(f,mode){
     }
     push((f.totalLabel||"总分")+(f.totalSynthetic?"*":""),f.totalSeries.map(function(x){return 100-x.pos;}),fmtPos32(best),f.exams[bestEntry.i].name,
       gap<=0.05?"0":r32(Math.abs(gap))+"个百分点",
-      '<span class="pill '+(st==="ok"?"ok":(st==="warn"?"warn":"acc"))+'" title="依据:距个人最佳 '+r32(Math.abs(gap))+' 个百分点">'+pbLabelV32(st,gap)+"</span>");
+      '<span class="pill '+(st==="ok"?"ok":(st==="warn"?"warn":"acc"))+'" title="依据:距个人最佳 '+r32(Math.abs(gap))+' 个百分点">'+pbLabelV32(st,gap)+"</span>",totalBest);
   }else if(f.scoreSeries&&f.scoreSeries.length>=1){
     var bS=f.scoreSeries[0];f.scoreSeries.forEach(function(x){if(x.score>bS.score)bS=x;});
     fallback=true;
     push(f.totalLabel||"总分",f.scoreSeries.map(function(x){return x.score;}),Math.round(bS.score)+"分",f.exams[bS.i].name,"—",
-      '<span class="pill flat">分数参考</span>');
+      '<span class="pill flat">分数参考</span>',totalBest);
   }
   f.subjects.forEach(function(s){
     var vp=f.valid[s];
@@ -892,30 +894,29 @@ function hallHtmlV32(f,mode){
       var cls=p.st==="ok"?"ok":(p.st==="warn"?"warn":"acc");
       push(s,vp.map(function(x){return 100-x.pos;}),fmtPos32(p.pos),f.exams[p.i].name,
         p.gap<=0.05?"0":r32(Math.abs(p.gap))+"个百分点",
-        '<span class="pill '+cls+'" title="依据:距个人最佳 '+r32(Math.abs(p.gap))+' 个百分点">'+pbLabelV32(p.st,p.gap)+"</span>");
+        '<span class="pill '+cls+'" title="依据:距个人最佳 '+r32(Math.abs(p.gap))+' 个百分点">'+pbLabelV32(p.st,p.gap)+"</span>",scoreBest(f.series[s]));
     }else{
       var rr=f.series[s].filter(function(x){return x.rate!==null;});
-      if(rr.length>=2){
+      if(rr.length>=1){
         fallback=true;
         var b=rr[0];rr.forEach(function(x){if(x.rate>b.rate)b=x;});
         push(s,rr.map(function(x){return x.rate;}),Math.round(b.rate)+"%",f.exams[b.i].name,"—",
-          '<span class="pill flat">仅同卷可比</span>');
-      }
+          '<span class="pill flat">仅同卷可比</span>',scoreBest(f.series[s]));
+      }else if(f.series[s].some(function(x){return x.actual!==null;})){fallback=true;push(s,[],'—','—','—','<span class="pill flat">分数记录</span>',scoreBest(f.series[s]));}
     }
   });
   if(!rows.length)return "";
   var body=rows.map(function(r){
     return "<tr><td>"+esc32(r.name)+"</td><td>"+sparkSvg32(r.vals)+"</td>"
-      +'<td class="num" style="font-weight:800">'+r.bestTxt+"</td>"
+      +'<td class="num" style="font-weight:800">'+r.bestTxt+"</td><td class='num'>"+r.score+"</td>"
       +'<td style="color:var(--muted)">'+esc32(shortName32(r.at))+"</td>"
       +'<td class="num">'+r.gapTxt+"</td>"
       +"<td>"+r.pill+"</td></tr>";
   }).join("");
   return '<div class="card"><div class="card-title-row"><div><h3 class="card-title">⑤ 个人最佳殿堂</h3>'
-    +'<p class="card-sub">每科历史上最好的一次 · 现在离它还有多远'
-    +(fallback?' · <b>标「分数参考」的行没有名次数据,走势只在同卷内可比</b>':"")+"</p></div>"
+    +'<p class="card-sub">满分不同时按最高得分率展示；分数仅供参考。</p></div>'
     +lockTagV32(mode)+"</div>"
-    +'<div class="sv31-scroll"><table><thead><tr><th>科目</th><th>历次小走势</th><th style="text-align:right">历史最好</th><th>考到于</th><th style="text-align:right">现在差</th><th>状态</th></tr></thead><tbody>'
+    +'<div class="sv31-scroll"><table><thead><tr><th>科目</th><th>历次小走势</th><th style="text-align:right">最佳排名 / 参考</th><th>最佳得分</th><th>考到于</th><th style="text-align:right">现在差</th><th>状态</th></tr></thead><tbody>'
     +body+"</tbody></table></div></div>";
 }
 /* ---------- ⑥ 目标校准 ---------- */
@@ -1003,13 +1004,15 @@ function compHtmlV32(f,mode){
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">'+chipHtml+"</div></div></div></div>";
 }
 /* ---------- ⑧ 热力矩阵 + 分布带 + 个人纪录 ---------- */
-function matrixSectionHtmlV32(f,mode){
+function matrixSectionHtmlV32(f,mode,explicit){
   var rgb=accentRgbV32();
   var cfg=state.sv31||{},metric=mode==='combined'?metricV60(f,'matrix',cfg.matrixMetricV60||(cfg.matrixWorth==='difficulty'?'difficulty':null)):cfg.matrixWorth==='difficulty'?'difficulty':mode||'rank';
-  var difficultyView=!!(window.__stScoreWorth&&metric==='difficulty');mode=metric==='score'?'score':'rank';
+  var hasYear=f.totalSeries.length>0||f.subjects.some(function(s){return (f.valid[s]||[]).length>0;}),hasScore=f.exams.some(function(e){return scopedScoreV60(e,f).rate!==null;})||f.subjects.some(function(s){return (f.series[s]||[]).some(function(x){return x.rate!==null;});}),hasClass=f.exams.some(function(e){return scopedClassV60(e,f)!==null;})||f.subjects.some(function(s){return f.exams.some(function(e){return posClassOf32(e,rowV32(e,s))!==null;});});
+  if(mode==='combined'&&!explicit&&((metric==='rank'&&!hasYear)||(metric==='score'&&!hasScore)||(metric==='class'&&!hasClass)))metric=hasYear?'rank':hasScore?'score':hasClass?'class':metric;
+  var difficultyView=!!(window.__stScoreWorth&&metric==='difficulty');mode=metric==='score'?'score':metric==='class'?'class':'rank';
   var difficultyCells=difficultyView?window.__stScoreWorth.difficultyCells(f.exams,f.subjects,f.worthHistoryExams):{};
   var subs=f.subjects.filter(function(s){
-    return f.series[s]&&f.series[s].some(function(x){return difficultyView?x.rate!==null:mode==="rank"?x.pos!==null:x.rate!==null;});
+    return f.series[s]&&f.series[s].some(function(x){return difficultyView?x.rate!==null:mode==="rank"?x.pos!==null:mode==="class"?x.cls!==null:x.rate!==null;});
   });
   var rowsHtml="";
   f.exams.forEach(function(e,i){
@@ -1025,8 +1028,8 @@ function matrixSectionHtmlV32(f,mode){
         var col=fl.lvl===2?"#d95c5c":fl.lvl===1?"#e59b45":"#32a77a";
         dot='<span class="sv31-dot" style="background:'+col+'"></span>';
       }
-      if(mode==="rank"){
-        var p=posYearOf32(e,rowV32(e,s));
+      if(mode!=="score"){
+        var p=mode==="class"?posClassOf32(e,rowV32(e,s)):posYearOf32(e,rowV32(e,s));
         if(p===null)return "<td>—</td>";
         return '<td style="background:'+rankHeatColor32(rgb,p)+';color:#fff">'+worthCellV32(i,s,r32(p)+dot)+"</td>";
       }else{
@@ -1038,6 +1041,7 @@ function matrixSectionHtmlV32(f,mode){
     }).join("");
     var totCell;
     if(difficultyView){totCell='';}
+    else if(mode==="class"){var cp=scopedClassV60(e,f);totCell=cp===null?"<td class='sv31-tot'>—</td>":'<td class="sv31-tot" style="background:'+rankHeatColor32(rgb,cp)+';color:#fff">'+r32(cp)+'</td>';}
     else if(f.totalSynthetic){
       /* 合成口径:列值=所选科目位比中位数(与趋势线一致),分数模式=成员得分率中位 */
       var hit=f.totalSeries.filter(function(x){return x.i===i;})[0];
@@ -1161,13 +1165,13 @@ function matrixSectionHtmlV32(f,mode){
   }).join("");
   return '<div class="card worth-matrix-card"><div class="card-title-row">'
     +'<div><h3 class="card-title">⑧ 全量统计矩阵</h3><p class="card-sub" id="sv31HeatSub">'
-    +(difficultyView?"颜色越浓，估计相对越难；50 表示这组考试的平均难度。":"格子显示"+(mode==="rank"?"排名位置，数字越小越好":"得分率")+"。点击单科格子，查看成绩含金量。")
+    +(difficultyView?"颜色越浓，估计相对越难；50 表示这组考试的平均难度。":"格子显示"+(mode==="rank"?"年级排名位置，数字越小越好":mode==="class"?"班级排名位置，数字越小越好":"得分率")+"。点击单科格子，查看成绩含金量。")
     +'</p></div>'+(difficultyView?'':'<div class="legend sv31-nopalette"><span><span class="sv31-dot" style="background:#d95c5c"></span>偏难信号</span>'
     +'<span><span class="sv31-dot" style="background:#e59b45"></span>可能偏难</span>'
     +'<span><span class="sv31-dot" style="background:#32a77a"></span>偏易信号</span></div>')+'</div>'
-    +'<div class="compact-matrix-v60">'+metricSelectV60('matrix',metric,[['rank','排名'],['score','得分率']].concat(window.__stScoreWorth?[['difficulty','难度参考']]:[]))+'</div>'
+    +'<div class="compact-matrix-v60">'+metricSelectV60('matrix',metric,[['rank','年排'],['class','班排'],['score','得分率']].concat(window.__stScoreWorth?[['difficulty','难度参考']]:[]))+'</div>'
     +(difficultyView?'<div class="worth-heat-legend" aria-label="难度参考色阶，0 到 100，50 为平均难度"><div class="worth-heat-ramp" data-worth-heat-ramp style="background:'+window.__stScoreWorth.heatRamp()+'" aria-hidden="true"></div><div class="worth-heat-labels"><span>0 · 较易</span><span>50 · 平均</span><span>100 · 较难</span></div></div>':'')
-    +(rowsHtml?'<p class="worth-matrix-hint">左右滑动看科目，上下滑动看考试。'+(difficultyView?' † 暂时只作粗略参考，点格子查看原因；— 表示数据不足。':'')+'</p><div class="sv31-scroll worth-matrix-scroll" tabindex="0" role="region" aria-label="全部考试'+(difficultyView?'难度参考热力图':'成绩矩阵')+'"><table class="sv31-heat worth-matrix-table" style="min-width:'+(136+76*colCount)+'px">'+matrixCols+'<thead>'+head+'</thead><tbody>'+rowsHtml+'</tbody></table></div>'
+    +(rowsHtml?'<p class="worth-matrix-hint"> '+(difficultyView?' † 暂时只作粗略参考，点格子查看原因；— 表示数据不足。':'')+'</p><div class="sv31-scroll worth-matrix-scroll" tabindex="0" role="region" aria-label="全部考试'+(difficultyView?'难度参考热力图':'成绩矩阵')+'"><table class="sv31-heat worth-matrix-table" style="min-width:'+(136+76*colCount)+'px">'+matrixCols+'<thead>'+head+'</thead><tbody>'+rowsHtml+'</tbody></table></div>'
       +'<p class="card-sub" style="margin-top:8px">'+(difficultyView?"与成绩含金量用同一把尺子。只比较同一科目、同分类且参考人数相近的考试，不同组不直接比较，也不合成总分难度。点击格子，看看换到历史平均或某次考试的难度下，相当于多少分。":"圆点是逐场异常提示，也可能受个人状态影响；难度参考视图则使用完整历史建立统一尺子，两者用途不同，都不是试卷难度的确定结论。")+'</p>':'<p class="card-sub">还没有可展示的成绩。</p>')
     +(dom?'<div style="margin-top:18px">'+dom+"</div>":"")
     +(extHtml?'<div style="margin-top:18px"><b style="font-size:13px">个人纪录 <span style="color:var(--muted);font-weight:600">(分数项只和自己那张卷子比)</span></b>'
@@ -1523,8 +1527,18 @@ function bindStatsV32(f,root){
     var t=e.target,cfg=state.sv31,k;
     if(t.matches('[data-analysis-scope-v60]')){cfg.scope=t.value;k='scope';}
     else if(t.matches('[data-analysis-subject-v60]')){var v=t.value,m=v.indexOf('combo:')===0?(state.modulesV18||[]).find(function(x){return String(x.id)===v.slice(6);}):null;cfg.subjMod=m?m.subjects.slice():v.indexOf('sub:')===0?[v.slice(4)]:null;cfg.subjModule=m?String(m.id):null;k='subject';}
-    else if(t.matches('[data-analysis-trend-v60]')){cfg.trendMetricV60=t.value;k='trend';}
-    else if(t.matches('[data-analysis-matrix-v60]')){cfg.matrixMetricV60=t.value;cfg.matrixWorth=t.value==='difficulty'?'difficulty':'original';k='matrix';}
+    else if(t.matches('[data-analysis-trend-v60]')){
+      cfg.trendMetricV60=t.value;var host=t.closest('.sv31-trend-card');
+      host.querySelectorAll('[data-pane]').forEach(function(n){n.classList.toggle('on',n.dataset.pane===t.value);});
+      host.querySelectorAll('[data-trend-only-v60]').forEach(function(n){n.hidden=n.dataset.trendOnlyV60!==t.value;});
+      var pane=host.querySelector('[data-pane].on .sv32-trend-scroll');if(pane)pane.scrollLeft=Math.max(0,pane.scrollWidth-pane.clientWidth);
+      try{if(window.__v29&&window.__v29.afterRender)window.__v29.afterRender();}catch(e){}return;
+    }
+    else if(t.matches('[data-analysis-matrix-v60]')){
+      cfg.matrixMetricV60=t.value;cfg.matrixWorth=t.value==='difficulty'?'difficulty':'original';
+      var card=t.closest('.worth-matrix-card');if(card){card.outerHTML=matrixSectionHtmlV32(f,"combined",true);root.querySelector('[data-analysis-matrix-v60]')?.focus({preventScroll:true});}
+      try{window.__stTrack&&window.__stTrack('score_worth_matrix_metric',{view:cfg.matrixWorth,metric:t.value,version:2});}catch(e){}return;
+    }
     if(k){rerenderStatsV32();document.querySelector('[data-analysis-'+k+'-v60]')?.focus({preventScroll:true});}
   });
   root.addEventListener("click",function(e){

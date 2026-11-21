@@ -1324,7 +1324,9 @@ var PAL2NS = (window.PAL = window.PAL || {});
 
   /* ---------- 数据适配(对齐 app-v32 字段口径) ---------- */
   function deepCfg(){return typeof state!=='undefined'&&state.sv31||{};}
-  function syncDeepSubject(){var c=deepCfg();if(!S.localSubject)S.cur=c.subjModule?'__combo:'+c.subjModule:c.subjMod&&c.subjMod.length===1?c.subjMod[0]:'__total__';}
+  function globalDeepSubject(){var c=deepCfg();return c.subjModule?'__combo:'+c.subjModule:c.subjMod&&c.subjMod.length===1?c.subjMod[0]:'__total__';}
+  function globalDeepLabel(){var k=globalDeepSubject();if(k==='__total__')return '总分';if(k.indexOf('__combo:')===0){var m=comboList().find(function(x){return String(x.id)===k.slice(8);});return m?m.name:'组合';}return k;}
+  function syncDeepSubject(){if(!S.localSubject)S.cur=globalDeepSubject();}
   function prodExams() {
     try{var a=Array.isArray(state.allExams)?state.allExams:state.exams||[],c=S.fullHistory?'__all__':deepCfg().scope;return c&&c!=='__all__'?a.filter(function(e){return c==='__none__'?!e.grade_level:e.grade_level===c;}):a;}catch(e){return [];}
   }
@@ -1433,11 +1435,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
     var views = [
       { k: "band", t: "名次段" }, { k: "zmap", t: "发挥标尺" }, { k: "cum", t: "累计概率" }
     ];
-    return '<span class="label">视图：</span>' +
-      views.map(function (v) {
-        return '<button type="button" class="' + chipCls(S.view === v.k) +
-          '" data-dsb-view="' + v.k + '">' + v.t + '</button>';
-      }).join('');
+    return '<select class="compact-select-v60" data-dsb-view-select aria-label="图表视图">'+views.map(function(v){return '<option value="'+v.k+'"'+(S.view===v.k?' selected':'')+'>'+v.t+'</option>';}).join('')+'</select>';
   }
   function dModeAndGoalMarks(rep, xOf, ihG) {
     /* 状态模型中心(中位)与目标的虚线标注 */
@@ -1628,29 +1626,18 @@ var PAL2NS = (window.PAL = window.PAL || {});
       caption = '柱子 = 该名次段的命中概率（柱高=柱顶数字）；<b style="color:#4a90d9">蓝色曲线</b> = 状态模型概率密度，峰值对应<b>模型中心</b>（蓝色虚线处）。' +
         '命中前' + S.goalPct + '% 的概率 ≈ <b>' + Math.round(pGoal * 100) + '%</b>';
     }
-    var binChips = view === "band"
-      ? [2, 3, 5, 10].map(function (bn) {
-        return '<button type="button" class="' + chipCls(bin === bn) +
-          '" data-dsb-bin="' + bn + '">每格' + bn + '%</button>';
-      }).join('')
-      : "";
+    var binChips = view === "band"?'<select class="compact-select-v60" data-dsb-bin-select aria-label="名次段细度">'+[2,3,5,10].map(function(bn){return '<option value="'+bn+'"'+(bin===bn?' selected':'')+'>每格 '+bn+'%</option>';}).join('')+'</select>':"";
     var zBinChips = view === "zmap"
       ? [
         { n: 10, t: "较粗", tip: "10格，轮廓更平滑" },
         { n: 20, t: "标准", tip: "20格，兼顾轮廓和细节" },
         { n: 40, t: "较细", tip: "40格，显示更多局部细节" }
       ].map(function (opt) {
-        return '<button type="button" class="' + chipCls((S.zmapBins || 20) === opt.n) +
-          '" data-dsb-zbins="' + opt.n + '" aria-pressed="' + ((S.zmapBins || 20) === opt.n) +
-          '" title="' + opt.tip + '">' + opt.t + '</button>';
+        return '<option value="'+opt.n+'"'+((S.zmapBins||20)===opt.n?' selected':'')+'>'+opt.t+'</option>';
       }).join('')
       : "";
-    return '<div class="combo-chips-v25" style="margin-bottom:8px">' + dViewChips() +
-      (view === "band"
-        ? '<span class="label">细度：</span>' + binChips
-        : view === "zmap"
-          ? '<span class="label">细度：</span>' + zBinChips
-          : '<span class="label" style="opacity:.55">视图间可切换</span>') +
+    return '<div class="deep-chart-controls-v60">' + dViewChips() +
+      (view === "band"?binChips:view === "zmap"?'<select class="compact-select-v60" data-dsb-zbins-select aria-label="发挥标尺细度">'+zBinChips+'</select>':'') +
       '</div>' +
       '<div class="dsb-scroll"><svg viewBox="0 0 ' + W + " " + H + '" style="width:100%;max-width:760px;display:block;color:inherit">' +
       svg + "</svg></div>" +
@@ -2103,7 +2090,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
     var caliber = totalCaliber(exams);
     var totalLabel = '总分';
     if (caliber) totalLabel += caliber.kind === 'grade' ? ' · 年级口径' : ' · 组合口径?';
-    var entries = subjectList(exams).map(function (s) {
+    var entries = Array.from(new Set(subjectList(exams).concat(typeof state!=='undefined'&&Array.isArray(state.allExams)?subjectList(state.allExams):[]))).map(function (s) {
       return { key: s, label: s, n: obsSubject(exams, s).length };
     }).sort(function (a, b) { return b.n - a.n; });
     var chipsOk = [{ key: '__total__', label: totalLabel, n: obsTotal(exams).length }]
@@ -2186,7 +2173,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
       '<sup style="font-size:9.5px;opacity:.55">Beta</sup>' +
       '</div>' +
       '<div class="dsb-privacy-note" role="note">为改进预测质量，本模块会使用经匿名化、去标识化处理的使用数据进行统计分析；不会记录密码等敏感内容。</div>' +
-      '<div class="deep-filters-v60"><select class="compact-select-v60" data-deep-subject-v60 aria-label="深度分析对象"><option value="__inherit__"'+(!S.localSubject?' selected':'')+'>跟随全局 · '+esc(combo?combo.name:S.cur==='__total__'?'总分':S.cur)+'</option><optgroup label="独立分析">'+chipsOk.map(function(e){return '<option value="'+esc(e.key)+'"'+(S.localSubject&&S.cur===e.key?' selected':'')+'>'+esc(e.label)+' · '+e.n+' 场</option>';}).join('')+chipsPoor.map(function(e){return '<option value="'+esc(e.key)+'" disabled'+(S.localSubject&&S.cur===e.key?' selected':'')+'>'+esc(e.label)+' · '+e.n+' 场（不足4场）</option>';}).join('')+comboList().map(function(m){return '<option value="__combo:'+esc(String(m.id))+'"'+(S.localSubject&&S.cur==='__combo:'+String(m.id)?' selected':'')+'>'+esc(m.name)+'</option>';}).join('')+'</optgroup></select><select class="compact-select-v60" data-deep-history-v60 aria-label="深度分析历史范围"><option value="inherit"'+(!S.fullHistory?' selected':'')+'>跟随考试分类</option><option value="all"'+(S.fullHistory?' selected':'')+'>全部历史</option></select></div>' +
+      '<div class="deep-filters-v60"><select class="compact-select-v60" data-deep-subject-v60 aria-label="深度分析对象"><option value="__inherit__"'+(!S.localSubject?' selected':'')+'>跟随全局 · '+esc(globalDeepLabel())+'</option><optgroup label="独立分析">'+chipsOk.map(function(e){return '<option value="'+esc(e.key)+'"'+(S.localSubject&&S.cur===e.key?' selected':'')+'>'+esc(e.label)+' · '+e.n+' 场</option>';}).join('')+chipsPoor.map(function(e){return '<option value="'+esc(e.key)+'" disabled'+(S.localSubject&&S.cur===e.key?' selected':'')+'>'+esc(e.label)+' · '+e.n+' 场（不足4场）</option>';}).join('')+comboList().map(function(m){return '<option value="__combo:'+esc(String(m.id))+'"'+(S.localSubject&&S.cur==='__combo:'+String(m.id)?' selected':'')+'>'+esc(m.name)+'</option>';}).join('')+'</optgroup></select><select class="compact-select-v60" data-deep-history-v60 aria-label="深度分析历史范围"><option value="inherit"'+(!S.fullHistory?' selected':'')+'>跟随考试分类</option><option value="all"'+(S.fullHistory?' selected':'')+'>全部历史</option></select></div>' +
       caliberNote +
       body +
       '</div>';
@@ -2421,7 +2408,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
   function boot() {
     try { injectStyle(); } catch (e) { }
     document.addEventListener("click", onDocClick, false);
-    document.addEventListener('change',function(ev){var t=ev.target;if(t.matches('[data-deep-subject-v60]')){S.localSubject=t.value!=='__inherit__';if(S.localSubject)S.cur=t.value;else syncDeepSubject();refresh();}else if(t.matches('[data-deep-history-v60]')){S.fullHistory=t.value==='all';refresh();}},false);
+    document.addEventListener('change',function(ev){var t=ev.target;if(t.matches('[data-dsb-view-select]')){S.view=t.value;renderDistInto();}else if(t.matches('[data-dsb-bin-select]')){S.distBin=Number(t.value);renderDistInto();}else if(t.matches('[data-dsb-zbins-select]')){S.zmapBins=Number(t.value);renderDistInto();}else if(t.matches('[data-deep-subject-v60]')){S.localSubject=t.value!=='__inherit__';if(S.localSubject)S.cur=t.value;else syncDeepSubject();refresh();}else if(t.matches('[data-deep-history-v60]')){S.fullHistory=t.value==='all';refresh();}},false);
     /* 目标输入实时联动分布图 */
     document.addEventListener("input", function (ev) {
       var t = ev.target;
