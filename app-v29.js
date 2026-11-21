@@ -381,6 +381,7 @@
   /* 显示/隐藏状态(只从取色框的勾选改,不在点击图例时直接切换,避免误触) */
   var LS_HIDE_V29='st_legend_hidden_v31';
   var HIDDEN_V29=(function(){try{return JSON.parse(localStorage.getItem(LS_HIDE_V29)||'{}')||{};}catch(e){return{};}})();
+  function isHiddenV29(label){return HIDDEN_V29[label]===true||(!Object.prototype.hasOwnProperty.call(HIDDEN_V29,label)&&/^(班级|年级)最高分$/.test(label));}
   function saveHiddenV29(){try{localStorage.setItem(LS_HIDE_V29,JSON.stringify(HIDDEN_V29));}catch(e){}}
 
   /* 把一个图表 SVG 的子元素按「path + 其后相邻的 circle」分组，组序与图例序一致 */
@@ -466,7 +467,7 @@
           }
         }
         /* 显示/隐藏:只由取色框「在图表中显示这条线」勾选驱动 */
-        var hid=HIDDEN_V29[label]===true;
+        var hid=isHiddenV29(label);
         item.classList.toggle('lg-hide-v29',hid);
         var g3=groups[idx];
         if(g3){
@@ -528,7 +529,7 @@
     popElV29.dataset.subjectV29=label;
     popElV29.querySelector('b').textContent='「'+label+'」的颜色';
     var sb=popElV29.querySelector('.pk-show-v29 input');
-    if(sb)sb.checked=!(HIDDEN_V29[label]===true);
+    if(sb)sb.checked=!isHiddenV29(label);
     var cur=CUSTOM_V29[label]||'#5d72e8';
     popElV29.querySelector('input[type=color]').value=cur.length===7?cur:'#5d72e8';
     popElV29.querySelectorAll('.pk-swatches-v29 button').forEach(function(b){
@@ -562,8 +563,13 @@
     var card=document.createElement('div');
     card.className='card account-card appearance-card-v29';
     card.id='appearanceCardV29';
-    var cur=currentThemeV29();
-    card.innerHTML='<div class="appearance-heading-v29"><div><h3 class="card-title">外观</h3><p class="card-sub">选择你喜欢的配色和阅读方式，设置保存在当前设备。</p></div><button type="button" class="appearance-reset-v29" data-appearance-reset-v29>恢复默认</button></div>'
+    card.innerHTML=appearanceSettingsHtmlV29();
+    grid.appendChild(card);
+    bindAppearanceSettingsV29(card);
+  }
+  function appearanceSettingsHtmlV29(theme){
+    var cur=theme||currentThemeV29();
+    return '<div class="appearance-heading-v29"><div><h3 class="card-title">外观</h3><p class="card-sub">选择你喜欢的配色和阅读方式，设置保存在当前设备。</p></div><button type="button" class="appearance-reset-v29" data-appearance-reset-v29>恢复默认</button></div>'
       +'<section class="appearance-section-v29" aria-labelledby="themeLabelV29"><h4 id="themeLabelV29">配色主题</h4><div class="theme-opts-v29">'+THEMES_V29.map(function(t){
         return '<button type="button" class="theme-opt-v29'+(t.id===cur?' on':'')+'" data-theme-opt-v29="'+t.id+'" aria-pressed="'+(t.id===cur)+'" title="'+t.name+'"><span class="theme-swatch-v29" aria-hidden="true" style="--swatch-bg:'+t.meta+';--swatch-panel:'+(t.id==='night'?'#1d2533':'#ffffff')+';--swatch-accent:'+t.dot+'"><i></i><span></span><b></b></span><span>'+t.name.split(' · ')[0]+'</span><span class="appearance-check-v29" aria-hidden="true">✓</span></button>';
       }).join('')+'</div></section>'
@@ -574,14 +580,18 @@
         return '<button type="button" class="appearance-size-v29'+(p.id===readingV29.size?' on':'')+'" data-reading-size-v29="'+p.id+'" aria-pressed="'+(p.id===readingV29.size)+'"><b>'+p.name+'</b><span>'+p.px+'</span></button>';
       }).join('')+'</div></section>'
       +'<section class="appearance-preview-v29" aria-label="当前字体与字号效果预览"><span class="appearance-preview-label-v29">效果预览</span><p>看见每一次进步，也记录真实的起伏。</p><div><span>数学 · 阶段检测</span><strong>128.5 <small>/ 150</small></strong></div></section>';
-    grid.appendChild(card);
+  }
+  function bindAppearanceSettingsV29(card,options){
+    options=options||{};
     card.addEventListener('click',function(e){
       var b=e.target.closest('[data-theme-opt-v29]');
-      if(b)applyThemeV29(b.getAttribute('data-theme-opt-v29'));
+      if(b)applyThemeV29(b.getAttribute('data-theme-opt-v29'),!!options.silent,options.persist);
       var font=e.target.closest('[data-reading-font-v29]'),size=e.target.closest('[data-reading-size-v29]');
-      if(font)applyReadingV29(font.dataset.readingFontV29,readingV29.size);
-      if(size)applyReadingV29(readingV29.font,size.dataset.readingSizeV29);
-      if(e.target.closest('[data-appearance-reset-v29]')){applyReadingV29('system','standard');applyThemeV29('sunny');}
+      if(font)applyReadingV29(font.dataset.readingFontV29,readingV29.size,options.persist);
+      if(size)applyReadingV29(readingV29.font,size.dataset.readingSizeV29,options.persist);
+      var reset=e.target.closest('[data-appearance-reset-v29]');
+      if(reset){applyReadingV29('system','standard',options.persist);applyThemeV29('sunny',!!options.silent,options.persist);}
+      if((b||font||size||reset)&&options.onChange)options.onChange({theme:reset?'sunny':b?b.dataset.themeOptV29:options.theme, font:readingV29.font,size:readingV29.size});
     });
   }
 
@@ -665,6 +675,9 @@
 
   /* 测试钩子 */
   window.__v29={
+    logoSvg:LOGO_SVG_V29,
+    appearanceHtml:appearanceSettingsHtmlV29,
+    bindAppearance:bindAppearanceSettingsV29,
     THEMES:THEMES_V29,
     THEME_CSS:THEME_CSS,
     applyTheme:applyThemeV29,

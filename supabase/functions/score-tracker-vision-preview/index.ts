@@ -1,3 +1,6 @@
+import { recognitionConfig } from "../_shared/recognition-config.ts";
+import { creditRpc, startAiTask, finishAiTask, meteredModelFetch, AiBudgetError } from '../_shared/ai-credits.ts';
+import { aiReleaseCapabilities } from '../_shared/ai-release.ts';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { OUTPUT_TOKENS, readDatabase, requestOptions, recognizeWithRecovery, safeMessage } from "./reliability.ts";
@@ -9,22 +12,8 @@ const db = createClient(
   { auth: { persistSession: false, autoRefreshToken: false } },
 );
 
-const DEFAULT_VISION_MODEL = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free";
-const DEFAULT_VISION_BASE_URL = "https://openrouter.ai/api/v1";
 const DATABASE_TIMEOUT_MS = 8000;
 const CACHE_TTL_MS = 30000;
-
-function normalizeBaseUrl(value: unknown) {
-  const raw = String(value ?? DEFAULT_VISION_BASE_URL).trim().replace(/\/+$/, "");
-  if (!raw) return null;
-  let parsed: URL;
-  try { parsed = new URL(raw); } catch (_) { return null; }
-  if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.search || parsed.hash) return null;
-  let path = parsed.pathname.replace(/\/+$/, "");
-  path = path.replace(/\/(?:chat\/completions|models)$/i, "");
-  parsed.pathname = path || "/";
-  return parsed.toString().replace(/\/+$/, "");
-}
 
 function isOpenRouterBase(baseUrl: string) {
   try {
@@ -76,15 +65,7 @@ async function visionConfig() {
   );
   if (result.error) throw result.error;
 
-  const row: any = result.data;
-  const value = {
-    apiKey: row?.enabled === false ? "" : String(row?.openrouter_api_key || Deno.env.get("OPENROUTER_API_KEY") || "").trim(),
-    baseUrl: normalizeBaseUrl(row?.base_url || Deno.env.get("OPENROUTER_BASE_URL") || DEFAULT_VISION_BASE_URL),
-    model: String(row?.model || DEFAULT_VISION_MODEL).trim() || DEFAULT_VISION_MODEL,
-    configured: !!row?.openrouter_api_key || !!Deno.env.get("OPENROUTER_API_KEY"),
-    disabled: row?.enabled === false,
-    betaOnly: row?.beta_only !== false,
-  };
+  const value = recognitionConfig(result.data);
   visionConfigCache = { expiresAt: now + CACHE_TTL_MS, value };
   return value;
 }
@@ -140,12 +121,8 @@ async function isVisionBetaUser(username: unknown) {
 }
 
 async function visionQuota(userId: string, consume = false) {
-  const result = await readDatabase(() => db.rpc("score_tracker_vision_quota", {
-    p_user_id: userId,
-    p_consume: consume,
-  }));
-  if (result.error) throw result.error;
-  return result.data ?? null;
+  const account=await creditRpc(db,'score_tracker_ai_account',{p_user:userId});
+  return {service_enabled:account.enabled,allowed:account.enabled&&account.credits.available>=13&&account.budget_status!=='paused',remaining:account.credits.available,limit:account.credits.monthly||account.credits.welcome,unit:'credits',period:'month',global_remaining:account.budget_status==='paused'?0:1,account};
 }
 
 function cleanText(value: unknown, max = 80) {
@@ -231,7 +208,6 @@ function normalize(raw: any, context: any) {
       classRank: cleanInt(item.classRank),
       classParticipants: cleanInt(item.classParticipants),
       ambiguousScore: cleanNum(item.ambiguousScore),
-      questionTypes: [] as any[],
       components: [] as string[],
     };
     const aliases: Record<string, string> = {语:"语文",数:"数学",英:"英语",外:"英语",外语:"英语",物:"物理",化:"化学",生:"生物",史:"历史",地:"地理",政:"政治"};
@@ -242,38 +218,14 @@ function normalize(raw: any, context: any) {
     if (subject.ambiguousScore !== null) warnings.push(`${name} 有一个分数 ${subject.ambiguousScore}，无法确定是原始分还是赋分/最终分，请手动确认。`);
     if (subject.rawScore !== null && subject.rawMax !== null && subject.rawScore > subject.rawMax) warnings.push(`${name} 的原始分高于识别到的原始满分，请核对。`);
     if (subject.finalScore !== null && subject.finalMax !== null && subject.finalScore > subject.finalMax) warnings.push(`${name} 的最终分高于识别到的最终满分，请核对。`);
-    for (const type of (Array.isArray(item.questionTypes) ? item.questionTypes : []).slice(0,30)) {
-      const typeName = cleanText(type?.name,40);
-      if (!typeName) continue;
-      const row: any = {name:typeName,score:cleanNum(type.score),max:cleanNum(type.max)};
-      const position = cleanText(type.position,24);
-      if (position) row.position = position;
-      if (["easy","medium","hard"].includes(type.difficulty)) row.difficulty = type.difficulty;
-      if (row.max === 0) row.max = null;
-      const existing = subject.questionTypes.find((x:any) => x.name === row.name && (x.position || "") === (row.position || ""));
-      if (!existing) subject.questionTypes.push(row);
-      else for (const key of ["score","max","difficulty"] as const) {
-        if (existing[key] == null) { if (row[key] != null) existing[key] = row[key]; }
-        else if (row[key] != null && row[key] !== existing[key]) warnings.push(`${name}的${row.name}出现不同分数，请核对。`);
-      }
-      if (row.max !== null && row.score !== null && row.score > row.max) warnings.push(`${name}的${row.name}得分超过满分，请核对。`);
-    }
     const previous = seen.get(name);
     if (previous) {
-      for (const key of Object.keys(subject).filter((k) => k !== "name" && k !== "questionTypes" && k !== "components")) {
+      for (const key of Object.keys(subject).filter((k) => k !== "name" && k !== "components")) {
         if (previous[key] === null && subject[key] !== null) previous[key] = subject[key];
         else if (previous[key] !== null && subject[key] !== null && previous[key] !== subject[key]) warnings.push(`${name} 的部分数据在图片中不一致，已保留先读到的值，请核对。`);
       }
       if (!previous.components.length && subject.components.length) previous.components = subject.components;
       else if (previous.components.length && subject.components.length && JSON.stringify([...previous.components].sort()) !== JSON.stringify([...subject.components].sort())) warnings.push(`${name}的组合科目不一致，请核对。`);
-      for (const row of subject.questionTypes) {
-        const existing = previous.questionTypes.find((x:any) => x.name === row.name && (x.position || "") === (row.position || ""));
-        if (!existing) { if (previous.questionTypes.length < 30) previous.questionTypes.push(row); }
-        else for (const key of ["score","max","difficulty"] as const) {
-          if (existing[key] == null) { if (row[key] != null) existing[key] = row[key]; }
-          else if (row[key] != null && row[key] !== existing[key]) warnings.push(`${name}的${row.name}在图片中不一致，请核对。`);
-        }
-      }
       return null;
     }
     seen.set(name, subject);
@@ -284,7 +236,7 @@ function normalize(raw: any, context: any) {
 }
 
 function usableFieldCount(result: any) {
-  const values = [...Object.values(result.exam), ...result.subjects.flatMap((subject: any) => Object.entries(subject).filter(([key]) => key !== "name" && key !== "questionTypes" && key !== "components").map(([, value]) => value).concat((subject.questionTypes || []).flatMap((r:any) => [r.score,r.max])))];
+  const values = [...Object.values(result.exam), ...result.subjects.flatMap((subject: any) => Object.entries(subject).filter(([key]) => key !== "name" && key !== "components").map(([, value]) => value))];
   return values.filter((v) => v !== null && v !== undefined && v !== "").length;
 }
 
@@ -308,7 +260,9 @@ Deno.serve(async (req) => {
   let requestId = crypto.randomUUID();
   const startedAt = Date.now();
   let quota: any = null, user: any = null, config: any = null;
-  let auditStarted = false, connectivityReserved = false, phase = "request_received", action = "recognize";
+  let creditProtocol=false;
+  let auditStarted = false, connectivityReserved = false, billingStarted=false, callNumber=0, phase = "request_received", action = "recognize";
+  const billedFetch:typeof fetch=(url,init)=>meteredModelFetch(db,user.id,requestId,`${requestId}:vision:${callNumber++}`,String(url),init);
   let images: string[] = [], parts: any[] = [], stats: any[] = [], attempts: any[] = [], rawOutput = "";
   const timings: any[] = [];
   let auditDiagnostics: Record<string, unknown> = {};
@@ -324,6 +278,11 @@ Deno.serve(async (req) => {
     console.log("vision_timing", JSON.stringify({ request_id: requestId, action, phase, elapsed_ms: Date.now() - startedAt, ...extra }));
   };
   const reply = async (body: Record<string, any>, status = 200) => {
+    if(billingStarted){
+      const settlement=await finishAiTask(db,user.id,requestId,status<400&&(Array.isArray(body.subjects)||action==='connectivity_test'));
+      billingStarted=false;body.credits_charged=settlement.charged||0;body.quota_refunded=status>=400;
+      try{quota=await visionQuota(user.id);}catch(_){quota=null;}
+    }
     const elapsed = Date.now() - startedAt;
     if (status >= 400) console.error("vision_failure", JSON.stringify({ request_id: requestId, action, stage: phase,
       code: body.code || "vision_service_error", http_status: status, upstream_status: body.upstream_status ?? null,
@@ -346,11 +305,11 @@ Deno.serve(async (req) => {
     if (auditStarted) {
       const succeeded = status < 400 && Array.isArray(body.subjects);
       const record = { status: succeeded ? "succeeded" : quota?.consumed || status >= 500 ? "failed" : "rejected", http_status: status,
-        error_code: status >= 400 ? body.code || "vision_service_error" : null, error_stage: status >= 400 ? phase : null,
+        error_code: status >= 400 ? body.code || "vision_service_error" : null, error_stage: status >= 400 ? phase : null,quota_refunded:!succeeded&&body.quota_refunded===true,
         error_message: status >= 400 ? safeMessage(body.upstream_message || body.error) : null,
         duration_ms: elapsed, upstream_status: body.upstream_status ?? (succeeded ? 200 : null), attempts,
         result: succeeded ? body : null, raw_output: rawOutput || null, storage_status: succeeded ? "pending" : "not_requested" };
-      Object.assign(record, { diagnostics: { ...auditDiagnostics, timings } });
+      Object.assign(record, { diagnostics: { ...auditDiagnostics, credit_billing:true, timings } });
       try {
         const refunded = await withTimeout(finishAudit(db, requestId, record), 5000, "audit_write_timeout");
         if (refunded) {
@@ -365,12 +324,14 @@ Deno.serve(async (req) => {
     }
     return json({ ...body, request_id: requestId, ...(status >= 400 ? { stage: phase } : {}),
       diagnostics: { model: config?.model || null, attempt_count: attempts.length, elapsed_ms: elapsed, max_output_tokens: action === "readiness" ? 0 : action === "connectivity_test" ? 32 : OUTPUT_TOKENS },
-      ...(quota ? { quota } : {}) }, status);
+      ...(quota ? { quota:creditProtocol?quota:{...quota,unit:'legacy_estimate',remaining:Math.floor(Number(quota.remaining||0)/13),limit:Math.floor(Math.max(Number(quota.limit||0),Number(quota.remaining||0))/13),used:0,tier_name:'积分制（预计次数，刷新至新版查看）',tier_enabled:false} } : {}) }, status);
   };
 
   try {
     const body = await req.json().catch(() => ({}));
+    creditProtocol=body?.credit_protocol===1;
     if (!body || typeof body !== "object" || Array.isArray(body)) return reply({error:"请求内容不完整，请重新选择图片",code:"invalid_request_body"},400);
+    if(body.action==='release_capabilities'){const c=await aiReleaseCapabilities(db);return json(c,c.migration_ready?200:503);}
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.request_id || "")) requestId = body.request_id;
     action = body.action || "recognize";
     mark("request_received");
@@ -434,7 +395,6 @@ Deno.serve(async (req) => {
       }
 
       quota = await withTimeout(visionQuota(user.id), DATABASE_TIMEOUT_MS, "rate_limit_timeout");
-      if (!quota?.allowed) return reply({ error: "暂时无法识别，请查看剩余额度或稍后重试", code: "ai_rate_limited", retry_after_seconds: quota?.retry_after_seconds || 0 }, 429);
       // Automatic preflight is free of upstream requests; recognition tests the model itself.
       if (body.action === "readiness") {
         mark("readiness_ready");
@@ -462,6 +422,7 @@ Deno.serve(async (req) => {
           retry_after_seconds: Number(probe?.retry_after_seconds || 0), connectivity_quota: probe }, duplicate ? 409 : 429);
       }
       connectivityReserved = true;
+      await startAiTask(db,user.id,requestId,'probe',0,0);billingStarted=true;
       const openRouter = isOpenRouterBase(config.baseUrl);
       const headers: Record<string, string> = { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" };
       if (openRouter) {
@@ -470,6 +431,7 @@ Deno.serve(async (req) => {
       }
       mark("connectivity_start");
       const outcome = await recognizeWithRecovery({
+        fetcher:billedFetch,
         url: config.baseUrl + "/chat/completions", headers, requestId,
         body: { model: config.model, messages: [{ role: "user", content: '只返回 JSON：{"ok":true}' }],
           temperature: 0, max_tokens: 32, ...requestOptions(config.model, openRouter),
@@ -535,13 +497,11 @@ Deno.serve(async (req) => {
     }
     auditStarted = true;
     try {
-      const claimed = await withTimeout(readDatabase(() => db.rpc("score_tracker_vision_reserve", {
-        p_user_id: user.id, p_request_id: requestId,
-      })), DATABASE_TIMEOUT_MS, "rate_limit_timeout");
-      if (claimed.error) throw claimed.error;
-      quota = claimed.data;
+      const claimed=await startAiTask(db,user.id,requestId,'vision',13,150);billingStarted=true;
+      quota={...await visionQuota(user.id),allowed:true,consumed:true,approved:claimed.approved};
       mark("quota_checked");
     } catch (error) {
+      if(error instanceof AiBudgetError)throw error;
       console.error("vision_quota_check_failed", JSON.stringify({request_id:requestId,...diagnose(error)}));
       return reply({ error: "识别服务限流检查暂不可用，请稍后再试", code: "rate_limit_unavailable", request_status: 0 }, 503);
     }
@@ -562,7 +522,7 @@ Deno.serve(async (req) => {
     }
 
     const context = body.context ?? {};
-    const prompt = `你是一个中文学生成绩单识别器。请从用户提供的同一次考试的成绩单截图或照片中提取明确可见的数据。图片可能包含同一张长成绩单的全图和清晰分段，图片前的说明标明它们的顺序。\n\n重要规则：\n1. 先阅读整张表的表头、行列关系和成绩区域，支持科目横排、科目竖排、成绩卡片、带聊天或网页边框的截图。只提取看得清且能对应到科目的数据；局部模糊或缺少日期、满分、人数时，只把对应字段填 null，并在 warnings 说明，不要因为信息不全就放弃其他清晰的成绩。绝不猜测分数或排名。\n2. “原始分/卷面分”和“赋分/等级分/最终分”必须根据图片文字语义区分。若某科只有一个分数或一组“分数/满分”，且没有明确写原始分，默认放到 finalScore/finalMax；只有明确出现原始分时才填写 rawScore/rawMax。\n3. 排名不要机械依赖固定字段名，也不要要求标签必须和“年排/班排”完全一致；请结合整张表的表头、分组、相邻行以及同一科目的语义判断范围，再映射到系统字段：学校范围的“校次/校排/校排名/学校名次”等按 yearRank 处理（本系统将校内名次作为年排使用）；年级范围的年排/年级排名等也按 yearRank 处理；班级范围的班次/班排/班级排名等按 classRank 处理；联考/联考名次/联考排名等单独放 jointRank，当前不作为 yearRank 或 classRank。若同一组数据同时出现校次、班次、联考名次，优先把校次放 yearRank、班次放 classRank，联考名次放 jointRank。只有确实无法判断范围时才返回 null，并在 warnings 说明。\n4. 参考人数只在图片明确出现时提取，不要用其他字段的数字补全。\n5. 科目和组合名称按图片原文。语数英/语数外、语数英物/语数外物、语数英历、学科组合总分等都是组合，必须在 subjects 中各列一项，不能只输出单科；有分数或排名的组合均要保留。组合的 components 必须列出完整科目名称。学科组合如物化生表示语数外加物理、化学、生物，应根据图片该行选科信息确定，不能根据账号内置组合的名称或序号猜测。没有选科依据时 components 留空，不猜测。已有组合定义仅供按实际科目集合匹配：${JSON.stringify(context.combinations || [])}。题型（如英语的完形填空、阅读理解、作文）必须放在所属科目的 questionTypes 中，不得当成独立科目，也不重复计入总分。只提取有明确科目归属、名称及分数依据的题型；同一题型且同一题号/位置跨图合并，保留明确零分；position 只提取明确题号或位置（如第21题、阅读A），同一题型可按位置分列，但不能同时提取合计与其分题。difficulty 仅在图片明确标注基础/中等/较难时映射为 easy/medium/hard，否则 null，不得根据得分、题型名称或题号猜难度。不要推断学生失分原因。不要由小题猜题型、不要凭答案自行判分，不要把作文总计与作文子项同时作为并列题型。未知得分/满分留 null，满分不能用惯例补全；${JSON.stringify(context.subjectNames || [])} 是当前录入表已有科目，仅用于辅助匹配，不要凭空新增图片中不存在的科目。\n6. 不要根据常识补满分；图片没有满分就返回 null。\n7. 日期必须转换成 YYYY-MM-DD；年份不明确则返回 null。\n8. 分类只允许从这些选项里选择：${JSON.stringify(context.classificationOptions || [])}；不明确就 null。\n9. 全图用于核对表头和上下文，清晰分段用于读小字；分段有少量重叠，可能把同一行拆在相邻图片中。先合并同一科目的不同字段，再去除重复，不要重复科目，也不要把同一张图的分段当成不同考试。\n10. 总分只从明确的总分/总成绩/学科组合总分列组提取，finalTotal、yearRank、classRank、yearParticipants 必须各自与表头严格对齐。语文级序、语数英级序、语数英物级序、语数英历级序属于单科或组合，绝不能填入 exam 的总排名。竖排表头、空列必须逐列对齐，空列填 null，禁止将相邻列数字左移或右移。总分及组合的级序/班序分别映射到年排/班排，组合参考人数仅属于该组合，不得复用到单科或其他组合。exam 的 yearRankSource、classRankSource、yearParticipantsSource 分别填写对应字段的原始列标题，无明确来源时字段与来源均为 null。\n\n只返回 JSON，不要 Markdown，不要解释。格式：\n{\n  "exam": {"name": string|null, "date": string|null, "category": string|null, "finalTotal": number|null, "rawTotal": number|null, "yearRank": number|null, "yearRankSource": string|null, "yearParticipants": number|null, "yearParticipantsSource": string|null, "classRank": number|null, "classRankSource": string|null, "classParticipants": number|null, "jointRank": number|null, "jointParticipants": number|null},\n  "subjects": [{"name": string, "components": string[]|null, "target": number|null, "rawScore": number|null, "rawMax": number|null, "finalScore": number|null, "finalMax": number|null, "yearRank": number|null, "yearParticipants": number|null, "classRank": number|null, "classParticipants": number|null, "jointRank": number|null, "jointParticipants": number|null, "ambiguousScore": number|null, "questionTypes": [{"name": string, "score": number|null, "max": number|null, "position": string|null, "difficulty": "easy"|"medium"|"hard"|null}]}],\n  "warnings": [string]\n}`;    const content: any[] = [{ type: "text", text: prompt }];
+    const prompt = `你是一个中文学生成绩单识别器。请从用户提供的同一次考试的成绩单截图或照片中提取明确可见的数据。图片可能包含同一张长成绩单的全图和清晰分段，图片前的说明标明它们的顺序。\n\n重要规则：\n1. 先阅读整张表的表头、行列关系和成绩区域，支持科目横排、科目竖排、成绩卡片、带聊天或网页边框的截图。只提取看得清且能对应到科目的数据；局部模糊或缺少日期、满分、人数时，只把对应字段填 null，并在 warnings 说明，不要因为信息不全就放弃其他清晰的成绩。绝不猜测分数或排名。\n2. “原始分/卷面分”和“赋分/等级分/最终分”必须根据图片文字语义区分。若某科只有一个分数或一组“分数/满分”，且没有明确写原始分，默认放到 finalScore/finalMax；只有明确出现原始分时才填写 rawScore/rawMax。\n3. 排名不要机械依赖固定字段名，也不要要求标签必须和“年排/班排”完全一致；请结合整张表的表头、分组、相邻行以及同一科目的语义判断范围，再映射到系统字段：学校范围的“校次/校排/校排名/学校名次”等按 yearRank 处理（本系统将校内名次作为年排使用）；年级范围的年排/年级排名等也按 yearRank 处理；班级范围的班次/班排/班级排名等按 classRank 处理；联考/联考名次/联考排名等单独放 jointRank，当前不作为 yearRank 或 classRank。若同一组数据同时出现校次、班次、联考名次，优先把校次放 yearRank、班次放 classRank，联考名次放 jointRank。只有确实无法判断范围时才返回 null，并在 warnings 说明。\n4. 参考人数只在图片明确出现时提取，不要用其他字段的数字补全。\n5. 科目和组合名称按图片原文。语数英/语数外、语数英物/语数外物、语数英历、学科组合总分等都是组合，必须在 subjects 中各列一项，不能只输出单科；有分数或排名的组合均要保留。组合的 components 必须列出完整科目名称。学科组合如物化生表示语数外加物理、化学、生物，应根据图片该行选科信息确定，不能根据账号内置组合的名称或序号猜测。没有选科依据时 components 留空，不猜测。已有组合定义仅供按实际科目集合匹配：${JSON.stringify(context.combinations || [])}。不识别题型或小题得分，不分析试卷内容；不要把题型当作独立科目。${JSON.stringify(context.subjectNames || [])} 是当前录入表已有科目，仅用于辅助匹配，不要凭空新增图片中不存在的科目。\n6. 不要根据常识补满分；图片没有满分就返回 null。\n7. 日期必须转换成 YYYY-MM-DD；年份不明确则返回 null。\n8. 分类只允许从这些选项里选择：${JSON.stringify(context.classificationOptions || [])}；不明确就 null。\n9. 全图用于核对表头和上下文，清晰分段用于读小字；分段有少量重叠，可能把同一行拆在相邻图片中。先合并同一科目的不同字段，再去除重复，不要重复科目，也不要把同一张图的分段当成不同考试。\n10. 总分只从明确的总分/总成绩/学科组合总分列组提取，finalTotal、yearRank、classRank、yearParticipants 必须各自与表头严格对齐。语文级序、语数英级序、语数英物级序、语数英历级序属于单科或组合，绝不能填入 exam 的总排名。竖排表头、空列必须逐列对齐，空列填 null，禁止将相邻列数字左移或右移。总分及组合的级序/班序分别映射到年排/班排，组合参考人数仅属于该组合，不得复用到单科或其他组合。exam 的 yearRankSource、classRankSource、yearParticipantsSource 分别填写对应字段的原始列标题，无明确来源时字段与来源均为 null。\n\n只返回 JSON，不要 Markdown，不要解释。格式：\n{\n  "exam": {"name": string|null, "date": string|null, "category": string|null, "finalTotal": number|null, "rawTotal": number|null, "yearRank": number|null, "yearRankSource": string|null, "yearParticipants": number|null, "yearParticipantsSource": string|null, "classRank": number|null, "classRankSource": string|null, "classParticipants": number|null, "jointRank": number|null, "jointParticipants": number|null},\n  "subjects": [{"name": string, "components": string[]|null, "target": number|null, "rawScore": number|null, "rawMax": number|null, "finalScore": number|null, "finalMax": number|null, "yearRank": number|null, "yearParticipants": number|null, "classRank": number|null, "classParticipants": number|null, "jointRank": number|null, "jointParticipants": number|null, "ambiguousScore": number|null}],\n  "warnings": [string]\n}`;    const content: any[] = [{ type: "text", text: prompt }];
     images.forEach((image, index) => {
       const part = parts[index];
       const description = part.kind === "overview" ? "全图，供核对表头和上下文" : part.kind === "segment" ? `清晰片段 ${part.part_index}/${part.part_count}` : "完整图片";
@@ -590,6 +550,7 @@ Deno.serve(async (req) => {
 
     mark("upstream_start", { image_count: images.length, source_image_count: new Set(parts.map(p => p.source_index)).size, image_chars: totalSize, image_detail: "high", max_output_tokens: OUTPUT_TOKENS });
     const outcome = await recognizeWithRecovery({
+      fetcher:billedFetch,
       url: config.baseUrl + "/chat/completions", headers: requestHeaders, body: requestBody, requestId, mark,
       budgetMs: Math.max(1, Math.min(body.client_protocol === 2 ? 90000 : 45000, (body.client_protocol === 2 ? 103000 : 50000) - (Date.now() - startedAt))),
       attemptTimeoutMs: body.client_protocol === 2 ? 60000 : 35000,
@@ -610,12 +571,12 @@ Deno.serve(async (req) => {
     const message = safeMessage((error as any)?.message || error) || "识别失败，请稍后再试";
     const isServiceError = error instanceof VisionServiceError;
     diagnose(error);
-    const status = message === "request_id_conflict" ? 409 : isServiceError ? error.status : 500;
-    const code = isServiceError ? error.code : "vision_handler_error";
+    const status = message === "request_id_conflict" ? 409 : error instanceof AiBudgetError ? error.status : isServiceError ? error.status : 500;
+    const code = error instanceof AiBudgetError ? error.code : isServiceError ? error.code : "vision_handler_error";
     mark("handler_error", { status });
     console.error("vision handler error", JSON.stringify({ request_id: requestId, message }));
     return reply({
-      error: isServiceError ? "识别服务暂不可用，请稍后再试" : "识别失败，请稍后再试",
+      error: error instanceof AiBudgetError ? error.message : isServiceError ? "识别服务暂不可用，请稍后再试" : "识别失败，请稍后再试",
       code,
       request_status: 0,
       upstream_status: 0,

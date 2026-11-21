@@ -63,30 +63,30 @@ function filenameV30(scopeLabel,ext){
 
 /* ================= CSV 宽表 ================= */
 function averageV30(ex,key,scope){return numV30(ex.averages&&ex.averages[key]&&ex.averages[key][scope]);}
-function averageTextV30(ex,key){return [['class','班级均分'],['year','年级均分']].map(function(p){var v=averageV30(ex,key,p[0]);return v===null?'':p[1]+' '+String(v);}).filter(Boolean).join(' ｜ ');}
+function averageTextV30(ex,key){return [['class','班级均分'],['year','年级均分'],['classMax','班级最高分'],['yearMax','年级最高分']].map(function(p){var v=averageV30(ex,key,p[0]);return v===null?'':p[1]+' '+String(v);}).filter(Boolean).join(' ｜ ');}
 function csvCellV30(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
 function buildCsvV30(exams,scopeLabel){
   var subjects=subjectsUnionV30(exams),mods=modulesV30();
   var head=['日期','考试名称','分类','结束日期'];
-  subjects.forEach(function(s){head.push(s+' 目标',s+' 最终分',s+' 最终满分',s+' 原始分',s+' 原始满分',s+' 年排',s+' 年级人数',s+' 班排',s+' 班级人数',s+' 年位比%',s+' 班位比%',s+' 不计总分',s+' 班级均分',s+' 年级均分');});
-  head.push('总分','原始总分','总排名(年)','年级人数(总)','总班排','班级人数(总)','总年位比%','总班位比%','总分班级均分','总分年级均分');
-  mods.forEach(function(m){head.push(m.name+' 年排',m.name+' 年人数',m.name+' 班排',m.name+' 班人数',m.name+' 班级均分',m.name+' 年级均分');});
+  subjects.forEach(function(s){head.push(s+' 目标',s+' 最终分',s+' 最终满分',s+' 原始分',s+' 原始满分',s+' 年排',s+' 年级人数',s+' 班排',s+' 班级人数',s+' 年位比%',s+' 班位比%',s+' 不计总分',s+' 班级均分',s+' 年级均分',s+' 班级最高分',s+' 年级最高分');});
+  head.push('总分','原始总分','总排名(年)','年级人数(总)','总班排','班级人数(总)','总年位比%','总班位比%','总分班级均分','总分年级均分','总分班级最高分','总分年级最高分');
+  mods.forEach(function(m){head.push(m.name+' 年排',m.name+' 年人数',m.name+' 班排',m.name+' 班人数',m.name+' 班级均分',m.name+' 年级均分',m.name+' 班级最高分',m.name+' 年级最高分');});
   var lines=[head.map(csvCellV30).join(',')];
   exams.forEach(function(ex){
     var row=[ex.exam_date||'',ex.name||'',ex.grade_level||'',ex.end_date||''];
     subjects.forEach(function(s){
       var r=(ex.scores||{})[s]||{};
       row.push(fmtV30(numV30(r.target)),fmtV30(numV30(r.actual)),r.max===''||r.max==null?'':fmtV30(numV30(r.max)),fmtV30(numV30(r.raw)),r.rawMax===''||r.rawMax==null?'':fmtV30(numV30(r.rawMax)),fmtV30(numV30(r.rank)),fmtV30(numV30(r.participants)),fmtV30(numV30(r.classRank)),fmtV30(numV30(r.classParticipants)),fmtV30(numV30(r.yearPositionPercent)),fmtV30(numV30(r.classPositionPercent)),r.excludeFromTotal?'是':'');
-      row.push(averageV30(ex,'s:'+s,'class'),averageV30(ex,'s:'+s,'year'));
+      row.push(averageV30(ex,'s:'+s,'class'),averageV30(ex,'s:'+s,'year'),averageV30(ex,'s:'+s,'classMax'),averageV30(ex,'s:'+s,'yearMax'));
     });
     row.push(fmtV30(sumTotalV30(ex,'actual')),fmtV30(sumTotalV30(ex,'raw')),
       fmtV30(numV30(ex.total_rank)),fmtV30(numV30(ex.total_participants)),fmtV30(numV30(ex.total_class_rank)),fmtV30(numV30(ex.total_class_participants)),fmtV30(numV30(ex.total_year_position_percent)),fmtV30(numV30(ex.total_class_position_percent)));
-    row.push(averageV30(ex,'total','class'),averageV30(ex,'total','year'));
+    row.push(averageV30(ex,'total','class'),averageV30(ex,'total','year'),averageV30(ex,'total','classMax'),averageV30(ex,'total','yearMax'));
     var ranks=(ex.moduleRanks)||{};
     mods.forEach(function(m){
       var r=ranks[m.id]||{};
       row.push(fmtV30(numV30(r.yearRank)),fmtV30(numV30(r.yearParticipants)),fmtV30(numV30(r.classRank)),fmtV30(numV30(r.classParticipants)));
-      row.push(averageV30(ex,'m:'+m.id,'class'),averageV30(ex,'m:'+m.id,'year'));
+      row.push(averageV30(ex,'m:'+m.id,'class'),averageV30(ex,'m:'+m.id,'year'),averageV30(ex,'m:'+m.id,'classMax'),averageV30(ex,'m:'+m.id,'yearMax'));
     });
     lines.push(row.map(csvCellV30).join(','));
   });

@@ -44,23 +44,24 @@ const exams = Array.from({ length: 6 }, (_, i) => ({
     seed([...exams, { ...exams[0], id: 'hidden', is_hidden: true }]);
     click('#radarPickV25'); assert.equal(boxes().length, 6, 'custom categories included and hidden exams excluded');
     assert(!d.querySelector('.radar-pick-group-v25 img'), 'exam names are escaped');
-    for (let i = 0; i < 4; i++) boxes()[i].click();
-    boxes()[4].click(); assert.equal(boxes()[4].checked, false, 'enforce four-exam cap');
-    click('#radarPickOkV25'); assert.equal(w.state.radarSelection.length, 4); assert(chart());
-    click('#radarPickV25'); boxes()[0].click(); boxes()[4].click();
-    click('.cancel-btn'); assert.equal(w.state.radarSelection.length, 4, 'cancel preserves selection');
-    click('#radarPickV25'); boxes()[0].click(); boxes()[4].click(); click('#radarPickOkV25');
-    assert.equal(w.state.radarSelection.length, 4, 'adjust exams without clearing selection'); assert(chart());
+    for (let i = 0; i < 5; i++) boxes()[i].click();
+    boxes()[5].click(); assert.equal(boxes()[5].checked, false, 'enforce five-exam cap');
+    click('#radarRecentFiveV25'); assert.equal(boxes().filter(b=>b.checked).length,5); assert(!boxes().find(b=>b.value==='radar-0').checked);
+    click('#radarPickOkV25'); assert.equal(w.state.radarSelection.length, 5); assert(chart());
+    click('#radarPickV25'); {const omitted=boxes().find(b=>!b.checked);boxes().find(b=>b.checked).click();omitted.click();}
+    click('.cancel-btn'); assert.equal(w.state.radarSelection.length, 5, 'cancel preserves selection');
+    click('#radarPickV25'); {const omitted=boxes().find(b=>!b.checked);boxes().find(b=>b.checked).click();omitted.click();} click('#radarPickOkV25');
+    assert.equal(w.state.radarSelection.length, 5, 'adjust exams without clearing selection'); assert(chart());
     for (const mode of ['raw_score', 'target', 'actual']) {
-      click('[data-radar-mode="' + mode + '"]'); assert.equal(w.state.radarSelection.length, 4); assert(chart());
+      click('[data-radar-mode="' + mode + '"]'); assert.equal(w.state.radarSelection.length, 5); assert(chart());
     }
     for (const scope of ['year', 'class']) {
       click('[data-radar-scope-v16="' + scope + '"]');
       for (const mode of ['rank', 'rank_raw']) {
-        click('[data-radar-mode="' + mode + '"]'); assert.equal(w.state.radarSelection.length, 4); assert(chart());
+        click('[data-radar-mode="' + mode + '"]'); assert.equal(w.state.radarSelection.length, 5); assert(chart());
       }
     }
-    click('[data-radar-unpick]'); assert.equal(w.state.radarSelection.length, 3); assert(d.querySelector('#radarPickV25'));
+    click('[data-radar-unpick]'); assert.equal(w.state.radarSelection.length, 4); assert(d.querySelector('#radarPickV25'));
     seed(exams, [exams[5].id]); assert(!d.querySelector('.radar-picked-v25 img'));
     // Original and final scores may use different scales; do not fabricate final-score data.
     const rawOnly = structuredClone(exams.slice(0, 1));
@@ -74,6 +75,6 @@ const exams = Array.from({ length: 6 }, (_, i) => ({
     seed([]); assert.equal(d.querySelector('#radarPickV25').disabled, true);
     assert(d.querySelector('.radar-selection-v25').textContent.includes('当前筛选下暂无考试记录'));
     await tick(); assert.deepEqual(errors, []); assert(!calls.some(c => ['save_exam', 'delete_exam'].includes(c.action)));
-    console.log('PASS: bundled app boots; rank-only/raw-only exams remain selectable; all score/rank modes, adjustment/cancel/removal, four-exam cap, categories/hidden exams, escaped names, full-width empty-note structure and compact empty states.');
+    console.log('PASS: bundled app boots; rank-only/raw-only exams remain selectable; all score/rank modes, adjustment/cancel/removal, five-exam cap, categories/hidden exams, escaped names, full-width empty-note structure and compact empty states.');
   } finally { w.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

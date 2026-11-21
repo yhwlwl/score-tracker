@@ -44,6 +44,7 @@ export async function recognizeWithRecovery(options: {
   requestId: string; validate: (text: string) => any;
   mark: (phase: string, extra?: Record<string, unknown>) => void;
   budgetMs?: number; attemptTimeoutMs?: number; maxAttempts?: number;
+  fetcher?: typeof fetch;
 }) {
   const started = Date.now(), attempts: any[] = [];
   const budget = Math.min(options.budgetMs ?? UPSTREAM_BUDGET_MS, UPSTREAM_BUDGET_MS);
@@ -63,7 +64,7 @@ export async function recognizeWithRecovery(options: {
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     let retry = false, retryDelay = 350;
     try {
-      const response = await fetch(options.url, {
+      const response = await (options.fetcher||fetch)(options.url, {
         method: "POST", headers: { ...options.headers, "X-Client-Request-Id": options.requestId },
         body: JSON.stringify(body), signal: controller.signal,
       });
@@ -126,6 +127,7 @@ export async function recognizeWithRecovery(options: {
         }
       }
     } catch (error) {
+      if((error as any)?.aiBudget)throw error;
       const timedOut = controller.signal.aborted;
       last = { error: timedOut ? "识别服务响应较慢，请稍后再试" : "识别服务连接中断，请稍后重试",
         code: timedOut ? "upstream_timeout" : "upstream_network_error", status: timedOut ? 504 : 502,

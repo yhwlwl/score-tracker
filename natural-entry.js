@@ -726,10 +726,18 @@
         card.querySelectorAll('.max-v16,.rawmax-v16').forEach(function (input) { delete input.dataset.nlDefault; });
       }
       count += applyField(card, '.target-v16', data.target, result);
-      count += applyField(card, '.raw-v16', data.raw, result);
-      count += applyField(card, '.actual-v16', data.actual, result);
-      count += applyField(card, '.rawmax-v16', data.rawMax, result);
-      count += applyField(card, '.max-v16', data.max, result);
+      if (/^(语文|数学|英语|历史|物理)$/.test(name.trim())) {
+        var present=function(v){return v!==undefined&&v!==null&&v!=='';};
+        var useFinal=present(data.actual);
+        count += applyField(card, '.actual-v16', useFinal?data.actual:data.raw, result);
+        count += applyField(card, '.max-v16', useFinal?(present(data.max)?data.max:data.rawMax):(present(data.rawMax)?data.rawMax:data.max), result);
+        if(useFinal&&present(data.raw)&&Number(data.raw)!==Number(data.actual))result.warnings.push(name+'不赋分，已优先使用最终分，请核对');
+      } else {
+        count += applyField(card, '.raw-v16', data.raw, result);
+        count += applyField(card, '.actual-v16', data.actual, result);
+        count += applyField(card, '.rawmax-v16', data.rawMax, result);
+        count += applyField(card, '.max-v16', data.max, result);
+      }
       if (result.rankMode === 'rank') {
         count += applyField(card, '.year-rank-v16', data.rank, result);
         count += applyField(card, '.year-participants-v16', data.participants, result);
@@ -921,6 +929,7 @@
         }
       });
       result.fillMode = decision.mode;
+      modal.dataset.quickEntryApplied='true';
       trackUsage('quick_entry_fill_confirmed', { fill_mode: decision.mode, created_module_count: decision.create.length });
       return true;
     }
@@ -939,7 +948,7 @@
     var quotaRefresh = backdrop.querySelector('.nl-entry-quota-refresh');
     function quotaBlocked() {
       return !quotaState || !quotaState.enabled || !quotaState.eligible || !quotaState.quota.service_enabled ||
-        quotaState.quota.remaining <= 0 || quotaState.quota.global_remaining <= 0 || Date.now() < quotaRetryAt;
+        quotaState.quota.remaining < (quotaState.quota.unit==='credits'?13:1) || quotaState.quota.global_remaining <= 0 || Date.now() < quotaRetryAt;
     }
     function syncVisionButton() {
       var hasResult = !!visionText || (visionOutput && !visionOutput.hidden);
@@ -948,6 +957,13 @@
     function renderQuota() {
       if (!backdrop.isConnected || !quotaState) return;
       var q = quotaState.quota;
+      if(q.unit==='credits'){
+        quotaCount.textContent='可用 '+Math.floor(q.remaining)+' AI 积分';
+        quotaNote.textContent=(!quotaState.enabled||!q.service_enabled?'识图暂未启用。':q.global_remaining<=0?'本月 AI 预算不足。':'')+'约 13 分 / 次，按实际用量扣分，失败不扣。';
+        quotaRules.textContent='开始需 13 可用积分，提交时最多预留 '+Math.min(150,Math.floor(q.remaining))+' 分，完成后释放余量。确认填入免费。';
+        quotaDetails.querySelector('summary').textContent='如何扣分';
+        quotaDetails.hidden=false;syncVisionButton();return;
+      }
       var period = q.period || 'day';
       var prefixes = {lifetime:'体验',month:'本月',week:'本周',day:'今日'};
       var units = {lifetime:'次（一次性）',month:'次/月',week:'次/周',day:'次/日'};
@@ -1000,7 +1016,7 @@
       var version = quotaVersion;
       var token = localStorage.getItem('st_token') || '';
       try {
-        var response = await requestWithTimeout(VISION_ENDPOINT, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token:token, action:'quota'})}, 15000);
+        var response = await requestWithTimeout(VISION_ENDPOINT, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token:token, action:'quota',credit_protocol:1})}, 15000);
         var payload = await response.json();
         if (!backdrop.isConnected || token !== (localStorage.getItem('st_token') || '') || version !== quotaVersion) return;
         if (!response.ok || !payload.quota) throw new Error(payload.error || '额度读取失败');
@@ -1218,8 +1234,8 @@
         response = await requestWithTimeout(VISION_ENDPOINT, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(connectivityTest ? { action: 'readiness', token: token, request_id: visionRequestId }
-            : { action: "recognize", client_protocol: 2, token: token, request_id: visionRequestId, images: prepared.images, image_parts: prepared.parts, image_stats: prepared.stats, app_version: document.querySelector('meta[name="application-version"]')?.content || "", context: visionContext(modal) })
+          body: JSON.stringify(connectivityTest ? { action: 'readiness', credit_protocol:1, token: token, request_id: visionRequestId }
+            : { action: "recognize", credit_protocol:1, client_protocol: 2, token: token, request_id: visionRequestId, images: prepared.images, image_parts: prepared.parts, image_stats: prepared.stats, app_version: document.querySelector('meta[name="application-version"]')?.content || "", context: visionContext(modal) })
         }, connectivityTest ? 45000 : 120000);
       } catch (cause) {
         var timedOut = cause && (cause.name === 'AbortError' || cause.name === 'TimeoutError');
@@ -1243,7 +1259,7 @@
         var retryAfter = Number(payload.retry_after_seconds || 0);
         if (!detail && retryAfter > 0) detail = '约 ' + retryAfter + ' 秒后可重试';
         var label = payload.error || '识图服务暂时不可用';
-        var serviceError = new Error(String(label) + (payload.quota_refunded ? '，本次次数已返还。' : ''));
+        var serviceError = new Error(String(label) + (payload.quota_refunded ? '，本次积分预留已释放。' : ''));
         serviceError.requestId = payload.request_id || visionRequestId;
         serviceError.stage = payload.stage || 'recognition';
         serviceError.diagnostics = payload.diagnostics || {};

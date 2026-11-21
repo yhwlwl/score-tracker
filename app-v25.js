@@ -592,7 +592,7 @@
     return fallback;
   }
   function hiddenTrendLineV25(label){
-    try{var h=JSON.parse(localStorage.getItem('st_legend_hidden_v31')||'{}');return !!(h&&typeof h==='object'&&h[label]===true);}catch(e){return false;}
+    try{var h=JSON.parse(localStorage.getItem('st_legend_hidden_v31')||'{}');return h&&Object.prototype.hasOwnProperty.call(h,label)?h[label]===true:/^(班级|年级)最高分$/.test(label);}catch(e){return false;}
   }
   function fullTrendSvgV25(){
     var exams=state.exams||[];
@@ -713,7 +713,7 @@
     ensureRadarSelection=function ensureRadarSelectionV25(){
       var ids=state.radarSelection||[];
       var availableIds=new Set(radarPickerExamsV25().map(function(e){return e.id;}));
-      state.radarSelection=ids.filter(function(id){return availableIds.has(id);}).slice(0,4);
+      state.radarSelection=ids.filter(function(id){return availableIds.has(id);}).slice(0,5);
     };
   }
   var radarCardHtmlBeforeV25=(typeof radarCardHtml==='function')?radarCardHtml:null;
@@ -722,7 +722,7 @@
       var html=radarCardHtmlBeforeV25();
       var available=radarPickerExamsV25();
       var selected=state.radarSelection||[];
-      var picker='<div class="radar-selection-v25"><div class="radar-pick-v25"><button class="secondary" id="radarPickV25" type="button"'+(!available.length?' disabled':'')+'>'+(selected.length?'调整考试（已选 '+selected.length+'/4）':'选择考试（最多 4 次）')+'</button></div>';
+      var picker='<div class="radar-selection-v25"><div class="radar-pick-v25"><button class="secondary" id="radarPickV25" type="button"'+(!available.length?' disabled':'')+'>'+(selected.length?'调整考试（已选 '+selected.length+'/5）':'选择考试（最多 5 次）')+'</button></div>';
       if(selected.length){
         picker+='<div class="radar-picked-v25">'+selected.map(function(id){
           var e=(state.exams||[]).find(function(x){return x.id===id;});
@@ -749,7 +749,7 @@
     var picked=new Set((state.radarSelection||[]).map(String));
     var modal=document.createElement('div');
     modal.className='modal-backdrop';
-    modal.innerHTML='<div class="modal"><div class="modal-head"><h3>选择考试（最多 4 次）</h3><button class="close-btn" type="button">×</button></div><div class="modal-body">'
+    modal.innerHTML='<div class="modal"><div class="modal-head"><h3>选择考试（最多 5 次）</h3><button class="close-btn" type="button">×</button></div><div class="modal-body">'
       +groups.map(function(g){
         return '<div class="radar-pick-group-v25"><h4>'+escapeHtml(g.name)+'</h4>'
           +g.list.map(function(e){
@@ -757,7 +757,7 @@
           }).join('')
           +'</div>';
       }).join('')
-      +'<div class="modal-actions"><button class="secondary cancel-btn">取消</button><button class="primary" id="radarPickOkV25">确定</button></div></div></div>';
+      +'<div class="modal-actions"><button class="secondary" type="button" id="radarRecentFiveV25">最近5场</button><button class="secondary cancel-btn">取消</button><button class="primary" id="radarPickOkV25">确定</button></div></div></div>';
     document.body.appendChild(modal);
     var close=function(){modal.remove();};
     modal.querySelector('.close-btn').onclick=close;
@@ -765,11 +765,15 @@
     modal.onclick=function(e){if(e.target===modal)close();};
     modal.querySelectorAll('input[type="checkbox"]').forEach(function(b){
       b.addEventListener('change',function(){
-        if(modal.querySelectorAll('input[type="checkbox"]:checked').length>4){toast('最多选择 4 次考试');b.checked=false;}
+        if(modal.querySelectorAll('input[type="checkbox"]:checked').length>5){toast('最多选择 5 次考试');b.checked=false;}
       });
     });
+    modal.querySelector('#radarRecentFiveV25').onclick=function(){
+      var latest=new Set(available.slice().sort(function(a,b){return String(b.exam_date||'').localeCompare(String(a.exam_date||''))||String(b.id).localeCompare(String(a.id));}).slice(0,5).map(function(e){return String(e.id);}));
+      modal.querySelectorAll('input[type="checkbox"]').forEach(function(b){b.checked=latest.has(b.value);});
+    };
     modal.querySelector('#radarPickOkV25').onclick=function(){
-      state.radarSelection=[].slice.call(modal.querySelectorAll('input[type="checkbox"]:checked')).map(function(b){return b.value;});
+      state.radarSelection=[].slice.call(modal.querySelectorAll('input[type="checkbox"]:checked')).slice(0,5).map(function(b){return b.value;});
       if(state.radarSelection.length&&typeof ensureRadarSelection==='function')ensureRadarSelection();
       close();render();
     };

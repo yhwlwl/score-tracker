@@ -1,3 +1,4 @@
+import { aiReleaseCapabilities } from '../_shared/ai-release.ts';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { examReflection } from "./reflection.ts";
@@ -413,16 +414,22 @@ async function cleanAverages(uid: string, exam: any, rows: any[]) {
     if (!selected.length && !(key === "total" && score(exam.total_actual_score) !== null)) throw new Error("请先选择均分对应的科目");
     const max = selected.reduce((sum, r) => sum + r.max_score, 0);
     const entry: any = { basis: JSON.stringify(selected.map((r) => [r.subject, r.max_score]).sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)) };
-    for (const scope of ["class", "year"]) {
+    for (const scope of ["class", "year", "classMax", "yearMax"]) {
       const v = source[scope];
       if (v === "" || v == null) continue;
       if ((typeof v !== "number" && typeof v !== "string") || !String(v).trim()) throw new Error("均分请输入有效数字");
       const n = score(v);
       if (n === null || Math.abs(Number(v) * 100 - Math.round(Number(v) * 100)) > 0.000001) throw new Error("均分请输入 0～99999，最多两位小数");
-      if (!(key === "total" && score(exam.total_actual_score) !== null) && n > max) throw new Error("均分不能超过对应科目的最终满分");
+      if (!(key === "total" && score(exam.total_actual_score) !== null) && n > max) throw new Error((scope.endsWith("Max") ? "最高分" : "均分") + "不能超过对应科目的最终满分");
       entry[scope] = n;
     }
-    if (entry.class !== undefined || entry.year !== undefined) cleaned[key] = entry;
+    const personal = key === "total" && score(exam.total_actual_score) !== null ? score(exam.total_actual_score) : selected.length && selected.every((r) => r.actual_score !== null) ? selected.reduce((sum, r) => sum + r.actual_score, 0) : null;
+    for (const [highest, mean] of [["classMax","class"],["yearMax","year"]]) {
+      if (entry[highest] === undefined) continue;
+      if ((personal !== null && entry[highest] + 0.000001 < personal) || (entry[mean] !== undefined && entry[highest] < entry[mean])) throw new Error("最高分不能低于个人最终分或对应均分，请核对");
+    }
+    if (entry.classMax !== undefined && entry.yearMax !== undefined && entry.classMax > entry.yearMax) throw new Error("班级最高分不能高于年级最高分，请核对");
+    if (["class","year","classMax","yearMax"].some((k) => entry[k] !== undefined)) cleaned[key] = entry;
   }
   return cleaned;
 }
@@ -555,9 +562,19 @@ async function saveExam(uid: string, exam: any) {
   // Older clients omit this optional field; their saves must preserve existing references.
   if (hasKey("averages")) values.averages = averages;
   if (id) {
-    const owned = await db.from("score_tracker_exams").select("id").eq("id", id).eq("user_id", uid).maybeSingle();
+    const owned = await db.from("score_tracker_exams").select("id,averages").eq("id", id).eq("user_id", uid).maybeSingle();
     if (owned.error) throw owned.error;
     if (!owned.data) return { error: "没有找到这次考试", status: 404 };
+    // Old clients replace means; preserve highest references with the original basis.
+    if (hasKey("averages") && exam.reference_scores_version !== 1) {
+      for (const [key, old] of Object.entries(owned.data.averages || {}) as [string, any][]) {
+        if (!old || (old.classMax == null && old.yearMax == null)) continue;
+        if (averages[key] && averages[key].basis !== old.basis) continue;
+        const next = averages[key] || { basis: old.basis };
+        for (const field of ["classMax","yearMax"]) if (next[field] == null && old[field] != null) next[field] = old[field];
+        averages[key] = next;
+      }
+    }
     const r = await db.from("score_tracker_exams").update(values).eq("id", id).eq("user_id", uid);
     if (r.error) throw r.error;
   } else {
@@ -635,7 +652,7 @@ async function loginV2(body: any) {
 async function getGoal(uid: string) {
   const r = await db
     .from("score_tracker_user_goals")
-    .select("subject_goals,total_goal,dream_school,exam_date,date_name,updated_at")
+    .select("subject_goals,total_goal,target_rank,dream_school,exam_date,date_name,updated_at")
     .eq("user_id", uid)
     .maybeSingle();
   if (r.error) throw r.error;
@@ -645,6 +662,7 @@ async function getGoal(uid: string) {
     goal: {
       subjects: g.subject_goals ?? {},
       totalGoal: g.total_goal === null || g.total_goal === undefined ? null : Number(g.total_goal),
+      targetRank: g.target_rank == null ? null : Number(g.target_rank),
       school: g.dream_school ?? "",
       date: g.exam_date ?? "",
       dateName: g.date_name ?? "",
@@ -665,10 +683,22 @@ async function saveGoal(uid: string, raw: any) {
     }
   }
   const total = score(raw?.totalGoal);
+  const rankPatch: Record<string, number | null> = {};
+  if (Object.prototype.hasOwnProperty.call(raw || {}, "targetRank")) {
+    const rank = raw.targetRank == null || raw.targetRank === "" ? null : Number(raw.targetRank);
+    if (rank !== null && (!Number.isInteger(rank) || rank < 1 || rank > 10000000)) return { error: "目标名次请输入正整数", status: 400 };
+    rankPatch.target_rank = rank;
+  }
   const school = text(raw?.school, 40);
   const date = /^\d{4}-\d{2}-\d{2}$/.test(String(raw?.date ?? "")) ? String(raw.date) : null;
   const dateName = text(raw?.dateName, 20);
-  const hasAny = Object.keys(subjects).length > 0 || total !== null || !!school || !!date;
+  // Older clients omit targetRank. Preserve its stored value when editing scores.
+  if (!("target_rank" in rankPatch)) {
+    const existing = await db.from("score_tracker_user_goals").select("target_rank").eq("user_id", uid).maybeSingle();
+    if (existing.error) throw existing.error;
+    rankPatch.target_rank = existing.data?.target_rank ?? null;
+  }
+  const hasAny = Object.keys(subjects).length > 0 || total !== null || rankPatch.target_rank !== null || !!school || !!date;
   const now = new Date().toISOString();
   if (!hasAny) {
     const del = await db.from("score_tracker_user_goals").delete().eq("user_id", uid);
@@ -676,7 +706,7 @@ async function saveGoal(uid: string, raw: any) {
     return { ok: true, cleared: true };
   }
   const r = await db.from("score_tracker_user_goals").upsert(
-    { user_id: uid, subject_goals: subjects, total_goal: total, dream_school: school, exam_date: date, date_name: dateName, updated_at: now },
+    { user_id: uid, subject_goals: subjects, total_goal: total, ...rankPatch, dream_school: school, exam_date: date, date_name: dateName, updated_at: now },
     { onConflict: "user_id" }
   );
   if (r.error) throw r.error;
@@ -751,11 +781,16 @@ async function submitFeatureVote(uid: string, rawIds: any, rawCustom: any) {
   return { ok: true, addedVotes, suggestionId, overview: await featureVoteOverview(uid) };
 }
 
+async function refreshGrowth(uid:string){
+  // Growth must never make saving a student's grades fail.
+  try{await db.from('score_tracker_growth_accounts').update({last_refresh_at:null}).eq('user_id',uid);const r=await db.rpc('score_tracker_growth_refresh',{p_user:uid});if(r.error)console.error('growth_refresh_failed',r.error.code);}catch(_){console.error('growth_refresh_failed');}
+}
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return out({ error: "Method not allowed" }, 405);
   try {
     const body = await req.json().catch(() => ({}));
+    if(body.action==='release_capabilities'){const c=await aiReleaseCapabilities(db);return out(c,c.migration_ready?200:503);}
     if (String(body.action ?? "") === "login_v2") {
       const r = await loginV2(body);
       return r.error ? out({ error: r.error }, r.status ?? 401) : out(r);
@@ -763,8 +798,16 @@ Deno.serve(async (req: Request) => {
     const user = await auth(String(body.token ?? ""));
     if (!user) return out({ error: "登录已失效，请重新登录", code: "UNAUTHORIZED" }, 401);
     const action = String(body.action ?? "");
+    if(action==='account_status'){
+      const r=await db.rpc('score_tracker_ai_account',{p_user:user.id});if(r.error)return out({error:'成长与AI额度服务暂不可用',code:'account_benefits_unavailable'},503);return out({account:r.data});
+    }
+    if(action==='account_usage'){
+      const r=await db.from('score_tracker_ai_tasks').select('id,feature,status,charged_credits,created_at,finished_at').eq('user_id',user.id).order('created_at',{ascending:false}).limit(20);if(r.error)throw r.error;return out({usage:r.data||[]});
+    }
+    if (action === "reference_scores_capability") return out({ reference_scores_version: 1 });
     if (action === "get_exam_reflection" || action === "save_exam_reflection") {
       const result = await examReflection(db, user.id, body);
+      if(action==='save_exam_reflection'&&result.status<400)await refreshGrowth(user.id);
       return out(result.data, result.status);
     }
     if (action === "save_participant_defaults") {
@@ -797,6 +840,8 @@ Deno.serve(async (req: Request) => {
       try { defaults = body.participantDefaults ? participantPatch(body.participantDefaults) : {}; }
       catch (e) { return out({ error: e instanceof Error ? e.message : "默认人数格式不正确" }, 400); }
       const r = await saveExam(user.id, body.exam ?? {});
+      if(!r.error&&body.quick_entry===true){const growth=await db.rpc('score_tracker_growth_observe',{p_user:user.id,p_event:'quick_entry_saved',p_metadata:{exam_id:r.id},p_at:new Date().toISOString()});if(growth.error)console.error('quick_growth_failed',growth.error.code);}
+      if(!r.error)await refreshGrowth(user.id);
       if (!r.error && r.created && Object.keys(defaults).length) {
         try { return out({ ...r, participantDefaults: await saveParticipantDefaults(user.id, defaults, true) }); }
         catch (e) {
@@ -813,6 +858,7 @@ Deno.serve(async (req: Request) => {
     if (action === "get_goal") return out(await getGoal(user.id));
     if (action === "save_goal") {
       const r = await saveGoal(user.id, body.goal ?? {});
+      if(!r.error)await refreshGrowth(user.id);
       return r.error ? out({ error: r.error }, r.status) : out(r);
     }
     if (action === "toggle_exam_hidden") {

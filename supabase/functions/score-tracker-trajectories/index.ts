@@ -20,11 +20,18 @@ Deno.serve(async (req:Request) => {
     if(raw.length>8192) return out({error:'请求内容过长'},413);
     const body = JSON.parse(raw);
     if(!body||typeof body!=='object'||Array.isArray(body)) return out({error:'请求内容不正确'},400);
+    if(body.action==='release_capabilities') return out({privacy_status_version:1});
     if(typeof body.token!=='string'||!body.token||body.token.length>512) return out({error:'请先登录'},401);
     const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(body.token)))].map(x=>x.toString(16).padStart(2,'0')).join('');
     const {data:user,error:authError} = await db.from('score_tracker_users').select('id,session_expires_at').eq('session_token_hash',hash).maybeSingle();
     if(authError) throw authError;
     if(!user?.session_expires_at || new Date(user.session_expires_at).getTime()<=Date.now()) return out({error:'登录已失效，请重新登录'},401);
+    if(body.action==='privacy_status') {
+      // Read-only: opening the notice must not opt a new account into sharing.
+      const {data,error} = await db.from('score_tracker_trajectory_sharing').select('enabled').eq('user_id',user.id).maybeSingle();
+      if(error) throw error;
+      return out({enabled:data?.enabled===true,configured:!!data});
+    }
     if(body.action==='sharing') {
       if(typeof body.enabled!=='boolean') return out({error:'请选择是否参与'},400);
       const {error} = await db.from('score_tracker_trajectory_sharing').upsert({user_id:user.id,enabled:body.enabled,updated_at:new Date().toISOString()});
