@@ -62,13 +62,14 @@
       if (scored.length && scored.indexOf(s.subject) < 0) s.subject = scored[0];
     }
     s.index = index;
-    var p = M.context(exams, s.subject).byIndex[index], candidates = p ? p.group.points : [];
+    var source=historyExams(f), sourceIndex=source.findIndex(function(e){return exams[index]&&M.key(e)===M.key(exams[index]);});
+    var p = M.context(source, s.subject,true).byIndex[sourceIndex], candidates = p ? p.group.points : [];
     var reference = candidates.find(function (o) { return M.key(o.e) === s.refExam; });
     if (!reference) {
       var previous = candidates.filter(function (o) { return o.day < p.day; });
       reference = previous[previous.length - 1] || candidates[candidates.length - 1]; s.refExam = reference ? M.key(reference.e) : '';
     }
-    s.refIndex = reference ? reference.index : index;
+    s.refIndex = reference ? reference.index : sourceIndex;
     if (s.start === undefined || s.end === undefined) {
       var date = exams[index] && M.day(exams[index]);
       if (date !== null && date !== undefined) { s.end = exams[index].exam_date; s.start = new Date((date - 90) * 86400000).toISOString().slice(0, 10); }
@@ -77,7 +78,7 @@
   }
   function historyExams(f) { return Array.isArray(f.worthHistoryExams) ? f.worthHistoryExams : f.exams; }
   function result(f, s) {
-    var exams = s.mode === 'history' ? historyExams(f) : f.exams;
+    var exams = s.mode === 'period' ? f.exams : historyExams(f);
     var selected = f.exams[s.index], index = exams === f.exams ? s.index : exams.findIndex(function (e) { return selected && M.key(e) === M.key(selected); });
     return M.compare(exams, s.subject, index, { mode: s.mode, exam: s.refIndex, start: s.start, end: s.end });
   }
@@ -94,10 +95,11 @@
   }
   function html(f) {
     var s = selection(f), r = result(f, s), cur = r.current;
-    var p = M.context(f.exams, s.subject).byIndex[s.index], candidates = p ? p.group.points.map(function (o) { return o.index; }) : [s.index];
+    var source=historyExams(f), sourceIndex=source.findIndex(function(e){return f.exams[s.index]&&M.key(e)===M.key(f.exams[s.index]);});
+    var p = M.context(source, s.subject,true).byIndex[sourceIndex], candidates = p ? p.group.points.map(function (o) { return o.index; }) : (sourceIndex>=0?[sourceIndex]:[]);
     var reference = '<select class="compact-select-v60" data-worth-control="mode" aria-label="参照难度">'+[['history','历史平均'],['period','一段时间'],['exam','某次考试']].map(function(o){return '<option value="'+o[0]+'"'+(s.mode===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>';
     if (s.mode === 'period') reference += '<div class="worth-controls worth-dates"><label>开始日期<input type="date" value="' + esc(s.start || '') + '" data-worth-control="start"></label><label>结束日期<input type="date" value="' + esc(s.end || '') + '" data-worth-control="end"></label></div>';
-    if (s.mode === 'exam') reference += '<label class="worth-ref-exam">参照考试<select data-worth-control="reference">' + examOptions(f.exams, s.refIndex, candidates) + '</select></label>';
+    if (s.mode === 'exam') reference += '<label class="worth-ref-exam">参照考试<select data-worth-control="reference">' + examOptions(source, s.refIndex, candidates) + '</select></label>';
     var body = '';
     if (cur && cur.scoreValid) {
       body = '<div class="worth-compare"><div class="worth-number"><span>本次实际成绩</span><strong>' + fmt(cur.score) + '<small> / ' + fmt(cur.max) + '</small></strong><p>' + (cur.rankValid ? '年级前 ' + fmt(cur.pos) + '%' : '还没有可比较的排名') + '</p></div>';
@@ -111,19 +113,18 @@
       if (r.kind === 'identity') body += '<p class="worth-message">与本次考试相同。</p>';
       if (r.kind !== 'identity' && r.quality === 'limited') body += '<div class="worth-stability"><p>' + esc(briefWarning(r)) + '</p></div>';
       var rows = r.references.slice().sort(function (a, b) { return b.day - a.day; });
-      var history = s.mode === 'history', evidenceExams = history ? historyExams(f) : f.exams;
-      var difficultyCells = M.cells(evidenceExams, [s.subject], history), localContext = M.context(f.exams, s.subject);
+      var history = s.mode === 'history', allHistory=s.mode!=='period', evidenceExams = allHistory ? historyExams(f) : f.exams;
+      var difficultyCells = M.cells(evidenceExams, [s.subject], allHistory);
       body += '<details class="worth-evidence worth-records"><summary>参考考试 · ' + rows.length + ' 场</summary>';
       body += '<div class="worth-table-scroll" tabindex="0" role="region" aria-label="参照考试依据"><table class="worth-table"><thead><tr><th>考试</th><th>实际成绩</th><th>年级排名</th><th>难度参考</th><th></th></tr></thead><tbody>' + rows.map(function (o) {
         var cell = difficultyCells[o.index + '|' + s.subject];
-        var localIndex = evidenceExams === f.exams ? o.index : f.exams.findIndex(function (e) { return M.key(e) === M.key(o.e); });
-        var localPoint = localContext.byIndex[localIndex];
-        var referenceAction = localPoint && p && localPoint.group === p.group ? '<button type="button" class="worth-link" data-worth-reference="' + localIndex + '">用作参照</button>' : '<span class="worth-note">历史参考</span>';
+        var refIndex=source.findIndex(function(e){return M.key(e)===M.key(o.e);});
+        var referenceAction = refIndex>=0 && M.observation(source[refIndex],s.subject).valid ? '<button type="button" class="worth-link" data-worth-reference="' + refIndex + '">用作参照</button>' : '<span class="worth-note">历史参考</span>';
         return '<tr><td>' + esc(o.e.name || '未命名考试') + '<small>' + esc(o.e.exam_date || '') + '</small></td><td>' + fmt(o.score) + ' / ' + fmt(o.max) + '</td><td>' + (o.rankValid ? '前 ' + fmt(o.pos) + '%<small>' + o.N + ' 人</small>' : '—') + '</td><td>' + (cell ? fmt(cell.index) : '—') + '</td><td>' + referenceAction + '</td></tr>';
       }).join('') + '</tbody></table></div></details>';
       body += '<details class="worth-evidence worth-method"><summary>怎么算的？</summary>';
       if (r.difficulty != null) body += '<div class="worth-difficulty"><div><span>本次难度参考</span><b>' + fmt(r.difficulty) + '</b></div><div><span>参照难度参考</span><b>' + fmt(r.referenceDifficulty) + '</b></div><div><span>参考记录</span><b>' + rows.length + '<small> 场</small></b></div></div><p class="worth-note">50 为这组考试的平均难度，数字越大，估计相对越难；不是难度概率。</p>';
-      body += '<p class="worth-note">用 ' + (r.modelN || 1) + ' 场可比较的分数与年级排名估算难度，再换到你选择的参照难度。' + (history ? '历史平均使用这科全部分类的有效历史，不要求同组，也不受页面分类筛选限制。' : '时间段和指定考试仍在同一分类、同一参考人群阶段内比较。') + '</p><p class="worth-note">历史平均和时间段平均包含范围内的本次考试。回看旧考试也会用到后来录入的记录，不是当时的预测。指定考试按它的满分换算，其他参照按本次满分。</p>';
+      body += '<p class="worth-note">用 ' + (r.modelN || 1) + ' 场可比较的分数与年级排名估算难度，再换到你选择的参照难度。' + (history ? '历史平均使用这科全部分类的有效历史，不要求同组，也不受页面分类筛选限制。' : s.mode==='exam'?'指定考试可跨分类比较，参考人群变化可能影响估计。':'时间段仍在同一分类、同一参考人群阶段内比较。') + '</p><p class="worth-note">历史平均和时间段平均包含范围内的本次考试。回看旧考试也会用到后来录入的记录，不是当时的预测。指定考试按它的满分换算，其他参照按本次满分。</p>';
       if (r.kind !== 'identity') {
         body += plainWarnings(r).map(function (warning) { return '<p class="worth-note">' + esc(warning) + '</p>'; }).join('');
         body += '<p class="worth-note worth-sensitivity">每次少用一场记录重算，结果为 ' + fmt(r.low) + '–' + fmt(r.high) + ' 分。结果相近不说明分数一定准确；不是预测区间或置信区间，也不是下次考试的分数范围。</p>';
@@ -153,7 +154,7 @@
       if (type === 'subject' && f.subjects.indexOf(control.value) >= 0) s.subject = control.value;
       else if (type === 'mode' && ['history','period','exam'].includes(control.value)) {s.mode=control.value;track('score_worth_reference_mode',{mode:s.mode,version:2});}
       else if (type === 'exam' && f.exams[Number(control.value)]) s.exam = M.key(f.exams[Number(control.value)]);
-      else if (type === 'reference' && f.exams[Number(control.value)]) s.refExam = M.key(f.exams[Number(control.value)]);
+      else if (type === 'reference' && historyExams(f)[Number(control.value)]) s.refExam = M.key(historyExams(f)[Number(control.value)]);
       else if (type === 'start' || type === 'end') s[type] = control.value;
       track('score_worth_selection', { control: type, version: 2 }); replace('selection', '[data-worth-control="' + type + '"]');
     });
@@ -161,7 +162,7 @@
       var mode = ev.target.closest('[data-worth-mode]');
       if (mode) { var s = selection(f); s.mode = mode.dataset.worthMode; track('score_worth_reference_mode', { mode: s.mode, version: 2 }); replace('reference', '[data-worth-mode="' + s.mode + '"]'); return; }
       var ref = ev.target.closest('[data-worth-reference]');
-      if (ref && f.exams[Number(ref.dataset.worthReference)]) { var s = selection(f); s.mode = 'exam'; s.refExam = M.key(f.exams[Number(ref.dataset.worthReference)]); track('score_worth_reference_selected', { source: 'evidence', version: 2 }); replace('reference', '[data-worth-control="reference"]'); return; }
+      if (ref && historyExams(f)[Number(ref.dataset.worthReference)]) { var s = selection(f); s.mode = 'exam'; s.refExam = M.key(historyExams(f)[Number(ref.dataset.worthReference)]); track('score_worth_reference_selected', { source: 'evidence', version: 2 }); replace('reference', '[data-worth-control="reference"]'); return; }
       var metric = ev.target.closest('[data-worth-matrix-mode]');
       if (metric) {
         state.sv31.matrixWorth = metric.dataset.worthMatrixMode; track('score_worth_matrix_metric', { view: state.sv31.matrixWorth, version: 2 }); window.__v32.rerender();

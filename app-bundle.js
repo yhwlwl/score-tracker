@@ -436,7 +436,7 @@ const API = '/api/score-tracker-api';
 const SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治'];
 const SUBJECT_SHORT = { 语文: '语', 数学: '数', 英语: '英', 物理: '物', 化学: '化', 生物: '生', 历史: '史', 地理: '地', 政治: '政' };
 const SUBJECT_MAX = { 语文: 150, 数学: 150, 英语: 150, 物理: 100, 化学: 100, 生物: 100, 历史: 100, 地理: 100, 政治: 100 };
-const RADAR_COLORS = ['#5d72e8', '#32a77a', '#e59b45', '#df5f68'];
+const RADAR_COLORS = ['#5d72e8', '#32a77a', '#e59b45', '#df5f68', '#8f62db'];
 const state = {
   token: localStorage.getItem('st_token') || '',
   user: null,
@@ -614,7 +614,7 @@ function radarAvailableExams(mode = state.radarMode) {
 function ensureRadarSelection() {
   const available = radarAvailableExams();
   const availableIds = new Set(available.map((exam) => exam.id));
-  state.radarSelection = state.radarSelection.filter((id) => availableIds.has(id)).slice(0, 4);
+  state.radarSelection = state.radarSelection.filter((id) => availableIds.has(id)).slice(0, 5);
   if (!state.radarSelection.length && available.length) {
     state.radarSelection = available.slice(-2).map((exam) => exam.id);
   }
@@ -792,7 +792,7 @@ function radarCardHtml() {
   const available = radarAvailableExams();
   const selected = selectedRadarExams();
   return `<div class="card radar-card"><div class="card-title-row"><div><h3 class="card-title">全部科目雷达图</h3><p class="card-sub">按得分率绘制，支持叠加多次考试，直观看出弱项是否改善</p></div></div>
-    <div class="radar-toolbar"><div class="toggle-row"><span class="label">查看内容</span><button class="chip ${state.radarMode === 'actual' ? 'active' : ''}" data-radar-mode="actual">真实成绩</button><button class="chip ${state.radarMode === 'target' ? 'active' : ''}" data-radar-mode="target">目标成绩</button></div><div><div class="subtle-note">最多可叠加 4 次考试，推荐对比最近几次，找出最薄弱学科和进步最明显的学科。</div><div class="multi-select" style="margin-top:8px">${available.length ? available.map((exam) => `<button class="select-pill ${state.radarSelection.includes(exam.id) ? 'active' : ''}" data-radar-exam="${exam.id}">${escapeHtml(exam.name)} · ${fmtDate(exam.exam_date)}</button>`).join('') : '<span class="subtle-note">当前还没有可用于雷达图的数据</span>'}</div></div></div>
+    <div class="radar-toolbar"><div class="toggle-row"><span class="label">查看内容</span><button class="chip ${state.radarMode === 'actual' ? 'active' : ''}" data-radar-mode="actual">真实成绩</button><button class="chip ${state.radarMode === 'target' ? 'active' : ''}" data-radar-mode="target">目标成绩</button></div><div><div class="subtle-note">最多可叠加 5 次考试，推荐对比最近几次，找出最薄弱学科和进步最明显的学科。</div><div class="multi-select" style="margin-top:8px">${available.length ? available.map((exam) => `<button class="select-pill ${state.radarSelection.includes(exam.id) ? 'active' : ''}" data-radar-exam="${exam.id}">${escapeHtml(exam.name)} · ${fmtDate(exam.exam_date)}</button>`).join('') : '<span class="subtle-note">当前还没有可用于雷达图的数据</span>'}</div></div></div>
     <div class="radar-wrap" id="radarChart">${radarChartHtml(selected)}</div>${radarLegendHtml(selected)}${radarSummaryHtml(selected)}</div>`;
 }
 
@@ -937,7 +937,7 @@ function toggleRadarExam(id) {
     selected.delete(id);
   } else {
     if (selected.size >= 4) {
-      toast('最多叠加 4 次考试');
+      toast('最多叠加 5 次考试');
       return;
     }
     selected.add(id);
@@ -1196,7 +1196,7 @@ radarCardHtml = function radarCardHtmlV4() {
   const available = radarAvailableExams();
   const selected = selectedRadarExams();
   return `<div class="card radar-card"><div class="card-title-row"><div><h3 class="card-title">全部科目雷达图</h3><p class="card-sub">按得分率绘制，支持叠加多次考试；没有数据的科目会自动隐藏，6 科就显示六边形。</p></div></div>
-    <div class="radar-toolbar"><div class="toggle-row"><span class="label">查看内容</span><button class="chip ${state.radarMode === 'actual' ? 'active' : ''}" data-radar-mode="actual">真实成绩</button><button class="chip ${state.radarMode === 'target' ? 'active' : ''}" data-radar-mode="target">目标成绩</button></div><div><div class="subtle-note">最多可叠加 4 次考试。叠加对比时，会自动只显示这些考试共同拥有数据的科目，避免空轴干扰判断。</div><div class="multi-select" style="margin-top:8px">${available.length ? available.map((exam) => `<button class="select-pill ${state.radarSelection.includes(exam.id) ? 'active' : ''}" data-radar-exam="${exam.id}">${escapeHtml(exam.name)} · ${fmtDate(exam.exam_date)}</button>`).join('') : '<span class="subtle-note">当前还没有可用于雷达图的数据</span>'}</div></div></div>
+    <div class="radar-toolbar"><div class="toggle-row"><span class="label">查看内容</span><button class="chip ${state.radarMode === 'actual' ? 'active' : ''}" data-radar-mode="actual">真实成绩</button><button class="chip ${state.radarMode === 'target' ? 'active' : ''}" data-radar-mode="target">目标成绩</button></div><div><div class="subtle-note">最多可叠加 5 次考试。叠加对比时，会自动只显示这些考试共同拥有数据的科目，避免空轴干扰判断。</div><div class="multi-select" style="margin-top:8px">${available.length ? available.map((exam) => `<button class="select-pill ${state.radarSelection.includes(exam.id) ? 'active' : ''}" data-radar-exam="${exam.id}">${escapeHtml(exam.name)} · ${fmtDate(exam.exam_date)}</button>`).join('') : '<span class="subtle-note">当前还没有可用于雷达图的数据</span>'}</div></div></div>
     <div class="radar-wrap" id="radarChart">${radarChartHtml(selected)}</div>${radarLegendHtml(selected)}${radarSummaryHtml(selected)}</div>`;
 };
 
@@ -1476,7 +1476,7 @@ if (typeof radarChartHtml === 'function') {
     const available = radarAvailableExams();
     const selected = selectedRadarExams();
     return `<div class="card radar-card"><div class="card-title-row"><div><h3 class="card-title">全部科目雷达图</h3><p class="card-sub">按得分率绘制，支持叠加多次考试；没有数据的科目会自动隐藏，6 科就显示六边形。</p></div></div>
-      <div class="radar-toolbar"><div class="toggle-row"><span class="label">查看内容</span><button class="chip ${state.radarMode === 'actual' ? 'active' : ''}" data-radar-mode="actual">真实成绩</button><button class="chip ${state.radarMode === 'target' ? 'active' : ''}" data-radar-mode="target">目标成绩</button></div><div><div class="subtle-note">最多可叠加 4 次考试。叠加对比时，会自动只显示这些考试共同拥有数据的科目；纵轴会按当前选中的数据动态缩放，差异更清楚。</div><div class="multi-select" style="margin-top:8px">${available.length ? available.map((exam) => `<button class="select-pill ${state.radarSelection.includes(exam.id) ? 'active' : ''}" data-radar-exam="${exam.id}">${escapeHtml(exam.name)} · ${fmtDate(exam.exam_date)}</button>`).join('') : '<span class="subtle-note">当前还没有可用于雷达图的数据</span>'}</div></div></div>
+      <div class="radar-toolbar"><div class="toggle-row"><span class="label">查看内容</span><button class="chip ${state.radarMode === 'actual' ? 'active' : ''}" data-radar-mode="actual">真实成绩</button><button class="chip ${state.radarMode === 'target' ? 'active' : ''}" data-radar-mode="target">目标成绩</button></div><div><div class="subtle-note">最多可叠加 5 次考试。叠加对比时，会自动只显示这些考试共同拥有数据的科目；纵轴会按当前选中的数据动态缩放，差异更清楚。</div><div class="multi-select" style="margin-top:8px">${available.length ? available.map((exam) => `<button class="select-pill ${state.radarSelection.includes(exam.id) ? 'active' : ''}" data-radar-exam="${exam.id}">${escapeHtml(exam.name)} · ${fmtDate(exam.exam_date)}</button>`).join('') : '<span class="subtle-note">当前还没有可用于雷达图的数据</span>'}</div></div></div>
       <div class="radar-wrap" id="radarChart">${radarChartHtml(selected)}</div>${radarLegendHtml(selected)}${radarSummaryHtml(selected)}</div>`;
   };
 
@@ -2073,7 +2073,7 @@ radarCardHtml = function radarCardHtmlV9() {
   const selected = selectedRadarExams();
   const rankMode = state.radarMode === 'rank';
   return `<div class="card radar-card"><div class="card-title-row"><div><h3 class="card-title">全部科目雷达图</h3><p class="card-sub">${rankMode ? '按排名百分位绘制：越靠外代表相对排名越好；可叠加多次考试观察竞争力变化。' : '按得分率绘制，支持叠加多次考试；没有数据的科目会自动隐藏，6 科就显示六边形。'}</p></div></div>
-    <div class="radar-toolbar"><div class="toggle-row"><span class="label">查看内容</span><button class="chip ${state.radarMode === 'actual' ? 'active' : ''}" data-radar-mode="actual">真实成绩</button><button class="chip ${state.radarMode === 'target' ? 'active' : ''}" data-radar-mode="target">目标成绩</button><button class="chip ${state.radarMode === 'rank' ? 'active' : ''}" data-radar-mode="rank">排名百分位</button></div><div><div class="subtle-note">最多可叠加 4 次考试。叠加时只显示所选考试共同拥有数据的科目；坐标轴会按当前数据动态缩放。</div>${rankMode ? '<div class="radar-mode-note-v9"><b>排名百分位不是直接用“第几名”：</b>会结合参考人数标准化。第 1 名接近 100%，越高越好；不同考试人数变化时也更可比。</div>' : ''}<div class="multi-select" style="margin-top:8px">${available.length ? available.map((exam) => `<button class="select-pill ${state.radarSelection.includes(exam.id) ? 'active' : ''}" data-radar-exam="${exam.id}">${escapeHtml(exam.name)} · ${fmtDate(exam.exam_date)}</button>`).join('') : `<span class="subtle-note">${rankMode ? '当前还没有同时填写“名次 + 参考人数”的科目排名数据' : '当前还没有可用于雷达图的数据'}</span>`}</div></div></div>
+    <div class="radar-toolbar"><div class="toggle-row"><span class="label">查看内容</span><button class="chip ${state.radarMode === 'actual' ? 'active' : ''}" data-radar-mode="actual">真实成绩</button><button class="chip ${state.radarMode === 'target' ? 'active' : ''}" data-radar-mode="target">目标成绩</button><button class="chip ${state.radarMode === 'rank' ? 'active' : ''}" data-radar-mode="rank">排名百分位</button></div><div><div class="subtle-note">最多可叠加 5 次考试。叠加时只显示所选考试共同拥有数据的科目；坐标轴会按当前数据动态缩放。</div>${rankMode ? '<div class="radar-mode-note-v9"><b>排名百分位不是直接用“第几名”：</b>会结合参考人数标准化。第 1 名接近 100%，越高越好；不同考试人数变化时也更可比。</div>' : ''}<div class="multi-select" style="margin-top:8px">${available.length ? available.map((exam) => `<button class="select-pill ${state.radarSelection.includes(exam.id) ? 'active' : ''}" data-radar-exam="${exam.id}">${escapeHtml(exam.name)} · ${fmtDate(exam.exam_date)}</button>`).join('') : `<span class="subtle-note">${rankMode ? '当前还没有同时填写“名次 + 参考人数”的科目排名数据' : '当前还没有可用于雷达图的数据'}</span>`}</div></div></div>
     <div class="radar-wrap" id="radarChart">${radarChartHtml(selected)}</div>${radarLegendHtml(selected)}${radarSummaryHtml(selected)}</div>`;
 };
 
@@ -2624,7 +2624,7 @@ radarCardHtml = function radarCardHtmlV11() {
     `<button class="chip ${state.radarMode === 'rank_raw' ? 'active' : ''}" data-radar-mode="rank_raw">名次</button><button class="chip ${state.radarMode === 'rank' ? 'active' : ''}" data-radar-mode="rank">排名百分位</button>`);
   if (state.radarMode === 'rank_raw') {
     html = html.replace('按得分率绘制，支持叠加多次考试；没有数据的科目会自动隐藏，6 科就显示六边形。', '直接按原始名次绘制：外圈代表更好的名次，第 1 名方向最外；不做参考人数百分位换算。');
-    html = html.replace('最多可叠加 4 次考试。叠加时只显示所选考试共同拥有数据的科目；坐标轴会按当前数据动态缩放。', '最多可叠加 4 次考试。只显示共同拥有名次的科目；原始名次会动态缩放，外圈名次更好。');
+    html = html.replace('最多可叠加 5 次考试。叠加时只显示所选考试共同拥有数据的科目；坐标轴会按当前数据动态缩放。', '最多可叠加 5 次考试。只显示共同拥有名次的科目；原始名次会动态缩放，外圈名次更好。');
   }
   return html;
 };
@@ -3263,7 +3263,7 @@ radarCardHtml = function radarCardHtmlV16(){
         ? '按原始得分率绘制，方便比较赋分前后的学科结构。'
         : '按得分率绘制；没有数据的科目会自动隐藏，6 科就显示六边形。';
   return `<div class="card radar-card"><div class="card-title-row"><div><h3 class="card-title">全部科目雷达图</h3><p class="card-sub">${sub}</p></div></div>
-    <div class="radar-toolbar"><div class="toggle-row"><span class="label">查看内容</span><button class="chip ${state.radarMode==='actual'?'active':''}" data-radar-mode="actual">最终分</button><button class="chip ${state.radarMode==='raw_score'?'active':''}" data-radar-mode="raw_score">原始分</button><button class="chip ${state.radarMode==='target'?'active':''}" data-radar-mode="target">目标</button><button class="chip ${isRank&&scope==='year'?'active':''}" data-radar-scope-v16="year">年排</button><button class="chip ${isRank&&scope==='class'?'active':''}" data-radar-scope-v16="class">班排</button></div>${isRank?`<div class="rank-view-v16"><span class="label">查看</span><button class="metric-btn-v7 ${state.radarMode==='rank_raw'?'active':''}" data-radar-mode="rank_raw">名次</button><button class="metric-btn-v7 ${state.radarMode==='rank'?'active':''}" data-radar-mode="rank">百分位</button></div>`:''}<div><div class="subtle-note">最多叠加 4 次考试，只显示所选考试共同拥有数据的科目；坐标会自动缩放。</div>${isRank?`<div class="rank-compat-v16">${scopeLabel}和${scopeLabel}人数都可按科目单独填写；科目人数留空时自动使用总${scopeLabel}人数。</div>`:''}<div class="multi-select" style="margin-top:8px">${available.length?available.map(function(exam){return `<button class="select-pill ${state.radarSelection.includes(exam.id)?'active':''}" data-radar-exam="${exam.id}">${escapeHtml(exam.name)} · ${fmtDate(exam.exam_date)}</button>`;}).join(''):`<span class="subtle-note">当前还没有可用于${isRank?scopeLabel+'雷达图':'雷达图'}的数据</span>`}</div></div></div>
+    <div class="radar-toolbar"><div class="toggle-row"><span class="label">查看内容</span><button class="chip ${state.radarMode==='actual'?'active':''}" data-radar-mode="actual">最终分</button><button class="chip ${state.radarMode==='raw_score'?'active':''}" data-radar-mode="raw_score">原始分</button><button class="chip ${state.radarMode==='target'?'active':''}" data-radar-mode="target">目标</button><button class="chip ${isRank&&scope==='year'?'active':''}" data-radar-scope-v16="year">年排</button><button class="chip ${isRank&&scope==='class'?'active':''}" data-radar-scope-v16="class">班排</button></div>${isRank?`<div class="rank-view-v16"><span class="label">查看</span><button class="metric-btn-v7 ${state.radarMode==='rank_raw'?'active':''}" data-radar-mode="rank_raw">名次</button><button class="metric-btn-v7 ${state.radarMode==='rank'?'active':''}" data-radar-mode="rank">百分位</button></div>`:''}<div><div class="subtle-note">最多叠加 5 次考试，只显示所选考试共同拥有数据的科目；坐标会自动缩放。</div>${isRank?`<div class="rank-compat-v16">${scopeLabel}和${scopeLabel}人数都可按科目单独填写；科目人数留空时自动使用总${scopeLabel}人数。</div>`:''}<div class="multi-select" style="margin-top:8px">${available.length?available.map(function(exam){return `<button class="select-pill ${state.radarSelection.includes(exam.id)?'active':''}" data-radar-exam="${exam.id}">${escapeHtml(exam.name)} · ${fmtDate(exam.exam_date)}</button>`;}).join(''):`<span class="subtle-note">当前还没有可用于${isRank?scopeLabel+'雷达图':'雷达图'}的数据</span>`}</div></div></div>
     <div class="radar-wrap" id="radarChart">${radarChartHtml(selected)}</div>${radarLegendHtml(selected)}${radarSummaryHtml(selected)}</div>`;
 };
 
@@ -5262,7 +5262,7 @@ saveExam=async function saveExamV21(id,modal){
     ensureRadarSelection=function ensureRadarSelectionV25(){
       var ids=state.radarSelection||[];
       var availableIds=new Set(radarPickerExamsV25().map(function(e){return e.id;}));
-      state.radarSelection=ids.filter(function(id){return availableIds.has(id);}).slice(0,4);
+      state.radarSelection=ids.filter(function(id){return availableIds.has(id);}).slice(0,5);
     };
   }
   var radarCardHtmlBeforeV25=(typeof radarCardHtml==='function')?radarCardHtml:null;
@@ -5271,7 +5271,7 @@ saveExam=async function saveExamV21(id,modal){
       var html=radarCardHtmlBeforeV25();
       var available=radarPickerExamsV25();
       var selected=state.radarSelection||[];
-      var picker='<div class="radar-selection-v25"><div class="radar-pick-v25"><button class="secondary" id="radarPickV25" type="button"'+(!available.length?' disabled':'')+'>'+(selected.length?'调整考试（已选 '+selected.length+'/4）':'选择考试（最多 4 次）')+'</button></div>';
+      var picker='<div class="radar-selection-v25"><div class="radar-pick-v25"><button class="secondary" id="radarPickV25" type="button"'+(!available.length?' disabled':'')+'>'+(selected.length?'调整考试（已选 '+selected.length+'/5）':'选择考试（最多 5 次）')+'</button></div>';
       if(selected.length){
         picker+='<div class="radar-picked-v25">'+selected.map(function(id){
           var e=(state.exams||[]).find(function(x){return x.id===id;});
@@ -5298,7 +5298,7 @@ saveExam=async function saveExamV21(id,modal){
     var picked=new Set((state.radarSelection||[]).map(String));
     var modal=document.createElement('div');
     modal.className='modal-backdrop';
-    modal.innerHTML='<div class="modal"><div class="modal-head"><h3>选择考试（最多 4 次）</h3><button class="close-btn" type="button">×</button></div><div class="modal-body">'
+    modal.innerHTML='<div class="modal"><div class="modal-head"><h3>选择考试（最多 5 次）</h3><button class="close-btn" type="button">×</button></div><div class="modal-body">'
       +groups.map(function(g){
         return '<div class="radar-pick-group-v25"><h4>'+escapeHtml(g.name)+'</h4>'
           +g.list.map(function(e){
@@ -5306,7 +5306,7 @@ saveExam=async function saveExamV21(id,modal){
           }).join('')
           +'</div>';
       }).join('')
-      +'<div class="modal-actions"><button class="secondary cancel-btn">取消</button><button class="primary" id="radarPickOkV25">确定</button></div></div></div>';
+      +'<div class="modal-actions"><button class="secondary" type="button" id="radarRecentFiveV25">最近5场</button><button class="secondary cancel-btn">取消</button><button class="primary" id="radarPickOkV25">确定</button></div></div></div>';
     document.body.appendChild(modal);
     var close=function(){modal.remove();};
     modal.querySelector('.close-btn').onclick=close;
@@ -5314,11 +5314,15 @@ saveExam=async function saveExamV21(id,modal){
     modal.onclick=function(e){if(e.target===modal)close();};
     modal.querySelectorAll('input[type="checkbox"]').forEach(function(b){
       b.addEventListener('change',function(){
-        if(modal.querySelectorAll('input[type="checkbox"]:checked').length>4){toast('最多选择 4 次考试');b.checked=false;}
+        if(modal.querySelectorAll('input[type="checkbox"]:checked').length>5){toast('最多选择 5 次考试');b.checked=false;}
       });
     });
+    modal.querySelector('#radarRecentFiveV25').onclick=function(){
+      var latest=new Set(available.slice().sort(function(a,b){return String(b.exam_date||'').localeCompare(String(a.exam_date||''))||String(b.id).localeCompare(String(a.id));}).slice(0,5).map(function(e){return String(e.id);}));
+      modal.querySelectorAll('input[type="checkbox"]').forEach(function(b){b.checked=latest.has(b.value);});
+    };
     modal.querySelector('#radarPickOkV25').onclick=function(){
-      state.radarSelection=[].slice.call(modal.querySelectorAll('input[type="checkbox"]:checked')).map(function(b){return b.value;});
+      state.radarSelection=[].slice.call(modal.querySelectorAll('input[type="checkbox"]:checked')).slice(0,5).map(function(b){return b.value;});
       if(state.radarSelection.length&&typeof ensureRadarSelection==='function')ensureRadarSelection();
       close();render();
     };
@@ -12715,16 +12719,16 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     if (!cur.scoreValid) { out.reason = '补齐这次的成绩和满分，就能开始比较。'; return out; }
     if (out.referenceMode === 'exam' && Number(options.exam) === index) {
       out.kind = 'identity'; out.value = cur.score; out.targetMax = cur.max; out.low = cur.score; out.high = cur.score; out.references = [cur]; out.referenceLabel = e.name || '本次考试'; out.quality = 'identity';
-      var self = context(exams, subject).byIndex[index];
+      var self = context(exams, subject, true).byIndex[index];
       if (self && self.group.model) { out.modelN = self.group.points.length; out.difficulty = out.referenceDifficulty = difficultyIndex(hardness(self, self.group.model)); }
       return out;
     }
     if (!cur.rankValid) { out.reason = '还需要这科的年级排名（或排名位置）和参考人数。少于 30 人时，暂不估计难度。'; return out; }
     if (cur.day === null) { out.reason = '补齐有效的考试日期，就能建立参考尺子。'; return out; }
-    var ctx = context(exams, subject, out.referenceMode === 'history'), point = ctx.byIndex[index];
+    var ctx = context(exams, subject, out.referenceMode !== 'period'), point = ctx.byIndex[index];
     if (!point) { out.reason = '这场考试有重复记录，已避免重复计入参考尺子。'; return out; }
     var group = point.group, model = group.model; out.modelN = group.points.length;
-    if (!model) { out.reason = (out.referenceMode === 'history' ? '这科全部历史中的有效记录还不足 3 场。' : '这组可比较的记录还不足 3 场。') + '补齐成绩、满分和年级排名后，就能估计相对难度。'; return out; }
+    if (!model) { out.reason = (out.referenceMode !== 'period' ? '这科全部历史中的有效记录还不足 3 场。' : '这组可比较的记录还不足 3 场。') + '补齐成绩、满分和年级排名后，就能估计相对难度。'; return out; }
     var refs = group.points, max = cur.max, label = '历史平均';
     if (out.referenceMode === 'period') {
       var start = day({ exam_date: options.start }), end = day({ exam_date: options.end });
@@ -12732,7 +12736,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       refs = refs.filter(function (p) { return p.day >= start && p.day <= end; }); label = options.start + ' 至 ' + options.end;
     } else if (out.referenceMode === 'exam') {
       var ref = ctx.byIndex[Number(options.exam)];
-      if (!ref || ref.group !== group) { out.reason = '参照考试需要有完整的单科成绩和排名，并属于同一分类、同一参考人群阶段。'; return out; }
+      if (!ref || ref.group !== group) { out.reason = '参照考试需要有效的同科成绩、满分、年级排名、参考人数和日期。'; return out; }
       refs = [ref]; max = ref.max; label = ref.e.name || '参照考试';
     }
     if (!refs.length) { out.reason = '这个时间段内没有可用的参照考试，试试扩大日期范围。'; return out; }
@@ -12844,13 +12848,14 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       if (scored.length && scored.indexOf(s.subject) < 0) s.subject = scored[0];
     }
     s.index = index;
-    var p = M.context(exams, s.subject).byIndex[index], candidates = p ? p.group.points : [];
+    var source=historyExams(f), sourceIndex=source.findIndex(function(e){return exams[index]&&M.key(e)===M.key(exams[index]);});
+    var p = M.context(source, s.subject,true).byIndex[sourceIndex], candidates = p ? p.group.points : [];
     var reference = candidates.find(function (o) { return M.key(o.e) === s.refExam; });
     if (!reference) {
       var previous = candidates.filter(function (o) { return o.day < p.day; });
       reference = previous[previous.length - 1] || candidates[candidates.length - 1]; s.refExam = reference ? M.key(reference.e) : '';
     }
-    s.refIndex = reference ? reference.index : index;
+    s.refIndex = reference ? reference.index : sourceIndex;
     if (s.start === undefined || s.end === undefined) {
       var date = exams[index] && M.day(exams[index]);
       if (date !== null && date !== undefined) { s.end = exams[index].exam_date; s.start = new Date((date - 90) * 86400000).toISOString().slice(0, 10); }
@@ -12859,7 +12864,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   }
   function historyExams(f) { return Array.isArray(f.worthHistoryExams) ? f.worthHistoryExams : f.exams; }
   function result(f, s) {
-    var exams = s.mode === 'history' ? historyExams(f) : f.exams;
+    var exams = s.mode === 'period' ? f.exams : historyExams(f);
     var selected = f.exams[s.index], index = exams === f.exams ? s.index : exams.findIndex(function (e) { return selected && M.key(e) === M.key(selected); });
     return M.compare(exams, s.subject, index, { mode: s.mode, exam: s.refIndex, start: s.start, end: s.end });
   }
@@ -12876,10 +12881,11 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   }
   function html(f) {
     var s = selection(f), r = result(f, s), cur = r.current;
-    var p = M.context(f.exams, s.subject).byIndex[s.index], candidates = p ? p.group.points.map(function (o) { return o.index; }) : [s.index];
+    var source=historyExams(f), sourceIndex=source.findIndex(function(e){return f.exams[s.index]&&M.key(e)===M.key(f.exams[s.index]);});
+    var p = M.context(source, s.subject,true).byIndex[sourceIndex], candidates = p ? p.group.points.map(function (o) { return o.index; }) : (sourceIndex>=0?[sourceIndex]:[]);
     var reference = '<select class="compact-select-v60" data-worth-control="mode" aria-label="参照难度">'+[['history','历史平均'],['period','一段时间'],['exam','某次考试']].map(function(o){return '<option value="'+o[0]+'"'+(s.mode===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>';
     if (s.mode === 'period') reference += '<div class="worth-controls worth-dates"><label>开始日期<input type="date" value="' + esc(s.start || '') + '" data-worth-control="start"></label><label>结束日期<input type="date" value="' + esc(s.end || '') + '" data-worth-control="end"></label></div>';
-    if (s.mode === 'exam') reference += '<label class="worth-ref-exam">参照考试<select data-worth-control="reference">' + examOptions(f.exams, s.refIndex, candidates) + '</select></label>';
+    if (s.mode === 'exam') reference += '<label class="worth-ref-exam">参照考试<select data-worth-control="reference">' + examOptions(source, s.refIndex, candidates) + '</select></label>';
     var body = '';
     if (cur && cur.scoreValid) {
       body = '<div class="worth-compare"><div class="worth-number"><span>本次实际成绩</span><strong>' + fmt(cur.score) + '<small> / ' + fmt(cur.max) + '</small></strong><p>' + (cur.rankValid ? '年级前 ' + fmt(cur.pos) + '%' : '还没有可比较的排名') + '</p></div>';
@@ -12893,19 +12899,18 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       if (r.kind === 'identity') body += '<p class="worth-message">与本次考试相同。</p>';
       if (r.kind !== 'identity' && r.quality === 'limited') body += '<div class="worth-stability"><p>' + esc(briefWarning(r)) + '</p></div>';
       var rows = r.references.slice().sort(function (a, b) { return b.day - a.day; });
-      var history = s.mode === 'history', evidenceExams = history ? historyExams(f) : f.exams;
-      var difficultyCells = M.cells(evidenceExams, [s.subject], history), localContext = M.context(f.exams, s.subject);
+      var history = s.mode === 'history', allHistory=s.mode!=='period', evidenceExams = allHistory ? historyExams(f) : f.exams;
+      var difficultyCells = M.cells(evidenceExams, [s.subject], allHistory);
       body += '<details class="worth-evidence worth-records"><summary>参考考试 · ' + rows.length + ' 场</summary>';
       body += '<div class="worth-table-scroll" tabindex="0" role="region" aria-label="参照考试依据"><table class="worth-table"><thead><tr><th>考试</th><th>实际成绩</th><th>年级排名</th><th>难度参考</th><th></th></tr></thead><tbody>' + rows.map(function (o) {
         var cell = difficultyCells[o.index + '|' + s.subject];
-        var localIndex = evidenceExams === f.exams ? o.index : f.exams.findIndex(function (e) { return M.key(e) === M.key(o.e); });
-        var localPoint = localContext.byIndex[localIndex];
-        var referenceAction = localPoint && p && localPoint.group === p.group ? '<button type="button" class="worth-link" data-worth-reference="' + localIndex + '">用作参照</button>' : '<span class="worth-note">历史参考</span>';
+        var refIndex=source.findIndex(function(e){return M.key(e)===M.key(o.e);});
+        var referenceAction = refIndex>=0 && M.observation(source[refIndex],s.subject).valid ? '<button type="button" class="worth-link" data-worth-reference="' + refIndex + '">用作参照</button>' : '<span class="worth-note">历史参考</span>';
         return '<tr><td>' + esc(o.e.name || '未命名考试') + '<small>' + esc(o.e.exam_date || '') + '</small></td><td>' + fmt(o.score) + ' / ' + fmt(o.max) + '</td><td>' + (o.rankValid ? '前 ' + fmt(o.pos) + '%<small>' + o.N + ' 人</small>' : '—') + '</td><td>' + (cell ? fmt(cell.index) : '—') + '</td><td>' + referenceAction + '</td></tr>';
       }).join('') + '</tbody></table></div></details>';
       body += '<details class="worth-evidence worth-method"><summary>怎么算的？</summary>';
       if (r.difficulty != null) body += '<div class="worth-difficulty"><div><span>本次难度参考</span><b>' + fmt(r.difficulty) + '</b></div><div><span>参照难度参考</span><b>' + fmt(r.referenceDifficulty) + '</b></div><div><span>参考记录</span><b>' + rows.length + '<small> 场</small></b></div></div><p class="worth-note">50 为这组考试的平均难度，数字越大，估计相对越难；不是难度概率。</p>';
-      body += '<p class="worth-note">用 ' + (r.modelN || 1) + ' 场可比较的分数与年级排名估算难度，再换到你选择的参照难度。' + (history ? '历史平均使用这科全部分类的有效历史，不要求同组，也不受页面分类筛选限制。' : '时间段和指定考试仍在同一分类、同一参考人群阶段内比较。') + '</p><p class="worth-note">历史平均和时间段平均包含范围内的本次考试。回看旧考试也会用到后来录入的记录，不是当时的预测。指定考试按它的满分换算，其他参照按本次满分。</p>';
+      body += '<p class="worth-note">用 ' + (r.modelN || 1) + ' 场可比较的分数与年级排名估算难度，再换到你选择的参照难度。' + (history ? '历史平均使用这科全部分类的有效历史，不要求同组，也不受页面分类筛选限制。' : s.mode==='exam'?'指定考试可跨分类比较，参考人群变化可能影响估计。':'时间段仍在同一分类、同一参考人群阶段内比较。') + '</p><p class="worth-note">历史平均和时间段平均包含范围内的本次考试。回看旧考试也会用到后来录入的记录，不是当时的预测。指定考试按它的满分换算，其他参照按本次满分。</p>';
       if (r.kind !== 'identity') {
         body += plainWarnings(r).map(function (warning) { return '<p class="worth-note">' + esc(warning) + '</p>'; }).join('');
         body += '<p class="worth-note worth-sensitivity">每次少用一场记录重算，结果为 ' + fmt(r.low) + '–' + fmt(r.high) + ' 分。结果相近不说明分数一定准确；不是预测区间或置信区间，也不是下次考试的分数范围。</p>';
@@ -12935,7 +12940,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       if (type === 'subject' && f.subjects.indexOf(control.value) >= 0) s.subject = control.value;
       else if (type === 'mode' && ['history','period','exam'].includes(control.value)) {s.mode=control.value;track('score_worth_reference_mode',{mode:s.mode,version:2});}
       else if (type === 'exam' && f.exams[Number(control.value)]) s.exam = M.key(f.exams[Number(control.value)]);
-      else if (type === 'reference' && f.exams[Number(control.value)]) s.refExam = M.key(f.exams[Number(control.value)]);
+      else if (type === 'reference' && historyExams(f)[Number(control.value)]) s.refExam = M.key(historyExams(f)[Number(control.value)]);
       else if (type === 'start' || type === 'end') s[type] = control.value;
       track('score_worth_selection', { control: type, version: 2 }); replace('selection', '[data-worth-control="' + type + '"]');
     });
@@ -12943,7 +12948,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       var mode = ev.target.closest('[data-worth-mode]');
       if (mode) { var s = selection(f); s.mode = mode.dataset.worthMode; track('score_worth_reference_mode', { mode: s.mode, version: 2 }); replace('reference', '[data-worth-mode="' + s.mode + '"]'); return; }
       var ref = ev.target.closest('[data-worth-reference]');
-      if (ref && f.exams[Number(ref.dataset.worthReference)]) { var s = selection(f); s.mode = 'exam'; s.refExam = M.key(f.exams[Number(ref.dataset.worthReference)]); track('score_worth_reference_selected', { source: 'evidence', version: 2 }); replace('reference', '[data-worth-control="reference"]'); return; }
+      if (ref && historyExams(f)[Number(ref.dataset.worthReference)]) { var s = selection(f); s.mode = 'exam'; s.refExam = M.key(historyExams(f)[Number(ref.dataset.worthReference)]); track('score_worth_reference_selected', { source: 'evidence', version: 2 }); replace('reference', '[data-worth-control="reference"]'); return; }
       var metric = ev.target.closest('[data-worth-matrix-mode]');
       if (metric) {
         state.sv31.matrixWorth = metric.dataset.worthMatrixMode; track('score_worth_matrix_metric', { view: state.sv31.matrixWorth, version: 2 }); window.__v32.rerender();
