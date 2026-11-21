@@ -26,6 +26,11 @@ async function backend(){
   const exam={name:'均分测试',exam_date:'2026-10-17',moduleIds:[mid],scores:{数学:{actual:110,max:150},历史:{actual:80,max:100}},averages:{total:{class:170.5,year:160},'s:数学':{class:100,year:0},['m:'+mid]:{class:168,year:158}}};
   let r=await request({action:'save_exam',exam,user_id:'other'});assert.equal(r.status,200);const id=(await r.json()).id,stored=tables.score_tracker_exams[0];
   assert.equal(stored.user_id,'owner');assert.equal(stored.averages['s:数学'].year,0);assert.equal(stored.averages.total.basis,'[["历史",100],["数学",150]]');
+  const highExam={...exam,id,reference_scores_version:1,averages:{...exam.averages,'s:数学':{class:100,year:0,classMax:140,yearMax:150}}};
+  assert.equal((await request({action:'save_exam',exam:highExam})).status,200);assert.equal(stored.averages['s:数学'].yearMax,150);
+  assert.equal((await request({action:'save_exam',exam:{...highExam,averages:{'s:数学':{yearMax:109}}}})).status,400);
+  assert.equal((await request({action:'save_exam',exam:{...exam,id}})).status,200);assert.equal(stored.averages['s:数学'].yearMax,150);
+  assert.equal((await request({action:'save_exam',exam:{...exam,id,reference_scores_version:1}})).status,200);assert.equal(stored.averages['s:数学'].yearMax,undefined);
   r=await request({action:'list_exams'});assert.equal(r.status,200);const listed=(await r.json()).exams[0];assert.equal(listed.averages.total.class,170.5);assert.equal(listed.averages['m:'+mid].year,158);
   const old=structuredClone(exam);delete old.averages;old.id=id;assert.equal((await request({action:'save_exam',exam:old})).status,200);assert.equal(stored.averages.total.class,170.5,'old clients preserve optional data');
   assert.equal((await request({action:'save_exam',exam:{...old,averages:{}}})).status,200);assert.deepEqual(stored.averages,{});
@@ -44,8 +49,8 @@ async function ui(listed){
   w.fetch=async(url,opts)=>{const body=JSON.parse(opts&&opts.body||'{}');calls.push(body);const data=body.action==='list_modules'?{modules}:['bootstrap','list_exams'].includes(body.action)?{user:{id:'owner',username:'owner'},subjects,modules,exams:[],participantDefaults:{},classification:{label:'年级',options:['高二']}}:{ok:true,id:'new',created:true};return new Response(JSON.stringify(data));};
   w.eval(read('app-bundle.js')+'\nwindow.state=state;');for(const f of ['app-v36.js','app-v37.js','app-v38.js'])w.eval(read(f));await tick();
   Object.assign(w.state,{user:{id:'owner',username:'owner'},token:'token',page:'home',subjectConfigs:subjects,modulesV18:modules,allExams:[],exams:[],subject:'数学',trendMetric:'score',scoreBasis:'final',scoreViewV25:'score'});w.applyExamSubjectsV10([],subjects);
-  w.openExam();await tick();let modal=w.state.modal;assert.equal(modal.querySelectorAll('.exam-averages').length,3);assert(!modal.querySelector('details.exam-averages'));
-  modal.querySelectorAll('.exam-subject-card-v10').forEach(card=>{assert.equal(card.querySelectorAll('.exam-averages input').length,2);assert(card.querySelector('.score-compact-v14').nextElementSibling.matches('.exam-averages'));});
+  w.openExam();await tick();let modal=w.state.modal;assert.equal(modal.querySelectorAll('.exam-averages').length,3);assert(modal.querySelector('details.exam-averages'));assert.equal(modal.querySelector('details.exam-averages').open,false);
+  modal.querySelectorAll('.exam-subject-card-v10').forEach(card=>{assert.equal(card.querySelectorAll('.exam-averages input').length,4);assert(card.querySelector('.score-compact-v14').nextElementSibling.matches('.exam-averages'));});
   assert.equal(modal.querySelector('.combo-total-v21 .exam-averages').dataset.averageKey,'total');
   const mean=(key,scope)=>Array.from(modal.querySelectorAll('input[data-average-row]')).find(n=>n.dataset.averageRow===key&&n.dataset.averageScope===scope),input=(n,v)=>{n.value=v;n.dispatchEvent(new w.Event('input',{bubbles:true}));};
   input(mean('s:数学','class'),'100');input(mean('s:数学','year'),'0');input(mean('total','year'),'170.5');
@@ -54,7 +59,7 @@ async function ui(listed){
   assert.equal(modal.querySelectorAll('.exam-averages').length,4,'each block owns exactly one mean row');
   modal.querySelector('.combo-remove-v21').click();await tick();assert(!mean('m:'+mid,'year'));pick.value=mid;pick.dispatchEvent(new w.Event('change',{bubbles:true}));await tick();assert.equal(mean('m:'+mid,'year').value,'160');
   modal.querySelector('#examName').value='录入测试';modal.querySelector('.actual-v16').value='110';await w.saveExam(null,modal);await tick();
-  const saved=calls.find(c=>c.action==='save_exam');assert.equal(saved.exam.averages['s:数学'].class,100);assert.equal(saved.exam.averages['s:数学'].year,0);assert.equal(saved.exam.averages.total.year,170.5);
+  const saved=calls.find(c=>c.action==='save_exam');assert.equal(saved.exam.reference_scores_version,1);assert.equal(saved.exam.averages['s:数学'].class,100);assert.equal(saved.exam.averages['s:数学'].year,0);assert.equal(saved.exam.averages.total.year,170.5);
   w.openExam(listed);modal=w.state.modal;await tick();assert.equal(mean('total','class').value,'170.5');input(mean('s:数学','class'),'1.234');const count=calls.filter(c=>c.action==='save_exam').length;await w.saveExam(listed.id,modal);assert.equal(calls.filter(c=>c.action==='save_exam').length,count);assert.equal(mean('s:数学','class').getAttribute('aria-invalid'),'true');assert.equal(d.activeElement,mean('s:数学','class'),'invalid inline mean receives focus');
   modal.remove();w.state.modal=null;w.openExam();modal=w.state.modal;assert.equal(mean('s:数学','class').value,'','new exams never inherit means');modal.remove();w.state.modal=null;
   const a=structuredClone(listed),b=structuredClone(listed),c=structuredClone(listed);Object.assign(a,{id:'a',name:'第一次',exam_date:'2026-08-01'});Object.assign(b,{id:'b',name:'中间缺失',exam_date:'2026-09-01',averages:{}});Object.assign(c,{id:'c',name:'最近一次',exam_date:'2026-10-01'});

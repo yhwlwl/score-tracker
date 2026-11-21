@@ -106,8 +106,9 @@
       if(direct!==null&&(direct<0||direct>100))direct=null;
       var percent=rank!==null&&total!==null&&rank<=total?rank*100/total:direct;
       var avg=metric.comparison?recentNumber(api.average(exam,subject,pair[0])):null;
-      return {name:pair[1],rank:rank,total:total,percent:percent,diff:avg===null?null:Math.round((metric.value-avg)*100)/100};
-    }).filter(function(r){return r.rank!==null||r.percent!==null||r.diff!==null;});
+      var top=api.highest?recentNumber(api.highest(exam,subject,pair[0])):null;
+      return {name:pair[1],rank:rank,total:total,percent:percent,diff:avg===null?null:Math.round((metric.value-avg)*100)/100,topGap:top===null||top<metric.value?null:Math.round((top-metric.value)*100)/100};
+    }).filter(function(r){return r.rank!==null||r.percent!==null||r.diff!==null||r.topGap!==null;});
     var subjects=Object.keys(rows).filter(function(name){return !modules.has(name);}).map(function(name){
       var row=rows[name]||{},actual=recentNumber(row.actual),value=recentNumber(api.score(exam,name));
       if(value===null)return null;
@@ -133,7 +134,7 @@
       return '<div class="pd-recent-rank"><div class="pd-recent-label">'+r.name+(hasRank?'排名':hasPercent?'位比':'表现')+'</div>'
         +(hasRank?'<div class="pd-recent-position"><strong>'+fmt(r.rank)+(r.total!==null?'<small> / '+fmt(r.total)+'</small>':'')+'</strong>'+(hasPercent?'<small>前 '+pct(r.percent)+'</small>':'')+'</div>':hasPercent?'<div class="pd-recent-position"><strong>前 '+pct(r.percent)+'</strong></div>':'')
         +(hasPercent?'<div class="pd-recent-track" role="img" aria-label="'+r.name+'前 '+pct(r.percent)+'"><i style="width:'+Math.min(100,Math.max(0,r.percent))+'%"></i></div>':'')
-        +(r.diff===null?'':'<div class="pd-recent-average">较均分 <strong class="'+semantic(r.diff)+'">'+(r.diff>0?'+':'')+e(String(r.diff))+' 分</strong></div>')+'</div>';
+        +(r.diff===null?'':'<div class="pd-recent-average">较均分 <strong class="'+semantic(r.diff)+'">'+(r.diff>0?'+':'')+e(String(r.diff))+' 分</strong></div>')+(r.topGap==null?'':'<div class="pd-recent-average">距最高分 <strong>'+fmt(r.topGap)+' 分</strong></div>')+'</div>';
     }).join('')+'</div>';
     if(model.subjects.length)h+='<div class="pd-recent-subjects" aria-label="各科成绩">'+model.subjects.map(function(s){
       return '<div class="pd-recent-subject"><div class="pd-recent-label">'+e(s.name)+(s.raw?' <small>原始</small>':'')+(s.excluded?' <small>统计项</small>':'')+'</div><div class="pd-recent-subscore">'+fmt(s.value)+(s.max===null?'':'<small>/'+fmt(s.max)+'</small>')+'</div></div>';
@@ -433,6 +434,7 @@
       var api={effective:effectiveScoreSubjectsV20,modules:moduleNamesV18,rank:rankInfoByScopeV16,
         score:function(exam,name){return examScore(exam,name,'actual');},max:examMax,
         average:function(exam,subject,scope){return window.ScoreAverages?window.ScoreAverages.value(exam,subject,scope,false):null;},
+        highest:function(exam,subject,scope){return window.ScoreAverages?window.ScoreAverages.value(exam,subject,scope+'Max',false):null;},
         format:formatScore,date:fmtDate};
       var model=recentModel(metric,api);var order=(typeof SUBJECTS!=='undefined'&&Array.isArray(SUBJECTS))?SUBJECTS:[];model.subjects.sort(function(a,b){var ai=order.indexOf(a.name),bi=order.indexOf(b.name);return (ai<0?Infinity:ai)-(bi<0?Infinity:bi)||0;});
       var markup=recentHtml(metric,model,api);

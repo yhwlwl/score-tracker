@@ -592,7 +592,7 @@
     return fallback;
   }
   function hiddenTrendLineV25(label){
-    try{var h=JSON.parse(localStorage.getItem('st_legend_hidden_v31')||'{}');return !!(h&&typeof h==='object'&&h[label]===true);}catch(e){return false;}
+    try{var h=JSON.parse(localStorage.getItem('st_legend_hidden_v31')||'{}');return h&&Object.prototype.hasOwnProperty.call(h,label)?h[label]===true:/^(班级|年级)最高分$/.test(label);}catch(e){return false;}
   }
   function fullTrendSvgV25(){
     var exams=state.exams||[];

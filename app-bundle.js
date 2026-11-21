@@ -5141,7 +5141,7 @@ saveExam=async function saveExamV21(id,modal){
     return fallback;
   }
   function hiddenTrendLineV25(label){
-    try{var h=JSON.parse(localStorage.getItem('st_legend_hidden_v31')||'{}');return !!(h&&typeof h==='object'&&h[label]===true);}catch(e){return false;}
+    try{var h=JSON.parse(localStorage.getItem('st_legend_hidden_v31')||'{}');return h&&Object.prototype.hasOwnProperty.call(h,label)?h[label]===true:/^(班级|年级)最高分$/.test(label);}catch(e){return false;}
   }
   function fullTrendSvgV25(){
     var exams=state.exams||[];
@@ -6353,6 +6353,7 @@ saveExam=async function saveExamV21(id,modal){
   /* 显示/隐藏状态(只从取色框的勾选改,不在点击图例时直接切换,避免误触) */
   var LS_HIDE_V29='st_legend_hidden_v31';
   var HIDDEN_V29=(function(){try{return JSON.parse(localStorage.getItem(LS_HIDE_V29)||'{}')||{};}catch(e){return{};}})();
+  function isHiddenV29(label){return HIDDEN_V29[label]===true||(!Object.prototype.hasOwnProperty.call(HIDDEN_V29,label)&&/^(班级|年级)最高分$/.test(label));}
   function saveHiddenV29(){try{localStorage.setItem(LS_HIDE_V29,JSON.stringify(HIDDEN_V29));}catch(e){}}
 
   /* 把一个图表 SVG 的子元素按「path + 其后相邻的 circle」分组，组序与图例序一致 */
@@ -6438,7 +6439,7 @@ saveExam=async function saveExamV21(id,modal){
           }
         }
         /* 显示/隐藏:只由取色框「在图表中显示这条线」勾选驱动 */
-        var hid=HIDDEN_V29[label]===true;
+        var hid=isHiddenV29(label);
         item.classList.toggle('lg-hide-v29',hid);
         var g3=groups[idx];
         if(g3){
@@ -6500,7 +6501,7 @@ saveExam=async function saveExamV21(id,modal){
     popElV29.dataset.subjectV29=label;
     popElV29.querySelector('b').textContent='「'+label+'」的颜色';
     var sb=popElV29.querySelector('.pk-show-v29 input');
-    if(sb)sb.checked=!(HIDDEN_V29[label]===true);
+    if(sb)sb.checked=!isHiddenV29(label);
     var cur=CUSTOM_V29[label]||'#5d72e8';
     popElV29.querySelector('input[type=color]').value=cur.length===7?cur:'#5d72e8';
     popElV29.querySelectorAll('.pk-swatches-v29 button').forEach(function(b){
@@ -6720,30 +6721,30 @@ function filenameV30(scopeLabel,ext){
 
 /* ================= CSV 宽表 ================= */
 function averageV30(ex,key,scope){return numV30(ex.averages&&ex.averages[key]&&ex.averages[key][scope]);}
-function averageTextV30(ex,key){return [['class','班级均分'],['year','年级均分']].map(function(p){var v=averageV30(ex,key,p[0]);return v===null?'':p[1]+' '+String(v);}).filter(Boolean).join(' ｜ ');}
+function averageTextV30(ex,key){return [['class','班级均分'],['year','年级均分'],['classMax','班级最高分'],['yearMax','年级最高分']].map(function(p){var v=averageV30(ex,key,p[0]);return v===null?'':p[1]+' '+String(v);}).filter(Boolean).join(' ｜ ');}
 function csvCellV30(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
 function buildCsvV30(exams,scopeLabel){
   var subjects=subjectsUnionV30(exams),mods=modulesV30();
   var head=['日期','考试名称','分类','结束日期'];
-  subjects.forEach(function(s){head.push(s+' 目标',s+' 最终分',s+' 最终满分',s+' 原始分',s+' 原始满分',s+' 年排',s+' 年级人数',s+' 班排',s+' 班级人数',s+' 年位比%',s+' 班位比%',s+' 不计总分',s+' 班级均分',s+' 年级均分');});
-  head.push('总分','原始总分','总排名(年)','年级人数(总)','总班排','班级人数(总)','总年位比%','总班位比%','总分班级均分','总分年级均分');
-  mods.forEach(function(m){head.push(m.name+' 年排',m.name+' 年人数',m.name+' 班排',m.name+' 班人数',m.name+' 班级均分',m.name+' 年级均分');});
+  subjects.forEach(function(s){head.push(s+' 目标',s+' 最终分',s+' 最终满分',s+' 原始分',s+' 原始满分',s+' 年排',s+' 年级人数',s+' 班排',s+' 班级人数',s+' 年位比%',s+' 班位比%',s+' 不计总分',s+' 班级均分',s+' 年级均分',s+' 班级最高分',s+' 年级最高分');});
+  head.push('总分','原始总分','总排名(年)','年级人数(总)','总班排','班级人数(总)','总年位比%','总班位比%','总分班级均分','总分年级均分','总分班级最高分','总分年级最高分');
+  mods.forEach(function(m){head.push(m.name+' 年排',m.name+' 年人数',m.name+' 班排',m.name+' 班人数',m.name+' 班级均分',m.name+' 年级均分',m.name+' 班级最高分',m.name+' 年级最高分');});
   var lines=[head.map(csvCellV30).join(',')];
   exams.forEach(function(ex){
     var row=[ex.exam_date||'',ex.name||'',ex.grade_level||'',ex.end_date||''];
     subjects.forEach(function(s){
       var r=(ex.scores||{})[s]||{};
       row.push(fmtV30(numV30(r.target)),fmtV30(numV30(r.actual)),r.max===''||r.max==null?'':fmtV30(numV30(r.max)),fmtV30(numV30(r.raw)),r.rawMax===''||r.rawMax==null?'':fmtV30(numV30(r.rawMax)),fmtV30(numV30(r.rank)),fmtV30(numV30(r.participants)),fmtV30(numV30(r.classRank)),fmtV30(numV30(r.classParticipants)),fmtV30(numV30(r.yearPositionPercent)),fmtV30(numV30(r.classPositionPercent)),r.excludeFromTotal?'是':'');
-      row.push(averageV30(ex,'s:'+s,'class'),averageV30(ex,'s:'+s,'year'));
+      row.push(averageV30(ex,'s:'+s,'class'),averageV30(ex,'s:'+s,'year'),averageV30(ex,'s:'+s,'classMax'),averageV30(ex,'s:'+s,'yearMax'));
     });
     row.push(fmtV30(sumTotalV30(ex,'actual')),fmtV30(sumTotalV30(ex,'raw')),
       fmtV30(numV30(ex.total_rank)),fmtV30(numV30(ex.total_participants)),fmtV30(numV30(ex.total_class_rank)),fmtV30(numV30(ex.total_class_participants)),fmtV30(numV30(ex.total_year_position_percent)),fmtV30(numV30(ex.total_class_position_percent)));
-    row.push(averageV30(ex,'total','class'),averageV30(ex,'total','year'));
+    row.push(averageV30(ex,'total','class'),averageV30(ex,'total','year'),averageV30(ex,'total','classMax'),averageV30(ex,'total','yearMax'));
     var ranks=(ex.moduleRanks)||{};
     mods.forEach(function(m){
       var r=ranks[m.id]||{};
       row.push(fmtV30(numV30(r.yearRank)),fmtV30(numV30(r.yearParticipants)),fmtV30(numV30(r.classRank)),fmtV30(numV30(r.classParticipants)));
-      row.push(averageV30(ex,'m:'+m.id,'class'),averageV30(ex,'m:'+m.id,'year'));
+      row.push(averageV30(ex,'m:'+m.id,'class'),averageV30(ex,'m:'+m.id,'year'),averageV30(ex,'m:'+m.id,'classMax'),averageV30(ex,'m:'+m.id,'yearMax'));
     });
     lines.push(row.map(csvCellV30).join(','));
   });
@@ -8338,10 +8339,20 @@ function trendHtmlV32(f,mode){
   var cfg=state.sv31||{},metric=mode==='rank'||mode==='score'||mode==='class'?mode:metricV60(f,'trend',cfg.trendMetricV60);
   if(mode==='combined'&&!panes[metric])metric=['rank','score','class'].find(function(k){return panes[k];})||metric;
   var opts=[['rank','排名走势'],['score','分数走势'],['class','班级排名']];
+  var referenceGap='';
+  if(window.ScoreAverages&&(!f.scopeSubject?f.totalLabel==='总分'||!f.totalLabel:true)){
+    var refName=f.scopeSubject||'总分',refApi=window.ScoreAverages;
+    var gaps=['year','class'].map(function(scope){
+      var values=f.exams.map(function(e){var a=refApi.finalScore(e,refName),m=refApi.value(e,refName,scope+'Max',true),denom=refName==='总分'?Object.keys(e.scores||{}).filter(function(s){return !e.scores[s].excludeFromTotal&&!((state.modulesV18||[]).some(function(mod){return mod.name===s;}));}).reduce(function(n,s){return n+Number(e.scores[s].max||0);},0):Number(e.scores&&e.scores[refName]&&e.scores[refName].max);return a!==null&&m!==null&&denom>0&&m>=a/denom*100?m-a/denom*100:null;}).filter(function(v){return v!==null;});
+      if(values.length<2)return '';
+      var change=values[values.length-1]-values[values.length-2];return (scope==='year'?'年级':'班级')+'最高分差距 '+r32(values[values.length-1])+' 个百分点 · 较上次有效记录'+(Math.abs(change)<.005?'持平':(change>0?'扩大 ':'缩小 ')+r32(Math.abs(change))+' 个百分点');
+    }).filter(Boolean);
+    if(gaps.length)referenceGap='<div class="card-sub" style="margin-top:8px">'+gaps.map(esc32).join('<br>')+'</div>';
+  }
   return '<div class="card sv31-trend-card"><div class="card-title-row"><h3 class="card-title">③ 趋势与进步</h3>'+metricSelectV60('trend',metric,opts)+'</div>'
   +'<div class="legend" data-trend-only-v60="rank"'+(metric==='rank'?'':' hidden')+' style="margin-bottom:8px"><span class="sv31-legend-t" title="点击打开:显示/颜色"><i style="background:var(--accent,#5d72e8)"></i>年级排名</span>'+(hasCls?'<span class="sv31-legend-t" title="点击打开:显示/颜色"><i style="background:var(--green,#32a77a)"></i>班级排名</span>':'')+'</div><p class="card-sub" data-trend-only-v60="score"'+(metric==='score'?'':' hidden')+'>分数受满分及难度影响，仅供参考。</p>'
   +opts.map(function(o){return '<div class="sv31-pane'+(metric===o[0]?' on':'')+'" data-pane="'+o[0]+'" data-available="'+(panes[o[0]]?'1':'0')+'">'+(panes[o[0]]||'<p class="card-sub">至少需要两场有效记录。</p>')+'</div>';}).join('')
-  +speedTableHtmlV32(f)+(window.__stTrajectories?window.__stTrajectories.html():"")+"</div>";
+  +referenceGap+speedTableHtmlV32(f)+(window.__stTrajectories?window.__stTrajectories.html():"")+"</div>";
 }
 function speedTableHtmlV32(f){
   var rows=[];
@@ -14469,7 +14480,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   function series() {
     if (state.trendMetric !== 'score' || state.scoreBasis === 'raw' || state.subject === '总览') return [];
     var subject = state.subject, percent = state.scoreViewV25 === 'percent';
-    return [{label:'班级均分',scope:'class',color:'#d38429'},{label:'年级均分',scope:'year',color:'#8f62db'}].map(function (s) {
+    return [{label:'班级均分',scope:'class',color:'#d38429'},{label:'年级均分',scope:'year',color:'#8f62db'},{label:'班级最高分',scope:'classMax',color:'#7893a9'},{label:'年级最高分',scope:'yearMax',color:'#369b85'}].map(function (s) {
       return {label:s.label,color:s.color,dash:'3 5',value:function (e) { return value(e,subject,s.scope,percent); }};
     }).filter(function (s) { return (state.exams || []).some(function (e) { return s.value(e) !== null; }); });
   }
@@ -14483,9 +14494,10 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       var d = Math.round((actual - avg) * 100) / 100;
       parts.push(d === 0 ? '持平' + pair[1] : (d > 0 ? '高于' : '低于') + pair[1] + ' ' + format(Math.abs(d)) + ' 分');
     });
+    [['classMax','班级最高分'],['yearMax','年级最高分']].forEach(function(pair){var top=value(exam,subject,pair[0],false);if(top!==null&&top>=actual)parts.push('距'+pair[1]+' '+format(top-actual)+' 分');});
     return parts.join(' · ');
   }
-  window.ScoreAverages = {key:keyFor,basis:basis,value:value,series:series,comparison:comparison,format:format};
+  window.ScoreAverages = {key:keyFor,basis:basis,value:value,series:series,comparison:comparison,format:format,finalScore:finalScore};
 
   var openBefore = openExam;
   openExam = function (exam) {
@@ -14498,16 +14510,21 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       var block = card.querySelector('.exam-averages');
       if (block && block.dataset.averageKey === key) return;
       if (block) block.remove();
-      block = document.createElement('div'); block.className = 'exam-averages'; block.dataset.averageKey = key;
-      ['class','year'].forEach(function (scope) {
+      block = document.createElement('details'); block.className = 'exam-averages'; block.dataset.averageKey = key;
+      var summary=document.createElement('summary'),heading=document.createElement('span'),excerpt=document.createElement('small'),fields=document.createElement('div');
+      heading.textContent='参考成绩（选填）';summary.append(heading,excerpt);block.append(summary,fields);fields.className='reference-fields';
+      var labels={class:'班级均分',year:'年级均分',classMax:'班级最高分',yearMax:'年级最高分'};
+      function updateSummary(){var draft=modal._averageDraft[key]||{};excerpt.textContent=['classMax','yearMax','class','year'].filter(function(s){return number(draft[s])!==null;}).map(function(s){return labels[s]+' '+draft[s];}).join(' · ');}
+      updateSummary();
+      ['class','year','classMax','yearMax'].forEach(function (scope) {
         var label = document.createElement('label'); label.className = 'average-field';
-        var title = document.createElement('span'); title.textContent = scope === 'class' ? '班级均分' : '年级均分'; label.appendChild(title);
+        var title = document.createElement('span'); title.textContent = labels[scope]; label.appendChild(title);
         var input = document.createElement('input'); input.dataset.averageRow = key; input.dataset.averageScope = scope;
         input.type = 'number'; input.min = '0'; input.max = '99999'; input.step = '0.01'; input.inputMode = 'decimal'; input.placeholder = '选填 · 最终分';
         input.setAttribute('aria-label',name + title.textContent);
         var saved = modal._averageDraft[key]; input.value = saved && saved[scope] != null ? saved[scope] : '';
-        input.oninput = function () { var draft = modal._averageDraft[key] || (modal._averageDraft[key] = {}); draft[scope] = input.value; input.removeAttribute('aria-invalid'); };
-        label.appendChild(input); block.appendChild(label);
+        input.oninput = function () { var draft = modal._averageDraft[key] || (modal._averageDraft[key] = {}); draft[scope] = input.value; input.removeAttribute('aria-invalid'); updateSummary(); };
+        label.appendChild(input); fields.appendChild(label);
       });
       var score = card.querySelector(anchor);
       if (score) score.insertAdjacentElement('afterend',block); else card.appendChild(block);
@@ -14540,11 +14557,11 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
         var raw = input.value.trim(); if (!raw && !input.validity.badInput) return;
         var n = number(raw);
         if (n === null || n < 0 || n > 99999 || !input.validity.valid) {
-          input.setAttribute('aria-invalid','true'); input.focus(); throw new Error(input.getAttribute('aria-label') + '请输入 0～99999，最多两位小数');
+          input.setAttribute('aria-invalid','true'); input.closest('details').open=true; input.focus(); throw new Error(input.getAttribute('aria-label') + '请输入 0～99999，最多两位小数');
         }
         var row = averages[input.dataset.averageRow] || (averages[input.dataset.averageRow] = {}); row[input.dataset.averageScope] = n;
       });
-      payload = Object.assign({},payload,{exam:Object.assign({},payload.exam,{averages:averages})});
+      payload = Object.assign({},payload,{exam:Object.assign({},payload.exam,{averages:averages,reference_scores_version:1})});
     }
     return apiBefore.call(this,action,payload);
   };
@@ -14561,7 +14578,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     return Object.assign({},metric,{comparison:comparison(metric.exam,subject,metric.value)});
   };
   var style = document.createElement('style');
-  style.textContent = '.exam-averages{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}.average-field{display:grid;gap:5px;min-width:0;font-size:11px;color:var(--muted)}.average-field input{width:100%;min-width:0;box-sizing:border-box;min-height:38px;border:1px solid var(--input-line,var(--line));border-radius:10px;padding:9px 8px;background:var(--input-bg,#fff);color:var(--text);font:inherit;font-size:12px}.average-field input:focus-visible{outline:2px solid var(--focus,var(--accent));outline-offset:1px}.average-field [aria-invalid=true]{border-color:var(--danger)}.hero-average{font-size:11px;color:var(--muted);line-height:1.7}';
+  style.textContent = '.exam-averages{margin-top:10px;border-top:1px solid var(--line);padding-top:9px}.exam-averages summary{cursor:pointer;font-size:12px;color:var(--text);line-height:1.5}.exam-averages summary small{display:block;margin:4px 0;color:var(--muted);font-weight:normal;overflow-wrap:anywhere}.exam-averages summary small:empty{display:none}.reference-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}.average-field{display:grid;gap:5px;min-width:0;font-size:11px;color:var(--muted)}.average-field input{width:100%;min-width:0;box-sizing:border-box;min-height:38px;border:1px solid var(--input-line,var(--line));border-radius:10px;padding:9px 8px;background:var(--input-bg,#fff);color:var(--text);font:inherit;font-size:12px}.average-field input:focus-visible{outline:2px solid var(--focus,var(--accent));outline-offset:1px}.average-field [aria-invalid=true]{border-color:var(--danger)}.hero-average{font-size:11px;color:var(--muted);line-height:1.7}';
   document.head.appendChild(style);
 })();
 
@@ -14909,8 +14926,26 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       return '<span>' + pair[1] + ' ' + fmt(v) + '</span>' + (r.actual !== null ? '<small>' + (r.actual === v ? '与均分持平' : (r.actual > v ? '高于' : '低于') + '均分 ' + fmt(Math.abs(r.actual - v)) + ' 分') + '</small>' : '');
     }).join('') || '—';
   }
+  function referenceCards(exam,m) {
+    var api=window.ScoreAverages;if(!api)return '';
+    var subjects=[{name:'总分',actual:m.total,max:m.manual?null:m.max}].concat(m.rows);
+    (state.modulesV18||[]).filter(function(mod){return (exam.moduleIds||[]).includes(mod.id);}).forEach(function(mod){var rows=mod.subjects.map(function(n){return m.rows.find(function(r){return r.name===n;});});subjects.push({name:mod.name,actual:api.finalScore(exam,mod.name),max:rows.every(function(r){return r&&r.max>0;})?rows.reduce(function(n,r){return n+r.max;},0):null});});
+    var cards=subjects.map(function(r){
+      var personal=api.finalScore(exam,r.name);if(personal===null||r.actual===null||Math.abs(personal-r.actual)>0.000001)return '';
+      var panels=['year','class'].map(function(scope){
+        var mean=api.value(exam,r.name,scope,false),top=api.value(exam,r.name,scope+'Max',false);
+        if(mean===null&&top===null)return '';
+        var dots=[{label:'我的',v:personal,color:'var(--accent)'},{label:'均分',v:mean,color:'#d38429'},{label:'最高',v:top,color:'#369b85'}].filter(function(d){return d.v!==null;});
+        return '<div class="ed-ref-panel" data-reference-scope="'+scope+'">'+(r.max>0&&dots.every(function(d){return d.v>=0&&d.v<=r.max;})?'<div class="ed-ref-track"><i style="width:'+personal/r.max*100+'%"></i>'+dots.map(function(d){return '<b style="left:'+d.v/r.max*100+'%;background:'+d.color+'"></b>';}).join('')+'</div><div class="ed-ref-axis"><span>0</span><span>'+fmt(r.max)+'</span></div>':'')+'<div class="ed-ref-values">'+dots.map(function(d){return '<span><i style="background:'+d.color+'"></i>'+d.label+' <strong>'+fmt(d.v)+'</strong></span>';}).join('')+'</div><div class="ed-ref-diff">'+(mean===null?'':'<span>较均分 '+signed(personal-mean)+' 分</span>')+(top===null||top<personal?'':'<span>距最高分 '+fmt(top-personal)+' 分</span>')+'</div></div>';
+      });
+      if(!panels.some(Boolean))return '';
+      var year=!!panels[0],cls=!!panels[1];
+      return '<article class="ed-ref-card" data-ref-selected="'+(year?'year':'class')+'"><div class="ed-ref-head"><strong>'+esc(r.name)+'</strong><span>'+fmt(personal)+(r.max>0?' / '+fmt(r.max):'')+'</span></div><div class="ed-ref-switch">'+(year?'<button type="button" data-reference-toggle="year" aria-pressed="true">年级</button>':'')+(cls?'<button type="button" data-reference-toggle="class" aria-pressed="'+(!year)+'">班级</button>':'')+'</div>'+panels.join('')+'</article>';
+    }).filter(Boolean);
+    return cards.length?'<div class="ed-ref-section"><h3>参考成绩</h3><div class="ed-ref-grid">'+cards.join('')+'</div></div>':'';
+  }
   function scores(exam, m) {
-    var hasAverages = m.rows.some(function (r) { return averageCell(exam, r) !== '—'; });
+    var hasAverages = false; // Reference cards replace the mean-only column.
     return '<section class="ed-section" id="ed-scores" tabindex="-1"><div class="ed-section-head"><div><span class="ed-eyebrow">01 / 成绩</span><h2>各科得分与排名</h2><p>最终分与原始分分开展示，目标差按最终分计算。</p></div></div>' +
       (m.rows.length ? '<div class="ed-table-wrap"><table class="ed-table"><thead><tr>' + ['科目','最终分 / 满分','原始分 / 满分','得分率','目标 / 差值','年级排名','班级排名'].concat(hasAverages ? ['平均分'] : []).map(function (s) { return '<th scope="col">' + s + '</th>'; }).join('') + '</tr></thead><tbody>' + m.rows.map(function (r) {
         return '<tr><th scope="row">' + esc(r.name) + (r.excluded ? '<small>统计项 · 不计总分</small>' : '') + '</th>' +
@@ -14918,7 +14953,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
           cell('原始分', r.raw === null ? '—' : fmt(r.raw) + ' / ' + fmt(r.rawMax)) + cell('得分率', r.rate === null ? '—' : fmt(r.rate) + '%') +
           cell('目标', r.target === null ? '未设置' : fmt(r.target) + (r.actual !== null ? '<small>' + (r.actual === r.target ? '已达标' : signed(r.actual - r.target) + ' 分') + '</small>' : '')) +
           cell('年级排名', rankCell(r.year)) + cell('班级排名', rankCell(r.class)) + (hasAverages ? cell('平均分', averageCell(exam, r)) : '') + '</tr>';
-      }).join('') + '</tbody></table></div>' : '<p class="ed-empty">还没有科目数据，点击“编辑 / 补录”添加成绩。</p>') + combinations(exam, m) + '</section>';
+      }).join('') + '</tbody></table></div>' : '<p class="ed-empty">还没有科目数据，点击“编辑 / 补录”添加成绩。</p>') + combinations(exam, m) + referenceCards(exam,m) + '</section>';
   }
   function combinations(exam, m) {
     var selected = (state.modulesV18 || []).filter(function (mod) { return (exam.moduleIds || []).includes(mod.id); });
@@ -15099,6 +15134,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     if (!v.scope) v.scope = m.included.filter(function (r) { return r.year.percent !== null; }).length < 2 && m.included.filter(function (r) { return r.class.percent !== null; }).length >= 2 ? 'class' : 'year';
     content.innerHTML = '<div class="ed-page">' + header(exam) + (v.report ? '<div class="ed-reader"></div>' : overview(exam, m) + scores(exam, m) + '<section class="ed-section" id="ed-changes" tabindex="-1"></section><section class="ed-section" id="ed-quadrants" tabindex="-1"></section><section class="ed-section ed-reflection" id="ed-reflection" tabindex="-1"></section>' + (paperReviewAvailable() ? '<section class="ed-section" id="ed-papers" tabindex="-1"><div class="ed-section-head"><div><span class="ed-eyebrow">05 / 试题与作答</span><h2>这次考试的试卷</h2><p>按科目查看已录入的题目、作答、批改分与原始扫描件。查看已有内容不计分析次数。</p></div></div><div class="ed-paper-content"></div></section>' : '')) + '</div>';
     content.querySelector('.ed-page').onclick = function (e) {
+      var toggle=e.target.closest('[data-reference-toggle]');if(toggle){var card=toggle.closest('.ed-ref-card');card.dataset.refSelected=toggle.dataset.referenceToggle;card.querySelectorAll('[data-reference-toggle]').forEach(function(b){b.setAttribute('aria-pressed',String(b===toggle));});return;}
       var b = e.target.closest('[data-ed]'); if (!b) return;
       var action = b.dataset.ed;
       if (action === 'back') {
@@ -15182,6 +15218,8 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   window.addEventListener('resize', function () { clearTimeout(chartResizeTimer); chartResizeTimer = setTimeout(function () { if (view && active(view) && !view.report) { var exam = currentExam(); if (exam) bindQuadrants(exam, model(exam)); } }, 120); });
   document.head.appendChild(style);
 })();
+
+;(function(){var s=document.createElement('style');s.textContent='.ed-ref-section{margin-top:16px}.ed-ref-section h3{font-size:14px;margin:0 0 10px}.ed-ref-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:10px}.ed-ref-card{border:1px solid var(--line);border-radius:12px;padding:12px;min-width:0}.ed-ref-head,.ed-ref-axis,.ed-ref-values,.ed-ref-diff{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}.ed-ref-head{align-items:center}.ed-ref-head span,.ed-ref-axis,.ed-ref-values,.ed-ref-diff{font-size:12px;color:var(--muted)}.ed-ref-switch{display:flex;gap:5px;margin:10px 0}.ed-ref-switch button{border:0;border-radius:12px;background:transparent;color:var(--muted);padding:5px 10px;font:inherit;font-size:12px;cursor:pointer}.ed-ref-switch button[aria-pressed=true]{background:var(--accent);color:white}.ed-ref-track{margin:16px 5px 6px;height:8px;background:var(--line);border-radius:9px;position:relative}.ed-ref-track>i{height:100%;display:block;border-radius:9px;background:var(--accent);opacity:.6}.ed-ref-track>b{position:absolute;width:10px;height:10px;border:1px solid var(--card,#fff);border-radius:50%;top:50%;transform:translate(-50%,-50%)}.ed-ref-values{margin-top:10px}.ed-ref-values i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px}.ed-ref-values strong{color:var(--text)}.ed-ref-diff{margin-top:8px}.ed-ref-card[data-ref-selected=year] [data-reference-scope=class],.ed-ref-card[data-ref-selected=class] [data-reference-scope=year]{display:none}';document.head.appendChild(s);})();
 
 /* ===== supabase/functions/_shared/backup-format.js ===== */
 /* One validator for the browser preview and the authenticated import endpoint. */
@@ -15281,7 +15319,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       Object.entries(object(ex.averages || {}, label + '均分')).forEach(function (entry) {
         var k=entry[0], r=object(entry[1],label+'均分'), avg={};
         if (k !== 'total' && !(k.startsWith('s:') && own(e.scores,k.slice(2))) && !(k.startsWith('m:') && e.moduleIds.includes(k.slice(2)))) throw new Error(label+'均分引用了缺失的科目或组合');
-        ['class','year'].forEach(function (scope) { if (own(r,scope)) avg[scope]=number(r[scope],label+'均分'); });
+        ['class','year','classMax','yearMax'].forEach(function (scope) { if (own(r,scope)) avg[scope]=number(r[scope],label+'参考成绩'); });
         if (r.basis != null) avg.basis=str(r.basis,5000,label+'均分口径'); e.averages[k]=avg;
       });
       Object.entries(object(ex.question_type_scores || {}, label+'题型')).forEach(function (entry) {

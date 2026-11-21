@@ -381,6 +381,7 @@
   /* 显示/隐藏状态(只从取色框的勾选改,不在点击图例时直接切换,避免误触) */
   var LS_HIDE_V29='st_legend_hidden_v31';
   var HIDDEN_V29=(function(){try{return JSON.parse(localStorage.getItem(LS_HIDE_V29)||'{}')||{};}catch(e){return{};}})();
+  function isHiddenV29(label){return HIDDEN_V29[label]===true||(!Object.prototype.hasOwnProperty.call(HIDDEN_V29,label)&&/^(班级|年级)最高分$/.test(label));}
   function saveHiddenV29(){try{localStorage.setItem(LS_HIDE_V29,JSON.stringify(HIDDEN_V29));}catch(e){}}
 
   /* 把一个图表 SVG 的子元素按「path + 其后相邻的 circle」分组，组序与图例序一致 */
@@ -466,7 +467,7 @@
           }
         }
         /* 显示/隐藏:只由取色框「在图表中显示这条线」勾选驱动 */
-        var hid=HIDDEN_V29[label]===true;
+        var hid=isHiddenV29(label);
         item.classList.toggle('lg-hide-v29',hid);
         var g3=groups[idx];
         if(g3){
@@ -528,7 +529,7 @@
     popElV29.dataset.subjectV29=label;
     popElV29.querySelector('b').textContent='「'+label+'」的颜色';
     var sb=popElV29.querySelector('.pk-show-v29 input');
-    if(sb)sb.checked=!(HIDDEN_V29[label]===true);
+    if(sb)sb.checked=!isHiddenV29(label);
     var cur=CUSTOM_V29[label]||'#5d72e8';
     popElV29.querySelector('input[type=color]').value=cur.length===7?cur:'#5d72e8';
     popElV29.querySelectorAll('.pk-swatches-v29 button').forEach(function(b){

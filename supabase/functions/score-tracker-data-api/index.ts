@@ -413,7 +413,7 @@ async function cleanAverages(uid: string, exam: any, rows: any[]) {
     if (!selected.length && !(key === "total" && score(exam.total_actual_score) !== null)) throw new Error("请先选择均分对应的科目");
     const max = selected.reduce((sum, r) => sum + r.max_score, 0);
     const entry: any = { basis: JSON.stringify(selected.map((r) => [r.subject, r.max_score]).sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)) };
-    for (const scope of ["class", "year"]) {
+    for (const scope of ["class", "year", "classMax", "yearMax"]) {
       const v = source[scope];
       if (v === "" || v == null) continue;
       if ((typeof v !== "number" && typeof v !== "string") || !String(v).trim()) throw new Error("均分请输入有效数字");
@@ -422,7 +422,13 @@ async function cleanAverages(uid: string, exam: any, rows: any[]) {
       if (!(key === "total" && score(exam.total_actual_score) !== null) && n > max) throw new Error("均分不能超过对应科目的最终满分");
       entry[scope] = n;
     }
-    if (entry.class !== undefined || entry.year !== undefined) cleaned[key] = entry;
+    const personal = key === "total" && score(exam.total_actual_score) !== null ? score(exam.total_actual_score) : selected.length && selected.every((r) => r.actual_score !== null) ? selected.reduce((sum, r) => sum + r.actual_score, 0) : null;
+    for (const [highest, mean] of [["classMax","class"],["yearMax","year"]]) {
+      if (entry[highest] === undefined) continue;
+      if ((personal !== null && entry[highest] + 0.000001 < personal) || (entry[mean] !== undefined && entry[highest] < entry[mean])) throw new Error("最高分不能低于个人最终分或对应均分，请核对");
+    }
+    if (entry.classMax !== undefined && entry.yearMax !== undefined && entry.classMax > entry.yearMax) throw new Error("班级最高分不能高于年级最高分，请核对");
+    if (["class","year","classMax","yearMax"].some((k) => entry[k] !== undefined)) cleaned[key] = entry;
   }
   return cleaned;
 }
@@ -555,9 +561,19 @@ async function saveExam(uid: string, exam: any) {
   // Older clients omit this optional field; their saves must preserve existing references.
   if (hasKey("averages")) values.averages = averages;
   if (id) {
-    const owned = await db.from("score_tracker_exams").select("id").eq("id", id).eq("user_id", uid).maybeSingle();
+    const owned = await db.from("score_tracker_exams").select("id,averages").eq("id", id).eq("user_id", uid).maybeSingle();
     if (owned.error) throw owned.error;
     if (!owned.data) return { error: "没有找到这次考试", status: 404 };
+    // Old clients replace means; preserve highest references with the original basis.
+    if (hasKey("averages") && exam.reference_scores_version !== 1) {
+      for (const [key, old] of Object.entries(owned.data.averages || {}) as [string, any][]) {
+        if (!old || (old.classMax == null && old.yearMax == null)) continue;
+        if (averages[key] && averages[key].basis !== old.basis) continue;
+        const next = averages[key] || { basis: old.basis };
+        for (const field of ["classMax","yearMax"]) if (next[field] == null && old[field] != null) next[field] = old[field];
+        averages[key] = next;
+      }
+    }
     const r = await db.from("score_tracker_exams").update(values).eq("id", id).eq("user_id", uid);
     if (r.error) throw r.error;
   } else {

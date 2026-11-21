@@ -39,7 +39,7 @@
   function series() {
     if (state.trendMetric !== 'score' || state.scoreBasis === 'raw' || state.subject === '总览') return [];
     var subject = state.subject, percent = state.scoreViewV25 === 'percent';
-    return [{label:'班级均分',scope:'class',color:'#d38429'},{label:'年级均分',scope:'year',color:'#8f62db'}].map(function (s) {
+    return [{label:'班级均分',scope:'class',color:'#d38429'},{label:'年级均分',scope:'year',color:'#8f62db'},{label:'班级最高分',scope:'classMax',color:'#7893a9'},{label:'年级最高分',scope:'yearMax',color:'#369b85'}].map(function (s) {
       return {label:s.label,color:s.color,dash:'3 5',value:function (e) { return value(e,subject,s.scope,percent); }};
     }).filter(function (s) { return (state.exams || []).some(function (e) { return s.value(e) !== null; }); });
   }
@@ -53,9 +53,10 @@
       var d = Math.round((actual - avg) * 100) / 100;
       parts.push(d === 0 ? '持平' + pair[1] : (d > 0 ? '高于' : '低于') + pair[1] + ' ' + format(Math.abs(d)) + ' 分');
     });
+    [['classMax','班级最高分'],['yearMax','年级最高分']].forEach(function(pair){var top=value(exam,subject,pair[0],false);if(top!==null&&top>=actual)parts.push('距'+pair[1]+' '+format(top-actual)+' 分');});
     return parts.join(' · ');
   }
-  window.ScoreAverages = {key:keyFor,basis:basis,value:value,series:series,comparison:comparison,format:format};
+  window.ScoreAverages = {key:keyFor,basis:basis,value:value,series:series,comparison:comparison,format:format,finalScore:finalScore};
 
   var openBefore = openExam;
   openExam = function (exam) {
@@ -68,16 +69,21 @@
       var block = card.querySelector('.exam-averages');
       if (block && block.dataset.averageKey === key) return;
       if (block) block.remove();
-      block = document.createElement('div'); block.className = 'exam-averages'; block.dataset.averageKey = key;
-      ['class','year'].forEach(function (scope) {
+      block = document.createElement('details'); block.className = 'exam-averages'; block.dataset.averageKey = key;
+      var summary=document.createElement('summary'),heading=document.createElement('span'),excerpt=document.createElement('small'),fields=document.createElement('div');
+      heading.textContent='参考成绩（选填）';summary.append(heading,excerpt);block.append(summary,fields);fields.className='reference-fields';
+      var labels={class:'班级均分',year:'年级均分',classMax:'班级最高分',yearMax:'年级最高分'};
+      function updateSummary(){var draft=modal._averageDraft[key]||{};excerpt.textContent=['classMax','yearMax','class','year'].filter(function(s){return number(draft[s])!==null;}).map(function(s){return labels[s]+' '+draft[s];}).join(' · ');}
+      updateSummary();
+      ['class','year','classMax','yearMax'].forEach(function (scope) {
         var label = document.createElement('label'); label.className = 'average-field';
-        var title = document.createElement('span'); title.textContent = scope === 'class' ? '班级均分' : '年级均分'; label.appendChild(title);
+        var title = document.createElement('span'); title.textContent = labels[scope]; label.appendChild(title);
         var input = document.createElement('input'); input.dataset.averageRow = key; input.dataset.averageScope = scope;
         input.type = 'number'; input.min = '0'; input.max = '99999'; input.step = '0.01'; input.inputMode = 'decimal'; input.placeholder = '选填 · 最终分';
         input.setAttribute('aria-label',name + title.textContent);
         var saved = modal._averageDraft[key]; input.value = saved && saved[scope] != null ? saved[scope] : '';
-        input.oninput = function () { var draft = modal._averageDraft[key] || (modal._averageDraft[key] = {}); draft[scope] = input.value; input.removeAttribute('aria-invalid'); };
-        label.appendChild(input); block.appendChild(label);
+        input.oninput = function () { var draft = modal._averageDraft[key] || (modal._averageDraft[key] = {}); draft[scope] = input.value; input.removeAttribute('aria-invalid'); updateSummary(); };
+        label.appendChild(input); fields.appendChild(label);
       });
       var score = card.querySelector(anchor);
       if (score) score.insertAdjacentElement('afterend',block); else card.appendChild(block);
@@ -110,11 +116,11 @@
         var raw = input.value.trim(); if (!raw && !input.validity.badInput) return;
         var n = number(raw);
         if (n === null || n < 0 || n > 99999 || !input.validity.valid) {
-          input.setAttribute('aria-invalid','true'); input.focus(); throw new Error(input.getAttribute('aria-label') + '请输入 0～99999，最多两位小数');
+          input.setAttribute('aria-invalid','true'); input.closest('details').open=true; input.focus(); throw new Error(input.getAttribute('aria-label') + '请输入 0～99999，最多两位小数');
         }
         var row = averages[input.dataset.averageRow] || (averages[input.dataset.averageRow] = {}); row[input.dataset.averageScope] = n;
       });
-      payload = Object.assign({},payload,{exam:Object.assign({},payload.exam,{averages:averages})});
+      payload = Object.assign({},payload,{exam:Object.assign({},payload.exam,{averages:averages,reference_scores_version:1})});
     }
     return apiBefore.call(this,action,payload);
   };
@@ -131,6 +137,6 @@
     return Object.assign({},metric,{comparison:comparison(metric.exam,subject,metric.value)});
   };
   var style = document.createElement('style');
-  style.textContent = '.exam-averages{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}.average-field{display:grid;gap:5px;min-width:0;font-size:11px;color:var(--muted)}.average-field input{width:100%;min-width:0;box-sizing:border-box;min-height:38px;border:1px solid var(--input-line,var(--line));border-radius:10px;padding:9px 8px;background:var(--input-bg,#fff);color:var(--text);font:inherit;font-size:12px}.average-field input:focus-visible{outline:2px solid var(--focus,var(--accent));outline-offset:1px}.average-field [aria-invalid=true]{border-color:var(--danger)}.hero-average{font-size:11px;color:var(--muted);line-height:1.7}';
+  style.textContent = '.exam-averages{margin-top:10px;border-top:1px solid var(--line);padding-top:9px}.exam-averages summary{cursor:pointer;font-size:12px;color:var(--text);line-height:1.5}.exam-averages summary small{display:block;margin:4px 0;color:var(--muted);font-weight:normal;overflow-wrap:anywhere}.exam-averages summary small:empty{display:none}.reference-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}.average-field{display:grid;gap:5px;min-width:0;font-size:11px;color:var(--muted)}.average-field input{width:100%;min-width:0;box-sizing:border-box;min-height:38px;border:1px solid var(--input-line,var(--line));border-radius:10px;padding:9px 8px;background:var(--input-bg,#fff);color:var(--text);font:inherit;font-size:12px}.average-field input:focus-visible{outline:2px solid var(--focus,var(--accent));outline-offset:1px}.average-field [aria-invalid=true]{border-color:var(--danger)}.hero-average{font-size:11px;color:var(--muted);line-height:1.7}';
   document.head.appendChild(style);
 })();

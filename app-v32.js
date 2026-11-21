@@ -765,10 +765,20 @@ function trendHtmlV32(f,mode){
   var cfg=state.sv31||{},metric=mode==='rank'||mode==='score'||mode==='class'?mode:metricV60(f,'trend',cfg.trendMetricV60);
   if(mode==='combined'&&!panes[metric])metric=['rank','score','class'].find(function(k){return panes[k];})||metric;
   var opts=[['rank','排名走势'],['score','分数走势'],['class','班级排名']];
+  var referenceGap='';
+  if(window.ScoreAverages&&(!f.scopeSubject?f.totalLabel==='总分'||!f.totalLabel:true)){
+    var refName=f.scopeSubject||'总分',refApi=window.ScoreAverages;
+    var gaps=['year','class'].map(function(scope){
+      var values=f.exams.map(function(e){var a=refApi.finalScore(e,refName),m=refApi.value(e,refName,scope+'Max',true),denom=refName==='总分'?Object.keys(e.scores||{}).filter(function(s){return !e.scores[s].excludeFromTotal&&!((state.modulesV18||[]).some(function(mod){return mod.name===s;}));}).reduce(function(n,s){return n+Number(e.scores[s].max||0);},0):Number(e.scores&&e.scores[refName]&&e.scores[refName].max);return a!==null&&m!==null&&denom>0&&m>=a/denom*100?m-a/denom*100:null;}).filter(function(v){return v!==null;});
+      if(values.length<2)return '';
+      var change=values[values.length-1]-values[values.length-2];return (scope==='year'?'年级':'班级')+'最高分差距 '+r32(values[values.length-1])+' 个百分点 · 较上次有效记录'+(Math.abs(change)<.005?'持平':(change>0?'扩大 ':'缩小 ')+r32(Math.abs(change))+' 个百分点');
+    }).filter(Boolean);
+    if(gaps.length)referenceGap='<div class="card-sub" style="margin-top:8px">'+gaps.map(esc32).join('<br>')+'</div>';
+  }
   return '<div class="card sv31-trend-card"><div class="card-title-row"><h3 class="card-title">③ 趋势与进步</h3>'+metricSelectV60('trend',metric,opts)+'</div>'
   +'<div class="legend" data-trend-only-v60="rank"'+(metric==='rank'?'':' hidden')+' style="margin-bottom:8px"><span class="sv31-legend-t" title="点击打开:显示/颜色"><i style="background:var(--accent,#5d72e8)"></i>年级排名</span>'+(hasCls?'<span class="sv31-legend-t" title="点击打开:显示/颜色"><i style="background:var(--green,#32a77a)"></i>班级排名</span>':'')+'</div><p class="card-sub" data-trend-only-v60="score"'+(metric==='score'?'':' hidden')+'>分数受满分及难度影响，仅供参考。</p>'
   +opts.map(function(o){return '<div class="sv31-pane'+(metric===o[0]?' on':'')+'" data-pane="'+o[0]+'" data-available="'+(panes[o[0]]?'1':'0')+'">'+(panes[o[0]]||'<p class="card-sub">至少需要两场有效记录。</p>')+'</div>';}).join('')
-  +speedTableHtmlV32(f)+(window.__stTrajectories?window.__stTrajectories.html():"")+"</div>";
+  +referenceGap+speedTableHtmlV32(f)+(window.__stTrajectories?window.__stTrajectories.html():"")+"</div>";
 }
 function speedTableHtmlV32(f){
   var rows=[];
