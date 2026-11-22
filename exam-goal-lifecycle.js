@@ -32,7 +32,7 @@ function planDialog(ex){
  const scores=Object.fromEntries((ex?Object.entries(ex.scores||{}):cfg.map(s=>[s.name,{max:s.defaultMax||100}])).map(([n,s])=>[n,{...s}]));
  const modIds=new Set((ex?.moduleIds||[]).map(String)),mods=state.modulesV18||[];
  let selected=new Set(Object.keys(scores)),mode=Object.values(items).some(g=>G.num(g.rank)!==null)?(Object.values(items).some(g=>G.num(g.score)!==null)?'both':'rank'):'score';
- const draft={};Object.entries(items).forEach(([k,g])=>{draft[k]={...g};});
+ const draft={},rankDrafts={};Object.entries(items).forEach(([k,g])=>{draft[k]={...g};});
  const modal=document.createElement('div');modal.className='modal-backdrop eg-plan-modal';
  modal.innerHTML='<form class="modal eg-plan-sheet" role="dialog" aria-modal="true" aria-labelledby="egPlanTitle"><div class="modal-head"><h3 id="egPlanTitle">'+(ex?'编辑考试目标':'设置考试目标')+'</h3><button type="button" class="close-btn" aria-label="关闭">×</button></div><div class="modal-body eg-plan-body"><div class="form-grid eg-meta"><div class="field eg-name"><label for="egName">考试名称</label><input id="egName" maxlength="60" value="'+esc(ex?.name)+'" placeholder="例如：期末考试" required></div><div class="field"><label for="egDate">预计考试日期</label><input id="egDate" type="date" value="'+esc(ex?.exam_date||today())+'" required></div><div class="field"><label for="egCategory">考试分类</label><select id="egCategory" class="grade-select-v13"></select></div></div><div class="eg-section-head"><h4>考试目标</h4><span class="eg-muted">选填</span></div><div class="eg-mode" role="group" aria-label="目标录入方式"><button type="button" data-eg-mode="score">分数</button><button type="button" data-eg-mode="rank">排名</button><button type="button" data-eg-mode="both">两者</button></div><div class="eg-plan-table"><div class="eg-plan-labels"><span>科目</span><span class="eg-score-col">目标分 / 满分</span><span class="eg-rank-col">目标年排</span></div><div id="egSubjects"></div><div id="egTotal"></div></div><details class="eg-options"><summary>选择科目</summary><div id="egPick"></div></details><details class="eg-options"><summary>组合目标（选填）</summary><div id="egModules"></div></details><p class="eg-muted eg-plan-hint">考后打开同一条记录补录成绩。排名目标单独填写。</p></div><div class="eg-plan-footer"><p id="egError" role="alert" hidden></p><div class="modal-actions"><button type="button" class="secondary cancel-btn">取消</button><button type="submit" class="primary save-btn">保存考试目标</button></div></div></form>';
  document.body.append(modal);state.modal=modal;
@@ -44,7 +44,7 @@ function planDialog(ex){
  function setError(message){error.hidden=!message;error.textContent=message||'';}
  function itemFields(k,g,max,caption){
   g=g||{};const unit=g.rankType==='percent'?'percent':'number';
-  return '<div class="eg-plan-row" data-eg-key="'+esc(k)+'"><b>'+esc(caption)+'</b><div class="eg-score-col eg-score-pair"><input aria-label="'+esc(caption)+'目标分" data-eg-score inputmode="decimal" placeholder="—" value="'+esc(g.score)+'"><span>/</span><input aria-label="'+esc(caption)+'满分" data-eg-max inputmode="decimal" value="'+esc(g.max??max)+'"></div><div class="eg-rank-col eg-rank-pair"><select aria-label="'+esc(caption)+'排名单位" data-eg-type><option value="number" '+(unit==='number'?'selected':'')+'>名</option><option value="percent" '+(unit==='percent'?'selected':'')+'>前%</option></select><input aria-label="'+esc(caption)+'排名目标" data-eg-rank inputmode="'+(unit==='number'?'numeric':'decimal')+'" placeholder="—" value="'+esc(g.rank)+'"></div></div>';
+  return '<div class="eg-plan-row" data-eg-key="'+esc(k)+'"><b>'+esc(caption)+'</b><div class="eg-score-col eg-score-pair"><input aria-label="'+esc(caption)+'目标分" data-eg-score inputmode="decimal" placeholder="—" value="'+esc(g.score)+'"><span>/</span><input aria-label="'+esc(caption)+'满分" data-eg-max inputmode="decimal" value="'+esc(g.max??max)+'"></div><div class="eg-rank-col eg-rank-pair"><select aria-label="'+esc(caption)+'排名单位" data-eg-type><option value="number" '+(unit==='number'?'selected':'')+'>名</option><option value="percent" '+(unit==='percent'?'selected':'')+'>前%</option></select><input aria-label="'+esc(caption)+'排名目标" data-eg-rank data-unit="'+unit+'" inputmode="'+(unit==='number'?'numeric':'decimal')+'" placeholder="—" value="'+esc(g.rank)+'"></div></div>';
  }
  function read(){
   modal.querySelectorAll('[data-eg-key]').forEach(el=>{const key=el.dataset.egKey,g=readFields(el,draft[key]);g.max=val(el,'[data-eg-max]');draft[key]=g;});
@@ -74,7 +74,7 @@ function planDialog(ex){
   const t=ev.target;
   if(t.matches('[data-eg-type]')){
    const row=t.closest('[data-eg-key]'),input=row.querySelector('[data-eg-rank]'),previous=input.dataset.unit||draft[row.dataset.egKey]?.rankType||'number';
-   const memo=input._egRanks||{};memo[previous]=input.value;input.value=memo[t.value]??'';input._egRanks=memo;input.dataset.unit=t.value;input.inputMode=t.value==='number'?'numeric':'decimal';read();return;
+   const memo=rankDrafts[row.dataset.egKey]||(rankDrafts[row.dataset.egKey]={});memo[previous]=input.value;input.value=memo[t.value]??'';input.dataset.unit=t.value;input.inputMode=t.value==='number'?'numeric':'decimal';read();return;
   }
   if(t.hasAttribute('data-eg-sub')||t.hasAttribute('data-eg-module')){read();const isSub=t.hasAttribute('data-eg-sub'),key=isSub?t.dataset.egSub:t.dataset.egModule,set=isSub?selected:modIds;if(t.checked){set.add(key);if(isSub&&!scores[key])scores[key]={max:cfg.find(s=>s.name===key)?.defaultMax||100};}else set.delete(key);draw();}
  });
@@ -107,15 +107,28 @@ function decorate(modal,source){
  if(!modal||!modal.querySelector('#examSubjectsV16')||modal._egItems)return;
  const old=source||modal._restoredExamV61||{};modal._egItems=G.snapshot(old);modal._egSource=old;
  function collect(){
-  modal.querySelectorAll('.eg-editor [data-eg-key]').forEach(el=>{let k=el.dataset.egKey;modal._egItems[k]=readFields(el,modal._egItems[k]);});
+  modal.querySelectorAll('.eg-editor [data-eg-key]').forEach(el=>{
+   const subject=el.closest('.exam-subject-card-v10'),key=subject?'s:'+val(subject,'.exam-subject-name-v10').trim():el.dataset.egKey;
+   if(subject&&key==='s:')return;
+   const old=modal._egItems[key]||modal._egItems[el.dataset.egKey],g=readFields(el,old);
+   if(subject){
+    const inp=subject.querySelector('.target-v16'),max=G.num(val(subject,'.max-v16')),v=G.num(inp?.value);
+    if(v!==null&&max>0){
+     if(inp&&!inp.dataset.egEdited&&old&&G.num(old.score)!==null&&G.num(old.max)>0){g.score=old.score;g.max=old.max;}
+     else{g.score=inp.value;g.max=max;}
+    }else{delete g.score;delete g.max;}
+   }
+   modal._egItems[key]=g;el.dataset.egKey=key;
+  });
  }
  modal._egCollect=collect;
  function add(card,key,anchor,score,max,target){
   if(!card||!anchor||card.querySelector(':scope > .eg-editor'))return;
   const g=modal._egItems[key]||{},d=document.createElement('details');d.className='eg-editor';d.innerHTML='<summary>考试目标（选填） <span class="eg-muted">'+esc(summary(g))+'</span></summary>'+fields(key,g,score,max);
-  if(target){const label=document.createElement('div');label.className='eg-sub-score';target.querySelector('label').textContent='目标分';label.append(target);d.insertBefore(label,d.children[1]);}
+  if(target){const label=document.createElement('div');label.className='eg-sub-score';target.querySelector('label').textContent='目标分';label.append(target);d.insertBefore(label,d.children[1]);const t=target.querySelector('.target-v16');if(t)t.addEventListener('input',()=>{t.dataset.egEdited='1';});}
   card.append(d);
-  d.addEventListener('input',()=>{collect();const tg=d.querySelector('.target-v16'),next=modal._egItems[key]||{};if(tg&&tg.value!==''){next.score=tg.value;next.max=val(card,'.max-v16');}d.querySelector('summary span').textContent=summary(next);});
+  const rankInput=d.querySelector('[data-eg-rank]'),rankType=d.querySelector('[data-eg-type]');if(rankInput&&rankType){rankInput.dataset.unit=rankType.value;rankType.addEventListener('change',()=>{const memo=rankInput._egRanks||(rankInput._egRanks={});memo[rankInput.dataset.unit]=rankInput.value;rankInput.value=memo[rankType.value]??'';rankInput.dataset.unit=rankType.value;collect();d.querySelector('summary span').textContent=summary(modal._egItems[d.querySelector('[data-eg-key]').dataset.egKey]);});}
+  d.addEventListener('input',e=>{if(e.target.matches('[data-eg-type]'))return;collect();d.querySelector('summary span').textContent=summary(modal._egItems[d.querySelector('[data-eg-key]').dataset.egKey]);});
  }
  function refresh(){
   if(!modal.isConnected)return;
@@ -127,9 +140,9 @@ function decorate(modal,source){
   if(total)add(total,'total',total,true,Array.from(modal.querySelectorAll('.max-v16')).reduce((v,n)=>v+(Number(n.value)||0),0));
   modal.querySelectorAll('.combo-card-v21').forEach(card=>{let m=(state.modulesV18||[]).find(x=>String(x.id)===card.dataset.comboId);if(m)add(card,'m:'+m.id,card,true,(m.subjects||[]).reduce((v,n)=>v+Number(Array.from(modal.querySelectorAll('.exam-subject-card-v10')).find(c=>val(c,'.exam-subject-name-v10')===n)?.querySelector('.max-v16')?.value||0),0));});
  }
- refresh();let root=modal.querySelector('#examSubjectsV16'),combos=modal.querySelector('#comboListV21');
+ refresh();modal.addEventListener('input',e=>{if(e.target.matches('.exam-subject-name-v10'))refresh();if(e.target.matches('.max-v16')){const card=e.target.closest('.exam-subject-card-v10'),target=card?.querySelector('.target-v16');const g=modal._egItems['s:'+val(card,'.exam-subject-name-v10').trim()],max=G.num(e.target.value);if(target&&!target.dataset.egEdited&&G.num(g?.score)!==null&&G.num(g?.max)>0&&max>0){target.value=String(Math.round(g.score/g.max*max*100)/100);}}});let root=modal.querySelector('#examSubjectsV16'),combos=modal.querySelector('#comboListV21');
  let observer=new MutationObserver(()=>{if(!modal.isConnected){observer.disconnect();return;}refresh();});[root,combos].filter(Boolean).forEach(el=>observer.observe(el,{childList:true}));
- if(G.pending(old)){const hidden=modal.querySelector('#examHiddenV16');if(hidden)hidden.value='0';const h=modal.querySelector('.modal-head h3');if(h)h.textContent='录入考试成绩';const b=modal.querySelector('.save-btn');if(b)b.textContent='保存成绩';}
+ if(G.pending(old)){const hidden=modal.querySelector('#examHiddenV16');if(hidden)hidden.value='0';const visibility=modal.querySelector('.visibility-box-v10');if(visibility){const toggle=visibility.querySelector('#toggleHiddenV16'),hint=visibility.querySelector('span');if(toggle)toggle.textContent='隐藏';if(hint)hint.textContent='录入成绩后正常参与图表。';}const h=modal.querySelector('.modal-head h3');if(h)h.textContent='录入考试成绩';const b=modal.querySelector('.save-btn');if(b)b.textContent='保存成绩';}
 }
 const beforeOpen=openExam;openExam=function(exam){const r=beforeOpen.apply(this,arguments);decorate(state.modal,exam||state.modal?._restoredExamV61);return r;};
 function metadata(modal,exam){
@@ -137,14 +150,14 @@ function metadata(modal,exam){
  const items={};for(const [k,g] of Object.entries(modal._egItems)){
   if(k==='total'||k.startsWith('s:')&&Object.prototype.hasOwnProperty.call(exam.scores||{},k.slice(2))||k.startsWith('m:')&&(exam.moduleIds||[]).includes(k.slice(2)))items[k]={...g};
  }
- for(const [name,row] of Object.entries(exam.scores||{})){const k='s:'+name;if(G.num(row.target)!==null)items[k]={...items[k],score:row.target,max:row.max};else if(items[k]){delete items[k].score;delete items[k].max;}}
+ for(const [name,row] of Object.entries(exam.scores||{})){const k='s:'+name;if(G.num(row.target)!==null){const g=items[k];if(!g||G.num(g.score)===null)items[k]={...g,score:row.target,max:row.max};}else if(items[k]){delete items[k].score;delete items[k].max;}}
  return {planned:!!modal._egSource?.exam_goals?.planned,items:G.cleanItems(items,exam)};
 }
-const beforeApi=dataApiV7;dataApiV7=function(action,payload){
+const beforeApi=dataApiV7;dataApiV7=async function(action,payload){
  const modal=state.modal;if(action==='save_exam'&&payload?.exam&&modal?._egItems){
   const e=payload.exam,meta=metadata(modal,e);
   if(G.pending(modal._egSource)&&!G.actual(e)&&!Array.from(modal.querySelectorAll('.combo-yr-v25,.combo-cr-v25,.total-actual-override-v24,.total-raw-override-v24')).some(n=>G.num(n.value)!==null))throw Error('请至少录入一项实际成绩或排名');
-  if(meta){if(!available()&&Object.entries(meta.items).some(([k,g])=>k==='total'||k.startsWith('m:')||G.num(g.rank)!==null))throw Error('新版目标后端尚未启用，排名目标及独立总分目标暂不能保存');if(available())e.exam_goals=meta;}
+  if(meta){if(!available()&&Object.entries(meta.items).some(([k,g])=>k==='total'||k.startsWith('m:')||G.num(g.rank)!==null)){const cap=await beforeApi.call(this,'list_exams',{exam_goal_version:1});supported=cap?.examGoalVersion===1;apiOwner=state.token;if(!available())throw Error('新版目标后端尚未启用，排名目标及独立总分目标暂不能保存');}if(available())e.exam_goals=meta;}
  }
  const requestOwner=state.token;
  const result=(action==='list_exams'||action==='bootstrap')?beforeApi.call(this,action,{...payload,exam_goal_version:1}):beforeApi.apply(this,arguments);
