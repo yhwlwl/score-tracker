@@ -6770,6 +6770,9 @@ function buildCsvV30(exams,scopeLabel){
   subjects.forEach(function(s){head.push(s+' 目标',s+' 最终分',s+' 最终满分',s+' 原始分',s+' 原始满分',s+' 年排',s+' 年级人数',s+' 班排',s+' 班级人数',s+' 年位比%',s+' 班位比%',s+' 不计总分',s+' 班级均分',s+' 年级均分',s+' 班级最高分',s+' 年级最高分');});
   head.push('总分','原始总分','总排名(年)','年级人数(总)','总班排','班级人数(总)','总年位比%','总班位比%','总分班级均分','总分年级均分','总分班级最高分','总分年级最高分');
   mods.forEach(function(m){head.push(m.name+' 年排',m.name+' 年人数',m.name+' 班排',m.name+' 班人数',m.name+' 班级均分',m.name+' 年级均分',m.name+' 班级最高分',m.name+' 年级最高分');});
+  var goalKeys=subjects.map(function(s){return ['s:'+s,s];}).concat([['total','总分']],mods.map(function(m){return ['m:'+m.id,m.name];}));
+  head.push('考试状态','目标来源');
+  goalKeys.forEach(function(k){head.push(k[1]+' 目标分(原满分)',k[1]+' 目标满分',k[1]+' 目标年排名次',k[1]+' 目标年位比%');});
   var lines=[head.map(csvCellV30).join(',')];
   exams.forEach(function(ex){
     var row=[ex.exam_date||'',ex.name||'',ex.grade_level||'',ex.end_date||''];
@@ -6787,6 +6790,9 @@ function buildCsvV30(exams,scopeLabel){
       row.push(fmtV30(numV30(r.yearRank)),fmtV30(numV30(r.yearParticipants)),fmtV30(numV30(r.classRank)),fmtV30(numV30(r.classParticipants)));
       row.push(averageV30(ex,'m:'+m.id,'class'),averageV30(ex,'m:'+m.id,'year'),averageV30(ex,'m:'+m.id,'classMax'),averageV30(ex,'m:'+m.id,'yearMax'));
     });
+    var goals=window.ScoreExamGoals,items=goals?goals.snapshot(ex):{};
+    row.push(goals&&goals.pending(ex)?'待完成':'已记录',({before_exam:'考前',before_results:'成绩前记录',retro:'补录',legacy:'来源时间未知'})[ex.exam_goals?.origin]||'');
+    goalKeys.forEach(function(k){var g=window.ScoreExamGoalReview?.goalOf(ex,k[0],false)||items[k[0]]||{};row.push(g.score??'',g.max??'',g.rankType==='number'?g.rank:'',g.rankType==='percent'?g.rank:'');});
     lines.push(row.map(csvCellV30).join(','));
   });
   return '\uFEFF'+lines.join('\r\n')+'\r\n';
@@ -6809,7 +6815,7 @@ function buildTxtV30(exams,scopeLabel){
     var bits=[ex.name||'未命名',ex.exam_date||''];
     if(ex.end_date)bits.push('至 '+ex.end_date);
     if(ex.grade_level)bits.push(ex.grade_level);
-    if(ex.is_hidden)bits.push('已隐藏');
+    if(window.ScoreExamGoals?.pending(ex))bits.push('待完成');else if(ex.is_hidden)bits.push('已隐藏');
     out.push('');out.push('【'+(i+1)+'】'+bits.join(' · '));
     subjectsUnionV30([ex]).forEach(function(s){
       var r=(ex.scores||{})[s]||{},seg=[s];
@@ -6848,6 +6854,8 @@ function buildTxtV30(exams,scopeLabel){
     var typ=numV30(ex.total_year_position_percent);if(typ!==null)tot.push('年位比 前'+typ+'%');
     var tcp=numV30(ex.total_class_position_percent);if(tcp!==null)tot.push('班位比 前'+tcp+'%');
     out.push('  '+tot.join(' ｜ '));
+    var goals=window.ScoreExamGoals?.snapshot(ex)||{};
+    Object.entries(goals).forEach(function(entry){var k=entry[0],g=entry[1];var title=k==='total'?'总分':k.startsWith('s:')?k.slice(2):modulesV30().find(function(m){return 'm:'+m.id===k;})?.name||'组合';var a=[g.score!=null?g.score+'/'+g.max+'分':'',g.rank!=null?'前'+g.rank+(g.rankType==='percent'?'%':'名'):''].filter(Boolean);if(a.length)out.push('  '+title+'目标：'+a.join(' ｜ '));});
   });
   out.push('');out.push('由 成绩轨迹 导出 · 把每一次努力，连成一条向上的线');
   return out.join('\r\n')+'\r\n';
@@ -7046,10 +7054,11 @@ function comboSumV30(ex,mo){
   return {fin:fin,fmax:fmax,raw:raw,rmax:rmax};
 }
 function buildPrintHtmlV30(exams,scopeLabel){
+  var recorded=exams.filter(function(ex){return !window.ScoreExamGoals?.pending(ex);});
   var account='';try{account=(state.user&&state.user.username)||'';}catch(e){}
   var dates=exams.map(function(e){return e.exam_date||'';}).filter(Boolean).sort();
   var span=dates.length?(dates[0]===dates[dates.length-1]?dates[0]:dates[0]+' ~ '+dates[dates.length-1]):'—';
-  var last=[].concat(exams).sort(function(a,b){return String(b.exam_date||'').localeCompare(String(a.exam_date||''));})[0];
+  var last=[].concat(recorded).sort(function(a,b){return String(b.exam_date||'').localeCompare(String(a.exam_date||''));})[0];
   var lastTotal=last?fmtV30(sumTotalV30(last,'actual')):'—';
   function logoSvg(size){
     return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 48 48" style="display:block">'
@@ -7060,7 +7069,7 @@ function buildPrintHtmlV30(exams,scopeLabel){
   /* —— 概览表行 —— */
   var overviewRows=exams.map(function(ex){
     return '<tr><td class="c-date">'+escV30(ex.exam_date||'—')+'</td>'
-      +'<td><b>'+escV30(ex.name||'未命名')+'</b>'+(ex.is_hidden?'<span class="hid">已隐藏</span>':'')+'</td>'
+      +'<td><b>'+escV30(ex.name||'未命名')+'</b>'+(window.ScoreExamGoals?.pending(ex)?'<span class="hid">待完成</span>':ex.is_hidden?'<span class="hid">已隐藏</span>':'')+'</td>'
       +'<td>'+(ex.grade_level?'<span class="pill">'+escV30(ex.grade_level)+'</span>':'<span class="dim">—</span>')+'</td>'
       +'<td class="num strong">'+(fmtV30(sumTotalV30(ex,'actual'))||'—')+'</td>'
       +'<td class="num">'+(fmtV30(sumTotalV30(ex,'raw'))||'—')+'</td>'
@@ -7180,18 +7189,19 @@ function buildPrintHtmlV30(exams,scopeLabel){
     +'<div class="meta">账户 <b>'+escV30(account||'—')+'</b><br>范围 <b>'+escV30(scopeLabel||'全部')+'</b> ｜ 生成于 '+humanNowV30()+'</div>'
     +'</div>'
     +'<div class="stats">'
-    +'<div class="stat"><b>'+exams.length+'</b><span>次考试</span></div>'
+    +'<div class="stat"><b>'+recorded.length+'</b><span>次已记录考试</span></div>'
     +'<div class="stat"><b style="font-size:11.5px;line-height:22px">'+escV30(span)+'</b><span>时间跨度</span></div>'
     +'<div class="stat"><b>'+(lastTotal==='—'?'—':lastTotal)+'</b><span>最近总分</span></div>'
     +'<div class="stat"><b style="font-size:11.5px;line-height:22px">'+escV30((function(){var o=[];exams.forEach(function(e){if(e.grade_level&&o.indexOf(e.grade_level)<0)o.push(e.grade_level);});return o.length?o.join(' / '):'—';})())+'</b><span>包含分类</span></div>'
     +'</div>'
-    +(function(){var c=totalRateChartV30(exams);return c?('<h2 class="sec">得分率趋势</h2><div class="chart-wrap">'+c+'</div>'):'';})()
-    +(function(){var m=rateMatrixV30(exams);return m?('<h2 class="sec">各科 · 组合 得分率</h2><div class="mx-wrap">'+m+'</div><div class="chart-note">数值为得分率（%），色深代表高低；空白表示该次考试未填此科目。</div>'):'';})()
-    +(function(){var a=rankLineChartV30(exams,'total_rank','年排'),b=rankLineChartV30(exams,'total_class_rank','班排');if(!a&&!b)return '';return '<h2 class="sec">排名趋势</h2><div class="rank-grid">'+a+b+'</div><div class="chart-note">名次越小越好 · 线向上表示进步；两图各自独立刻度。</div>';})()
+    +(function(){var c=totalRateChartV30(recorded);return c?('<h2 class="sec">得分率趋势</h2><div class="chart-wrap">'+c+'</div>'):'';})()
+    +(function(){var m=rateMatrixV30(recorded);return m?('<h2 class="sec">各科 · 组合 得分率</h2><div class="mx-wrap">'+m+'</div><div class="chart-note">数值为得分率（%），色深代表高低；空白表示该次考试未填此科目。</div>'):'';})()
+    +(function(){var a=rankLineChartV30(recorded,'total_rank','年排'),b=rankLineChartV30(recorded,'total_class_rank','班排');if(!a&&!b)return '';return '<h2 class="sec">排名趋势</h2><div class="rank-grid">'+a+b+'</div><div class="chart-note">名次越小越好 · 线向上表示进步；两图各自独立刻度。</div>';})()
     +(exams.length?('<h2 class="sec">成绩总览</h2>'
     +'<table class="ov"><thead><tr><th>日期</th><th>考试</th><th>分类</th><th>总分</th><th>原始总分</th><th>年排</th><th>班排</th></tr></thead><tbody>'+overviewRows+'</tbody></table>'
     +'<h2 class="sec">各科明细</h2>'+blocks)
     :'<div style="text-align:center;color:#98a1ae;padding:40px 0">该范围内暂无考试</div>')
+    +(function(){var rows=[];exams.forEach(function(ex){Object.entries(window.ScoreExamGoals?.snapshot(ex)||{}).forEach(function(entry){var k=entry[0],g=entry[1],name=k==='total'?'总分':k.startsWith('s:')?k.slice(2):modulesV30().find(function(m){return 'm:'+m.id===k;})?.name||'组合';rows.push('<tr><td>'+escV30(ex.name)+'</td><td>'+escV30(name)+'</td><td>'+escV30(g.score!=null?g.score+'/'+g.max:'—')+'</td><td>'+escV30(g.rank!=null?'前'+g.rank+(g.rankType==='percent'?'%':'名'):'—')+'</td></tr>');});});return rows.length?'<h2 class="sec">单场考试目标</h2><table class="ov"><thead><tr><th>考试</th><th>科目或组合</th><th>分数目标</th><th>排名目标</th></tr></thead><tbody>'+rows.join('')+'</tbody></table>':'';})()
     +'<div class="foot">来自 成绩轨迹 '+escV30(appVersionV30())+' · 把每一次努力，连成一条向上的线</div>'
     +'</body></html>';
 }
@@ -7631,7 +7641,7 @@ function fmtPos32(p){return (p===null||p===undefined)?"—":"前"+r32(p)+"%";}
 function shortName32(name){return String(name||"").replace("高一下","一下").replace("高二下","二下").replace("高三下","三下").replace("高二上","二上").replace("高三上","三上").replace("高一","一上").replace("高二","二上").replace("高三","三上");}
 
 /* ================= 数据访问层 ================= */
-function allExamsV32(){try{return (typeof state!=="undefined"&&(Array.isArray(state.allExams)?state.allExams:state.exams))||[];}catch(e){return [];}}
+function allExamsV32(){try{return ((typeof state!=="undefined"&&(Array.isArray(state.allExams)?state.allExams:state.exams))||[]).filter(function(e){return !window.ScoreExamGoals?.pending(e);});}catch(e){return [];}}
 function byDate32(a,b){var d=String(a.exam_date||"").localeCompare(String(b.exam_date||""));return d||String(a.created_at||"").localeCompare(String(b.created_at||""));}
 function visibleExamsV32(includeHidden){
   return allExamsV32().filter(function(e){return includeHidden?!0:!e.is_hidden;}).slice().sort(byDate32);
@@ -7640,7 +7650,7 @@ function worthHistoryExamsV32(includeHidden){
   var source=state.allExams;
   if(!Array.isArray(source)||!source.length)source=state.unfilteredVisibleExamsV13;
   if(!Array.isArray(source)||!source.length)source=allExamsV32();
-  return source.filter(function(e){return includeHidden||!e.is_hidden;}).slice().sort(byDate32);
+  return source.filter(function(e){return !window.ScoreExamGoals?.pending(e)&&(includeHidden||!e.is_hidden);}).slice().sort(byDate32);
 }
 function configuredSubjectsV32(){
   var out=[];try{((typeof state!=="undefined"&&state.subjectConfigs)||[]).forEach(function(c){var nm=c&&(c.name||c);if(nm&&out.indexOf(nm)<0)out.push(nm);});}catch(e){}
@@ -8006,7 +8016,12 @@ function buildInsightsV32(f){
     }
   });
   /* 目标校准 */
-  f.subjects.forEach(function(s){
+  if(window.ScoreExamGoalReview){
+    window.ScoreExamGoalReview.rows(f.exams,state.sv31?.subjMod||null).filter(function(c){return c.decision==="提高目标"||c.decision==="适当放宽";}).forEach(function(c){
+      var label=window.ScoreExamGoalReview.name(c.key),sug=window.ScoreExamGoalReview.suggestion(c,c.kind);
+      add({sev:3,type:"tcal",subj:label+" · "+(c.kind==="score"?"分数":"排名"),icon:"target",title:esc32(label)+" · "+esc32(c.decision),body:"建议下次目标："+esc32(sug),ev:c.reason});
+    });
+  }else f.subjects.forEach(function(s){
     var t=f.tgt[s];if(!t)return;
     var vp=f.valid[s],base=vp.length?median32(vp.slice(-3).map(function(x){return x.pos;})):null;
     if(t.notMet>=3&&base!==null){
@@ -8555,6 +8570,7 @@ function hallHtmlV32(f,mode){
 }
 /* ---------- ⑥ 目标校准 ---------- */
 function calibHtmlV32(f,mode){
+  if(window.ScoreExamGoalReview)return window.ScoreExamGoalReview.calHtml(f.exams,state.sv31?.subjMod||null);
   var rows=[];
   f.subjects.forEach(function(s){
     var t=f.tgt[s];if(!t||!t.mets.length)return;
@@ -12629,6 +12645,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     modal.querySelectorAll('.combo-card-v21').forEach(function(card){var id=card.dataset.comboId;if(!id)return;exam.moduleRanks[id]={yearRank:(card.querySelector('.combo-yr-v25')||{}).value||'',yearParticipants:(card.querySelector('.combo-yp-v25')||{}).value||'',classRank:(card.querySelector('.combo-cr-v25')||{}).value||'',classParticipants:(card.querySelector('.combo-cp-v25')||{}).value||''};});
     exam.averages={};
     modal.querySelectorAll('input[data-average-row]').forEach(function(input){if(input.value==='')return;var key=input.dataset.averageRow,scope=input.dataset.averageScope;var row=exam.averages[key]||(exam.averages[key]={});row[scope]=input.value;});
+    if(window.ExamGoalLifecycle&&modal._egItems){try{exam.exam_goals=window.ExamGoalLifecycle.metadata(modal,exam);}catch(_) {exam.exam_goals={planned:!!modal._egSource?.exam_goals?.planned,items:modal._egItems};}}
     return exam;
   }
   function readDraft61(){try{var d=JSON.parse(localStorage.getItem(draftKey61())||'null');return d&&d.exam?d:null;}catch(e){return null;}}
@@ -13623,7 +13640,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
         if(matches.length){
           var estimate=prediction();
           body+='<div class="st-peer-summary" aria-live="polite">'+(estimate?'<div class="st-peer-center"><span>下次'+(filters.metric==='score'?'得分率':'排名')+'预测</span><strong>'+fmt(estimate.center)+'</strong></div><div class="st-peer-range"><span>参考范围</span><b>'+fmt(estimate.low)+' ～ '+fmt(estimate.high)+'</b></div><small>'+estimate.count+' 条轨迹参与计算'+(estimate.disagreement?' · 走势有分歧':'')+(estimate.count<10?' · 参考样本较少':'')+'</small>':result.preliminary?'<div><strong>初步相似参考</strong><small>已有2次记录，满3次可预测。</small></div>':'<div><strong>选择参考轨迹</strong><small>至少选择一条参考。</small></div>')+'</div>';
-          body+='<div class="st-peer-options"><span class="st-peer-mine">● 我的轨迹</span>'+matches.map(function(m,i){return '<button type="button" class="st-peer-option" style="--peer-color:'+peerColor(i)+'" data-peer-index="'+i+'" aria-pressed="'+selected[i]+'"><span class="st-peer-option-title"><span>● 相似轨迹 '+(i+1)+'</span>'+scoreBadge(m)+'</span><small>'+(Number(m.history_length)||m.history.length)+' 次历史</small></button>';}).join('')+'</div>'+(result.matches.length>3?'<p class="st-peer-note">'+(estimate?'使用全部已选参考；':'初步参考不计算预测中心；')+'仅展示前三条。<button type="button" class="st-peer-link" data-peer-expand aria-expanded="'+expandedReferences+'">'+(expandedReferences?'收起其余参考':'展开全部 '+result.matches.length+' 条参考')+'</button></p>':'')+chart(estimate);
+          body+='<div class="st-peer-options"><div class="st-peer-option-head"><span class="st-peer-mine">● 我的轨迹</span><small>点击切换参考轨迹</small></div><div class="st-peer-option-grid'+(expandedReferences?' is-expanded':'')+'" role="group" aria-label="选择参考轨迹">'+matches.map(function(m,i){var h=Number(m.history_length)||m.history.length;return '<button type="button" class="st-peer-option" style="--peer-color:'+peerColor(i)+'" data-peer-index="'+i+'" aria-pressed="'+selected[i]+'"><span class="st-peer-option-title"><span class="st-peer-dot"></span><span>相似轨迹 '+(i+1)+'</span></span><span class="st-peer-option-meta">'+scoreBadge(m)+'<small>'+h+' 次历史</small></span></button>';}).join('')+'</div></div>'+(result.matches.length>3?'<p class="st-peer-note st-peer-expand-note"><span>'+(estimate?'已选参考均参与计算；':'初步参考；')+(expandedReferences?'显示全部 '+matches.length+' 条参考':'当前显示前三条')+'。</span><button type="button" class="st-peer-link" data-peer-expand aria-expanded="'+expandedReferences+'">'+(expandedReferences?'收起其余参考':'展开全部 '+result.matches.length+' 条参考')+'</button></p>':'')+chart(estimate);
           var helpOpen=host.querySelector('.st-peer-help');
           body+='<details class="st-peer-help"'+(helpOpen&&helpOpen.open?' open':'')+'><summary>预测与匹配说明</summary><p>'+ (filters.match_mode==='shape'?'相似走势先平移到你最近一次的水平，再参考他们后续的变化；图中也已对齐。':'重合模式保留对方的成绩水平，直接参考他们的后续成绩。')+'超出 0～100% 的部分按边界显示。</p><p>正式预测中心以你最近三次有效成绩的中位水平为主（75%），结合参考轨迹后续的加权平均（25%）。参考轨迹默认按走势贴合度 × 参考场次的平方根加权，最多使用 20 位不同用户；图表默认只展示三条。正式目标是下一次有有效'+(filters.metric==='score'?'得分率':'排名')+'的考试。</p><p class="st-peer-fit-note">两次历史只提供初步相似参考，不显示预测中心；走势贴合度不是预测准确率。缺少该指标的考试会跳过，不会截断有效历史。</p><p>“全部分类”会连接你自己的有效历史；“仅匹配同分类”只筛选参考轨迹。排名群体和考试难度仍可能不同，预测仅供参考。</p></details>';
           body+='<details class="st-peer-details"><summary>查看每次成绩</summary><div class="st-peer-table"><table><thead><tr><th>考试</th><th>我</th>'+matches.map(function(m,i){return '<th>轨迹 '+(i+1)+'</th>';}).join('')+'</tr></thead><tbody>';
@@ -13702,6 +13719,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   window.__stTrajectories={html:function(){return '<section class="st-peer" data-peer-host aria-label="相似轨迹"></section>';},bind:bind};
   // Keep the canvas coordinates identical to SVG coordinates, including on wide screens.
   style.textContent+='.st-peer-chart-canvas{min-width:0}.st-peer-forecast-tip{line-height:1.5}.st-peer-forecast-label{padding:0;background:transparent;border-radius:0;min-height:20px;font-size:10px;font-weight:400}';
+  style.textContent+=".st-peer .st-peer-options{display:block;margin:14px 0 8px;min-width:0}.st-peer-option-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}.st-peer-option-head small{font-size:11px;color:var(--muted,#788392)}.st-peer .st-peer-mine{width:auto;margin:0;white-space:nowrap}.st-peer-option-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,145px),1fr));gap:7px;min-width:0}.st-peer-option-grid.is-expanded{max-height:300px;overflow:auto;overscroll-behavior:contain;padding:1px 3px 3px 1px;scrollbar-width:thin}.st-peer .st-peer-option{box-sizing:border-box;min-width:0;width:100%;max-width:100%;padding:9px 8px;border:1px solid var(--line,#e8ebf0);border-radius:9px;background:var(--panel-solid,#fff);color:var(--text,#18212f);gap:5px;align-items:stretch;overflow:hidden}.st-peer .st-peer-option[aria-pressed=true]{border-left:3px solid var(--peer-color);padding-left:6px}.st-peer .st-peer-option[aria-pressed=false]{opacity:.5;border-color:var(--line,#e8ebf0);border-left:3px solid var(--line,#e8ebf0);padding-left:6px}.st-peer .st-peer-option-title{display:flex;flex-wrap:nowrap;align-items:center;gap:5px;font-weight:600;white-space:nowrap;font-size:12px;line-height:1.4}.st-peer-dot{width:8px;height:8px;border-radius:50%;background:var(--peer-color);flex:none}.st-peer-option-meta{display:flex;align-items:center;justify-content:space-between;gap:3px;min-width:0;flex-wrap:wrap}.st-peer .st-peer-fit{padding:2px 4px;font-size:10px;background:var(--cell,#f6f7fa);white-space:nowrap}.st-peer .st-peer-option-meta small{font-size:10px;white-space:nowrap;color:var(--muted,#788392)}.st-peer-expand-note{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:5px 8px;margin:6px 0 10px}.st-peer-expand-note .st-peer-link{white-space:nowrap;padding:4px 0}@media(max-width:620px){.st-peer-option-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.st-peer-option-grid.is-expanded{max-height:264px}.st-peer .st-peer-option{padding:8px 6px;gap:4px}.st-peer .st-peer-option[aria-pressed]{padding-left:5px}.st-peer .st-peer-option-meta{justify-content:flex-start;column-gap:5px}.st-peer .st-peer-option-title{font-size:12px}.st-peer .st-peer-fit{font-size:10px;padding:2px 3px}}@media(max-width:325px){.st-peer-option-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.st-peer .st-peer-option-meta{gap:2px}}";
   document.addEventListener('click',function(event){if(host&&!host.contains(event.target))toggleForecast(false);});
   // Invalidate in-flight results as soon as navigation or sign-out removes the host.
   new MutationObserver(function(){if(host&&!host.isConnected){generation++;host=null;result=null;}if(owner!==identity())reset();}).observe(document.body,{childList:true,subtree:true});
@@ -15276,7 +15294,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     var v = view, m = model(exam), content = document.getElementById('content');
     generation++; v.loading = false;
     if (!v.scope) v.scope = m.included.filter(function (r) { return r.year.percent !== null; }).length < 2 && m.included.filter(function (r) { return r.class.percent !== null; }).length >= 2 ? 'class' : 'year';
-    content.innerHTML = '<div class="ed-page">' + header(exam) + (v.report ? '<div class="ed-reader"></div>' : overview(exam, m) + scores(exam, m) + '<section class="ed-section" id="ed-changes" tabindex="-1"></section><section class="ed-section" id="ed-quadrants" tabindex="-1"></section><section class="ed-section ed-reflection" id="ed-reflection" tabindex="-1"></section>' + (paperReviewAvailable() ? '<section class="ed-section" id="ed-papers" tabindex="-1"><div class="ed-section-head"><div><span class="ed-eyebrow">05 / 试题与作答</span><h2>这次考试的试卷</h2><p>按科目查看已录入的题目、作答、批改分与原始扫描件。查看已有内容不计分析次数。</p></div></div><div class="ed-paper-content"></div></section>' : '')) + '</div>';
+    content.innerHTML = '<div class="ed-page">' + header(exam) + (v.report ? '<div class="ed-reader"></div>' : overview(exam, m) + scores(exam, m) + (window.ScoreExamGoalReview?window.ScoreExamGoalReview.recap(exam):"") + '<section class="ed-section" id="ed-changes" tabindex="-1"></section><section class="ed-section" id="ed-quadrants" tabindex="-1"></section><section class="ed-section ed-reflection" id="ed-reflection" tabindex="-1"></section>' + (paperReviewAvailable() ? '<section class="ed-section" id="ed-papers" tabindex="-1"><div class="ed-section-head"><div><span class="ed-eyebrow">05 / 试题与作答</span><h2>这次考试的试卷</h2><p>按科目查看已录入的题目、作答、批改分与原始扫描件。查看已有内容不计分析次数。</p></div></div><div class="ed-paper-content"></div></section>' : '')) + '</div>';
     content.querySelector('.ed-page').onclick = function (e) {
       var toggle=e.target.closest('[data-reference-toggle]');if(toggle){var card=toggle.closest('.ed-ref-card');card.dataset.refSelected=toggle.dataset.referenceToggle;card.querySelectorAll('[data-reference-toggle]').forEach(function(b){b.setAttribute('aria-pressed',String(b===toggle));});return;}
       var b = e.target.closest('[data-ed]'); if (!b) return;

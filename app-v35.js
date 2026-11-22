@@ -82,6 +82,7 @@
     modal.querySelectorAll('.combo-card-v21').forEach(function(card){var id=card.dataset.comboId;if(!id)return;exam.moduleRanks[id]={yearRank:(card.querySelector('.combo-yr-v25')||{}).value||'',yearParticipants:(card.querySelector('.combo-yp-v25')||{}).value||'',classRank:(card.querySelector('.combo-cr-v25')||{}).value||'',classParticipants:(card.querySelector('.combo-cp-v25')||{}).value||''};});
     exam.averages={};
     modal.querySelectorAll('input[data-average-row]').forEach(function(input){if(input.value==='')return;var key=input.dataset.averageRow,scope=input.dataset.averageScope;var row=exam.averages[key]||(exam.averages[key]={});row[scope]=input.value;});
+    if(window.ExamGoalLifecycle&&modal._egItems){try{exam.exam_goals=window.ExamGoalLifecycle.metadata(modal,exam);}catch(_) {exam.exam_goals={planned:!!modal._egSource?.exam_goals?.planned,items:modal._egItems};}}
     return exam;
   }
   function readDraft61(){try{var d=JSON.parse(localStorage.getItem(draftKey61())||'null');return d&&d.exam?d:null;}catch(e){return null;}}
