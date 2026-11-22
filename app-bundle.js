@@ -7631,7 +7631,7 @@ function fmtPos32(p){return (p===null||p===undefined)?"—":"前"+r32(p)+"%";}
 function shortName32(name){return String(name||"").replace("高一下","一下").replace("高二下","二下").replace("高三下","三下").replace("高二上","二上").replace("高三上","三上").replace("高一","一上").replace("高二","二上").replace("高三","三上");}
 
 /* ================= 数据访问层 ================= */
-function allExamsV32(){try{return (typeof state!=="undefined"&&(Array.isArray(state.allExams)?state.allExams:state.exams))||[];}catch(e){return [];}}
+function allExamsV32(){try{return ((typeof state!=="undefined"&&(Array.isArray(state.allExams)?state.allExams:state.exams))||[]).filter(function(e){return !window.ScoreExamGoals?.pending(e);});}catch(e){return [];}}
 function byDate32(a,b){var d=String(a.exam_date||"").localeCompare(String(b.exam_date||""));return d||String(a.created_at||"").localeCompare(String(b.created_at||""));}
 function visibleExamsV32(includeHidden){
   return allExamsV32().filter(function(e){return includeHidden?!0:!e.is_hidden;}).slice().sort(byDate32);
@@ -7640,7 +7640,7 @@ function worthHistoryExamsV32(includeHidden){
   var source=state.allExams;
   if(!Array.isArray(source)||!source.length)source=state.unfilteredVisibleExamsV13;
   if(!Array.isArray(source)||!source.length)source=allExamsV32();
-  return source.filter(function(e){return includeHidden||!e.is_hidden;}).slice().sort(byDate32);
+  return source.filter(function(e){return !window.ScoreExamGoals?.pending(e)&&(includeHidden||!e.is_hidden);}).slice().sort(byDate32);
 }
 function configuredSubjectsV32(){
   var out=[];try{((typeof state!=="undefined"&&state.subjectConfigs)||[]).forEach(function(c){var nm=c&&(c.name||c);if(nm&&out.indexOf(nm)<0)out.push(nm);});}catch(e){}
@@ -8006,7 +8006,12 @@ function buildInsightsV32(f){
     }
   });
   /* 目标校准 */
-  f.subjects.forEach(function(s){
+  if(window.ScoreExamGoalReview){
+    window.ScoreExamGoalReview.rows(f.exams,state.sv31?.subjMod||null).filter(function(c){return c.decision==="提高目标"||c.decision==="适当放宽";}).forEach(function(c){
+      var label=window.ScoreExamGoalReview.name(c.key),sug=window.ScoreExamGoalReview.suggestion(c,c.kind);
+      add({sev:3,type:"tcal",subj:label+" · "+(c.kind==="score"?"分数":"排名"),icon:"target",title:esc32(label)+" · "+esc32(c.decision),body:"建议下次目标："+esc32(sug),ev:c.reason});
+    });
+  }else f.subjects.forEach(function(s){
     var t=f.tgt[s];if(!t)return;
     var vp=f.valid[s],base=vp.length?median32(vp.slice(-3).map(function(x){return x.pos;})):null;
     if(t.notMet>=3&&base!==null){
@@ -8555,6 +8560,7 @@ function hallHtmlV32(f,mode){
 }
 /* ---------- ⑥ 目标校准 ---------- */
 function calibHtmlV32(f,mode){
+  if(window.ScoreExamGoalReview)return window.ScoreExamGoalReview.calHtml(f.exams,state.sv31?.subjMod||null);
   var rows=[];
   f.subjects.forEach(function(s){
     var t=f.tgt[s];if(!t||!t.mets.length)return;
@@ -12629,6 +12635,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     modal.querySelectorAll('.combo-card-v21').forEach(function(card){var id=card.dataset.comboId;if(!id)return;exam.moduleRanks[id]={yearRank:(card.querySelector('.combo-yr-v25')||{}).value||'',yearParticipants:(card.querySelector('.combo-yp-v25')||{}).value||'',classRank:(card.querySelector('.combo-cr-v25')||{}).value||'',classParticipants:(card.querySelector('.combo-cp-v25')||{}).value||''};});
     exam.averages={};
     modal.querySelectorAll('input[data-average-row]').forEach(function(input){if(input.value==='')return;var key=input.dataset.averageRow,scope=input.dataset.averageScope;var row=exam.averages[key]||(exam.averages[key]={});row[scope]=input.value;});
+    if(window.ExamGoalLifecycle&&modal._egItems){try{exam.exam_goals=window.ExamGoalLifecycle.metadata(modal,exam);}catch(_) {exam.exam_goals={planned:!!modal._egSource?.exam_goals?.planned,items:modal._egItems};}}
     return exam;
   }
   function readDraft61(){try{var d=JSON.parse(localStorage.getItem(draftKey61())||'null');return d&&d.exam?d:null;}catch(e){return null;}}
@@ -15276,7 +15283,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     var v = view, m = model(exam), content = document.getElementById('content');
     generation++; v.loading = false;
     if (!v.scope) v.scope = m.included.filter(function (r) { return r.year.percent !== null; }).length < 2 && m.included.filter(function (r) { return r.class.percent !== null; }).length >= 2 ? 'class' : 'year';
-    content.innerHTML = '<div class="ed-page">' + header(exam) + (v.report ? '<div class="ed-reader"></div>' : overview(exam, m) + scores(exam, m) + '<section class="ed-section" id="ed-changes" tabindex="-1"></section><section class="ed-section" id="ed-quadrants" tabindex="-1"></section><section class="ed-section ed-reflection" id="ed-reflection" tabindex="-1"></section>' + (paperReviewAvailable() ? '<section class="ed-section" id="ed-papers" tabindex="-1"><div class="ed-section-head"><div><span class="ed-eyebrow">05 / 试题与作答</span><h2>这次考试的试卷</h2><p>按科目查看已录入的题目、作答、批改分与原始扫描件。查看已有内容不计分析次数。</p></div></div><div class="ed-paper-content"></div></section>' : '')) + '</div>';
+    content.innerHTML = '<div class="ed-page">' + header(exam) + (v.report ? '<div class="ed-reader"></div>' : overview(exam, m) + scores(exam, m) + (window.ScoreExamGoalReview?window.ScoreExamGoalReview.recap(exam):"") + '<section class="ed-section" id="ed-changes" tabindex="-1"></section><section class="ed-section" id="ed-quadrants" tabindex="-1"></section><section class="ed-section ed-reflection" id="ed-reflection" tabindex="-1"></section>' + (paperReviewAvailable() ? '<section class="ed-section" id="ed-papers" tabindex="-1"><div class="ed-section-head"><div><span class="ed-eyebrow">05 / 试题与作答</span><h2>这次考试的试卷</h2><p>按科目查看已录入的题目、作答、批改分与原始扫描件。查看已有内容不计分析次数。</p></div></div><div class="ed-paper-content"></div></section>' : '')) + '</div>';
     content.querySelector('.ed-page').onclick = function (e) {
       var toggle=e.target.closest('[data-reference-toggle]');if(toggle){var card=toggle.closest('.ed-ref-card');card.dataset.refSelected=toggle.dataset.referenceToggle;card.querySelectorAll('[data-reference-toggle]').forEach(function(b){b.setAttribute('aria-pressed',String(b===toggle));});return;}
       var b = e.target.closest('[data-ed]'); if (!b) return;
