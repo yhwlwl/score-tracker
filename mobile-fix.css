@@ -195,3 +195,22 @@ html,body,#app{max-width:100%;overflow-x:hidden}
   #ed-scores .ed-section-head p{margin:3px 0;font-size:12px;line-height:1.4}
   #ed-scores .ed-table tbody{display:grid;grid-template-columns:minmax(0,1fr)}
 }
+
+/* Compact, visible supplemental values; comparison charts stay optional. */
+.ed-saved-reference{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 8px;color:var(--muted);font-size:12px}
+.ed-saved-reference .ed-saved-item{display:flex;gap:5px;align-items:baseline;flex-wrap:wrap}
+.ed-saved-reference .ed-saved-item b{font-size:13px!important;color:var(--text);font-variant-numeric:tabular-nums}
+.ed-saved-reference small{grid-column:1/-1}
+.ed-saved-goal{display:inline-flex;align-items:baseline;gap:5px;flex-wrap:wrap;font-size:12px;margin-right:7px}
+.ed-saved-goal b{font-size:13px!important}
+.ed-saved-goal small{display:inline!important;margin:0!important}
+.ed-context .ed-saved-reference{flex-basis:100%}
+.ed-combo-goals:not(:empty),.ed-combo-grid .ed-saved-reference{margin-top:7px}
+.ed-reference-charts .ed-ref-grid{margin-top:12px}
+@media(min-width:1051px){#ed-scores td[data-label="参考成绩"] .ed-saved-reference{grid-template-columns:1fr}}
+@media(max-width:1050px){
+ #ed-scores .ed-table tbody td[data-label="参考成绩"]{grid-column:1/-1;grid-row:4;border-top:1px solid var(--line);padding-top:6px}
+ #ed-scores .ed-table tbody td[data-label="参考成绩"]:has(.ed-saved-reference)::before{display:none}
+ #ed-scores .ed-table tbody td[data-label="参考成绩"]:not(:has(.ed-saved-reference)){display:none}
+ #ed-scores .ed-table tbody td[data-label="目标"]{gap:3px 6px}
+}
