@@ -7,11 +7,12 @@ const own=(o,k)=>Object.prototype.hasOwnProperty.call(o||{},k);
 const valid=(v,lo,hi,int=false)=>{let n=num(v);return n!==null&&n>=lo&&n<=hi&&(!int||Number.isInteger(n));};
 const round=v=>Math.round(v*100)/100;
 function actual(e){
+ if(!e)return false;
  return ['total_actual_score','total_raw_score','total_rank','total_class_rank','total_year_position_percent','total_class_position_percent','city_rank','district_rank','cityRank','districtRank'].some(k=>num(e[k])!==null)||
  Object.values(e.scores||{}).some(s=>['actual','raw','rank','classRank','yearPositionPercent','classPositionPercent'].some(k=>num(s[k])!==null))||
  Object.values(e.moduleRanks||{}).some(s=>['yearRank','classRank','yearPositionPercent','classPositionPercent'].some(k=>num(s[k])!==null));
 }
-function pending(e){return !!(e.exam_goals&&e.exam_goals.planned&&!actual(e));}
+function pending(e){return !!(e?.exam_goals&&e.exam_goals.planned&&!actual(e));}
 function cleanItems(raw,e){
  if(!raw||typeof raw!=='object'||Array.isArray(raw)||Object.keys(raw).length>53)throw Error('考试目标格式不正确');
  const out={};
@@ -26,6 +27,7 @@ function cleanItems(raw,e){
  return out;
 }
 function snapshot(e){
+ e=e||{};
  const items=Object.assign({},e.exam_goals?.items||{});
  Object.entries(e.scores||{}).forEach(([n,s])=>{if(num(s.target)!==null&&num(s.max)>0){const k='s:'+n;if(num(items[k]?.score)===null)items[k]={...items[k],score:+s.target,max:+s.max};}});
  return items;
@@ -40,7 +42,7 @@ function evolve(old,e,raw,now){
  const canonical=o=>JSON.stringify(Object.keys(o).sort().map(k=>[k,o[k].score??null,o[k].max??null,o[k].rankType??null,o[k].rank??null]));
  const oldItems=prev?.items||legacy;
  const changed=canonical(oldItems)!==canonical(items);
- const origin=prev?.origin||(Object.keys(legacy).length?'legacy':oldActual||hasActual?'retro':String(e.exam_date||'')>now.slice(0,10)?'before_exam':'before_results');
+ const origin=prev?.origin||(Object.keys(legacy).length?'legacy':oldActual||hasActual?'retro':String(e.exam_date||'')>new Date(Date.parse(now)+8*3600000).toISOString().slice(0,10)?'before_exam':'before_results');
  const locked=prev?.locked||((oldActual||hasActual)&&Object.keys(oldItems).length&&origin!=='retro'?oldItems:null);
  return {version:1,planned,items,firstSetAt:first,updatedAt:changed?now:prev?.updatedAt||now,origin,locked,changedAfterResults:!!prev?.changedAfterResults||!!(oldActual&&changed)};
 }
@@ -75,7 +77,8 @@ function calibrate(history,kind){
  const comparableTargets=evaluated.filter(t=>t.x.origin!=='retro'&&t.ev!==null&&(kind==='score'||normalize(t.x)!==null));
  let streak=0,met=lastEval?.met;
  for(let i=evaluated.length-1;i>=0;i--){const t=evaluated[i];if(t.x.origin==='retro'||!t.ev||t.ev.met!==met)break;streak++;}
- const recent=history.filter(comparable).map(normalize).filter(v=>v!==null&&Number.isFinite(v)).slice(-5);
+ const comparableActual=history.filter(comparable).map(normalize).filter(v=>v!==null&&Number.isFinite(v));
+ const recent=comparableActual.slice(-5);
  let suggestion=target,decision='保持目标',reason='目前目标较合理，建议继续保持。';
  const result={goal:g,actual:last.actual,streak,met,eligible:comparableTargets.length,unit,max,origin:last.origin,referencePeople:people,actualMissing:!lastEval,recentCount:recent.length};
  if(!lastEval){decision='待补录';reason='补录实际'+(kind==='score'?'成绩':'排名')+'后再判断。';}
@@ -85,8 +88,8 @@ function calibrate(history,kind){
   // Median is the typical level. The upper/lower quartile and personal best
   // limit how ambitious the next step is; IQR guards against unstable results.
   const direction=kind==='score'?1:-1,quality=recent.map(v=>v*direction);
-  const mid=quantile(quality,.5),strong=quantile(quality,.75),best=Math.max(...quality),spread=quantile(quality,.75)-quantile(quality,.25),t=target*direction;
-  const stable=Math.max(0,1-spread/20),buffer=Math.min((best-mid)*.5,(strong-mid)+Math.max(0,best-strong)*.35);
+  const mid=quantile(quality,.5),strong=quantile(quality,.75),recentBest=Math.max(...quality),best=Math.max(...comparableActual.map(v=>v*direction)),spread=quantile(quality,.75)-quantile(quality,.25),t=target*direction;
+  const stable=Math.max(0,1-spread/20),bestBound=Math.min(best,recentBest+(recentBest-mid)*.15),buffer=Math.min((bestBound-mid)*.5,(strong-mid)+Math.max(0,bestBound-strong)*.35);
   const candidate=met?mid+(strong-mid)*(.5+.5*stable):mid+buffer*(.45+.55*stable);
   const tolerance=kind==='score'?0.5:unit==='number'?Math.max(.2,100/people):.5;
   if((met&&candidate>t+tolerance)||(!met&&candidate<t-tolerance)){
@@ -111,7 +114,8 @@ function restoreBackup(raw,normalized){
   const items=cleanItems(g.items,e),planned=g.planned===true&&!actual(e);
   const stamp=v=>typeof v==='string'&&v.length<=40&&Number.isFinite(Date.parse(v))?v:null;
   // Restore current data; imported origin cannot be independently verified.
-  e.exam_goals={version:1,planned,items,firstSetAt:stamp(g.firstSetAt),updatedAt:stamp(g.updatedAt),origin:g.origin==='retro'?'retro':'legacy',imported:true,locked:null,changedAfterResults:!!g.changedAfterResults};
+  const locked=g.locked&&typeof g.locked==='object'&&!Array.isArray(g.locked)?cleanItems(Object.fromEntries(Object.entries(g.locked).filter(([k])=>k==='total'||k.startsWith('s:')&&own(e.scores,k.slice(2))||k.startsWith('m:')&&(e.moduleIds||[]).includes(k.slice(2)))),e):null;
+  e.exam_goals={version:1,planned,items,firstSetAt:stamp(g.firstSetAt),updatedAt:stamp(g.updatedAt),origin:g.origin==='retro'?'retro':'legacy',imported:true,locked,changedAfterResults:!!g.changedAfterResults};
   if(planned)e.is_hidden=true;
  });
  return normalized;
