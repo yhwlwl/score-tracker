@@ -2,6 +2,8 @@
 (function(){
 'use strict';
 const G=window.ScoreExamGoals;if(!G)return;
+let supported=false,apiOwner=null;
+function available(){return supported&&apiOwner===String(state.user?.id||state.user?.username||'');}
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const val=(n,k)=>n?.querySelector(k)?.value??'';
 const find=id=>(state.allExams||[]).find(e=>String(e.id)===String(id));
@@ -50,6 +52,7 @@ function planDialog(ex){
  modal.addEventListener('change',ev=>{const t=ev.target;if(t.hasAttribute('data-eg-sub')||t.hasAttribute('data-eg-module')){sync();const isSub=t.hasAttribute('data-eg-sub'),key=isSub?t.dataset.egSub:t.dataset.egModule,set=isSub?selected:modIds;if(t.checked){set.add(key);if(isSub&&!scores[key])scores[key]={max:cfg.find(s=>s.name===key)?.defaultMax||100};}else set.delete(key);draw();}});
  modal.querySelector('.close-btn').onclick=close;modal.querySelector('.cancel-btn').onclick=close;modal.onclick=e=>{if(e.target===modal)close();};
  modal.querySelector('.save-btn').onclick=async function(){
+  if(!available())return toast('当前预览未连接新版目标后端，暂不能保存考试计划');
   sync();let next={...(original||{}),name:val(modal,'#egName').trim(),exam_date:val(modal,'#egDate'),grade_level:select.value,scores:{},moduleIds:Array.from(modIds),moduleRanks:original?.moduleRanks||{},is_hidden:!!original?.is_hidden};
   if(!next.name||!next.exam_date||!selected.size)return toast('请填写考试名称、日期和科目');
   const clean={};
@@ -101,9 +104,11 @@ const beforeApi=dataApiV7;dataApiV7=function(action,payload){
  const modal=state.modal;if(action==='save_exam'&&payload?.exam&&modal?._egItems){
   const e=payload.exam,meta=metadata(modal,e);
   if(G.pending(modal._egSource)&&!G.actual(e)&&!Array.from(modal.querySelectorAll('.combo-yr-v25,.combo-cr-v25,.total-actual-override-v24,.total-raw-override-v24')).some(n=>G.num(n.value)!==null))throw Error('请至少录入一项实际成绩或排名');
-  if(meta)e.exam_goals=meta;
+  if(meta){if(!available()&&Object.entries(meta.items).some(([k,g])=>k==='total'||k.startsWith('m:')||G.num(g.rank)!==null))throw Error('新版目标后端尚未启用，排名目标及独立总分目标暂不能保存');if(available())e.exam_goals=meta;}
  }
- return beforeApi.apply(this,arguments);
+ const result=beforeApi.apply(this,arguments);
+ if(action==='list_exams'||action==='bootstrap')return Promise.resolve(result).then(data=>{supported=data?.examGoalVersion===1;apiOwner=String(data?.user?.id||state.user?.id||state.user?.username||'');return data;});
+ return result;
 };
 document.addEventListener('click',e=>{
  const b=e.target.closest('[data-eg-plan],[data-eg-fill],[data-eg-new]');if(!b)return;
