@@ -605,13 +605,22 @@ async function saveExam(uid: string, exam: any) {
         if (!hasKey("exam_goals") && ((key.startsWith("s:")&&!normalized.scores[key.slice(2)])||(key.startsWith("m:")&&!normalized.moduleIds.includes(key.slice(2))))) continue;
         items[key]={...value};
       }
-      // Subject score goals remain in the legacy column. Keep both views in sync.
+      // A planned score keeps its original full-mark basis; the legacy column
+      // stores the equivalent score on the actual paper's scale.
       for (const row of rows) {
-        const key="s:"+row.subject;
-        if (row.target_score!==null) items[key]={...items[key],score:row.target_score,max:row.max_score};
-        else if(items[key]) { delete items[key].score; delete items[key].max; }
+        const key="s:"+row.subject, g=items[key], prior=oldExam?.scores?.[row.subject];
+        if (row.target_score!==null) {
+          if(g && examGoals.num(g.score)!==null && examGoals.num(g.max)>0) {
+            const projected=Math.round(Number(g.score)/Number(g.max)*row.max_score*100)/100;
+            if(hasKey("exam_goals")) {
+              if(Math.abs(projected-row.target_score)>0.011) throw Error(row.subject+"的目标分与满分不一致，请核对");
+            } else if (Math.abs(projected-row.target_score)>0.011 || Number(prior?.target)!==Number(row.target_score)) {
+              items[key]={...g,score:row.target_score,max:row.max_score};
+            }
+          } else items[key]={...g,score:row.target_score,max:row.max_score};
+        } else if(g) { delete g.score; delete g.max; }
       }
-      const meta=examGoals.evolve(oldExam,normalized,{items,planned:supplied.planned===true},now);
+      const meta=examGoals.evolve(oldExam,normalized,{items,planned:supplied.planned===true||oldExam?.exam_goals?.planned===true},now);
       values.exam_goals=meta;
       if (meta && new TextEncoder().encode(JSON.stringify(meta)).length > 60000) throw Error("考试目标记录过大");
       if(meta?.planned) values.is_hidden=true;
