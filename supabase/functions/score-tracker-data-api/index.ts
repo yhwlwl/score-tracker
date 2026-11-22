@@ -2,6 +2,8 @@ import { aiReleaseCapabilities } from '../_shared/ai-release.ts';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { examReflection } from "./reflection.ts";
+import "../_shared/exam-goals.js";
+const examGoals = (globalThis as any).ScoreExamGoals;
 
 const db = createClient(
   Deno.env.get("SUPABASE_URL") ?? "",
@@ -223,7 +225,7 @@ async function list(user: any) {
     db
       .from("score_tracker_exams")
       .select(
-        "id,name,exam_date,end_date,total_rank,total_participants,total_class_rank,total_class_participants,total_year_position_percent,total_class_position_percent,total_actual_score,total_raw_score,is_hidden,grade_level,created_at,updated_at,city_rank,city_participants,district_rank,district_participants,averages,reflection,reflection_revision,reflection_updated_at"
+        "id,name,exam_date,end_date,total_rank,total_participants,total_class_rank,total_class_participants,total_year_position_percent,total_class_position_percent,total_actual_score,total_raw_score,is_hidden,grade_level,created_at,updated_at,city_rank,city_participants,district_rank,district_participants,averages,reflection,reflection_revision,reflection_updated_at,exam_goals"
       )
       .eq("user_id", user.id)
       .order("exam_date")
@@ -561,10 +563,12 @@ async function saveExam(uid: string, exam: any) {
   if (hasKey("end_date")) values.end_date = endDate;
   // Older clients omit this optional field; their saves must preserve existing references.
   if (hasKey("averages")) values.averages = averages;
+  let oldExam: any = null;
   if (id) {
-    const owned = await db.from("score_tracker_exams").select("id,averages").eq("id", id).eq("user_id", uid).maybeSingle();
+    const owned = await db.from("score_tracker_exams").select("id,averages,exam_goals,total_rank,total_class_rank,total_year_position_percent,total_class_position_percent,total_actual_score,total_raw_score,city_rank,district_rank").eq("id", id).eq("user_id", uid).maybeSingle();
     if (owned.error) throw owned.error;
     if (!owned.data) return { error: "没有找到这次考试", status: 404 };
+    oldExam = owned.data;
     // Old clients replace means; preserve highest references with the original basis.
     if (hasKey("averages") && exam.reference_scores_version !== 1) {
       for (const [key, old] of Object.entries(owned.data.averages || {}) as [string, any][]) {
@@ -575,6 +579,40 @@ async function saveExam(uid: string, exam: any) {
         averages[key] = next;
       }
     }
+  }
+  if (hasKey("exam_goals") || oldExam?.exam_goals) {
+    // Use authenticated ownership and existing database values for provenance;
+    // clients cannot forge the original goal or set a recorded exam back to planned.
+    if (oldExam) {
+      const previous = await db.from("score_tracker_scores").select("subject,actual_score,raw_score,rank_position,class_rank_position,year_position_percent,class_position_percent,target_score,max_score").eq("exam_id",id).eq("user_id",uid);
+      if (previous.error) throw previous.error;
+      oldExam.scores = Object.fromEntries((previous.data||[]).map((x:any)=>[x.subject,{actual:x.actual_score,raw:x.raw_score,rank:x.rank_position,classRank:x.class_rank_position,yearPositionPercent:x.year_position_percent,classPositionPercent:x.class_position_percent,target:x.target_score,max:x.max_score}]));
+      const previousModules = await db.from("score_tracker_exam_modules").select("module_id,ranks").eq("exam_id",id).eq("user_id",uid);
+      if (previousModules.error) throw previousModules.error;
+      oldExam.moduleRanks=Object.fromEntries((previousModules.data||[]).map((x:any)=>[x.module_id,x.ranks||{}]));
+    }
+    const normalized = {...values,city_rank:cityR,district_rank:distR,moduleIds:Array.isArray(exam.moduleIds)?exam.moduleIds.map(String):[],moduleRanks:Object.fromEntries(Object.entries(exam.moduleRanks||{}).map(([k,v])=>[k,moduleRanksClean(v)])),scores:Object.fromEntries(rows.map((x:any)=>[x.subject,{target:x.target_score,max:x.max_score,actual:x.actual_score,raw:x.raw_score,rank:x.rank_position,classRank:x.class_rank_position,yearPositionPercent:x.year_position_percent,classPositionPercent:x.class_position_percent}]))};
+    try {
+      const supplied = hasKey("exam_goals") ? exam.exam_goals : oldExam.exam_goals;
+      if (!supplied || typeof supplied !== "object" || Array.isArray(supplied)) throw Error("考试目标格式不正确");
+      const items: any = {};
+      for (const [key,value] of Object.entries(supplied.items||{}) as [string,any][]) {
+        if (!hasKey("exam_goals") && ((key.startsWith("s:")&&!normalized.scores[key.slice(2)])||(key.startsWith("m:")&&!normalized.moduleIds.includes(key.slice(2))))) continue;
+        items[key]={...value};
+      }
+      // Subject score goals remain in the legacy column. Keep both views in sync.
+      for (const row of rows) {
+        const key="s:"+row.subject;
+        if (row.target_score!==null) items[key]={...items[key],score:row.target_score,max:row.max_score};
+        else if(items[key]) { delete items[key].score; delete items[key].max; }
+      }
+      const meta=examGoals.evolve(oldExam,normalized,{items,planned:supplied.planned===true},now);
+      values.exam_goals=meta;
+      if(meta?.planned) values.is_hidden=true;
+      else if(oldExam?.exam_goals?.planned&&examGoals.actual(normalized)) values.is_hidden=false;
+    } catch(e) { return {error:e instanceof Error?e.message:"考试目标格式不正确",status:400}; }
+  }
+  if (id) {
     const r = await db.from("score_tracker_exams").update(values).eq("id", id).eq("user_id", uid);
     if (r.error) throw r.error;
   } else {
