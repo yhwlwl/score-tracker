@@ -84,16 +84,18 @@
     var exams = state.allExams || state.exams || [], options = categories(exams);
     if (!options.some(function (item) { return item[0] === category; })) category = 'all';
     var visible = filteredRecords(exams, category, mode);
-    var hidden = visible.filter(function (e) { return e.is_hidden; }).length;
+    var lifecycle=window.ExamGoalLifecycle, pending=lifecycle?visible.filter(lifecycle.pending):[],history=lifecycle?visible.filter(function(e){return !lifecycle.pending(e);}):visible;
+    var hidden = history.filter(function (e) { return e.is_hidden; }).length;
     var categoryLabel = typeof categoryLabelV14 === 'function' ? categoryLabelV14() : '分类';
-    var head = '<div class="page-head"><div><h2>考试记录</h2></div><button class="primary" id="addExam">＋ 新建</button></div>';
-    var toolbar = '<div class="exam-record-tools-v1"><span class="exam-record-count-v1">共 ' + visible.length + ' 场考试' + (hidden ? ' · ' + hidden + ' 场已隐藏' : '') + '</span>'
+    var head = '<div class="page-head"><div><h2>考试记录</h2></div><button class="primary" id="addExam">＋ 记录成绩</button></div>';
+    var toolbar = '<div class="exam-record-tools-v1"><span class="exam-record-count-v1">共 ' + history.length + ' 场已记录' + (pending.length?' · '+pending.length+' 场待完成':'') + (hidden ? ' · ' + hidden + ' 场已隐藏' : '') + '</span>'
       + '<div class="exam-record-controls-v1"><label><span>' + escapeHtml(categoryLabel) + '</span><select id="examRecordCategoryV1">' + optionsHtml(options, category) + '</select></label>'
       + '<label><span>排序</span><select id="examRecordSortV1">' + optionsHtml(modes, mode) + '</select></label></div></div>';
-    var list = visible.length ? visible.map(recordWithCreated).join('') : '<div class="empty-chart" style="height:260px"><div>' +
+    var plan = lifecycle?'<div class="eg-section-head"><h3>待完成考试'+(pending.length?' · '+pending.length:'')+'</h3><button type="button" class="secondary" data-eg-new>＋ 设置考试目标</button></div>'+(pending.length?'<div class="eg-pending-grid">'+pending.map(lifecycle.pendingCard).join('')+'</div>':'')+'<div class="eg-section-head"><h3>历史考试</h3></div>':'';
+    var list = history.length ? history.map(recordWithCreated).join('') : '<div class="empty-chart" style="height:260px"><div>' +
       (exams.length ? '此分类暂无考试<button class="secondary" id="examRecordResetV1" style="display:block;margin:14px auto 0">查看全部考试</button>' :
         '还没有考试记录<br><button class="secondary" id="emptyAdd" style="margin-top:14px">记录第一场考试</button>') + '</div></div>';
-    return head + toolbar + '<section class="grade-section-v13 exam-record-list-v1"><div class="card records-card">' + list + '</div></section>';
+    return head + toolbar + plan + '<section class="grade-section-v13 exam-record-list-v1"><div class="card records-card">' + list + '</div></section>';
   };
   function refresh(id) {
     renderPage();
