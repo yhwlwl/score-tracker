@@ -14962,7 +14962,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     var r = rankInfoByScopeV16(exam, subject, scope), n = number(r.rank), count = number(r.participants);
     if (!(n >= 1 && Number.isInteger(n))) n = null;
     if (!(count >= 1 && Number.isInteger(count))) count = null;
-    if (n !== null && count !== null && n > count) return { n: n, count: count, percent: null, invalid: true };
+    if (n !== null && count !== null && n > count) return { n: n, count: count, percent: null, invalid: true, recordedPercent: r.directPercent ? number(r.positionPercent) : null };
     var direct = r.directPercent ? number(r.positionPercent) : null;
     return { n: n, count: count, percent: direct !== null && direct >= 0 && direct <= 100 ? direct : n !== null && count !== null ? n / count * 100 : null };
   }
@@ -14970,8 +14970,8 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     return r.n !== null ? '第 ' + fmt(r.n) + ' 名' : r.percent !== null ? '前 ' + fmt(r.percent) + '%' : '未录入';
   }
   function rankSub(r) {
-    if (r.invalid) return '名次大于参考人数，请核对';
-    return (r.count !== null ? '共 ' + fmt(r.count) + ' 人' : r.n !== null ? '未填参考人数' : '') + (r.percent !== null && r.n !== null ? ' · 前 ' + fmt(r.percent) + '%' : '');
+    if (r.invalid) return '共 '+fmt(r.count)+' 人'+(r.recordedPercent!==null&&r.recordedPercent!==undefined?' · 录入位比 前'+fmt(r.recordedPercent)+'%':'')+' · 名次超过人数，请核对';
+    return [r.count !== null ? '共 ' + fmt(r.count) + ' 人' : r.n !== null ? '未填参考人数' : '', r.percent !== null && r.n !== null ? '前 ' + fmt(r.percent) + '%' : ''].filter(Boolean).join(' · ');
   }
   function model(exam) {
     var moduleNames = new Set((state.modulesV18 || []).map(function (m) { return m.name; }));
@@ -15070,23 +15070,46 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     var totalSub = m.manual ? '使用手动填写的总分' : '计入总分的 ' + m.scored.length + ' / ' + m.included.length + ' 科已出分';
     var rateSub = m.manual ? '手动总分不推算满分与得分率' : m.complete ? '总分 ÷ 本次各科满分之和' : '全部计分科目出分后计算';
     var extra = [['city_rank','city_participants','市排名'],['district_rank','district_participants','区排名']].map(function (pair) {
-      var r = number(exam[pair[0]]), n = number(exam[pair[1]]); return r > 0 ? '<span>' + pair[2] + ' <b>第 ' + fmt(r) + ' 名</b>' + (n > 0 ? ' / ' + fmt(n) + ' 人' : '') + '</span>' : '';
+      var r = number(exam[pair[0]]), n = number(exam[pair[1]]); return r > 0 || n > 0 ? '<span>' + pair[2] + ' <b>' + (r > 0?'第 '+fmt(r)+' 名':'未录入名次') + '</b>' + (n > 0 ? ' / ' + fmt(n) + ' 人' : '') + '</span>' : '';
     }).join('');
-    var targetText = m.gap === null ? '' : m.gap >= 0 ? '已达到本次总目标' + (m.gap ? '，超出 ' + fmt(m.gap) + ' 分' : '') : '距离本次总目标还差 ' + fmt(-m.gap) + ' 分';
+    var rawTotal=number(exam.total_raw_score);if(rawTotal!==null)extra+='<span>原始总分 <b>'+esc(String(rawTotal))+'</b></span>';extra+=referenceSummary(exam,'总分');
+    var explicit=exam.exam_goals?.items?.total;
+    var targetText = explicit||m.gap === null ? '' : m.gap >= 0 ? '已达到本次总目标' + (m.gap ? '，超出 ' + fmt(m.gap) + ' 分' : '') : '距离本次总目标还差 ' + fmt(-m.gap) + ' 分';
     return '<section class="ed-overview" aria-label="考试整体概况"><div class="ed-metrics">' +
       metric(totalLabel, fmt(m.total), totalSub) + metric('总得分率', m.rate === null ? '—' : fmt(m.rate) + '%', rateSub) +
       metric('年级排名', rankText(m.year), rankSub(m.year)) + metric('班级排名', rankText(m.class), rankSub(m.class)) +
-      '</div>' + (targetText || extra ? '<div class="ed-context">' + (targetText ? '<span>' + targetText + '</span>' : '') + extra + '</div>' : '') +
+      '</div>' + (targetText || extra || explicit ? '<div class="ed-context">' + (targetText ? '<span>' + targetText + '</span>' : '') + (explicit?goalSummary(exam,'total',null):'')+extra + '</div>' : '') +
       '<nav class="ed-nav" aria-label="考试详情目录">' + button('各科成绩', 'jump:scores') + button('本场变化', 'jump:changes') + button('强弱科四象限', 'jump:quadrants') + button('考后反思', 'jump:reflection') + (paperReviewAvailable() ? button('已录入试题', 'jump:papers') : '') + '</nav></section>';
   }
   function cell(label, text) { return '<td data-label="' + label + '">' + text + '</td>'; }
   function rankCell(r) { return '<span>' + esc(rankText(r)) + '</span><small>' + esc(rankSub(r)) + '</small>'; }
-  function averageCell(exam, r) {
-    return [['year','年级'],['class','班级']].map(function (pair) {
-      var v = window.ScoreAverages && window.ScoreAverages.value(exam, r.name, pair[0], false);
-      if (v == null) return '';
-      return '<span>' + pair[1] + ' ' + fmt(v) + '</span>' + (r.actual !== null ? '<small>' + (r.actual === v ? '与均分持平' : (r.actual > v ? '高于' : '低于') + '均分 ' + fmt(Math.abs(r.actual - v)) + ' 分') + '</small>' : '');
-    }).join('') || '—';
+  // The saved reference value can exist even if it is no longer comparable
+  // (e.g. a subject's full marks or a combination's membership changed).
+  function referenceSummary(exam,name){
+    var api=window.ScoreAverages,key=api?.key(name)||(name==='总分'?'total':'s:'+name),saved=exam.averages?.[key];if(!saved)return '';
+    var list=[['year','年级均分'],['yearMax','年级最高分'],['class','班级均分'],['classMax','班级最高分']].map(function(p){
+      var v=number(saved[p[0]]);return v===null?'':'<span class="ed-saved-item"><span>'+p[1]+'</span> <b>'+esc(String(v))+'</b></span>';
+    }).filter(Boolean);
+    if(!list.length)return '';
+    var comparable=!!api&&saved.basis===api.basis(exam,name);
+    return '<div class="ed-saved-reference">'+list.join('')+(!comparable?'<small>原录入口径可能不同，仅展示原记录。</small>':'')+'</div>';
+  }
+  function goalSummary(exam,key,row){
+    var api=window.ScoreExamGoalReview,G=window.ScoreExamGoals;
+    var g=api?.goalOf(exam,key,false)||(row&&row.target!==null?{score:row.target,max:row.max}:null);
+    if(!g)return '未设置';
+    var actual=key.startsWith('s:')?api?.subjectActual(exam,key.slice(2)):api?.groupActual(exam,key);
+    var bits=[];
+    function status(kind){
+      var result=actual&&G?.evaluate(g,actual,kind);
+      if(!result)return '待补录';
+      if(result.met)return '已达标';
+      var unit=kind==='score'?(number(g.max)===number(actual.max)?'分':'个百分点'):g.rankType==='number'?'名':'个百分点';
+      return '差'+fmt(Math.abs(result.gap))+unit;
+    }
+    if(number(g.score)!==null)bits.push('<span class="ed-saved-goal"><b>分数 '+esc(String(g.score))+(number(g.max)!==null?' / '+esc(String(g.max)):'')+'</b><small>'+esc(status('score'))+'</small></span>');
+    if(number(g.rank)!==null)bits.push('<span class="ed-saved-goal"><b>排名 前'+esc(String(g.rank))+(g.rankType==='percent'?'%':'名')+'</b><small>'+esc(status('rank'))+'</small></span>');
+    return bits.join('')||'未设置';
   }
   function referenceCards(exam,m) {
     var api=window.ScoreAverages;if(!api)return '';
@@ -15104,17 +15127,17 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       var year=!!panels[0],cls=!!panels[1];
       return '<article class="ed-ref-card" data-ref-selected="'+(year?'year':'class')+'"><div class="ed-ref-head"><strong>'+esc(r.name)+'</strong><span>'+fmt(personal)+(r.max>0?' / '+fmt(r.max):'')+'</span></div><div class="ed-ref-switch">'+(year?'<button type="button" data-reference-toggle="year" aria-pressed="true">年级</button>':'')+(cls?'<button type="button" data-reference-toggle="class" aria-pressed="'+(!year)+'">班级</button>':'')+'</div>'+panels.join('')+'</article>';
     }).filter(Boolean);
-    return cards.length?'<div class="ed-ref-section"><h3>参考成绩</h3><div class="ed-ref-grid">'+cards.join('')+'</div></div>':'';
+    return cards.length?'<details class="ed-combinations ed-reference-charts"><summary>参考成绩对比图</summary><div class="ed-ref-grid">'+cards.join('')+'</div></details>':'';
   }
   function scores(exam, m) {
-    var hasAverages = false; // Reference cards replace the mean-only column.
-    return '<section class="ed-section" id="ed-scores" tabindex="-1"><div class="ed-section-head"><div><span class="ed-eyebrow">01 / 成绩</span><h2>各科得分与排名</h2><p>目标差按最终分计算。</p></div></div>' +
-      (m.rows.length ? '<div class="ed-table-wrap"><table class="ed-table"><thead><tr>' + ['科目','最终分 / 满分','得分率','目标 / 差值','年级排名','班级排名'].concat(hasAverages ? ['平均分'] : []).map(function (s) { return '<th scope="col">' + s + '</th>'; }).join('') + '</tr></thead><tbody>' + m.rows.map(function (r) {
+    var hasAverages = m.rows.some(function(r){return !!referenceSummary(exam,r.name);});
+    return '<section class="ed-section" id="ed-scores" tabindex="-1"><div class="ed-section-head"><div><span class="ed-eyebrow">01 / 成绩</span><h2>各科得分与排名</h2><p>已录入的分数、排名、目标和参考成绩。</p></div></div>' +
+      (m.rows.length ? '<div class="ed-table-wrap"><table class="ed-table"><thead><tr>' + ['科目','最终分 / 满分','得分率','目标 / 差值','年级排名','班级排名'].concat(hasAverages ? ['参考成绩'] : []).map(function (s) { return '<th scope="col">' + s + '</th>'; }).join('') + '</tr></thead><tbody>' + m.rows.map(function (r) {
         return '<tr><th scope="row">' + esc(r.name) + (r.excluded ? '<small>统计项 · 不计总分</small>' : '') + '</th>' +
-          cell('最终分', '<b>' + fmt(r.actual) + '</b> / ' + fmt(r.max) + (r.fallback && !finalOnlySubjectV62(r.name) ? '<small>同满分原始分</small>' : '') + (!finalOnlySubjectV62(r.name)&&r.raw!==null?'<small>原始分 '+fmt(r.raw)+' / '+fmt(r.rawMax)+'</small>':'')) +
+          cell('最终分', '<b>' + fmt(r.actual) + '</b> / ' + fmt(r.max) + (r.fallback && !finalOnlySubjectV62(r.name) ? '<small>同满分原始分</small>' : '') + (r.raw!==null?'<small>原始分 '+esc(String(r.raw))+' / '+esc(String(r.rawMax??'—'))+'</small>':'')) +
           cell('得分率', r.rate === null ? '—' : fmt(r.rate) + '%') +
-          cell('目标', r.target === null ? '未设置' : fmt(r.target) + (r.actual !== null ? '<small>' + (r.actual === r.target ? '已达标' : signed(r.actual - r.target) + ' 分') + '</small>' : '')) +
-          cell('年级排名', rankCell(r.year)) + cell('班级排名', rankCell(r.class)) + (hasAverages ? cell('平均分', averageCell(exam, r)) : '') + '</tr>';
+          cell('目标', goalSummary(exam,'s:'+r.name,r)) +
+          cell('年级排名', rankCell(r.year)) + cell('班级排名', rankCell(r.class)) + (hasAverages ? cell('参考成绩', referenceSummary(exam,r.name) || '—') : '') + '</tr>';
       }).join('') + '</tbody></table></div>' : '<p class="ed-empty">还没有科目数据，点击“编辑 / 补录”添加成绩。</p>') + combinations(exam, m) + referenceCards(exam,m) + '</section>';
   }
   function combinations(exam, m) {
@@ -15122,13 +15145,13 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     if (!selected.length) return '';
     var ranks = exam.moduleRanks || {};
     if (!Object.keys(ranks).length) { try { ranks = JSON.parse(localStorage.getItem('st_moduleranks_v25_' + (state.user.username || 'anon')) || '{}')[exam.exam_date + '|' + exam.name] || {}; } catch (_) {} }
-    return '<details class="ed-combinations"><summary>科目组合 <span>' + selected.length + ' 组</span></summary><div class="ed-combo-grid">' + selected.map(function (mod) {
+    return '<details class="ed-combinations" open><summary>科目组合 <span>' + selected.length + ' 组</span></summary><div class="ed-combo-grid">' + selected.map(function (mod) {
       var members = mod.subjects.map(function (s) { return m.rows.find(function (r) { return r.name === s; }); });
       var complete = members.length > 0 && members.every(function (r) { return r && r.actual !== null; });
-      var total = complete ? members.reduce(function (n, r) { return n + r.actual; }, 0) : null, mr = ranks[mod.id] || {};
-      return '<article><h3>' + esc(mod.name) + '</h3><p>' + esc(mod.subjects.join(' + ')) + '</p><b>' + (total === null ? '科目分数待补齐' : fmt(total) + ' 分') + '</b>' + [['yearRank','yearParticipants','年排'],['classRank','classParticipants','班排']].map(function (pair) {
-        var n = number(mr[pair[0]]), people = number(mr[pair[1]]); return n !== null ? '<small>' + pair[2] + ' ' + fmt(n) + (people !== null ? ' / ' + fmt(people) + ' 人' : '') + '</small>' : '';
-      }).join('') + '</article>';
+      var total = complete ? members.reduce(function (n, r) { return n + r.actual; }, 0) : null, mr = ranks[mod.id] || {}, max=members.every(function(r){return r&&r.max>0;})?members.reduce(function(n,r){return n+r.max;},0):null, raw=members.length&&members.every(function(r){return r&&r.raw!==null;})?members.reduce(function(n,r){return n+r.raw;},0):null;
+      return '<article><h3>' + esc(mod.name) + '</h3><p>' + esc(mod.subjects.join(' + ')) + '</p><b>' + (total === null ? '科目分数待补齐' : fmt(total)+(max>0?' / '+fmt(max):' 分')) + '</b>' + [['yearRank','yearParticipants','年排','yearPositionPercent'],['classRank','classParticipants','班排','classPositionPercent']].map(function (pair) {
+        var n = number(mr[pair[0]]), people = number(mr[pair[1]]), pct=number(mr[pair[3]]); if(pct===null&&n>0&&people>=n)pct=n/people*100;var bits=[n!==null?'第 '+fmt(n)+' 名':'',people!==null?'共 '+fmt(people)+' 人':'',pct!==null?'前 '+fmt(pct)+'%':''].filter(Boolean);return bits.length?'<small>'+pair[2]+' '+bits.join(' · ')+'</small>':'';
+      }).join('')+(raw!==null?'<small>原始分 '+fmt(raw)+'</small>':'')+'<div class="ed-combo-goals">'+(window.ScoreExamGoalReview?.goalOf(exam,'m:'+mod.id,false)?goalSummary(exam,'m:'+mod.id,null):'')+'</div>'+referenceSummary(exam,mod.name)+'</article>';
     }).join('') + '</div></details>';
   }
   function plot(data) {
