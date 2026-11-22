@@ -27,7 +27,7 @@ function cleanItems(raw,e){
 }
 function snapshot(e){
  const items=Object.assign({},e.exam_goals?.items||{});
- Object.entries(e.scores||{}).forEach(([n,s])=>{if(num(s.target)!==null&&num(s.max)>0){const k='s:'+n;items[k]={...items[k],score:+s.target,max:+s.max};}});
+ Object.entries(e.scores||{}).forEach(([n,s])=>{if(num(s.target)!==null&&num(s.max)>0){const k='s:'+n;if(num(items[k]?.score)===null)items[k]={...items[k],score:+s.target,max:+s.max};}});
  return items;
 }
 function evolve(old,e,raw,now){
@@ -52,32 +52,56 @@ function rankValue(r,kind){
 function evaluate(goal,r,kind){
  if(!goal)return null;
  let target,actualValue;
- if(kind==='score'){target=num(goal.score);actualValue=num(r.score);if(target!==null&&num(goal.max)>0&&num(r.max)>0&&+goal.max!==+r.max){target=target/+goal.max*100;actualValue=actualValue===null?null:actualValue/+r.max*100;}}
+ if(kind==='score'){target=num(goal.score);actualValue=num(r.score);if(!(num(goal.max)>0&&num(r.max)>0))return null;if(target!==null&&+goal.max!==+r.max){target=target/+goal.max*100;actualValue=actualValue===null?null:actualValue/+r.max*100;}}
  else{target=num(goal.rank);actualValue=rankValue(r,goal.rankType);}
  if(target===null||actualValue===null)return null;
  return {met:kind==='score'?actualValue>=target:actualValue<=target,gap:round(kind==='score'?actualValue-target:target-actualValue)};
 }
 function quantile(a,q){const x=a.slice().sort((a,b)=>a-b),p=(x.length-1)*q,i=Math.floor(p);return x[i]+(x[Math.min(i+1,x.length-1)]-x[i])*(p-i);}
 function calibrate(history,kind){
- // Work on the latest comparable target's unit. Only actual comparable
- // observations count; missing data does not become a failure.
- const last=history.filter(x=>x.goal&&num(kind==='score'?x.goal.score:x.goal.rank)!==null&&evaluate(x.goal,x.actual,kind)).at(-1);
+ const goalExists=x=>x.goal&&num(kind==='score'?x.goal.score:x.goal.rank)!==null;
+ const last=history.filter(goalExists).at(-1);
  if(!last)return null;
- const g=last.goal,unit=kind==='score'?'score':g.rankType,max=num(g.max);
- const comparable=x=>!x.exam||!last.exam||String(x.exam.grade_level||'')===String(last.exam.grade_level||'');
- const rankComparable=x=>kind==='score'||unit==='percent'||(num(last.actual.people)>0&&num(x.actual.people)===num(last.actual.people));
- const rows=history.filter(x=>comparable(x)&&rankComparable(x)&&x.goal&&(kind==='score'||x.goal.rankType===unit)&&x.origin!=='retro');
- const eligible=rows.map(x=>evaluate(x.goal,x.actual,kind)).filter(Boolean);
- let streak=0;const met=eligible.at(-1)?.met;for(let i=eligible.length-1;i>=0&&eligible[i].met===met;i--)streak++;
- const recent=history.filter(x=>comparable(x)&&rankComparable(x)).map(x=>kind==='score'?(num(x.actual.score)!==null&&num(x.actual.max)>0?+x.actual.score/+x.actual.max*100:null):rankValue(x.actual,unit)).filter(x=>x!==null).slice(-5);
- const target=kind==='score'?+g.score/max*100:+g.rank;let suggestion=target,decision='保持',reason='近期目标暂不需要调整';
- if(last.origin==='retro'||eligible.length<3||recent.length<3){decision='暂不调整';reason=last.origin==='retro'?'补录目标可用于复盘，暂不用于调整建议':'需要至少三场同类、可比较的目标与实际成绩';}
+ const g=last.goal,unit=kind==='score'?'score':g.rankType,max=num(g.max),people=num(last.actual.people);
+ const lastEval=evaluate(g,last.actual,kind);
+ const comparable=x=>(!x.exam||!last.exam||String(x.exam.grade_level||'')===String(last.exam.grade_level||''))&&(!last.actual.scope||!x.actual.scope||x.actual.scope===last.actual.scope);
+ // Specific rank targets are evaluated as actual places. For comparisons across
+ // different cohorts, normalize observed ranks and the last target to percentages.
+ const normalize=x=>kind==='score'?(num(x.actual.score)!==null&&num(x.actual.max)>0?+x.actual.score/+x.actual.max*100:null):rankValue(x.actual,'percent');
+ const target=kind==='score'?num(g.score)/max*100:unit==='percent'?num(g.rank):people>0&&num(g.rank)<=people?num(g.rank)/people*100:null;
+ const evaluated=history.filter(x=>comparable(x)&&goalExists(x)).map(x=>({x,ev:evaluate(x.goal,x.actual,kind)}));
+ // Missing result is not a failure and must not extend a consecutive streak.
+ // A retroactively set target may be displayed in recap but not drive advice.
+ const comparableTargets=evaluated.filter(t=>t.x.origin!=='retro'&&t.ev!==null&&(kind==='score'||normalize(t.x)!==null));
+ let streak=0,met=lastEval?.met;
+ for(let i=evaluated.length-1;i>=0;i--){const t=evaluated[i];if(t.x.origin==='retro'||!t.ev||t.ev.met!==met)break;streak++;}
+ const recent=history.filter(comparable).map(normalize).filter(v=>v!==null&&Number.isFinite(v)).slice(-5);
+ let suggestion=target,decision='保持目标',reason='目前目标较合理，建议继续保持。';
+ const result={goal:g,actual:last.actual,streak,met,eligible:comparableTargets.length,unit,max,origin:last.origin,referencePeople:people,actualMissing:!lastEval,recentCount:recent.length};
+ if(!lastEval){decision='待补录';reason='补录实际'+(kind==='score'?'成绩':'排名')+'后再判断。';}
+ else if(last.origin==='retro'){decision='暂不调整';reason='补录目标仅用于本次复盘。';}
+ else if(target===null||!Number.isFinite(target)||comparableTargets.length<3||recent.length<3){decision='暂不调整';reason='至少需要三场可比较的目标及实际表现。';}
  else if(streak>=3){
-  const candidate=quantile(recent,kind==='score'?(met?.75:.5):(met?.25:.5));
-  if((kind==='score'?(met?candidate>target:candidate<target):(met?candidate<target:candidate>target))){suggestion=candidate;decision=met?'提高目标':'适当放宽';reason='参考最近'+recent.length+'场的实际表现及连续达标情况';}
+  // Median is the typical level. The upper/lower quartile and personal best
+  // limit how ambitious the next step is; IQR guards against unstable results.
+  const direction=kind==='score'?1:-1,quality=recent.map(v=>v*direction);
+  const mid=quantile(quality,.5),strong=quantile(quality,.75),best=Math.max(...quality),spread=quantile(quality,.75)-quantile(quality,.25),t=target*direction;
+  const stable=Math.max(0,1-spread/20),buffer=Math.min((best-mid)*.5,(strong-mid)+Math.max(0,best-strong)*.35);
+  const candidate=met?mid+(strong-mid)*(.5+.5*stable):mid+buffer*(.45+.55*stable);
+  const tolerance=kind==='score'?0.5:unit==='number'?Math.max(.2,100/people):.5;
+  if((met&&candidate>t+tolerance)||(!met&&candidate<t-tolerance)){
+   suggestion=candidate*direction;decision=met?'提高目标':'适当放宽';
+   reason=met?'近期稳定达标，可以尝试更进一步。':'结合近期表现，先设一个更容易稳定达到的目标。';
+  }
+  result.typical=mid*direction;result.best=best*direction;result.spread=spread;
  }
- let value=kind==='score'?round(suggestion*max/100):unit==='number'?Math.max(1,Math.round(suggestion)):round(suggestion);
- return {goal:g,actual:last.actual,decision,reason,streak,met,eligible:eligible.length,suggestion:value,unit,max,origin:last.origin};
+ let value=null;
+ if(suggestion!==null&&Number.isFinite(suggestion)){
+  if(kind==='score')value=decision==='保持目标'?num(g.score):Math.max(0,Math.min(max,Math.round(suggestion*max/100*2)/2));
+  else if(unit==='number')value=Math.max(1,Math.min(people,Math.round(suggestion*people/100)));
+  else value=Math.max(0,Math.min(100,round(suggestion)));
+ }
+ return {...result,decision,reason,suggestion:value};
 }
 function restoreBackup(raw,normalized){
  if(!Array.isArray(raw?.exams)||!Array.isArray(normalized?.exams)||raw.exams.length!==normalized.exams.length)throw Error('备份考试数量不一致');
