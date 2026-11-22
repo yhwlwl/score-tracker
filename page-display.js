@@ -17,14 +17,14 @@
       ['stats-calib', '目标校准', null, '目标校准'],
       ['stats-comp', '名次竞争力', null, '名次竞争力'],
       ['stats-matrix', '全量统计矩阵', '.sv31-page > .worth-matrix-card', '全量统计矩阵'],
-      ['stats-deep', '深度分析', '#dsbRoot'],
+      ['stats-deep', '学习状态预测', '#dsbRoot'],
       ['stats-peer', '相似轨迹与预测', '[data-peer-host]'],
       ['stats-quality', '数据与计算方法', '.sv31-page > .sv31-quality', '数据与计算方法']
     ] }
   ];
   var items = groups.reduce(function (out, group) { return out.concat(group.items); }, []);
   var ids = items.map(function (item) { return item[0]; });
-  var labels = { simple: '简约', standard: '标准', full: '完整', custom: '自定义' };
+  var labels = { simple: '简洁', standard: '标准', full: '完整', custom: '自定义' };
   var presets = {
     simple: ['home-goal', 'home-recent', 'home-latest-subjects', 'stats-structure'],
     standard: ['home-goal', 'home-radar', 'home-summary', 'home-recent', 'home-latest-subjects', 'stats-insights', 'stats-structure', 'stats-hall', 'stats-worth', 'stats-calib', 'stats-comp'],
@@ -85,6 +85,19 @@
     return ['simple', 'standard', 'full'].find(function (mode) {
       return presetHidden(mode).join('|') === normalize({hidden:hidden}).join('|');
     }) || 'custom';
+  }
+  function normalizeDensity(mode){return ['simple','standard','full'].includes(mode)?mode:'standard';}
+  function migrateDisplay(value){
+    var h=normalize(value), mode='standard';
+    if(value&&Object.prototype.hasOwnProperty.call(value,'density'))return {hidden:h,density:normalizeDensity(value.density)};
+    // A legacy preset was a visibility mask. Restore analysis modules for recognizable
+    // legacy presets only; preserve homepage choices and all custom visibility masks.
+    if(value&&Array.isArray(value.hidden)){
+      var legacy=currentMode(h);
+      if(legacy==='simple'||legacy==='standard'){mode=legacy;h=h.filter(function(id){return id.indexOf('home-')===0;});}
+      else if(legacy==='full')mode='full';
+    }
+    return {hidden:h,density:mode};
   }
   function toggle(hidden, id, show) {
     if (ids.indexOf(id) === -1) return normalize({hidden:hidden});
@@ -218,25 +231,26 @@
   }
   function storageKey(owner) { return 'st_page_display_v1:' + owner; }
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { chartHasSubjectFilter:chartHasSubjectFilter,chartDefaultLabel:chartDefaultLabel,normalizeChartScopes:normalizeChartScopes,chartSubjects:chartSubjects,chartSelection:chartSelection,rankChartScope:rankChartScope,renderQuote:renderQuote,normalizeSlogan:normalizeSlogan,sloganText:sloganText,limitSlogan:limitSlogan,dailySlogans:dailySlogans,previewArt:previewArt,recentModel:recentModel,recentHtml:recentHtml,groups:groups, ids:ids, presets:presets, normalize:normalize, presetHidden:presetHidden, currentMode:currentMode, toggle:toggle, titleKey:titleKey, storageKey:storageKey, charts:charts, normalizePins:normalizePins, setPin:setPin, movePin:movePin, layoutSpans:layoutSpans };
+    module.exports = { chartHasSubjectFilter:chartHasSubjectFilter,chartDefaultLabel:chartDefaultLabel,normalizeChartScopes:normalizeChartScopes,chartSubjects:chartSubjects,chartSelection:chartSelection,rankChartScope:rankChartScope,renderQuote:renderQuote,normalizeSlogan:normalizeSlogan,sloganText:sloganText,limitSlogan:limitSlogan,dailySlogans:dailySlogans,previewArt:previewArt,recentModel:recentModel,recentHtml:recentHtml,groups:groups, ids:ids, presets:presets, normalize:normalize, presetHidden:presetHidden, currentMode:currentMode, toggle:toggle, titleKey:titleKey, storageKey:storageKey, normalizeDensity:normalizeDensity,migrateDisplay:migrateDisplay, charts:charts, normalizePins:normalizePins, setPin:setPin, movePin:movePin, layoutSpans:layoutSpans };
     return;
   }
   if (typeof bindPage !== 'function' || typeof state === 'undefined') return;
-  var userKey = null, hidden = [], pins = [], chartScopes=normalizeChartScopes(), slogan=normalizeSlogan(), queued = false, cache = null;
+  var userKey = null, hidden = [], density='standard', pins = [], chartScopes=normalizeChartScopes(), slogan=normalizeSlogan(), queued = false, cache = null;
   function owner() { return String(state.user && (state.user.id || state.user.username) || 'guest'); }
   function hydrate() {
     var key = owner();
     if (key === userKey) return;
-    userKey = key; hidden = []; pins=[]; chartScopes=normalizeChartScopes(); slogan=normalizeSlogan(); cache=null;
-    try {var saved=JSON.parse(localStorage.getItem(storageKey(key))||'null');hidden=normalize(saved);pins=normalizePins(saved&&saved.pins);chartScopes=normalizeChartScopes(saved&&saved.chartScopes);slogan=normalizeSlogan(saved&&saved.slogan);} catch (_) {}
+    userKey = key; hidden = []; density='standard'; pins=[]; chartScopes=normalizeChartScopes(); slogan=normalizeSlogan(); cache=null;
+    try {var saved=JSON.parse(localStorage.getItem(storageKey(key))||'null');var migrated=migrateDisplay(saved);hidden=migrated.hidden;density=migrated.density;pins=normalizePins(saved&&saved.pins);chartScopes=normalizeChartScopes(saved&&saved.chartScopes);slogan=normalizeSlogan(saved&&saved.slogan);if(saved&&!Object.prototype.hasOwnProperty.call(saved,'density'))save();} catch (_) {}
   }
   function save() {
     var saved = true;
-    try { localStorage.setItem(storageKey(userKey), JSON.stringify({hidden:hidden,pins:pins,chartScopes:chartScopes,slogan:slogan})); } catch (_) { saved = false; }
+    try { localStorage.setItem(storageKey(userKey), JSON.stringify({hidden:hidden,density:density,pins:pins,chartScopes:chartScopes,slogan:slogan})); } catch (_) { saved = false; }
     return saved;
   }
+  window.ScoreDisplayDensity={get:function(){hydrate();return density;},owner:function(){hydrate();return userKey;}};
   function update(card) {
-    var mode = currentMode(hidden);
+    var mode = density;
     card.querySelectorAll('[data-display-preset]').forEach(function (button) {
       button.setAttribute('aria-pressed', String(button.dataset.displayPreset === mode));
     });
@@ -255,7 +269,7 @@
     updateSlogan(card);
   }
   function track(action, extra) {
-    try { if (typeof window.__stTrack === 'function') window.__stTrack('page_display_changed', Object.assign({ action:action, mode:currentMode(hidden), visible_count:ids.length-hidden.length }, extra || {})); } catch (_) {}
+    try { if (typeof window.__stTrack === 'function') window.__stTrack('page_display_changed', Object.assign({ action:action, mode:density, visible_count:ids.length-hidden.length }, extra || {})); } catch (_) {}
   }
   function mountSettings(root) {
     var grid = root.querySelector('.account-grid');
@@ -266,10 +280,10 @@
       card.id = 'pageDisplaySettingsV1';
       card.className = 'card account-card pd-card';
       card.innerHTML = '<details class="pd-disclosure"><summary class="pd-head"><span><strong>页面显示</strong><small data-display-summary></small></span><span aria-hidden="true" class="pd-arrow">›</span></summary>'
-        + '<div class="pd-body"><div class="pd-presets" role="group" aria-label="显示模式">'
-        + [['simple','简约','核心功能'],['standard','标准','常用分析'],['full','完整','全部板块']].map(function (p) {
+        + '<div class="pd-body"><div class="pd-custom-head">分析信息密度</div><div class="pd-presets" role="group" aria-label="分析信息密度">'
+        + [['simple','简洁','核心结果'],['standard','标准','日常分析'],['full','完整','更多细节']].map(function (p) {
           return '<button type="button" data-display-preset="' + p[0] + '" aria-pressed="false"><b>' + p[1] + '</b><small>' + p[2] + '</small></button>';
-        }).join('') + '</div><div class="pd-custom-head">自定义板块</div>'
+        }).join('') + '</div><p class="pd-note">只调整统计分析的默认信息量，所有细节仍可展开；不改变下方板块开关。</p><div class="pd-custom-head">显示板块管理</div>'
         + groups.map(function (g,i) {
           return '<details class="pd-group"><summary><b>' + g.title + '</b><small data-display-count="' + i + '"></small></summary><div>'
             + (i===0?'<div class="pd-subhead">基础板块</div>':'')+g.items.map(function (item) {
@@ -550,9 +564,10 @@
     var card = button.closest('#pageDisplaySettingsV1');
     if (!card) return;
     hydrate();
-    var mode = button.hasAttribute('data-display-reset') ? 'full' : button.dataset.displayPreset;
+    var mode = button.hasAttribute('data-display-reset') ? 'standard' : button.dataset.displayPreset;
     if (!Object.prototype.hasOwnProperty.call(presets,mode)) return;
-    hidden = presetHidden(mode); if(button.hasAttribute('data-display-reset')){pins=[];chartScopes=normalizeChartScopes();slogan=normalizeSlogan();} changed(card, 'preset', {preset:mode});
+    density=mode; if(button.hasAttribute('data-display-reset')){hidden=[];pins=[];chartScopes=normalizeChartScopes();slogan=normalizeSlogan();} changed(card, button.hasAttribute('data-display-reset')?'reset':'density', {preset:mode});
+    document.dispatchEvent(new CustomEvent('st:analysis-density-change',{detail:{mode:density}}));
   });
   document.addEventListener('change', function (event) {
     var field = event.target;
