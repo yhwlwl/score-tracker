@@ -22,7 +22,25 @@
     return 'overview';
   }
   function normalize(value){return valid.indexOf(value)>=0?value:'overview';}
-  if(typeof module!=='undefined'&&module.exports){module.exports={classify:classify,normalize:normalize,groups:groups};return;}
+  function displayTitle(title,key){var clean=String(title||'').trim().replace(/^[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮]+\s*/,'');return key==='deep'&&clean==='深度分析'?'学习状态预测':clean;}
+  function cardOrder(title,key){
+    var group=classify(title,key),g=['overview','trend','subject','forecast','methods'].indexOf(group)*100;
+    if(key==='kpi')return g;
+    if(/智能提醒/.test(title))return g+10;
+    if(key==='matrix')return g+20;
+    if(/个人最佳/.test(title))return g+30;
+    if(key==='trend')return g;
+    if(key==='worth')return g+10;
+    if(/名次竞争力/.test(title))return g+20;
+    if(key==='distribution')return g+30;
+    if(/学科结构/.test(title))return g;
+    if(key==='speed')return g+10;
+    if(/目标校准|目标分析/.test(title))return g;
+    if(key==='peer')return g+10;
+    if(key==='deep')return g+20;
+    return g+40;
+  }
+  if(typeof module!=='undefined'&&module.exports){module.exports={classify:classify,normalize:normalize,groups:groups,displayTitle:displayTitle,cardOrder:cardOrder};return;}
   if(typeof document==='undefined')return;
   var active='overview', lastPrimary='overview', owner=null, reveal=false, queued=false, lastPage=null, viewed=false;
   function hydrate(){
@@ -67,7 +85,7 @@
         makeCard(page,speed.parentElement,'speed',null,trend);
       }
       var peer=trend.querySelector('[data-peer-host]');
-      if(peer)makeCard(page,peer,'peer',null,page.querySelector(':scope > #dsbRoot')||trend);
+      if(peer)makeCard(page,peer,'peer',null,trend);
     }
     // The distribution is generated in the matrix and shares its selected metric.
     // Move only its containing block; do not duplicate or recompute it.
@@ -92,6 +110,45 @@
   }
   function cardTitle(card){
     var h=card.querySelector('.card-title,.dsb-head');return h?h.textContent.trim():'';
+  }
+  function tidyTitle(card,key){
+    var h=key==='deep'?card.querySelector('.dsb-head > span'):card.querySelector('.card-title');
+    if(h){
+      Array.from(h.childNodes).filter(function(n){return n.nodeType===3;}).forEach(function(n){
+        var raw=n.nodeValue, next=displayTitle(raw,key);
+        if(raw.trim()&&next!==raw.trim())n.nodeValue=next;
+      });
+      var fold=card.querySelector('.fold-toggle-v38');
+      if(fold&&key==='deep'){
+        var label=(fold.getAttribute('aria-expanded')==='false'?'展开':'收起')+'学习状态预测';
+        if(fold.getAttribute('aria-label')!==label)fold.setAttribute('aria-label',label);
+        if(fold.title!==label)fold.title=label;
+      }
+    }
+    if(key==='deep'){
+      var head=card.querySelector('.dsb-head');
+      if(head&&!head.querySelector('.an-model-hint')){
+        var hint=document.createElement('small');hint.className='an-model-hint';hint.textContent='根据个人历史估计稳定水平与未来表现';head.append(hint);
+      }
+    }
+    if(key==='peer'){
+      var heading=card.querySelector('.st-peer-heading > div'), title=heading&&heading.querySelector('h4');
+      if(title&&!heading.querySelector('.an-model-hint')){
+        var hint=document.createElement('small');hint.className='an-model-hint';hint.textContent='参考相似历史轨迹的后续表现';title.after(hint);
+      }
+      var notice=card.querySelector('.st-peer-notice > span');
+      var copy='已参与匿名匹配。其他用户只能看到匿名成绩趋势，不会看到用户名、学校或考试名称。可随时关闭共享。';
+      if(notice&&notice.textContent!==copy)notice.textContent=copy;
+    }
+  }
+  function orderCards(page,cards){
+    var sorted=cards.slice().sort(function(a,b){return cardOrder(cardTitle(a),keyFor(a))-cardOrder(cardTitle(b),keyFor(b));});
+    if(sorted.every(function(c,i){return c===cards[i];}))return sorted;
+    var cursor=page.querySelector(':scope > .an-notice');
+    for(var i=sorted.length-1;i>=0;i--){
+      var c=sorted[i];if(c.nextElementSibling!==cursor)page.insertBefore(c,cursor);cursor=c;
+    }
+    return sorted;
   }
   function isPreferenceHidden(card,page){
     if(card.hasAttribute('data-display-off-v1'))return true;
@@ -126,8 +183,11 @@
     page.classList.add('an-layout');
     var nav=mountNav(page);split(page);
     var count=0,visible=0;
-    Array.from(page.children).filter(function(c){return c.classList.contains('card');}).forEach(function(c){
-      var group=classify(cardTitle(c),keyFor(c));
+    var cards=orderCards(page,Array.from(page.children).filter(function(c){return c.classList.contains('card');}));
+    cards.forEach(function(c){
+      var key=keyFor(c), group=classify(cardTitle(c),key);
+      if(c.dataset.anKind!==key)c.dataset.anKind=key;
+      tidyTitle(c,key);
       var selected=active==='all'||group===active;
       // Keep empty-state information discoverable in every category.
       if(/当前范围暂无可分析成绩/.test(cardTitle(c)))selected=true;
@@ -136,12 +196,7 @@
       c.toggleAttribute('data-an-off',!selected);
       c.toggleAttribute('data-an-pref-off',pref&&!reveal);
       c.toggleAttribute('data-an-show-pref',selected&&reveal&&pref);
-      // Remove original whole-page sequence numbers from visible titles only,
-      // retaining the numbering in generated export sources. Preserve original DOM.
-      var h=c.querySelector('.card-title');
-      if(h&&h.firstChild&&h.firstChild.nodeType===3&&/^[①②③④⑤⑥⑦⑧⑨⑩]\s*/.test(h.firstChild.nodeValue)){
-        h.firstChild.nodeValue=h.firstChild.nodeValue.replace(/^[①②③④⑤⑥⑦⑧⑨⑩]\s*/,'');
-      }
+
     });
     page.toggleAttribute('data-an-reveal',reveal);
     nav.querySelectorAll('[data-analysis-nav]').forEach(function(b){
@@ -149,6 +204,8 @@
       b.classList.toggle('is-active',b.dataset.analysisNav===active);
     });
     updateNotice(page,count,visible);
+    var rows=Math.max(2,1+visible+(page.querySelector(':scope > .an-notice')?1:0));
+    var span='span '+rows;if(nav.style.gridRowEnd!==span)nav.style.gridRowEnd=span;
     if(!viewed){viewed=true;track('analysis_section_view');}
   }
   function schedule(){if(queued)return;queued=true;requestAnimationFrame(function(){queued=false;sync();});}
@@ -199,6 +256,16 @@
     '.an-notice button{font:inherit;color:var(--accent,#5d72e8);background:var(--accent-soft,#eef1ff);border:0;border-radius:8px;padding:7px 10px;cursor:pointer}',
     '.an-notice button[hidden]{display:none!important}',
     '.an-split-card>div:first-child{margin-top:0!important}',
+    '.an-layout>.card[data-an-kind="peer"] .st-peer{margin-top:0!important;padding-top:0!important;border-top:0!important}',
+    '.an-layout .st-peer-heading{gap:6px}.an-layout .st-peer-heading h4,.an-layout #dsbRoot .dsb-head>span{font-size:16px!important;font-weight:700;line-height:1.45}',
+    '.an-model-hint{display:block;color:var(--muted,#788392);font-size:11px;line-height:1.6;font-weight:400;margin-top:3px}',
+    '.an-layout #dsbRoot .dsb-head{margin-bottom:10px;gap:6px}.an-layout #dsbRoot .dsb-head .an-model-hint{flex-basis:100%;margin-top:0;order:3}',
+    '.an-layout #dsbRoot{margin-top:0!important}.an-layout .st-peer-heading p{margin:6px 0 0}.an-layout .st-peer-count{margin-top:3px}',
+    '.an-layout .st-peer-notice{padding:8px 10px;margin-top:10px;background:var(--chip-bg,var(--cell,#f6f7fa));border-radius:8px;align-items:center}.an-layout .st-peer-notice button{flex:none;white-space:nowrap}',
+    '.an-layout .st-peer-controls{margin:12px 0 8px;gap:8px}.an-layout .st-peer-modes{margin-top:8px}.an-layout .st-peer-settings{margin:10px 0 12px}.an-layout .st-peer-qualification{margin:10px 0}',
+    '.an-navigation .an-secondary-row button:not(.is-active){font-weight:400;color:var(--muted,#788392)}',
+    '.an-layout .an-split-card[data-an-kind="speed"]>div>b,.an-layout .an-split-card[data-an-kind="distribution"] [data-matrix-distribution-heading]{font-size:16px!important;font-weight:700}',
+    '@media(max-width:620px){.an-layout .st-peer-notice{align-items:flex-start}.an-layout .st-peer-heading h4,.an-layout #dsbRoot .dsb-head>span{font-size:15px!important}}',
     '@media(min-width:881px){.an-layout{display:grid;grid-template-columns:146px minmax(0,1fr);column-gap:16px;align-items:start;align-content:start;grid-auto-rows:min-content}.an-layout>*{grid-column:2;min-width:0}.an-layout>.page-head{grid-column:1/-1}.an-layout>.an-navigation{grid-column:1;grid-row:2/span 24;position:static;align-self:stretch;background:transparent;border:0;padding:0;margin:0}.an-navigation-inner{position:sticky;top:12px;border-radius:12px;border:1px solid var(--line,#e8ebf0);padding:6px;background:var(--panel-solid,var(--bg,#fff))}.an-primary-row,.an-secondary-row{flex-direction:column;align-items:stretch}.an-primary-row button{justify-content:flex-start;padding:12px 9px}.an-primary-row svg{display:block}.an-secondary-row{margin-top:7px;padding-top:6px}.an-secondary-row button{text-align:left;padding:8px 9px}.an-layout>.sv31-controls{grid-column:2}}',
     '@media(max-width:380px){.an-primary-row button{font-size:12px;padding:9px 3px}}',
     '@media print{#content .an-layout{display:block}.an-layout>.an-navigation,.an-layout>.an-notice{display:none!important}}'
