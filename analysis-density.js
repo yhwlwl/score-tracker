@@ -142,6 +142,17 @@
           });break;
         case'worth':
           existing(card,'.worth-records','worth-records','full');
+          // Lift the numerical difficulty summary and its scale explanation out
+          // of the long method text. Keep them together so the scale is readable.
+          var method=card.querySelector('.worth-method'),diff=method&&method.querySelector('.worth-difficulty');
+          if(diff){
+            var next=diff.nextElementSibling;
+            var moved=[diff];if(next&&next.matches('.worth-note')&&/平均难度/.test(next.textContent))moved.push(next);
+            moved.forEach(function(n){method.before(n);});
+            wrap(moved,'worth-difficulty','参照难度详情','standard');
+          }
+          var diffGroup=card.querySelector('details[data-ad-group="worth-difficulty"]');
+          if(diffGroup)installDisclosure(diffGroup,'worth-difficulty','standard');
           // Keep all score/benchmark selectors, both estimates, current difficulty,
           // low-confidence warnings and the limit notice visible in every mode.
           existing(card,'.worth-method','worth-method','full');
@@ -162,6 +173,11 @@
           });
           var why=Array.from(card.querySelectorAll('details')).find(function(d){return d.querySelector('.dsb-why-grid');});
           installDisclosure(why,'deep-why','standard');
+          var calc=card.querySelector('.dsb-grid2');
+          if(calc)Array.from(calc.querySelectorAll(':scope > details')).forEach(function(d){
+            var summary=d.querySelector('summary'),name=summary&&summary.textContent.trim();
+            if(['长期方向检验','突然变化与连续偏移','分数与排名是否一致'].includes(name))installDisclosure(d,'deep-detail:'+name,'full');
+          });
           // The main trajectory caption explains interval semantics and colors,
           // so it must remain available without an extra click by default.
           var caption=Array.from(card.querySelectorAll('.dsb-fig-cap')).find(function(n){return /阴影带|排名位置/.test(n.textContent);});
@@ -190,7 +206,7 @@
     '.sv31-page .ad-columns{display:block;margin:7px 0 0 auto;padding:6px 9px;border:0;border-radius:7px;color:var(--accent,#5d72e8);background:var(--accent-soft,#eef1ff);cursor:pointer;font:inherit;font-size:11px}',
     '.sv31-page .ad-columns[hidden]{display:none!important}',
     '.sv31-page .sv31-g2:has(>details.ad-section:not([open])){grid-template-columns:minmax(0,1fr)!important}',
-    '.sv31-page .ad-section[data-ad-group="matrix-records"]>div>b,.sv31-page .ad-section[data-ad-group="deep-calc"]>.dsb-level-head,.sv31-page .ad-section[data-ad-group="deep-distribution"] .dsb-fig-title{display:none}',
+    '.sv31-page .ad-section[data-ad-group="matrix-records"]>div>b{display:block;color:var(--muted,#788392);font-weight:500;font-size:12px!important}.sv31-page .ad-section[data-ad-group="deep-calc"]>.dsb-level-head,.sv31-page .ad-section[data-ad-group="deep-distribution"] .dsb-fig-title{display:none}',
     '@media print{.sv31-page table[data-ad-compact] [data-ad-extra-col]{display:table-cell!important}.sv31-page .ad-columns{display:none!important}}'
   ].join('\n');
   document.head.append(style);
