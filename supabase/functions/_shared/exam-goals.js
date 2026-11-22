@@ -79,6 +79,19 @@ function calibrate(history,kind){
  let value=kind==='score'?round(suggestion*max/100):unit==='number'?Math.max(1,Math.round(suggestion)):round(suggestion);
  return {goal:g,actual:last.actual,decision,reason,streak,met,eligible:eligible.length,suggestion:value,unit,max,origin:last.origin};
 }
-const api={num,actual,pending,cleanItems,snapshot,evolve,rankValue,evaluate,calibrate,quantile};
-if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.ScoreExamGoals=api;
+function restoreBackup(raw,normalized){
+ if(!Array.isArray(raw?.exams)||!Array.isArray(normalized?.exams)||raw.exams.length!==normalized.exams.length)throw Error('备份考试数量不一致');
+ normalized.exams.forEach((e,i)=>{
+  const g=raw.exams[i]?.exam_goals;if(g==null)return;
+  if(g.version!==1||!g.items||typeof g.items!=='object')throw Error('考试目标备份版本不支持');
+  const items=cleanItems(g.items,e),planned=g.planned===true&&!actual(e);
+  const stamp=v=>typeof v==='string'&&v.length<=40&&Number.isFinite(Date.parse(v))?v:null;
+  // Restore current data; imported origin cannot be independently verified.
+  e.exam_goals={version:1,planned,items,firstSetAt:stamp(g.firstSetAt),updatedAt:stamp(g.updatedAt),origin:g.origin==='retro'?'retro':'legacy',imported:true,locked:null,changedAfterResults:!!g.changedAfterResults};
+  if(planned)e.is_hidden=true;
+ });
+ return normalized;
+}
+const api={num,actual,pending,cleanItems,snapshot,evolve,rankValue,evaluate,calibrate,quantile,restoreBackup};
+if(typeof module!=='undefined'&&module.exports)module.exports=api;else {root.ScoreExamGoals=api;if(root.ScoreBackup){const normalize=root.ScoreBackup.normalize;root.ScoreBackup.normalize=raw=>restoreBackup(raw,normalize(raw));}}
 })(typeof globalThis!=='undefined'?globalThis:this);
