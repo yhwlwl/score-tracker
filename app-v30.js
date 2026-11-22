@@ -71,6 +71,9 @@ function buildCsvV30(exams,scopeLabel){
   subjects.forEach(function(s){head.push(s+' 目标',s+' 最终分',s+' 最终满分',s+' 原始分',s+' 原始满分',s+' 年排',s+' 年级人数',s+' 班排',s+' 班级人数',s+' 年位比%',s+' 班位比%',s+' 不计总分',s+' 班级均分',s+' 年级均分',s+' 班级最高分',s+' 年级最高分');});
   head.push('总分','原始总分','总排名(年)','年级人数(总)','总班排','班级人数(总)','总年位比%','总班位比%','总分班级均分','总分年级均分','总分班级最高分','总分年级最高分');
   mods.forEach(function(m){head.push(m.name+' 年排',m.name+' 年人数',m.name+' 班排',m.name+' 班人数',m.name+' 班级均分',m.name+' 年级均分',m.name+' 班级最高分',m.name+' 年级最高分');});
+  var goalKeys=subjects.map(function(s){return ['s:'+s,s];}).concat([['total','总分']],mods.map(function(m){return ['m:'+m.id,m.name];}));
+  head.push('考试状态','目标来源');
+  goalKeys.forEach(function(k){head.push(k[1]+' 目标分(原满分)',k[1]+' 目标满分',k[1]+' 目标年排名次',k[1]+' 目标年位比%');});
   var lines=[head.map(csvCellV30).join(',')];
   exams.forEach(function(ex){
     var row=[ex.exam_date||'',ex.name||'',ex.grade_level||'',ex.end_date||''];
@@ -88,6 +91,9 @@ function buildCsvV30(exams,scopeLabel){
       row.push(fmtV30(numV30(r.yearRank)),fmtV30(numV30(r.yearParticipants)),fmtV30(numV30(r.classRank)),fmtV30(numV30(r.classParticipants)));
       row.push(averageV30(ex,'m:'+m.id,'class'),averageV30(ex,'m:'+m.id,'year'),averageV30(ex,'m:'+m.id,'classMax'),averageV30(ex,'m:'+m.id,'yearMax'));
     });
+    var goals=window.ScoreExamGoals,items=goals?goals.snapshot(ex):{};
+    row.push(goals&&goals.pending(ex)?'待完成':'已记录',({before_exam:'考前',before_results:'成绩前记录',retro:'补录',legacy:'来源时间未知'})[ex.exam_goals?.origin]||'');
+    goalKeys.forEach(function(k){var g=window.ScoreExamGoalReview?.goalOf(ex,k[0],false)||items[k[0]]||{};row.push(g.score??'',g.max??'',g.rankType==='number'?g.rank:'',g.rankType==='percent'?g.rank:'');});
     lines.push(row.map(csvCellV30).join(','));
   });
   return '\uFEFF'+lines.join('\r\n')+'\r\n';
@@ -110,7 +116,7 @@ function buildTxtV30(exams,scopeLabel){
     var bits=[ex.name||'未命名',ex.exam_date||''];
     if(ex.end_date)bits.push('至 '+ex.end_date);
     if(ex.grade_level)bits.push(ex.grade_level);
-    if(ex.is_hidden)bits.push('已隐藏');
+    if(window.ScoreExamGoals?.pending(ex))bits.push('待完成');else if(ex.is_hidden)bits.push('已隐藏');
     out.push('');out.push('【'+(i+1)+'】'+bits.join(' · '));
     subjectsUnionV30([ex]).forEach(function(s){
       var r=(ex.scores||{})[s]||{},seg=[s];
@@ -149,6 +155,8 @@ function buildTxtV30(exams,scopeLabel){
     var typ=numV30(ex.total_year_position_percent);if(typ!==null)tot.push('年位比 前'+typ+'%');
     var tcp=numV30(ex.total_class_position_percent);if(tcp!==null)tot.push('班位比 前'+tcp+'%');
     out.push('  '+tot.join(' ｜ '));
+    var goals=window.ScoreExamGoals?.snapshot(ex)||{};
+    Object.entries(goals).forEach(function(entry){var k=entry[0],g=entry[1];var title=k==='total'?'总分':k.startsWith('s:')?k.slice(2):modulesV30().find(function(m){return 'm:'+m.id===k;})?.name||'组合';var a=[g.score!=null?g.score+'/'+g.max+'分':'',g.rank!=null?'前'+g.rank+(g.rankType==='percent'?'%':'名'):''].filter(Boolean);if(a.length)out.push('  '+title+'目标：'+a.join(' ｜ '));});
   });
   out.push('');out.push('由 成绩轨迹 导出 · 把每一次努力，连成一条向上的线');
   return out.join('\r\n')+'\r\n';
@@ -347,10 +355,11 @@ function comboSumV30(ex,mo){
   return {fin:fin,fmax:fmax,raw:raw,rmax:rmax};
 }
 function buildPrintHtmlV30(exams,scopeLabel){
+  var recorded=exams.filter(function(ex){return !window.ScoreExamGoals?.pending(ex);});
   var account='';try{account=(state.user&&state.user.username)||'';}catch(e){}
   var dates=exams.map(function(e){return e.exam_date||'';}).filter(Boolean).sort();
   var span=dates.length?(dates[0]===dates[dates.length-1]?dates[0]:dates[0]+' ~ '+dates[dates.length-1]):'—';
-  var last=[].concat(exams).sort(function(a,b){return String(b.exam_date||'').localeCompare(String(a.exam_date||''));})[0];
+  var last=[].concat(recorded).sort(function(a,b){return String(b.exam_date||'').localeCompare(String(a.exam_date||''));})[0];
   var lastTotal=last?fmtV30(sumTotalV30(last,'actual')):'—';
   function logoSvg(size){
     return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 48 48" style="display:block">'
@@ -361,7 +370,7 @@ function buildPrintHtmlV30(exams,scopeLabel){
   /* —— 概览表行 —— */
   var overviewRows=exams.map(function(ex){
     return '<tr><td class="c-date">'+escV30(ex.exam_date||'—')+'</td>'
-      +'<td><b>'+escV30(ex.name||'未命名')+'</b>'+(ex.is_hidden?'<span class="hid">已隐藏</span>':'')+'</td>'
+      +'<td><b>'+escV30(ex.name||'未命名')+'</b>'+(window.ScoreExamGoals?.pending(ex)?'<span class="hid">待完成</span>':ex.is_hidden?'<span class="hid">已隐藏</span>':'')+'</td>'
       +'<td>'+(ex.grade_level?'<span class="pill">'+escV30(ex.grade_level)+'</span>':'<span class="dim">—</span>')+'</td>'
       +'<td class="num strong">'+(fmtV30(sumTotalV30(ex,'actual'))||'—')+'</td>'
       +'<td class="num">'+(fmtV30(sumTotalV30(ex,'raw'))||'—')+'</td>'
@@ -481,18 +490,19 @@ function buildPrintHtmlV30(exams,scopeLabel){
     +'<div class="meta">账户 <b>'+escV30(account||'—')+'</b><br>范围 <b>'+escV30(scopeLabel||'全部')+'</b> ｜ 生成于 '+humanNowV30()+'</div>'
     +'</div>'
     +'<div class="stats">'
-    +'<div class="stat"><b>'+exams.length+'</b><span>次考试</span></div>'
+    +'<div class="stat"><b>'+recorded.length+'</b><span>次已记录考试</span></div>'
     +'<div class="stat"><b style="font-size:11.5px;line-height:22px">'+escV30(span)+'</b><span>时间跨度</span></div>'
     +'<div class="stat"><b>'+(lastTotal==='—'?'—':lastTotal)+'</b><span>最近总分</span></div>'
     +'<div class="stat"><b style="font-size:11.5px;line-height:22px">'+escV30((function(){var o=[];exams.forEach(function(e){if(e.grade_level&&o.indexOf(e.grade_level)<0)o.push(e.grade_level);});return o.length?o.join(' / '):'—';})())+'</b><span>包含分类</span></div>'
     +'</div>'
-    +(function(){var c=totalRateChartV30(exams);return c?('<h2 class="sec">得分率趋势</h2><div class="chart-wrap">'+c+'</div>'):'';})()
-    +(function(){var m=rateMatrixV30(exams);return m?('<h2 class="sec">各科 · 组合 得分率</h2><div class="mx-wrap">'+m+'</div><div class="chart-note">数值为得分率（%），色深代表高低；空白表示该次考试未填此科目。</div>'):'';})()
-    +(function(){var a=rankLineChartV30(exams,'total_rank','年排'),b=rankLineChartV30(exams,'total_class_rank','班排');if(!a&&!b)return '';return '<h2 class="sec">排名趋势</h2><div class="rank-grid">'+a+b+'</div><div class="chart-note">名次越小越好 · 线向上表示进步；两图各自独立刻度。</div>';})()
+    +(function(){var c=totalRateChartV30(recorded);return c?('<h2 class="sec">得分率趋势</h2><div class="chart-wrap">'+c+'</div>'):'';})()
+    +(function(){var m=rateMatrixV30(recorded);return m?('<h2 class="sec">各科 · 组合 得分率</h2><div class="mx-wrap">'+m+'</div><div class="chart-note">数值为得分率（%），色深代表高低；空白表示该次考试未填此科目。</div>'):'';})()
+    +(function(){var a=rankLineChartV30(recorded,'total_rank','年排'),b=rankLineChartV30(recorded,'total_class_rank','班排');if(!a&&!b)return '';return '<h2 class="sec">排名趋势</h2><div class="rank-grid">'+a+b+'</div><div class="chart-note">名次越小越好 · 线向上表示进步；两图各自独立刻度。</div>';})()
     +(exams.length?('<h2 class="sec">成绩总览</h2>'
     +'<table class="ov"><thead><tr><th>日期</th><th>考试</th><th>分类</th><th>总分</th><th>原始总分</th><th>年排</th><th>班排</th></tr></thead><tbody>'+overviewRows+'</tbody></table>'
     +'<h2 class="sec">各科明细</h2>'+blocks)
     :'<div style="text-align:center;color:#98a1ae;padding:40px 0">该范围内暂无考试</div>')
+    +(function(){var rows=[];exams.forEach(function(ex){Object.entries(window.ScoreExamGoals?.snapshot(ex)||{}).forEach(function(entry){var k=entry[0],g=entry[1],name=k==='total'?'总分':k.startsWith('s:')?k.slice(2):modulesV30().find(function(m){return 'm:'+m.id===k;})?.name||'组合';rows.push('<tr><td>'+escV30(ex.name)+'</td><td>'+escV30(name)+'</td><td>'+escV30(g.score!=null?g.score+'/'+g.max:'—')+'</td><td>'+escV30(g.rank!=null?'前'+g.rank+(g.rankType==='percent'?'%':'名'):'—')+'</td></tr>');});});return rows.length?'<h2 class="sec">单场考试目标</h2><table class="ov"><thead><tr><th>考试</th><th>科目或组合</th><th>分数目标</th><th>排名目标</th></tr></thead><tbody>'+rows.join('')+'</tbody></table>':'';})()
     +'<div class="foot">来自 成绩轨迹 '+escV30(appVersionV30())+' · 把每一次努力，连成一条向上的线</div>'
     +'</body></html>';
 }
