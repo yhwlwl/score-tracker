@@ -205,9 +205,21 @@
   ].join('\n');
   document.head.append(css);
   function boot(){
+    // #content is created after sign-in and replaced by render() on navigation.
+    // #app is the persistent shell; observe it even while the login screen is open.
+    var root=document.getElementById('app')||document.body;
+    if(root&&typeof MutationObserver==='function'){
+      new MutationObserver(schedule).observe(root,{childList:true,subtree:true,attributes:true,attributeFilter:['data-display-off-v1']});
+    }
+    // Run immediately on statistics render, including filter-driven rebuilds.
+    if(typeof window.renderPage==='function'){
+      var previous=window.renderPage;
+      window.renderPage=function(){
+        var result=previous.apply(this,arguments);
+        sync();return result;
+      };
+    }
     sync();
-    var root=document.getElementById('content');
-    if(root)new MutationObserver(schedule).observe(root,{childList:true,subtree:true,attributes:true,attributeFilter:['data-display-off-v1']});
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
