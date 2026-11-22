@@ -106,7 +106,7 @@ const beforeApi=dataApiV7;dataApiV7=function(action,payload){
   if(G.pending(modal._egSource)&&!G.actual(e)&&!Array.from(modal.querySelectorAll('.combo-yr-v25,.combo-cr-v25,.total-actual-override-v24,.total-raw-override-v24')).some(n=>G.num(n.value)!==null))throw Error('请至少录入一项实际成绩或排名');
   if(meta){if(!available()&&Object.entries(meta.items).some(([k,g])=>k==='total'||k.startsWith('m:')||G.num(g.rank)!==null))throw Error('新版目标后端尚未启用，排名目标及独立总分目标暂不能保存');if(available())e.exam_goals=meta;}
  }
- const result=beforeApi.apply(this,arguments);
+ const result=(action==='list_exams'||action==='bootstrap')?beforeApi.call(this,action,{...payload,exam_goal_version:1}):beforeApi.apply(this,arguments);
  if(action==='list_exams'||action==='bootstrap')return Promise.resolve(result).then(data=>{supported=data?.examGoalVersion===1;apiOwner=String(data?.user?.id||state.user?.id||state.user?.username||'');return data;});
  return result;
 };
