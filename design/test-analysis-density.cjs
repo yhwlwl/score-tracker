@@ -28,3 +28,6 @@ console.log('PASS: density defaults, legacy migration, custom visibility, priori
 
 for(const mode of ['simple','standard','full'])for(const expanded of [true,false])for(const level of ['simple','standard','full'])assert.equal(d.suppressSupplement(mode,expanded,level),mode==='simple'&&!expanded&&level!=='simple');
 console.log('PASS: consolidated simple details preserve core content and never suppress other modes');
+
+for(const mode of ['simple','standard','full','invalid'])assert.equal(d.layerDefault(mode),mode==='full');
+console.log('PASS: history layer defaults to on only in full mode');
