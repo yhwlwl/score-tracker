@@ -310,6 +310,7 @@ async function list(user: any) {
   return {
     user: { id: user.id, username: user.username, originalUsername: user.original_username || user.username },
     subjects: configured,
+    examGoalVersion: 1,
     classification: classification(user),
     participantDefaults: user.participant_defaults || {},
     modules,
