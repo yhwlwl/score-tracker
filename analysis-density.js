@@ -277,7 +277,7 @@
     var scope=card.querySelector('.dsb-caliber');
     if(scope&&!scope.dataset.adScope){
       scope.dataset.adScope='1';var raw=scope.textContent,warning=/疑似|注意/.test(raw);
-      var d=node('details','ad-scope'),h=node('summary','',warning?'排名范围可能不一致':'组合排名来源');
+      var d=node('details','ad-scope'),h=node('summary','',warning?'请确认排名范围':'组合排名来源');
       if(warning){
         var m=raw.match(/总分参与人数\((\d+)\).*单科最大池\((\d+)\)/);
         write(scope,(m?'总分参考人数 '+m[1]+' 人，人数最多的单科 '+m[2]+' 人。':'')+' 人数关系不能确认是否为全年级排名。系统按录入的排名分析，请确认比较的是同一群体。');
@@ -299,7 +299,7 @@
       if(point&&range){
         var p=+point[1],lo=+range[1],hi=+range[2];
         if([p,lo,hi].every(function(n){return n>=0&&n<=100;})&&lo<=hi){
-          var ruler=node('div','ad-ruler'),scale=node('div','ad-ruler-scale');
+          var ruler=node('div','ad-ruler'),scale=node('div','ad-ruler-scale');ruler.setAttribute('role','img');ruler.setAttribute('aria-label','近期参考前'+p+'%，独立估计的波动范围前'+lo+'%至前'+hi+'%');
           scale.innerHTML='<span>前0%</span><span>前25%</span><span>前50%</span><span>前75%</span><span>前100%</span>';
           [['近期参考',p,p],['波动范围',lo,hi]].forEach(function(v){
             var line=node('div','ad-ruler-row'),bar=node('div','ad-ruler-track'),mark=node('i',v[1]===v[2]?'ad-ruler-point':'ad-ruler-band');
@@ -344,8 +344,34 @@
       var legend=ui.querySelector('.ad-history-legend');if(legend)legend.hidden=!show||!svg.querySelector('[data-ad-history-layer]');
     }
   }
+  function distributionVisual(card){
+    var wrap=card.querySelector('#dsbDistWrap'),cap=wrap&&wrap.querySelector('.dsb-fig-cap'),v=wrap&&wrap.querySelector('[data-dsb-view-select]');
+    if(!wrap||!cap||!v)return;
+    var view=v.value;
+    if(cap.dataset.adDistGuide===view)return;
+    cap.dataset.adDistGuide=view;
+    var copy=cap.textContent,entries=[],short='';
+    if(view==='band'){
+      var p=copy.match(/进入前(\d+)%的参考概率约(\d+)%/);
+      short=p?'进入前'+p[1]+'%的参考概率：'+p[2]+'%':'柱高表示落入对应排名区间的估计机会';
+      entries=[['bars','柱子越高，机会越大','例如前10%～15%的柱子为20%，表示估计有20%的机会落在这一段。'],['future','蓝色曲线','显示模型估计较集中的位置，不代表每一根柱子的百分比。']];
+    }else if(view==='cum'){
+      var c=copy.match(/进入前(\d+)%的机会约为(\d+)%/);
+      short=c?'进入前'+c[1]+'%的参考概率：'+c[2]+'%':'找到目标排名，沿曲线读取参考概率';
+      entries=[['trend','先找目标，再读概率','在横轴找到前20%，向上找到曲线，再向左读数。例如读到60%，表示估计有60%的机会进入前20%。']];
+    }else if(view==='zmap'){
+      var t=copy.match(/蓝色柱表示达到前(\d+)%/);
+      short=t?'蓝色柱表示进入前'+t[1]+'%的区域':'柱高表示落在对应发挥范围内的估计机会';
+      entries=[['bars','按发挥幅度分组','这里各柱代表相等的发挥幅度，而非相等的排名百分比。柱越高，模型认为落在相应范围的机会越大。'],['rank','调整格数不改变预测','格数越多，图显示得越细；计算结果没有改变。']];
+    }
+    if(entries.length){
+      inlineNote(cap,short);cap.classList.add('ad-keyline');
+      var old=wrap.querySelector(':scope > .ad-guide');if(old)old.remove();
+      help(wrap,'deep-dist-'+view,entries);
+    }
+  }
   function readingVisual(card,k){
-    if(k==='deep'){deepVisual(card);return;}
+    if(k==='deep'){deepVisual(card);distributionVisual(card);return;}
     if(k==='structure'){
       var quad=card.querySelector('#sv31Quad'),p=quad&&quad.parentElement;
       if(p){help(p,'quad',[['quad','越上越靠前，越右进步越快','例如右上方的英语，表示当前排名靠前且近期有进步。'],['rank','比自身典型水平','各科通常在前30%，数学在前20%，就是比典型水平靠前10个百分点（+10）。']]);retire(card.querySelector('.card-title-row .card-sub'));var b=p.querySelector(':scope > b > span');write(b,'（点科目看详情）');}
@@ -356,7 +382,7 @@
         var old=toolbar.querySelector('.matrix-reading-v60'),active=card.querySelector('[data-analysis-matrix-v60][aria-pressed="true"]');
         // Keep current-mode scale and missing-value key visible; use examples in guide.
         if(old&&active)write(old,active.dataset.analysisMatrixV60==='difficulty'?'50＝平均 · † 粗略参考 · — 缺少数据':active.dataset.analysisMatrixV60==='score'?'数字越高，得分比例越高 · — 缺少数据':'数字越小，排名越靠前 · — 缺少数据');
-        help(toolbar,'matrix',[['rank','排名数字 20','表示前20%，例如100人里约第20名。'],['score','得分率 90%','90/100与135/150都是90%。'],['difficulty','难度参考 90','50是平均，90表示估计偏难，不是90%的试卷难度。']]);
+        help(toolbar.parentElement,'matrix',[['rank','排名数字 20','表示前20%，例如100人里约第20名。'],['score','得分率 90%','90/100与135/150都是90%。'],['difficulty','难度参考 90','50是平均，90表示估计偏难，不是90%的试卷难度。']]);
       }
     }
     if(k==='worth'){
@@ -383,6 +409,7 @@
     }
     if(k==='hall'){var hallHelp=help(card.querySelector('.sv31-scroll')?.parentElement,'hall',[['score','不同满分怎么比较','90/100与135/150都是90%。以得分率比较，最佳分数仍保留原卷满分。']]);if(hallHelp){var hallNote=card.querySelector('.card-title-row .card-sub');if(hallNote&&!hallNote.classList.contains('ad-keyline')){inlineNote(hallNote,'满分不同时按得分率比较，原卷分数仅供参考。');hallNote.classList.add('ad-keyline');}}}
     if(k==='calib'){var calibHelp=help(card.querySelector('.sv31-scroll')?.parentElement,'calib',[['rank','排名目标怎么看','前20%就是100人里约第20名。建议的参考分取自自己以前考过的试卷。']]);if(calibHelp){var calibNote=card.querySelector('.card-title-row .card-sub');if(calibNote&&!calibNote.classList.contains('ad-keyline')){inlineNote(calibNote,'建议以排名为准，参考分来自历史考试。');calibNote.classList.add('ad-keyline');}}}
+    if(k==='kpi'){var kpi=card.querySelector('.sv31-kpi');if(kpi)help(kpi.parentElement,'kpi',[['rank','排名位置怎么读','前20%表示约在100人中第20名。不同考试人数不同，用排名百分比更容易比较。']]);}
     if(k==='trend')help(card.querySelector(':scope > .fold-body-v38')||card,'trend',[['trend','看连续变化','排名图越靠上越靠前，一次起伏不等于整体趋势变化。'],['score','不同考试的分数','满分与难度不同时，不能只凭分数高低判断进退。']]);
     if(k==='comp')help(card.querySelector('.sv31-g2')?.parentElement,'comp',[['compare','班级和年级一起看','例如班级前10%、年级前30%，表示在班内的位置更靠前。人数不同，不能直接比较名次数字。']]);
     if(k==='speed')help(card.querySelector('.sv31-scroll')?.parentElement,'speed',[['trend','每场进步速度','例如每场前进约5名，表示最近几场的变化速度估计，不保证下一次也前进5名。']]);
