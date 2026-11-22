@@ -124,7 +124,17 @@
     // engineering implementation. Preserve original calculation tables.
     if(k==='deep'){
       var tip=card.querySelector('.dsb-tip');
-      inlineNote(tip,'参考位置主要看近期成绩，波动范围还考虑平时起伏。两者算法不同，均不保证下次成绩。');
+      inlineNote(tip,'参考位置主要看近期成绩，范围还考虑平时起伏。两者算法不同，记录少时范围更不稳定，均仅供参考。');
+      var goalBox=card.querySelector('.dsb-goal-box');
+      if(goalBox){
+        write(goalBox.querySelector('.dsb-summary-label'),'进入目标排名的可能性');
+        var input=goalBox.querySelector('#dsbGoalPct');
+        if(input&&!input.hasAttribute('data-ad-unit')){
+          var pre=document.createElement('span'),post=document.createElement('span');pre.textContent='前';post.textContent='%';pre.className=post.className='ad-goal-unit';
+          input.before(pre);input.after(post);input.setAttribute('data-ad-unit','');
+        }
+        write(goalBox.querySelector('#dsbGoalBtn'),'查看概率');
+      }
       var helpers=card.querySelectorAll('.dsb-summary-help');
       helpers.forEach(function(n){n.classList.add('ad-redundant');});
       card.querySelectorAll('.dsb-level-head').forEach(function(n){
@@ -157,8 +167,16 @@
       var dist=card.querySelector('#dsbDistWrap .dsb-fig-cap');
       if(dist&&/柱子 = 该名次段/.test(dist.textContent)){
         var goal=dist.textContent.match(/命中前\s*(\d+)%\s*的概率\s*≈\s*(\d+)%/);
-        inlineNote(dist,'柱子越高，模型认为落入这段排名的可能性越大；例如前10%到15%的柱子为20%，表示估计有20%的可能落在这一段。蓝线表示模型估计的集中位置。'+(goal?' 进入前'+goal[1]+'%的参考概率约'+goal[2]+'%。':''));
+        inlineNote(dist,'柱子越高，落在该段排名的估计机会越大。例：前10%～15%的柱子为20%，即估计有20%的机会落在这一段。蓝色曲线表示模型更集中的位置。'+(goal?' 进入前'+goal[1]+'%的参考概率约'+goal[2]+'%。':''));
+      }else if(dist&&/累计命中概率/.test(dist.textContent)){
+        var cum=dist.textContent.match(/考进前(\d+)%\s*≈\s*(\d+)%/), mid=dist.textContent.match(/状态模型中心（([^）]+)）/);
+        inlineNote(dist,'在横轴找到目标排名，再向上找到曲线，向左读概率。'+(cum?'例如按当前模型，进入前'+cum[1]+'%的机会约为'+cum[2]+'%。':'例如前20%处读到60%，表示估计有60%的机会进入前20%。')+(mid?' 曲线到50%的位置：'+mid[1]+'。':''));
+      }else if(dist&&/发挥距离.*标尺/.test(dist.textContent)){
+        var tgt=dist.textContent.match(/目标前(\d+)%/), bins=dist.textContent.match(/分为\s*(\d+)\s*格/);
+        inlineNote(dist,'越靠前，进一步提升排名通常越难。此图按相等的发挥幅度分组，柱越高，落入这段的估计机会越大。'+(tgt?'蓝色柱表示达到前'+tgt[1]+'%的区域。':'')+(bins?'当前'+bins[1]+'格；调整格数只改变图的细度。':''));
       }
+      var views=card.querySelector('[data-dsb-view-select]');
+      if(views)Array.from(views.options).forEach(function(o){var names={band:'排名区间',zmap:'发挥水平',cum:'目标达成概率'};if(names[o.value])write(o,names[o.value]);});
       var why=Array.from(card.querySelectorAll('details')).find(function(d){return d.querySelector('.dsb-why-grid');});
       if(why){
         write(why.querySelector('summary'),'怎么看');
@@ -303,7 +321,7 @@
             return h&&h.matches('.dsb-level-head')?[h,n]:[n];
           });
           var why=Array.from(card.querySelectorAll('details')).find(function(d){return d.querySelector('.dsb-why-grid');});
-          installDisclosure(why,'deep-why','standard');
+          installDisclosure(why,'deep-why','full');
           var calc=card.querySelector('.dsb-grid2');
           if(calc)Array.from(calc.querySelectorAll(':scope > details')).forEach(function(d){
             var summary=d.querySelector('summary'),name=summary&&summary.textContent.trim();
@@ -332,7 +350,7 @@
     '.sv31-page [data-ad-suppressed],.sv31-page .ad-redundant,.sv31-page .ad-more-link[hidden]{display:none!important}',
     '.sv31-page .ad-more-link{display:block;margin:8px 0 0 auto;border:0;background:transparent;padding:6px 2px;color:var(--accent,#5d72e8);font:inherit;font-size:12px;cursor:pointer}',
     '.sv31-page .ad-readable-note{font-size:12px!important;line-height:1.65!important;color:var(--muted,#788392);opacity:1!important;margin:7px 0!important}',
-    '.sv31-page #dsbRoot .dsb-tip.ad-readable-note{background:none;border:0;padding:0;font-size:11px!important}.sv31-page #dsbRoot .dsb-plain-insights{margin:5px 0 8px}.sv31-page #dsbRoot .dsb-plain-insights li{line-height:1.6;margin:3px 0}',
+    '.sv31-page .ad-goal-unit{font-size:12px;color:var(--muted,#788392)}.sv31-page #dsbRoot .dsb-tip.ad-readable-note{background:none;border:0;padding:0;font-size:11px!important}.sv31-page #dsbRoot .dsb-plain-insights{margin:5px 0 8px}.sv31-page #dsbRoot .dsb-plain-insights li{line-height:1.6;margin:3px 0}',
     '.sv31-page .ad-section{margin:10px 0 0;padding:0;border:1px solid var(--line,#e8ebf0);border-radius:10px;background:transparent;min-width:0}',
     '.sv31-page .ad-section>summary{padding:10px 12px;cursor:pointer;color:var(--muted,#788392);font-size:12px;font-weight:600;line-height:1.5}',
     '.sv31-page .ad-section[open]>summary{border-bottom:1px solid var(--line,#e8ebf0)}',
