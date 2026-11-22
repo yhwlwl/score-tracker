@@ -30,6 +30,9 @@ await db.exec(`
  grant select on all tables in schema public to service_role;
 `);
 await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/20261115060104_account_growth_ai_credits.sql'),'utf8'));
+await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/20261122121519_configurable_ai_monthly_budget.sql'),'utf8'));
+await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/20261122121811_ai_manual_reservation_release_state.sql'),'utf8'));
+await sql('update score_tracker_ai_policy set hard_limit_cny=50');eq(Number((await sql('select hard_limit_cny from score_tracker_ai_policy'))[0].hard_limit_cny),50);await sql('update score_tracker_ai_policy set hard_limit_cny=20');
 eq(await rpc('score_tracker_ai_release_ready'),true);
 await sql('insert into score_tracker_users(id) values($1),($2)',[uid,other]);
 await sql('update score_tracker_users set is_admin=true where id=$1',[other]);
@@ -77,6 +80,16 @@ assert(Number((await sql('select spent_cny from score_tracker_ai_budgets'))[0].s
 await ageTasks();id=task();await start(id);eq((await reserve(id,'unknown-model','unpriced')).reason,'unpriced_model');eq((await reserve(id,'null-limit','deepseek-v4-flash',null)).reason,'unpriced_model');
 eq((await start(task(),'analysis')).reason,'analysis_disabled');eq((await start(task(),'admin_test',0,0)).reason,'forbidden');
 await sql('update score_tracker_ai_policy set hard_limit_cny=0.1');eq((await reserve(id,'too-expensive')).reason,'site_budget');await sql('update score_tracker_ai_policy set hard_limit_cny=20');await finish(id,false);
+// Manual release preserves unknown costs and late settlement must never subtract unrelated holds.
+await ageTasks();id=task();await start(id);await reserve(id,'manual-release');await settle('manual-release',null);await finish(id,false);
+await sql("update score_tracker_ai_budgets set reserved_cny=reserved_cny-(select reserved_cny from score_tracker_ai_calls where id='manual-release')");
+await sql("update score_tracker_ai_calls set status='released',released_at=now() where id='manual-release'");
+eq((await sql("select cost_cny from score_tracker_ai_calls where id='manual-release'"))[0].cost_cny,null);
+await ageTasks();id=task();await start(id);await reserve(id,'unrelated-hold');
+const unrelated=Number((await sql('select reserved_cny from score_tracker_ai_budgets'))[0].reserved_cny);
+await settle('manual-release',null);eq((await sql("select status from score_tracker_ai_calls where id='manual-release'"))[0].status,'released');
+await settle('manual-release',{prompt_tokens:1000,completion_tokens:0});eq(Number((await sql('select reserved_cny from score_tracker_ai_budgets'))[0].reserved_cny),unrelated);
+await settle('unrelated-hold',{prompt_tokens:0,completion_tokens:0});await finish(id,false);
 // Parallel reservations are serialized by the shared budget row; no overspend.
 await ageTasks();id=task();await start(id,'probe',0,0);const many=await Promise.all(Array.from({length:15},(_,i)=>reserve(id,'parallel-'+i)));
 eq(many.filter(r=>r.allowed).length,9);assert(Number((await sql('select spent_cny+reserved_cny as total from score_tracker_ai_budgets'))[0].total)<=20);checks++;

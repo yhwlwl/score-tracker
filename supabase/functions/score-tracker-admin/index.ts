@@ -110,7 +110,7 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
   }
   if(action==='ai_budget_save'&&req.method==='POST'){
     const b=await req.json(),warning=Number(b.warning_cny),limit=Number(b.hard_limit_cny),factor=Number(b.cost_multiplier);
-    if(typeof b.enabled!=='boolean'||!Number.isFinite(warning)||!Number.isFinite(limit)||warning<0||limit<=0||limit>20||warning>limit||!Number.isFinite(factor)||factor<1||factor>100)return json({error:'预算必须在 0–20 元内，预警不超过上限；成本倍率为 1–100'},400);
+    if(typeof b.enabled!=='boolean'||!Number.isFinite(warning)||!Number.isFinite(limit)||warning<0||limit<=0||warning>limit||!Number.isFinite(factor)||factor<1||factor>100)return json({error:'月预算须为大于 0 的有限金额，预警须在 0 与上限之间；成本倍率为 1–100'},400);
     const period=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit'}).format(new Date())+'-01';
     const current=await db.from('score_tracker_ai_policy').select('starts_period,enabled,activated_at').eq('id',true).single();if(current.error)throw current.error;
     if(!current.data.activated_at){
