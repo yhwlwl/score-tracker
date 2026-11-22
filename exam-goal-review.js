@@ -49,30 +49,6 @@ function recap(ex){
  if(!items.length)return '';
  return '<section class="ed-section eg-recap"><div class="ed-section-head"><div><h2>考试目标复盘</h2><p>'+esc(({before_exam:'考前目标',before_results:'成绩前记录',retro:'考后补录',legacy:'来源时间未知'})[ex.exam_goals?.origin||'legacy']||'来源时间未知')+(ex.exam_goals?.changedAfterResults?' · 成绩录入后修改过':'')+'</p></div></div><div class="eg-cal-grid">'+items.flatMap(([key,g])=>['score','rank'].filter(k=>n(k==='score'?g.score:g.rank)!==null).map(k=>{const a=key.startsWith('s:')?subjectActual(ex,key.slice(2)):groupActual(ex,key),r=G.evaluate(g,a,k),status=r?r.met?'已达标':'未达标':'待补录';return '<div class="eg-cal-item"><div class="eg-row"><b>'+esc(name(key))+' · '+(k==='score'?'分数':'排名')+'</b><span class="eg-muted">'+status+'</span></div><div class="eg-cal-values"><div><small>目标</small><b>'+esc(goalText(g,k))+'</b></div><div><small>实际</small><b>'+esc(actualText(a,g,k))+'</b></div></div></div>';})).join('')+'</div></section>';
 }
-function scope(){
- const cfg=state.sv31||{},v=window.__v32;let exams=(state.allExams||[]).filter(e=>!G.pending(e)&&(cfg.includeHidden||!e.is_hidden));
- exams=v?.scopeFilter?v.scopeFilter(exams,cfg.scope):exams;
- return exams.slice().sort((a,b)=>String(a.exam_date).localeCompare(String(b.exam_date))||String(a.created_at).localeCompare(String(b.created_at)));
-}
-let queued=false;
-function sync(){
- const page=document.querySelector('#content .sv31-page');if(!page||state.page!=='stats')return;
- if(page.dataset.egCalibrated)return;page.dataset.egCalibrated='1';
- const exams=scope(),subjects=state.sv31?.subjMod||null,old=Array.from(page.querySelectorAll(':scope > .card')).find(c=>/目标校准/.test(c.querySelector('.card-title')?.textContent||''));
- const next=document.createElement('div');next.innerHTML=calHtml(exams,subjects);const card=next.firstElementChild;
- if(old)old.replaceWith(card);else page.append(card);
- // The legacy reminder uses a score streak and unrelated rank recommendation.
- // Remove only its exact titles; new recommendations are available in calibration.
- const insightCard=Array.from(page.querySelectorAll(':scope > .card')).find(c=>/智能提醒/.test(c.querySelector('.card-title')?.textContent||''));
- if(insightCard){
-  insightCard.querySelectorAll('.sv31-insight').forEach(c=>{if(/的目标该调一调了$|可以再进一步$/.test(c.querySelector('b')?.textContent||''))c.remove();});
-  const tag=insightCard.querySelector('.sv31-tag');if(tag)tag.textContent=insightCard.querySelectorAll('.sv31-insight').length+' 条提醒';
- }
-}
-function schedule(){if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;sync();});}
-if(window.__v32)window.__v32.calib=(f)=>calHtml((f.exams||[]).filter(e=>!G.pending(e)),f.subjects);
-window.ScoreExamGoalReview={calHtml,recap,rows,goalOf,subjectActual,groupActual};
+window.ScoreExamGoalReview={calHtml,recap,rows,goalOf,subjectActual,groupActual,name,suggestion};
 const css=document.createElement('style');css.textContent='.eg-cal-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px;margin-top:12px}.eg-cal-item{border:1px solid var(--line);border-radius:10px;padding:11px;min-width:0}.eg-cal-values{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0}.eg-cal-values small{display:block;color:var(--muted);font-size:11px;margin-bottom:4px}.eg-cal-values b,.eg-cal-values strong{font-size:14px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.eg-cal-values strong{color:var(--accent)}.eg-guide{margin-top:12px;font-size:12px}.eg-guide summary{color:var(--accent);cursor:pointer}.eg-guide-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;margin-top:8px}.eg-guide-grid>div{padding:9px;border:1px solid var(--line);border-radius:8px}.eg-guide-grid p{font-size:12px;line-height:1.6;margin:5px 0 0}';document.head.append(css);
-function boot(){let app=document.getElementById('app')||document.body;new MutationObserver(schedule).observe(app,{childList:true,subtree:true});schedule();}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
