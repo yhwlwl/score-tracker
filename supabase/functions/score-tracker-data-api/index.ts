@@ -219,7 +219,7 @@ async function ensureModules(uid: string, configured: any[]) {
   }));
 }
 
-async function list(user: any) {
+async function list(user: any, goalAware = false) {
   const [configured, er, goalRes] = await Promise.all([
     subjects(user.id),
     db
@@ -314,7 +314,7 @@ async function list(user: any) {
     classification: classification(user),
     participantDefaults: user.participant_defaults || {},
     modules,
-    exams,
+    exams: goalAware ? exams : exams.filter((e:any)=>!examGoals.pending(e)),
     goal: goalRes && goalRes.goal ? goalRes.goal : null,
   };
 }
@@ -592,10 +592,14 @@ async function saveExam(uid: string, exam: any) {
       if (previousModules.error) throw previousModules.error;
       oldExam.moduleRanks=Object.fromEntries((previousModules.data||[]).map((x:any)=>[x.module_id,x.ranks||{}]));
     }
-    const normalized = {...values,city_rank:cityR,district_rank:distR,moduleIds:Array.isArray(exam.moduleIds)?exam.moduleIds.map(String):[],moduleRanks:Object.fromEntries(Object.entries(exam.moduleRanks||{}).map(([k,v])=>[k,moduleRanksClean(v)])),scores:Object.fromEntries(rows.map((x:any)=>[x.subject,{target:x.target_score,max:x.max_score,actual:x.actual_score,raw:x.raw_score,rank:x.rank_position,classRank:x.class_rank_position,yearPositionPercent:x.year_position_percent,classPositionPercent:x.class_position_percent}]))};
+    const requestedIds = Array.isArray(exam.moduleIds) ? [...new Set<string>(exam.moduleIds.map(String))].slice(0,12) : [];
+    const checked = requestedIds.length ? await db.from("score_tracker_modules").select("id").eq("user_id", uid).in("id", requestedIds) : {data:[],error:null};
+    if (checked.error) throw checked.error;
+    const allowedIds = (checked.data||[]).map((x:any)=>String(x.id));
+    const normalized = {...values,city_rank:hasKey("city_rank")?cityR:oldExam?.city_rank,district_rank:hasKey("district_rank")?distR:oldExam?.district_rank,moduleIds:allowedIds,moduleRanks:Object.fromEntries(Object.entries(exam.moduleRanks||{}).filter(([k])=>allowedIds.includes(k)).map(([k,v])=>[k,moduleRanksClean(v)])),scores:Object.fromEntries(rows.map((x:any)=>[x.subject,{target:x.target_score,max:x.max_score,actual:x.actual_score,raw:x.raw_score,rank:x.rank_position,classRank:x.class_rank_position,yearPositionPercent:x.year_position_percent,classPositionPercent:x.class_position_percent}]))};
     try {
       const supplied = hasKey("exam_goals") ? exam.exam_goals : oldExam.exam_goals;
-      if (!supplied || typeof supplied !== "object" || Array.isArray(supplied)) throw Error("考试目标格式不正确");
+      if (!supplied || typeof supplied !== "object" || Array.isArray(supplied) || !supplied.items || typeof supplied.items!=="object" || Array.isArray(supplied.items)) throw Error("考试目标格式不正确");
       const items: any = {};
       for (const [key,value] of Object.entries(supplied.items||{}) as [string,any][]) {
         if (!hasKey("exam_goals") && ((key.startsWith("s:")&&!normalized.scores[key.slice(2)])||(key.startsWith("m:")&&!normalized.moduleIds.includes(key.slice(2))))) continue;
@@ -609,6 +613,7 @@ async function saveExam(uid: string, exam: any) {
       }
       const meta=examGoals.evolve(oldExam,normalized,{items,planned:supplied.planned===true},now);
       values.exam_goals=meta;
+      if (meta && new TextEncoder().encode(JSON.stringify(meta)).length > 60000) throw Error("考试目标记录过大");
       if(meta?.planned) values.is_hidden=true;
       else if(oldExam?.exam_goals?.planned&&examGoals.actual(normalized)) values.is_hidden=false;
     } catch(e) { return {error:e instanceof Error?e.message:"考试目标格式不正确",status:400}; }
@@ -648,7 +653,7 @@ async function saveExam(uid: string, exam: any) {
       if (mi.error) throw mi.error;
     }
   }
-  return { ok: true, id, created };
+  return { ok: true, id, created, planned: values.exam_goals?.planned === true };
 }
 
 async function changePassword(uid: string, rawPw: unknown) {
@@ -861,7 +866,7 @@ Deno.serve(async (req: Request) => {
       const r = await submitFeatureVote(user.id, body.optionIds, body.customRequest);
       return r.error ? out({ error: r.error }, r.status ?? 400) : out(r);
     }
-    if (action === "list_exams" || action === "bootstrap") return out(await list(user));
+    if (action === "list_exams" || action === "bootstrap") return out(await list(user, body.exam_goal_version === 1));
     if (action === "save_classification") {
       const r = await saveClass(user.id, body.classification);
       return r.error ? out({ error: r.error }, r.status) : out(r);
@@ -879,8 +884,8 @@ Deno.serve(async (req: Request) => {
       try { defaults = body.participantDefaults ? participantPatch(body.participantDefaults) : {}; }
       catch (e) { return out({ error: e instanceof Error ? e.message : "默认人数格式不正确" }, 400); }
       const r = await saveExam(user.id, body.exam ?? {});
-      if(!r.error&&body.quick_entry===true){const growth=await db.rpc('score_tracker_growth_observe',{p_user:user.id,p_event:'quick_entry_saved',p_metadata:{exam_id:r.id},p_at:new Date().toISOString()});if(growth.error)console.error('quick_growth_failed',growth.error.code);}
-      if(!r.error)await refreshGrowth(user.id);
+      if(!r.error&&!r.planned&&body.quick_entry===true){const growth=await db.rpc('score_tracker_growth_observe',{p_user:user.id,p_event:'quick_entry_saved',p_metadata:{exam_id:r.id},p_at:new Date().toISOString()});if(growth.error)console.error('quick_growth_failed',growth.error.code);}
+      if(!r.error && !r.planned)await refreshGrowth(user.id);
       if (!r.error && r.created && Object.keys(defaults).length) {
         try { return out({ ...r, participantDefaults: await saveParticipantDefaults(user.id, defaults, true) }); }
         catch (e) {
