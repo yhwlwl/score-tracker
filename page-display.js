@@ -248,7 +248,13 @@
     try { localStorage.setItem(storageKey(userKey), JSON.stringify({hidden:hidden,density:density,pins:pins,chartScopes:chartScopes,slogan:slogan})); } catch (_) { saved = false; }
     return saved;
   }
-  window.ScoreDisplayDensity={get:function(){hydrate();return density;},owner:function(){hydrate();return userKey;}};
+  window.ScoreDisplayDensity={get:function(){hydrate();return density;},owner:function(){hydrate();return userKey;},set:function(mode,source){
+    hydrate();if(!['simple','standard','full'].includes(mode))return false;
+    if(mode===density)return true;
+    density=mode;var stored=save();var card=document.getElementById('pageDisplaySettingsV1');if(card)update(card);
+    track('density',{preset:mode,source:source||'analysis'});document.dispatchEvent(new CustomEvent('st:analysis-density-change',{detail:{mode:density}}));
+    if(!stored&&typeof toast==='function')toast('设置未能保存到此设备');return stored;
+  }};
   function update(card) {
     var mode = density;
     card.querySelectorAll('[data-display-preset]').forEach(function (button) {
