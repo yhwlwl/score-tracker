@@ -5,6 +5,7 @@
   var modes=['simple','standard','full'];
   function normalized(mode){return modes.includes(mode)?mode:'standard';}
   function defaultOpen(mode,level){return modes.indexOf(normalized(mode))>=modes.indexOf(level);}
+  function layerDefault(mode){return normalized(mode)==='full';}
   function suppressSupplement(mode,expanded,level){return normalized(mode)==='simple'&&!expanded&&level!=='simple';}
   function insightCuts(important, count){
     var last=0;important.forEach(function(v,i){if(v)last=i+1;});
@@ -18,7 +19,7 @@
     calib:['参照(你考过的场次)']
   };
   function columnIndices(key,headers){return headers.map(function(h,i){return (extraColumns[key]||[]).includes(String(h).trim())?i:-1;}).filter(function(i){return i>=0;});}
-  if(typeof module!=='undefined'&&module.exports){module.exports={normalized:normalized,defaultOpen:defaultOpen,insightCuts:insightCuts,columnIndices:columnIndices,suppressSupplement:suppressSupplement};return;}
+  if(typeof module!=='undefined'&&module.exports){module.exports={normalized:normalized,defaultOpen:defaultOpen,insightCuts:insightCuts,columnIndices:columnIndices,suppressSupplement:suppressSupplement,layerDefault:layerDefault};return;}
   if(typeof document==='undefined')return;
   var preference=new Map(),queued=false,currentOwner='',mode='standard';
   function loadMode(){
@@ -180,7 +181,7 @@
       if(views)Array.from(views.options).forEach(function(o){var names={band:'排名区间',zmap:'发挥水平',cum:'目标达成概率'};if(names[o.value])write(o,names[o.value]);});
       var why=Array.from(card.querySelectorAll('details')).find(function(d){return d.querySelector('.dsb-why-grid');});
       if(why){
-        write(why.querySelector('summary'),'怎么看');
+        write(why.querySelector('summary'),'判断依据');
         var spans=why.querySelectorAll('.dsb-why-grid > div > span');
         if(spans.length===4){
           write(spans[0],'例如100人中第20名、200人中第40名，都是前20%。');
@@ -198,14 +199,14 @@
       if(h&&!h.classList.contains('ad-redundant')&&!h.classList.contains('ad-readable-note'))inlineNote(h,'比六科典型：例如你各科通常在前30%，数学在前20%，则数学比典型水平靠前10个百分点（+10）。');
     }
     if(k==='calib'){
-      inlineNote(card.querySelector('.card-title-row .card-sub'),'下次建议以排名为准，例如前20%就是100人中约第20名。参考分取自你以前考过的试卷。');
+      var calibSub=card.querySelector('.card-title-row .card-sub');if(calibSub&&!calibSub.classList.contains('ad-keyline'))inlineNote(calibSub,'下次建议以排名为准，例如前20%就是100人中约第20名。参考分取自你以前考过的试卷。');
     }
     if(k==='hall'){
-      inlineNote(card.querySelector('.card-title-row .card-sub'),'满分不同时比较得分率，例如90/100与135/150都是90%。');
+      var hallSub=card.querySelector('.card-title-row .card-sub');if(hallSub&&!hallSub.classList.contains('ad-keyline'))inlineNote(hallSub,'满分不同时比较得分率，例如90/100与135/150都是90%。');
     }
     if(k==='worth'){
       var d=card.querySelector('.worth-method');
-      if(d)write(d.querySelector('summary'),'怎么看与计算依据');
+      if(d)write(d.querySelector('summary'),'计算依据');
       var hint=card.querySelector('.ad-worth-example');
       if(!hint&&card.querySelector('.worth-compare')){
         hint=document.createElement('p');hint.className='ad-worth-example ad-readable-note';
@@ -240,6 +241,7 @@
     quad:'<path d="M34 3V36M4 20H64" stroke="currentColor" opacity=".3" stroke-dasharray="3 2"/><rect x="34" y="3" width="30" height="17" fill="var(--green,#32a77a)" opacity=".13"/><circle cx="53" cy="10" r="4" fill="var(--green,#32a77a)"/><path d="M57 29L61 25L65 29M61 25V36" stroke="var(--accent,#5d72e8)" fill="none"/>',
     pair:'<path d="M4 30L22 24L43 15L64 9M4 34L22 28L43 19L64 13" stroke="var(--accent,#5d72e8)" fill="none" stroke-width="2"/><path d="M43 19L64 13" stroke="currentColor" stroke-dasharray="3 2" fill="none"/>',
     history:'<path d="M15 9V30M34 5V32M53 12V32" stroke="#2e9e6b" stroke-width="1.7"/><circle cx="15" cy="20" r="4" fill="none" stroke="#2e9e6b"/><circle cx="34" cy="14" r="4" fill="none" stroke="#2e9e6b"/><path d="M49 3L57 11M57 3L49 11" stroke="#d4574e" stroke-width="1.7"/>',
+    donut:'<circle cx="34" cy="20" r="13" fill="none" stroke="currentColor" stroke-width="8" opacity=".12"/><circle cx="34" cy="20" r="13" fill="none" stroke="var(--accent,#5d72e8)" stroke-width="8" stroke-dasharray="32.7 81.7" transform="rotate(-90 34 20)"/><text x="34" y="23" text-anchor="middle" font-size="8" fill="currentColor">40%</text>',
     bars:'<rect x="6" y="24" width="13" height="12" rx="2" fill="var(--accent,#5d72e8)" opacity=".3"/><rect x="26" y="7" width="13" height="29" rx="2" fill="var(--accent,#5d72e8)" opacity=".8"/><rect x="46" y="18" width="13" height="18" rx="2" fill="var(--accent,#5d72e8)" opacity=".45"/>',
     compare:'<path d="M5 31L25 24L43 20L64 11" stroke="var(--accent,#5d72e8)" stroke-width="2" fill="none"/><path d="M5 35L25 28L43 30L64 20" stroke="var(--green,#32a77a)" stroke-width="2" stroke-dasharray="3 2" fill="none"/>'
   };
@@ -267,11 +269,10 @@
     retire(hint);
     var privacy=card.querySelector('.dsb-privacy-note');
     if(privacy&&!privacy.dataset.adPrivacy){
-      privacy.dataset.adPrivacy='1';var pd=node('details','ad-privacy'),summary=node('summary','','匿名统计用于改进预测');
-      privacy.before(pd);pd.append(summary,privacy);
-      // Preserve a visible short disclosure on every render, and the original
-      // detailed notice remains accessible rather than vanishing.
-      privacy.textContent='匿名使用数据用于改进预测，不记录密码等敏感信息。';
+      privacy.dataset.adPrivacy='1';var pd=node('details','ad-privacy'),summary=node('summary');
+      privacy.before(pd);summary.append(privacy);pd.append(summary,node('p','','为改进预测，系统统计经过匿名化处理的使用数据，不记录密码等敏感信息。'));
+      // Keep the privacy observation target visible in the summary itself.
+      privacy.textContent='匿名统计用于改进预测';
     }
     var scope=card.querySelector('.dsb-caliber');
     if(scope&&!scope.dataset.adScope){
@@ -337,7 +338,7 @@
       retire(cap);
     }
     if(ui){
-      var check=ui.querySelector('input'),show=targetOpen('deep-history-layer','full');
+      var check=ui.querySelector('input'),key=settingKey('deep-history-layer'),show=preference.has(key)?preference.get(key):layerDefault(mode);
       if(check)check.checked=show;
       svg.toggleAttribute('data-ad-hide-history',!show);
       var legend=ui.querySelector('.ad-history-legend');if(legend)legend.hidden=!show||!svg.querySelector('[data-ad-history-layer]');
@@ -371,7 +372,7 @@
       var chart=card.querySelector('.st-peer-chart'),cap=card.querySelector('.st-peer-chart-caption');
       if(chart&&cap&&!cap.dataset.adLegend){
         cap.dataset.adLegend='1';
-        var l=markerLegend([['line','实线：已有成绩'],['dash','虚线：参考对象后续'],['diamond','菱形：下次预测'],['area','预测参考范围']]);
+        var entries=[['line','实线：已有成绩'],['dash','虚线：参考对象后续']];if(chart.querySelector('.st-peer-forecast-mark'))entries.push(['diamond','菱形：下次预测'],['area','预测参考范围']);var l=markerLegend(entries);
         cap.after(l);
         write(cap,/走势已对齐/.test(cap.textContent)?'走势已对齐 · 日期是你的实际考试日期':'参考轨迹按考试次序对齐 · 日期是你的考试日期');
         var h=card.querySelector('.st-peer-help');if(h){
@@ -380,12 +381,12 @@
         }
       }
     }
-    if(k==='hall'){var hallHelp=help(card.querySelector('.sv31-scroll')?.parentElement,'hall',[['score','不同满分怎么比较','90/100与135/150都是90%。以得分率比较，最佳分数仍保留原卷满分。']]);if(hallHelp)retire(card.querySelector('.card-title-row .card-sub'));}
-    if(k==='calib'){var calibHelp=help(card.querySelector('.sv31-scroll')?.parentElement,'calib',[['rank','排名目标怎么看','前20%就是100人里约第20名。建议的参考分取自自己以前考过的试卷。']]);if(calibHelp)retire(card.querySelector('.card-title-row .card-sub'));}
+    if(k==='hall'){var hallHelp=help(card.querySelector('.sv31-scroll')?.parentElement,'hall',[['score','不同满分怎么比较','90/100与135/150都是90%。以得分率比较，最佳分数仍保留原卷满分。']]);if(hallHelp){var hallNote=card.querySelector('.card-title-row .card-sub');if(hallNote&&!hallNote.classList.contains('ad-keyline')){inlineNote(hallNote,'满分不同时按得分率比较，原卷分数仅供参考。');hallNote.classList.add('ad-keyline');}}}
+    if(k==='calib'){var calibHelp=help(card.querySelector('.sv31-scroll')?.parentElement,'calib',[['rank','排名目标怎么看','前20%就是100人里约第20名。建议的参考分取自自己以前考过的试卷。']]);if(calibHelp){var calibNote=card.querySelector('.card-title-row .card-sub');if(calibNote&&!calibNote.classList.contains('ad-keyline')){inlineNote(calibNote,'建议以排名为准，参考分来自历史考试。');calibNote.classList.add('ad-keyline');}}}
     if(k==='trend')help(card.querySelector(':scope > .fold-body-v38')||card,'trend',[['trend','看连续变化','排名图越靠上越靠前，一次起伏不等于整体趋势变化。'],['score','不同考试的分数','满分与难度不同时，不能只凭分数高低判断进退。']]);
     if(k==='comp')help(card.querySelector('.sv31-g2')?.parentElement,'comp',[['compare','班级和年级一起看','例如班级前10%、年级前30%，表示在班内的位置更靠前。人数不同，不能直接比较名次数字。']]);
     if(k==='speed')help(card.querySelector('.sv31-scroll')?.parentElement,'speed',[['trend','每场进步速度','例如每场前进约5名，表示最近几场的变化速度估计，不保证下一次也前进5名。']]);
-    if(k==='distribution')help(card.querySelector('.matrix-distribution-v60')?.parentElement,'distribution',[['bars','排名分布怎么看','例如10场考试中有4场在前10%～20%，该区间占40%。区间占比不是下次预测概率。']]);
+    if(k==='distribution')help(card.querySelector('.matrix-distribution-v60')?.parentElement,'distribution',[['donut','排名分布怎么看','例如10场考试中有4场在前10%～20%，该区间占40%。区间占比不是下次预测概率。']]);
     if(k==='quality'){
       var method=card.querySelector('.sv31-method');if(method){help(method.parentElement,'quality',[['rank','排名位置','57名 / 310人 ≈ 前18%。'],['score','得分率与百分点','70%升到80%，是增加10个百分点。']]);write(method.querySelector('summary'),'详细计算方法');}
     }
@@ -533,7 +534,7 @@
     '.sv31-page .ad-guide{margin:9px 0 2px;font-size:12px}.sv31-page .ad-guide>summary{cursor:pointer;color:var(--accent,#5d72e8);font-weight:600;width:fit-content;padding:4px 0}.sv31-page .ad-guide-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px;margin:7px 0}.sv31-page .ad-guide-item{display:flex;gap:10px;align-items:center;padding:9px;border:1px solid var(--line,#e8ebf0);border-radius:9px;min-width:0}.sv31-page .ad-guide-pic{flex:0 0 68px;color:var(--text,#18212f)}.sv31-page .ad-guide-pic svg{width:68px;display:block}.sv31-page .ad-guide-copy{min-width:0}.sv31-page .ad-guide-copy strong{font-size:12px;color:var(--text,#18212f)}.sv31-page .ad-guide-copy p{font-size:12px;line-height:1.55;margin:3px 0 0;color:var(--text,#18212f);opacity:.82}',
     '.ad-legend{display:flex;flex-wrap:wrap;align-items:center;gap:7px 15px;margin:8px 0;color:var(--text,#18212f)}.ad-legend-item{display:inline-flex;align-items:center;gap:5px;font-size:11px;white-space:nowrap}.ad-symbol{width:16px;height:10px;flex:none;display:inline-block;position:relative}.ad-symbol.dot:after,.ad-symbol.pastpoint:after{content:"";position:absolute;left:5px;top:2px;width:6px;height:6px;background:currentColor;opacity:.65;border-radius:50%}.ad-symbol.pastpoint:after{background:#4a90d9;opacity:1}.ad-symbol.line:after,.ad-symbol.dash:after{content:"";position:absolute;left:0;right:0;top:4px;border-top:2px solid #4a90d9}.ad-symbol.dash:after{border-top-style:dashed}.ad-symbol.area{background:currentColor;opacity:.13;border-radius:2px}.ad-symbol.future{background:linear-gradient(0deg,transparent,#4a90d9aa,transparent)}.ad-symbol.diamond:after{content:"";position:absolute;left:5px;top:1px;width:7px;height:7px;border:2px solid var(--accent,#5d72e8);transform:rotate(45deg)}.ad-symbol.history:after{content:"";position:absolute;left:7px;top:0;bottom:0;border-left:2px solid #2e9e6b}.ad-symbol.hit:after{content:"";position:absolute;left:5px;top:0;width:8px;height:8px;border:1.5px solid #2e9e6b;border-radius:50%}.ad-symbol.miss:after{content:"×";position:absolute;left:5px;top:-4px;font-size:16px;color:#d4574e}',
     '.ad-chart-reading{margin:8px 0}.ad-history-row{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:10px;font-size:12px}.ad-history-label{display:flex;align-items:center;gap:6px;cursor:pointer}.ad-history-label input{accent-color:var(--accent,#5d72e8)}.ad-hit{font-variant-numeric:tabular-nums;color:var(--muted,#788392)}.ad-history-legend[hidden],.ad-history-row[hidden],svg[data-ad-hide-history] [data-ad-history-layer],svg [data-ad-inline-legend]{display:none!important}',
-    '.ad-privacy,.ad-scope{font-size:12px;line-height:1.6;margin:7px 0}.ad-privacy>summary,.ad-scope>summary{cursor:pointer;color:var(--muted,#788392);font-weight:500;width:fit-content}.ad-scope{border-left:2px solid var(--line,#e8ebf0);padding-left:9px}.ad-scope>summary{color:var(--text,#18212f)}.ad-scope .dsb-caliber,.ad-privacy .dsb-privacy-note{margin:5px 0!important;opacity:1!important}.ad-ruler{margin:8px 0 10px}.ad-ruler-row{display:grid;grid-template-columns:66px minmax(0,1fr);align-items:center;gap:10px;margin:6px 0;font-size:11px;color:var(--muted,#788392)}.ad-ruler-track{position:relative;height:8px;background:var(--line,#e8ebf0);border-radius:5px}.ad-ruler-point{position:absolute;top:-2px;width:12px;height:12px;border-radius:50%;transform:translateX(-50%);background:var(--accent,#5d72e8)}.ad-ruler-band{position:absolute;top:0;height:8px;border-radius:4px;background:var(--accent,#5d72e8);opacity:.38}.ad-ruler-scale{display:flex;justify-content:space-between;margin-left:76px;color:var(--muted,#788392);font-size:10px}',
+    '.ad-privacy,.ad-scope{font-size:12px;line-height:1.6;margin:7px 0}.ad-privacy>summary .dsb-privacy-note{display:inline;font-size:12px!important;margin:0!important}.ad-privacy>p{margin:6px 0;color:var(--muted,#788392)}.ad-privacy>summary,.ad-scope>summary{cursor:pointer;color:var(--muted,#788392);font-weight:500;width:fit-content}.ad-scope{border-left:2px solid var(--line,#e8ebf0);padding-left:9px}.ad-scope>summary{color:var(--text,#18212f)}.ad-scope .dsb-caliber,.ad-privacy .dsb-privacy-note{margin:5px 0!important;opacity:1!important}.ad-ruler{margin:8px 0 10px}.ad-ruler-row{display:grid;grid-template-columns:66px minmax(0,1fr);align-items:center;gap:10px;margin:6px 0;font-size:11px;color:var(--muted,#788392)}.ad-ruler-track{position:relative;height:8px;background:var(--line,#e8ebf0);border-radius:5px}.ad-ruler-point{position:absolute;top:-2px;width:12px;height:12px;border-radius:50%;transform:translateX(-50%);background:var(--accent,#5d72e8)}.ad-ruler-band{position:absolute;top:0;height:8px;border-radius:4px;background:var(--accent,#5d72e8);opacity:.38}.ad-ruler-scale{display:flex;justify-content:space-between;margin-left:76px;color:var(--muted,#788392);font-size:10px}',
     '@media print{.sv31-page table[data-ad-compact] [data-ad-extra-col]{display:table-cell!important}.sv31-page .ad-columns{display:none!important}}'
   ].join('\n');
   document.head.append(style);
