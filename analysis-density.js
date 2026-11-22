@@ -5,6 +5,7 @@
   var modes=['simple','standard','full'];
   function normalized(mode){return modes.includes(mode)?mode:'standard';}
   function defaultOpen(mode,level){return modes.indexOf(normalized(mode))>=modes.indexOf(level);}
+  function suppressSupplement(mode,expanded,level){return normalized(mode)==='simple'&&!expanded&&level!=='simple';}
   function insightCuts(important, count){
     var last=0;important.forEach(function(v,i){if(v)last=i+1;});
     return {simple:Math.min(count,Math.max(4,last)),standard:Math.min(count,Math.max(6,last))};
@@ -17,7 +18,7 @@
     calib:['参照(你考过的场次)']
   };
   function columnIndices(key,headers){return headers.map(function(h,i){return (extraColumns[key]||[]).includes(String(h).trim())?i:-1;}).filter(function(i){return i>=0;});}
-  if(typeof module!=='undefined'&&module.exports){module.exports={normalized:normalized,defaultOpen:defaultOpen,insightCuts:insightCuts,columnIndices:columnIndices};return;}
+  if(typeof module!=='undefined'&&module.exports){module.exports={normalized:normalized,defaultOpen:defaultOpen,insightCuts:insightCuts,columnIndices:columnIndices,suppressSupplement:suppressSupplement};return;}
   if(typeof document==='undefined')return;
   var preference=new Map(),queued=false,currentOwner='',mode='standard';
   function loadMode(){
@@ -184,6 +185,8 @@
         if(spans.length===4){
           write(spans[0],'例如100人中第20名、200人中第40名，都是前20%。');
           write(spans[1],'一次没考好，不一定说明长期退步。');
+          var plain=spans[2].textContent.replace('暂未看出稳定的长期方向','暂时看不出持续进步或退步').replace('多场记录共同支持整体向好','近几场整体进步').replace('多场记录共同支持整体回落','近几场整体回落').replace('近期可能出现了较明显的状态切换','最近表现可能与之前明显不同').replace('近期没有发现明确的突然换挡','最近没有明显的突然变化').replace('连续几场的小幅偏移已经累积成提醒','连续几场小幅变化，值得关注').replace('连续小幅偏移尚未达到提醒条件','连续小幅变化还不明显');
+          write(spans[2],plain);
           write(spans[3],'参考过去的起伏估计下次范围；例如前10%～20%，并不保证下次一定落在其中。');
           var heads=why.querySelectorAll('.dsb-why-grid > div > b');
           ['统一排名','减少偶然波动影响','观察近期变化','估计下次范围'].forEach(function(v,i){write(heads[i],v);});
@@ -200,6 +203,12 @@
     if(k==='structure'){
       var h=card.querySelector('.card-title-row .card-sub');
       inlineNote(h,'比六科典型：例如你各科通常在前30%，数学在前20%，则数学比典型水平靠前10个百分点（+10）。');
+    }
+    if(k==='calib'){
+      inlineNote(card.querySelector('.card-title-row .card-sub'),'下次建议以排名为准，例如前20%就是100人中约第20名。参考分取自你以前考过的试卷。');
+    }
+    if(k==='hall'){
+      inlineNote(card.querySelector('.card-title-row .card-sub'),'满分不同时比较得分率，例如90/100与135/150都是90%。');
     }
     if(k==='worth'){
       var d=card.querySelector('.worth-method');
@@ -238,7 +247,7 @@
     var key='more:'+k,expanded=!!preference.get(settingKey(key));
     // One lightweight entry per card in simple mode; no stack of closed panels.
     // Detailed calculations remain individually expandable after opening it.
-    ds.forEach(function(d){d.toggleAttribute('data-ad-suppressed',mode==='simple'&&!expanded);});
+    ds.forEach(function(d){d.toggleAttribute('data-ad-suppressed',suppressSupplement(mode,expanded,d.dataset.adLevel));});
     card.querySelectorAll('[data-ad-columns]').forEach(function(b){b.hidden=mode==='simple'||(b.getAttribute('aria-expanded')==='true');});
     if(!old){
       old=document.createElement('button');old.type='button';old.className='ad-more-link';old.dataset.adMore=k;
