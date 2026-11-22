@@ -24,10 +24,10 @@
   function normalize(value){return valid.indexOf(value)>=0?value:'overview';}
   if(typeof module!=='undefined'&&module.exports){module.exports={classify:classify,normalize:normalize,groups:groups};return;}
   if(typeof document==='undefined')return;
-  var active='overview', lastPrimary='overview', owner=null, reveal=false, queued=false, lastPage=null;
+  var active='overview', lastPrimary='overview', owner=null, reveal=false, queued=false, lastPage=null, viewed=false;
   function hydrate(){
     var next='guest';try{next=String(state.user&&(state.user.id||state.user.username)||'guest');}catch(_){}
-    if(next===owner)return;owner=next;reveal=false;active='overview';lastPrimary='overview';
+    if(next===owner)return;owner=next;reveal=false;viewed=false;active='overview';lastPrimary='overview';
     try{active=normalize(sessionStorage.getItem('st_analysis_nav_v1:'+owner));}catch(_){}
     if(active!=='methods')lastPrimary=active;
   }
@@ -121,8 +121,8 @@
   function sync(){
     var page=document.querySelector('#content > .sv31-page')||document.querySelector('#content .sv31-page');
     try{if(state.page!=='stats')page=null;}catch(_){}
-    if(!page){lastPage=null;return;}
-    hydrate();var fresh=lastPage!==page;lastPage=page;
+    if(!page){lastPage=null;viewed=false;return;}
+    hydrate();lastPage=page;
     page.classList.add('an-layout');
     var nav=mountNav(page);split(page);
     var count=0,visible=0;
@@ -149,7 +149,7 @@
       b.classList.toggle('is-active',b.dataset.analysisNav===active);
     });
     updateNotice(page,count,visible);
-    if(fresh)track('analysis_section_view');
+    if(!viewed){viewed=true;track('analysis_section_view');}
   }
   function schedule(){if(queued)return;queued=true;requestAnimationFrame(function(){queued=false;sync();});}
   function scrollToNav(page){
@@ -177,6 +177,8 @@
   document.addEventListener('click',function(e){
     if(e.target.closest('[data-worth-matrix]')&&e.target.closest('.an-layout')&&active!=='all'){
       choose('trend',false);
+      var worth=document.querySelector('#scoreWorthCard');
+      if(worth&&worth.hasAttribute('data-display-off-v1')){reveal=true;sync();}
     }
   },true);
   var css=document.createElement('style');css.id='analysis-navigation-v1';
