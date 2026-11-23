@@ -21,6 +21,8 @@ async function backend(){
     }return q;
   }};
   const context={createClient:()=>db,Deno:{env:{get:()=>''},serve:f=>handler=f},crypto,TextEncoder,Uint8Array,Response,Request,Date,console};
+  // The real Edge loader imports the goal module. Reproduce that import in this VM harness.
+  vm.runInNewContext(read('supabase/functions/_shared/exam-goals.js'),context);
   vm.runInNewContext(stripTypeScriptTypes(read('supabase/functions/score-tracker-data-api/index.ts').replace(/^import[^\n]*\n/gm,'')),context);
   const request=body=>handler(new Request('https://test.local/api',{method:'POST',body:JSON.stringify({token,...body})}));
   const exam={name:'均分测试',exam_date:'2026-10-17',moduleIds:[mid],scores:{数学:{actual:110,max:150},历史:{actual:80,max:100}},averages:{total:{class:170.5,year:160},'s:数学':{class:100,year:0},['m:'+mid]:{class:168,year:158}}};

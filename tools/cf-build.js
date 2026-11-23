@@ -37,6 +37,11 @@ const FILES = [
   "app-v38.js",
   "exam-record-sort.js",
   "page-display.js",
+  "analysis-navigation.js",
+  "analysis-density.js",
+  "supabase/functions/_shared/exam-goals.js",
+  "exam-goal-lifecycle.js",
+  "exam-goal-review.js",
   "page-display-goals.css",
   "study-planner-promo.webp",
   "robots.txt",
@@ -55,7 +60,7 @@ fs.mkdirSync(OUT, { recursive: true });
 fs.mkdirSync(path.join(OUT, "functions"), { recursive: true });
 fs.mkdirSync(path.join(OUT, "api"), { recursive: true });
 
-for (const f of FILES) fs.copyFileSync(path.join(ROOT, f), path.join(OUT, f));
+for (const f of FILES) { fs.mkdirSync(path.dirname(path.join(OUT,f)),{recursive:true}); fs.copyFileSync(path.join(ROOT,f),path.join(OUT,f)); }
 if (fs.existsSync(path.join(ROOT, 'assets'))) fs.cpSync(path.join(ROOT, 'assets'), path.join(OUT, 'assets'), { recursive: true });
 if (fs.existsSync(path.join(ROOT, 'appearance-qa'))) fs.cpSync(path.join(ROOT, 'appearance-qa'), path.join(OUT, 'appearance-qa'), { recursive: true });
 fs.cpSync(path.join(ROOT, 'design/community-invite-qa'), path.join(OUT, 'design/community-invite-qa'), { recursive: true });

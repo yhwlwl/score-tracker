@@ -15,6 +15,9 @@ const tick = () => new Promise(resolve => setTimeout(resolve, 35));
   w.fetch = async (url, opts) => { calls.push({ url: String(url), body: JSON.parse(opts?.body || '{}') }); return new Response(JSON.stringify({ ok: true, exams: [], subjects: [], modules: [], enabled: false })); };
   try {
     w.eval(read('app-bundle.js') + '\nwindow.state=state;');
+    // Production loads the shared goal model and single-exam review after the bundle.
+    w.eval(read('supabase/functions/_shared/exam-goals.js'));
+    w.eval(read('exam-goal-review.js'));
     for (const file of ['app-v36.js','app-v37.js','app-v38.js']) w.eval(read(file));
     w.__scoreTrackerTrack = (type, data) => events.push({ type, data }); w.__stTrack = w.__scoreTrackerTrack;
     await tick(); delete w.ScorePaperReview;
@@ -45,8 +48,8 @@ const tick = () => new Promise(resolve => setTimeout(resolve, 35));
     assert.equal(d.querySelectorAll('.ed-metric strong')[1].textContent, '66.4%');
     assert(d.querySelector('.ed-context').textContent.includes('还差 40 分'));
     assert.equal(d.querySelectorAll('.ed-table tbody tr').length, 5);
-    assert(d.querySelector('.ed-ref-section').textContent.includes('较均分 +35 分'));assert(!d.querySelector('.ed-table tbody tr').textContent.includes('原始分'));
-    assert(d.querySelector('.ed-combinations').textContent.includes('255 分'));
+    assert(d.querySelector('.ed-reference-charts').textContent.includes('较均分 +35 分'));assert(d.querySelector('.ed-table tbody tr').textContent.includes('原始分 120 / 150'));
+    assert(d.querySelector('.ed-combinations').textContent.includes('255 / 300'));
     assert(!d.querySelector('#ed-papers')); assert(!d.querySelector('[data-ed="jump:papers"]'));
     assert(!calls.some(c => c.url.includes('paper-review')), 'exam-only viewing never calls the optional AI service');
     d.querySelector('[data-ed-mode="performance"]').click();

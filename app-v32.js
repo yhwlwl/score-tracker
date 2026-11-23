@@ -16,7 +16,7 @@ function fmtPos32(p){return (p===null||p===undefined)?"—":"前"+r32(p)+"%";}
 function shortName32(name){return String(name||"").replace("高一下","一下").replace("高二下","二下").replace("高三下","三下").replace("高二上","二上").replace("高三上","三上").replace("高一","一上").replace("高二","二上").replace("高三","三上");}
 
 /* ================= 数据访问层 ================= */
-function allExamsV32(){try{return (typeof state!=="undefined"&&(Array.isArray(state.allExams)?state.allExams:state.exams))||[];}catch(e){return [];}}
+function allExamsV32(){try{return ((typeof state!=="undefined"&&(Array.isArray(state.allExams)?state.allExams:state.exams))||[]).filter(function(e){return !window.ScoreExamGoals?.pending(e);});}catch(e){return [];}}
 function byDate32(a,b){var d=String(a.exam_date||"").localeCompare(String(b.exam_date||""));return d||String(a.created_at||"").localeCompare(String(b.created_at||""));}
 function visibleExamsV32(includeHidden){
   return allExamsV32().filter(function(e){return includeHidden?!0:!e.is_hidden;}).slice().sort(byDate32);
@@ -25,7 +25,7 @@ function worthHistoryExamsV32(includeHidden){
   var source=state.allExams;
   if(!Array.isArray(source)||!source.length)source=state.unfilteredVisibleExamsV13;
   if(!Array.isArray(source)||!source.length)source=allExamsV32();
-  return source.filter(function(e){return includeHidden||!e.is_hidden;}).slice().sort(byDate32);
+  return source.filter(function(e){return !window.ScoreExamGoals?.pending(e)&&(includeHidden||!e.is_hidden);}).slice().sort(byDate32);
 }
 function configuredSubjectsV32(){
   var out=[];try{((typeof state!=="undefined"&&state.subjectConfigs)||[]).forEach(function(c){var nm=c&&(c.name||c);if(nm&&out.indexOf(nm)<0)out.push(nm);});}catch(e){}
@@ -391,7 +391,12 @@ function buildInsightsV32(f){
     }
   });
   /* 目标校准 */
-  f.subjects.forEach(function(s){
+  if(window.ScoreExamGoalReview){
+    window.ScoreExamGoalReview.rows(f.exams,state.sv31?.subjMod||null).filter(function(c){return c.decision==="提高目标"||c.decision==="适当放宽";}).forEach(function(c){
+      var label=window.ScoreExamGoalReview.name(c.key),sug=window.ScoreExamGoalReview.suggestion(c,c.kind);
+      add({sev:3,type:"tcal",subj:label+" · "+(c.kind==="score"?"分数":"排名"),icon:"target",title:esc32(label)+" · "+esc32(c.decision),body:"建议下次目标："+esc32(sug),ev:c.reason});
+    });
+  }else f.subjects.forEach(function(s){
     var t=f.tgt[s];if(!t)return;
     var vp=f.valid[s],base=vp.length?median32(vp.slice(-3).map(function(x){return x.pos;})):null;
     if(t.notMet>=3&&base!==null){
@@ -940,6 +945,7 @@ function hallHtmlV32(f,mode){
 }
 /* ---------- ⑥ 目标校准 ---------- */
 function calibHtmlV32(f,mode){
+  if(window.ScoreExamGoalReview)return window.ScoreExamGoalReview.calHtml(f.exams,state.sv31?.subjMod||null);
   var rows=[];
   f.subjects.forEach(function(s){
     var t=f.tgt[s];if(!t||!t.mets.length)return;
