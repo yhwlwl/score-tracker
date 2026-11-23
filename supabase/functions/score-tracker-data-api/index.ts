@@ -1,4 +1,3 @@
-import { studyQuestion, studySettings } from './study-question.ts';
 import { aiReleaseCapabilities } from '../_shared/ai-release.ts';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -220,83 +219,6 @@ async function ensureModules(uid: string, configured: any[]) {
   }));
 }
 
-function shapeExams(records:any[], rows:any[], examModules:any[]) {
-  return records.map((e: any) => {
-    const scores = Object.fromEntries(
-      rows
-        .filter((r) => r.exam_id === e.id)
-        .map((r) => [
-          r.subject,
-          {
-            target: r.target_score == null ? null : Number(r.target_score),
-            actual: r.actual_score == null ? null : Number(r.actual_score),
-            raw: r.raw_score == null ? null : Number(r.raw_score),
-            max: Number(r.max_score ?? 100),
-            rawMax: Number(r.raw_max_score ?? r.max_score ?? 100),
-            rank: r.rank_position == null ? null : Number(r.rank_position),
-            participants: r.participant_count == null ? null : Number(r.participant_count),
-            classRank: r.class_rank_position == null ? null : Number(r.class_rank_position),
-            classParticipants: r.class_participant_count == null ? null : Number(r.class_participant_count),
-            yearPositionPercent: r.year_position_percent == null ? null : Number(r.year_position_percent),
-            classPositionPercent: r.class_position_percent == null ? null : Number(r.class_position_percent),
-            excludeFromTotal: !!r.exclude_from_total,
-          },
-        ])
-    );
-    const mine = examModules.filter((x) => x.exam_id === e.id);
-    const moduleIds = mine.map((x) => x.module_id);
-    // 组合排名：云端 ranks 有值就用，无则返回空对象，前端会回退到本地缓存
-    const moduleRanks: any = {};
-    for (const x of mine) {
-      if (x.ranks && typeof x.ranks === "object") moduleRanks[x.module_id] = x.ranks;
-    }
-    return {
-      ...e,
-      is_hidden: !!e.is_hidden,
-      total_rank: e.total_rank == null ? null : Number(e.total_rank),
-      total_participants: e.total_participants == null ? null : Number(e.total_participants),
-      total_class_rank: e.total_class_rank == null ? null : Number(e.total_class_rank),
-      total_class_participants: e.total_class_participants == null ? null : Number(e.total_class_participants),
-      total_year_position_percent: e.total_year_position_percent == null ? null : Number(e.total_year_position_percent),
-      total_class_position_percent: e.total_class_position_percent == null ? null : Number(e.total_class_position_percent),
-      total_actual_score: e.total_actual_score == null ? null : Number(e.total_actual_score),
-      total_raw_score: e.total_raw_score == null ? null : Number(e.total_raw_score),
-      cityRank: e.city_rank === null || e.city_rank === undefined ? null : Number(e.city_rank),
-      cityParticipants: e.city_participants === null || e.city_participants === undefined ? null : Number(e.city_participants),
-      districtRank: e.district_rank === null || e.district_rank === undefined ? null : Number(e.district_rank),
-      districtParticipants: e.district_participants === null || e.district_participants === undefined ? null : Number(e.district_participants),
-      moduleIds,
-      moduleRanks,
-      scores,
-    };
-  });
-}
-
-async function studySnapshot(uid: string) {
-  const [history, modules] = await Promise.all([
-    db.from("score_tracker_exams")
-      .select("id,name,exam_date,grade_level,total_rank,total_participants,total_year_position_percent,total_actual_score,exam_goals,created_at")
-      .eq("user_id", uid).not("is_hidden","is",true)
-      .order("exam_date", { ascending:false, nullsFirst:false }).order("created_at", { ascending:false }).order("id")
-      .limit(60),
-    moduleRows(uid),
-  ]);
-  if (history.error) throw history.error;
-  const records = (history.data || []).reverse();
-  const exams = [];
-  for (let i = 0; i < records.length; i += 15) {
-    const batch = records.slice(i, i + 15), ids = batch.map(e => e.id);
-    const [scores, links] = await Promise.all([
-      db.from("score_tracker_scores").select("exam_id,subject,actual_score,raw_score,target_score,max_score,raw_max_score,rank_position,participant_count,year_position_percent,exclude_from_total")
-        .eq("user_id",uid).in("exam_id",ids),
-      db.from("score_tracker_exam_modules").select("exam_id,module_id,ranks").eq("user_id",uid).in("exam_id",ids)
-    ]);
-    if (scores.error || links.error) throw scores.error || links.error;
-    exams.push(...shapeExams(batch,scores.data || [],links.data || []).filter(e => examGoals.actual(e) && !examGoals.pending(e)));
-  }
-  return { exams, modules };
-}
-
 async function list(user: any, goalAware = false) {
   const [configured, er, goalRes] = await Promise.all([
     subjects(user.id),
@@ -336,7 +258,55 @@ async function list(user: any, goalAware = false) {
     examModules = mr.data ?? [];
   }
   const modules = await ensureModules(user.id, configured);
-  const exams = shapeExams(er.data ?? [], rows, examModules);
+  const exams = (er.data ?? []).map((e: any) => {
+    const scores = Object.fromEntries(
+      rows
+        .filter((r) => r.exam_id === e.id)
+        .map((r) => [
+          r.subject,
+          {
+            target: r.target_score === null ? null : Number(r.target_score),
+            actual: r.actual_score === null ? null : Number(r.actual_score),
+            raw: r.raw_score === null ? null : Number(r.raw_score),
+            max: Number(r.max_score ?? 100),
+            rawMax: Number(r.raw_max_score ?? r.max_score ?? 100),
+            rank: r.rank_position === null ? null : Number(r.rank_position),
+            participants: r.participant_count === null ? null : Number(r.participant_count),
+            classRank: r.class_rank_position === null ? null : Number(r.class_rank_position),
+            classParticipants: r.class_participant_count === null ? null : Number(r.class_participant_count),
+            yearPositionPercent: r.year_position_percent === null ? null : Number(r.year_position_percent),
+            classPositionPercent: r.class_position_percent === null ? null : Number(r.class_position_percent),
+            excludeFromTotal: !!r.exclude_from_total,
+          },
+        ])
+    );
+    const mine = examModules.filter((x) => x.exam_id === e.id);
+    const moduleIds = mine.map((x) => x.module_id);
+    // 组合排名：云端 ranks 有值就用，无则返回空对象，前端会回退到本地缓存
+    const moduleRanks: any = {};
+    for (const x of mine) {
+      if (x.ranks && typeof x.ranks === "object") moduleRanks[x.module_id] = x.ranks;
+    }
+    return {
+      ...e,
+      is_hidden: !!e.is_hidden,
+      total_rank: e.total_rank === null ? null : Number(e.total_rank),
+      total_participants: e.total_participants === null ? null : Number(e.total_participants),
+      total_class_rank: e.total_class_rank === null ? null : Number(e.total_class_rank),
+      total_class_participants: e.total_class_participants === null ? null : Number(e.total_class_participants),
+      total_year_position_percent: e.total_year_position_percent === null ? null : Number(e.total_year_position_percent),
+      total_class_position_percent: e.total_class_position_percent === null ? null : Number(e.total_class_position_percent),
+      total_actual_score: e.total_actual_score === null ? null : Number(e.total_actual_score),
+      total_raw_score: e.total_raw_score === null ? null : Number(e.total_raw_score),
+      cityRank: e.city_rank === null || e.city_rank === undefined ? null : Number(e.city_rank),
+      cityParticipants: e.city_participants === null || e.city_participants === undefined ? null : Number(e.city_participants),
+      districtRank: e.district_rank === null || e.district_rank === undefined ? null : Number(e.district_rank),
+      districtParticipants: e.district_participants === null || e.district_participants === undefined ? null : Number(e.district_participants),
+      moduleIds,
+      moduleRanks,
+      scores,
+    };
+  });
   return {
     user: { id: user.id, username: user.username, originalUsername: user.original_username || user.username },
     subjects: configured,
@@ -881,11 +851,6 @@ Deno.serve(async (req: Request) => {
     const user = await auth(String(body.token ?? ""));
     if (!user) return out({ error: "登录已失效，请重新登录", code: "UNAUTHORIZED" }, 401);
     const action = String(body.action ?? "");
-    if (action === 'study_status') return out((await studySettings(db)).public);
-    if (action === 'study_question') {
-      const result = await studyQuestion(db, user.id, body, () => studySnapshot(user.id));
-      return out(result.data, result.status);
-    }
     if(action==='account_status'){
       const r=await db.rpc('score_tracker_ai_account',{p_user:user.id});if(r.error)return out({error:'成长与AI额度服务暂不可用',code:'account_benefits_unavailable'},503);return out({account:r.data});
     }

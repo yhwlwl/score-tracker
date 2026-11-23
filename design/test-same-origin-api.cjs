@@ -137,7 +137,7 @@ async function run() {
     console.log('PASS: real Pages and Workers adapters, large image uploads, static assets and existing admin route');
 
     const config = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json')));
-    const frontend = [...JSON.parse(fs.readFileSync(path.join(root, 'design/bundle-order.json'))), 'natural-entry.js', 'feature-vote.js', 'app-v37.js'];
+    const frontend = [...JSON.parse(fs.readFileSync(path.join(root, 'design/bundle-order.json'))), 'natural-entry.js', 'feature-vote.js', 'app-v37.js', 'study-questions.js'];
     const used = new Set();
     for (const file of frontend) {
       const source = fs.readFileSync(path.join(root, file), 'utf8');

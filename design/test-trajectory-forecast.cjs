@@ -1,5 +1,5 @@
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
-const context={window:{}};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../trajectory-forecast.js'),'utf8'),context);
+const context={window:{}};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../supabase/functions/_shared/trajectory-forecast.js'),'utf8'),context);
 const model=context.window.__stTrajectoryForecast;
 const peer=(last,next,score=90,n=5)=>({history:Array(n).fill(last),future:[next],match_score:score});
 const own=[26,24,22,20];

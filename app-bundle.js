@@ -1,5 +1,5 @@
 /*! app-bundle.js · 自动生成,勿手改 —— 改源码后运行: node design/build-bundles.js
-   来源顺序: public-assets.js, compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, app-v34.js, app-v35.js, score-worth-model.js, score-worth.js, release-notices.js, account-recovery.js, trajectory-forecast.js, similar-trajectories.js, school-settings.js, announcement-settings.js, announcement-replies.js, author-support.js, community.js, participant-defaults.js, exam-averages.js, exam-changes.js, exam-reflection.js, exam-detail.js, supabase/functions/_shared/backup-format.js, backup-import.js, account-growth.js */
+   来源顺序: public-assets.js, compat.js, request-budget-v24.js, telemetry-feedback.js, feedback-statuses.js, app-v3.js, app-v4.js, app-v5.js, app-v6.js, app-v7.js, app-v8.js, app-v9.js, app-v10.js, app-v11.js, feedback-unread-dot.js, app-v12.js, app-v13.js, app-v14.js, app-v15.js, app-v16.js, app-v17.js, app-v18.js, app-v19.js, app-v20.js, app-v21.js, app-v22.js, app-v23.js, app-v24.js, app-v25.js, app-v26.js, app-v27.js, app-v28.js, app-v29.js, app-v30.js, app-v31.js, app-v32.js, app-v33.js, supabase/functions/_shared/learning-state-model.js, app-v34.js, app-v35.js, supabase/functions/_shared/score-worth-model.js, score-worth.js, release-notices.js, account-recovery.js, supabase/functions/_shared/trajectory-forecast.js, similar-trajectories.js, school-settings.js, announcement-settings.js, announcement-replies.js, author-support.js, community.js, participant-defaults.js, exam-averages.js, exam-changes.js, exam-reflection.js, exam-detail.js, supabase/functions/_shared/backup-format.js, backup-import.js, account-growth.js */
 /* ===== public-assets.js ===== */
 /* Public artwork only. Private uploads and application requests never use this host. */
 (function () {
@@ -10088,16 +10088,13 @@ window.__v33={
 };
 })();
 
-/* ===== app-v34.js ===== */
-/* app-v34.js · 深度分析(Beta) —— 自动生成,勿手改
-   来源: research/analytics-page/prod/deep-beta-main.js + research/paper-analytics-lab/src/{core.js,measurement.js,trend-test.js,dynamics.js,bocpd.js,ewma.js,difficulty.js,alerts.js,goals.js,pipeline.js}
-   重build: node design/build-deep-beta.js && node design/build-bundles.js */
-(function () {
+/* ===== supabase/functions/_shared/learning-state-model.js ===== */
+/* 学习状态预测内核。供分析页和学情问答共用。 */
+(function (global) {
 "use strict";
-if (window.__v34kernel) return;
-window.__v34kernel = 1;
-var global = window; /* research 内核以 global.PAL 挂载,浏览器下指向 window */
-var PAL2NS = (window.PAL = window.PAL || {});
+if (global.__v34kernel) return;
+global.__v34kernel = 1;
+var PAL = (global.PAL = global.PAL || {});
 
 /* ---- PAL2 kernel: core.js ---- */
 /* ============================================================
@@ -11395,7 +11392,21 @@ var PAL2NS = (window.PAL = window.PAL || {});
 })(typeof window !== 'undefined' ? window : globalThis);
 
 ;
-/* deep-beta-main.js · 深度分析(Beta) 主源码 —— 由 build-deep-beta.js 与 research 内核合成 app-v34.js
+  /* 生产冻结配置。区间先验取五折 user-level 校准中 no-SE 版本的
+     Kp95 均值，W 在五折中均选择 4。研究代码仍保留 SE 消融入口，
+     生产默认采用当前真实回测中区间效率更好的 no-SE 配置。 */
+  var PROD_ANALYSIS_OPTS = {
+    seWeighting: false,
+    ewmaForecastAlpha: 0.40,
+    conformalPriorK: 4.539237871385978,
+    conformalPriorW: 4
+  };
+  PAL.productionOptions = Object.freeze(PROD_ANALYSIS_OPTS);
+  global.PAL2 = PAL;
+})(typeof window !== "undefined" ? window : globalThis);
+
+/* ===== app-v34.js ===== */
+/* app-v34.js · 学习状态预测界面
    挂载方式:不占一级导航;作为区块追加在现有「统计分析」页底部,
    用 MutationObserver 跟随统计页内部重渲染自愈。
    算法细节默认折叠(<details>),用户点开才展开 */
@@ -11491,15 +11502,7 @@ var PAL2NS = (window.PAL = window.PAL || {});
   var S = { cur: "__total__", localSubject:false, fullHistory:false, goalPct: 20, distBin: 5, zmapBins: 20, view: "band" };
   var REP = null; /* 当前报告缓存,供交互处理器使用 */
 
-  /* 生产冻结配置。区间先验取五折 user-level 校准中 no-SE 版本的
-     Kp95 均值，W 在五折中均选择 4。研究代码仍保留 SE 消融入口，
-     生产默认采用当前真实回测中区间效率更好的 no-SE 配置。 */
-  var PROD_ANALYSIS_OPTS = {
-    seWeighting: false,
-    ewmaForecastAlpha: 0.40,
-    conformalPriorK: 4.539237871385978,
-    conformalPriorW: 4
-  };
+  var PROD_ANALYSIS_OPTS = P2.productionOptions;
   function analyzeProd(obs) {
     return P2.pipeline.analyzeSeries(obs, PROD_ANALYSIS_OPTS);
   }
@@ -12552,14 +12555,6 @@ var PAL2NS = (window.PAL = window.PAL || {});
   };
 })();
 
-
-window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
-})();
-
-
-
-
-
 /* ===== app-v35.js ===== */
 /* app-v35.js · v6.1 usability fixes: multi-category trends, safe drafts and viewport stability. */
 (function(){
@@ -12702,9 +12697,9 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   window.__v61={captureDraft:captureExam61,readDraft:readDraft61,clearDraft:clearDraft61,filters:function(){return(state.gradeFiltersV61||[]).slice();},normalizeHomeCategories:normalizeHomeCategories61,homeScopeHtml:homeScopeHtml61};
 })();
 
-/* ===== score-worth-model.js ===== */
+/* ===== supabase/functions/_shared/score-worth-model.js ===== */
 /* A retrospective, personal score/rank scale. Not population test equating. */
-(function () {
+(function (root) {
   'use strict';
   var cache = new WeakMap();
   function present(v) { return v != null && !(typeof v === 'string' && v.trim() === ''); }
@@ -12718,7 +12713,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   function key(e) { return e.id != null && e.id !== '' ? 'id:' + e.id : JSON.stringify([e.exam_date || '', e.name || '', e.grade_level || '']); }
   function invNormal(p) {
     // Reuse the application's tested statistical kernel when it is present.
-    var core = window.PAL2 && window.PAL2.core || window.PAL && window.PAL.core;
+    var core = root.PAL2 && root.PAL2.core || root.PAL && root.PAL.core;
     if (core && core.invNorm) return core.invNorm(p);
     // Standalone fallback: invert an Abramowitz–Stegun normal CDF approximation.
     function cdf(x) {
@@ -12861,8 +12856,8 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       });
     }); return result;
   }
-  window.__stScoreWorthModel = { observation: observation, compare: compare, cells: cells, fit: fit, context: context, day: day, key: key, difficultyIndex: difficultyIndex };
-})();
+  root.__stScoreWorthModel = { observation: observation, compare: compare, cells: cells, fit: fit, context: context, day: day, key: key, difficultyIndex: difficultyIndex };
+})(typeof window !== 'undefined' ? window : globalThis);
 
 /* ===== score-worth.js ===== */
 (function () {
@@ -13426,9 +13421,9 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   attachForgot();startUpdateMonitor();window.addEventListener('storage',updateForgotBadge);document.addEventListener('visibilitychange',function(){if(!document.hidden)checkRecentUpdates()});window.__accountRecovery={open:function(){screen='apply';renderRecovery()},checkUpdates:checkRecentUpdates};
 })();
 
-/* ===== trajectory-forecast.js ===== */
+/* ===== supabase/functions/_shared/trajectory-forecast.js ===== */
 /* A descriptive estimate from anonymous references, not a calibrated probability. */
-(function () {
+(function (root) {
   'use strict';
   var defaults={similarity:1,history:0.5,width:1};
   function settings(input) {
@@ -13484,8 +13479,8 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     var disagreement=samples.some(function(s){return s.value<latest-0.05;})&&samples.some(function(s){return s.value>latest+0.05;});
     return {center:center,ownCenter:baseline,referenceCenter:mean,low:clamp(center-(center-low)*cfg.width),high:clamp(center+(high-center)*cfg.width),count:samples.length,disagreement:disagreement,bandwidth:bandwidth,samples:samples};
   }
-  window.__stTrajectoryForecast={settings:settings,align:align,estimate:estimate};
-})();
+  root.__stTrajectoryForecast={settings:settings,align:align,estimate:estimate};
+})(typeof window !== 'undefined' ? window : globalThis);
 
 /* ===== similar-trajectories.js ===== */
 /* Anonymous peer trajectories, on by default with a clear opt-out. Results are never persisted in browser storage. */

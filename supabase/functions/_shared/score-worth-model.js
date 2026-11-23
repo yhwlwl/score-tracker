@@ -1,5 +1,5 @@
 /* A retrospective, personal score/rank scale. Not population test equating. */
-(function () {
+(function (root) {
   'use strict';
   var cache = new WeakMap();
   function present(v) { return v != null && !(typeof v === 'string' && v.trim() === ''); }
@@ -13,7 +13,7 @@
   function key(e) { return e.id != null && e.id !== '' ? 'id:' + e.id : JSON.stringify([e.exam_date || '', e.name || '', e.grade_level || '']); }
   function invNormal(p) {
     // Reuse the application's tested statistical kernel when it is present.
-    var core = window.PAL2 && window.PAL2.core || window.PAL && window.PAL.core;
+    var core = root.PAL2 && root.PAL2.core || root.PAL && root.PAL.core;
     if (core && core.invNorm) return core.invNorm(p);
     // Standalone fallback: invert an Abramowitz–Stegun normal CDF approximation.
     function cdf(x) {
@@ -156,5 +156,5 @@
       });
     }); return result;
   }
-  window.__stScoreWorthModel = { observation: observation, compare: compare, cells: cells, fit: fit, context: context, day: day, key: key, difficultyIndex: difficultyIndex };
-})();
+  root.__stScoreWorthModel = { observation: observation, compare: compare, cells: cells, fit: fit, context: context, day: day, key: key, difficultyIndex: difficultyIndex };
+})(typeof window !== 'undefined' ? window : globalThis);

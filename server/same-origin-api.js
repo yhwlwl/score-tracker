@@ -2,6 +2,7 @@ const UPSTREAM_ROOT = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/';
 export const API_ENDPOINTS = Object.freeze([
   'score-tracker-api',
   'score-tracker-data-api',
+  'score-tracker-study-api',
   'score-tracker-modules-api',
   'score-tracker-username-api',
   'score-tracker-notices',
@@ -79,7 +80,7 @@ export async function proxyApi(request, options = {}) {
   const abort = () => controller.abort();
   if (request.signal.aborted) abort();
   else request.signal.addEventListener('abort', abort, { once: true });
-  const studyQuestion = endpoint === 'score-tracker-data-api' && url.searchParams.get('task') === 'study-question';
+  const studyQuestion = endpoint === 'score-tracker-study-api';
   const timeoutMs = options.timeoutMs ?? (studyQuestion || endpoint === 'score-tracker-vision-preview' ? 115000 : endpoint === 'score-tracker-import' ? 55000 : 25000);
   let timedOut = false;
   const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
