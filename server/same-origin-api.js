@@ -79,7 +79,8 @@ export async function proxyApi(request, options = {}) {
   const abort = () => controller.abort();
   if (request.signal.aborted) abort();
   else request.signal.addEventListener('abort', abort, { once: true });
-  const timeoutMs = options.timeoutMs ?? (endpoint === 'score-tracker-vision-preview' ? 115000 : endpoint === 'score-tracker-import' ? 55000 : 25000);
+  const studyQuestion = endpoint === 'score-tracker-data-api' && url.searchParams.get('task') === 'study-question';
+  const timeoutMs = options.timeoutMs ?? (studyQuestion || endpoint === 'score-tracker-vision-preview' ? 115000 : endpoint === 'score-tracker-import' ? 55000 : 25000);
   let timedOut = false;
   const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
   const upstreamHeaders = new Headers({

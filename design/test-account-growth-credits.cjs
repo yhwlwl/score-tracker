@@ -32,6 +32,7 @@ await db.exec(`
 await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/20261115060104_account_growth_ai_credits.sql'),'utf8'));
 await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/20261122121519_configurable_ai_monthly_budget.sql'),'utf8'));
 await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/20261122121811_ai_manual_reservation_release_state.sql'),'utf8'));
+await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/migrations/20261123090000_study_questions.sql'),'utf8'));
 await sql('update score_tracker_ai_policy set hard_limit_cny=50');eq(Number((await sql('select hard_limit_cny from score_tracker_ai_policy'))[0].hard_limit_cny),50);await sql('update score_tracker_ai_policy set hard_limit_cny=20');
 eq(await rpc('score_tracker_ai_release_ready'),true);
 await sql('insert into score_tracker_users(id) values($1),($2)',[uid,other]);
@@ -90,6 +91,16 @@ const unrelated=Number((await sql('select reserved_cny from score_tracker_ai_bud
 await settle('manual-release',null);eq((await sql("select status from score_tracker_ai_calls where id='manual-release'"))[0].status,'released');
 await settle('manual-release',{prompt_tokens:1000,completion_tokens:0});eq(Number((await sql('select reserved_cny from score_tracker_ai_budgets'))[0].reserved_cny),unrelated);
 await settle('unrelated-hold',{prompt_tokens:0,completion_tokens:0});await finish(id,false);
+await ageTasks();
+const study=task(),turn=JSON.stringify({question:'这场怎么样？',previous:null,result:{answer:'示例'}});
+eq((await start(study,'study_question',1,60)).allowed,true);
+await rejects(()=>rpc('score_tracker_study_finish',other,study,turn),/no rows/);
+eq((await reserve(study,'study-turn')).allowed,true);await settle('study-turn',{prompt_tokens:100,completion_tokens:20});
+const studyCharge=await rpc('score_tracker_study_finish',uid,study,turn);
+eq(studyCharge.charged>0,true);
+eq((await rpc('score_tracker_study_finish',uid,study,turn)).charged,studyCharge.charged);
+eq((await sql('select count(*)::int n from score_tracker_study_turns where user_id=$1',[uid]))[0].n,1);
+await rejects(()=>db.exec('set role authenticated;select turn from score_tracker_study_turns'),/permission denied/);await db.exec('reset role');
 // Parallel reservations are serialized by the shared budget row; no overspend.
 await ageTasks();id=task();await start(id,'probe',0,0);const many=await Promise.all(Array.from({length:15},(_,i)=>reserve(id,'parallel-'+i)));
 eq(many.filter(r=>r.allowed).length,9);assert(Number((await sql('select spent_cny+reserved_cny as total from score_tracker_ai_budgets'))[0].total)<=20);checks++;

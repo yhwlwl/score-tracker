@@ -38,6 +38,7 @@ const FILES = [
   "exam-record-sort.js",
   "page-display.js",
   "analysis-navigation.js",
+  "study-questions.js",
   "analysis-density.js",
   "supabase/functions/_shared/exam-goals.js",
   "exam-goal-lifecycle.js",

@@ -32,6 +32,25 @@ function snapshot(e){
  Object.entries(e.scores||{}).forEach(([n,s])=>{if(num(s.target)!==null&&num(s.max)>0){const k='s:'+n;if(num(items[k]?.score)===null)items[k]={...items[k],score:+s.target,max:+s.max};}});
  return items;
 }
+function subjectActual(e,name){const s=e.scores?.[name]||{};return {score:num(s.actual)??(num(s.rawMax)===num(s.max)?num(s.raw):null),max:num(s.max),rank:num(s.rank),people:num(s.participants)??num(e.total_participants),percent:num(s.yearPositionPercent),scope:'subject:'+name};}
+function measured(e,key,modules){
+ if(key.startsWith('s:'))return subjectActual(e,key.slice(2));
+ const total=key==='total',m=total?null:modules.find(x=>String(x.id)===key.slice(2));
+ if(!total&&(!m||!(e.moduleIds||[]).map(String).includes(String(m.id))))return {};
+ const names=total?Object.keys(e.scores||{}).filter(s=>!e.scores[s].excludeFromTotal):m.subjects||[];
+ const rows=names.map(s=>subjectActual(e,s));let max=rows.length&&rows.every(r=>num(r.max)>0)?rows.reduce((a,r)=>a+r.max,0):null;
+ const score=(total?num(e.total_actual_score):null)??(rows.length&&rows.every(r=>num(r.score)!==null)?rows.reduce((a,r)=>a+r.score,0):null);
+ const rank=m?e.moduleRanks?.[m.id]||{}:{yearRank:e.total_rank,yearParticipants:e.total_participants,yearPositionPercent:e.total_year_position_percent};
+ return {score,max,rank:num(rank.yearRank),people:num(rank.yearParticipants),percent:num(rank.yearPositionPercent),scope:(total?'total:':'module:'+key+':')+names.slice().sort().join('|')};
+}
+function goalFor(e,key,modules,original){
+ let items=original&&e.exam_goals?.locked?e.exam_goals.locked:snapshot(e),g=items[key];
+ if(key.startsWith('s:'))return g||null;
+ let names=key==='total'?Object.keys(e.scores||{}).filter(s=>!e.scores[s].excludeFromTotal):modules.find(m=>String(m.id)===key.slice(2))?.subjects||[];
+ if(key!=='total'&&!(e.moduleIds||[]).map(String).includes(key.slice(2)))return null;
+ if(num(g?.score)===null&&names.length&&names.every(s=>num(items['s:'+s]?.score)!==null&&num(items['s:'+s]?.max)>0))return {...g,score:names.reduce((a,s)=>a+Number(items['s:'+s].score),0),max:names.reduce((a,s)=>a+Number(items['s:'+s].max),0)};
+ return g||null;
+}
 function evolve(old,e,raw,now){
  const items=cleanItems(raw.items||{},e),prev=old&&old.exam_goals,oldActual=!!old&&actual(old),hasActual=actual(e);
  const planned=raw.planned===true&&!hasActual&&!oldActual;
@@ -120,6 +139,6 @@ function restoreBackup(raw,normalized){
  });
  return normalized;
 }
-const api={num,actual,pending,cleanItems,snapshot,evolve,rankValue,evaluate,calibrate,quantile,restoreBackup};
+const api={num,actual,pending,cleanItems,snapshot,measured,goalFor,evolve,rankValue,evaluate,calibrate,quantile,restoreBackup};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else {root.ScoreExamGoals=api;if(root.ScoreBackup){const normalize=root.ScoreBackup.normalize;root.ScoreBackup.normalize=raw=>restoreBackup(raw,normalize(raw));}}
 })(typeof globalThis!=='undefined'?globalThis:this);
