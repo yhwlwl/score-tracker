@@ -881,7 +881,7 @@ Deno.serve(async (req: Request) => {
     const user = await auth(String(body.token ?? ""));
     if (!user) return out({ error: "登录已失效，请重新登录", code: "UNAUTHORIZED" }, 401);
     const action = String(body.action ?? "");
-    if (action === 'study_status') return out(studySettings().public);
+    if (action === 'study_status') return out((await studySettings(db)).public);
     if (action === 'study_question') {
       const result = await studyQuestion(db, user.id, body, () => studySnapshot(user.id));
       return out(result.data, result.status);

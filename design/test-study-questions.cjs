@@ -22,7 +22,10 @@ async function roundTrip(snapshot) {
   const db={
     from(table){
       const f={};
-      const read=()=>({data:[...(table==='score_tracker_study_turns'?turns:tasks).values()].find(r=>Object.entries(f).every(([k,v])=>r[k]===v)) || null});
+      const read=()=>{
+        if(table==='score_tracker_ai_configs') return {data:{openrouter_api_key:'fixture',base_url:'https://fixture.invalid/api',model:'deepseek-v4-flash',enabled:true}};
+        return {data:[...(table==='score_tracker_study_turns'?turns:tasks).values()].find(r=>Object.entries(f).every(([k,v])=>r[k]===v)) || null};
+      };
       return {select(){return this},eq(k,v){f[k]=v;return this},single:read,maybeSingle:read};
     },
     async rpc(fn,p){
