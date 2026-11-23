@@ -15,6 +15,9 @@ const tick = () => new Promise(resolve => setTimeout(resolve, 35));
   w.fetch = async (url, opts) => { calls.push({ url: String(url), body: JSON.parse(opts?.body || '{}') }); return new Response(JSON.stringify({ ok: true, exams: [], subjects: [], modules: [], enabled: false })); };
   try {
     w.eval(read('app-bundle.js') + '\nwindow.state=state;');
+    // Production loads the shared goal model and single-exam review after the bundle.
+    w.eval(read('supabase/functions/_shared/exam-goals.js'));
+    w.eval(read('exam-goal-review.js'));
     for (const file of ['app-v36.js','app-v37.js','app-v38.js']) w.eval(read(file));
     w.__scoreTrackerTrack = (type, data) => events.push({ type, data }); w.__stTrack = w.__scoreTrackerTrack;
     await tick(); delete w.ScorePaperReview;
