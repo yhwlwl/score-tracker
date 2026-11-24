@@ -104,9 +104,23 @@ async function roundTrip(snapshot) {
     assert.equal(requests.at(-1).history[0].question,first.question);
     assert.equal(requests.at(-1).history[0].chart,undefined);
     assert.equal(settledCalls,4);
+    const budgets=[];
+    global.fetch=async(_,init)=>{
+      const body=JSON.parse(init.body);
+      budgets.push({max:body.max_tokens,thinking:body.thinking?.type});
+      const reply=budgets.length===1?{message:{content:JSON.stringify({tool:'results',exams:[1,2],scopes:['s:数学']})}}:
+        budgets.length===2?{finish_reason:'length',message:{content:'',reasoning_content:'not an answer'}}:
+        {finish_reason:'stop',message:{content:JSON.stringify({answer:'数学得分提升了。',refs:[3]})}};
+      return Response.json({choices:[reply],usage:{prompt_tokens:128,completion_tokens:20}});
+    };
+    const repaired=await run('owner',{...first,requestId:crypto.randomUUID()});
+    assert.equal(repaired.status,200);
+    assert.equal(repaired.data.answer,'数学得分提升了。');
+    assert.deepEqual(budgets,[{max:800,thinking:'disabled'},{max:2000,thinking:'enabled'},{max:1400,thinking:'disabled'}]);
+    assert.equal(settledCalls,7);
     global.fetch=async()=>new Response('',{status:503});
     assert.equal((await run('owner',{...first,requestId:crypto.randomUUID()})).status,503);
-    assert.equal(failed,1);assert.equal(saved,2);
+    assert.equal(failed,1);assert.equal(saved,3);
   } finally {global.fetch=old;delete global.Deno;}
 }
 async function checkOtherData(snapshot) {
