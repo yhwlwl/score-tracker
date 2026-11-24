@@ -69,7 +69,7 @@ async function roundTrip(snapshot) {
         caps.push(p.p_cap);tasks.set(p.p_task,{id:p.p_task,user_id:p.p_user,feature:p.p_feature,status:'active'});
         return {data:{allowed:true,approved:p.p_cap}};
       }
-      if(fn.endsWith('call_reserve'))return {data:{allowed:true}};
+      if(fn.endsWith('call_reserve_routed'))return {data:{allowed:true}};
       if(fn.endsWith('call_settle')){settledCalls++;return {data:{known:true,credits:settleCredits}};}
       if(fn.endsWith('study_finish')){
         saved++;
