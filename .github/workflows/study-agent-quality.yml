@@ -21,6 +21,26 @@ on:
   schedule:
     - cron: '0 19 * * 0'
   workflow_dispatch:
+    inputs:
+      run_live:
+        description: 'Run paid model benchmark with a dedicated evaluation key'
+        type: boolean
+        default: false
+      thinking_mode:
+        type: choice
+        options: [low, standard, high, all]
+        default: standard
+      cases:
+        description: 'Comma-separated case IDs (or all)'
+        type: string
+        default: 'rank-vs-score,trimmed-mean,all-subject-forecast'
+      max_credits:
+        description: 'Estimated evaluation budget, not a provider billing guarantee'
+        type: number
+        default: 500
+      max_calls:
+        type: number
+        default: 15
 permissions:
   contents: read
 jobs:
@@ -40,5 +60,30 @@ jobs:
         with:
           name: study-agent-quality-report
           path: study-agent-report.json
+          if-no-files-found: warn
+          retention-days: 90
+  live-model:
+    if: github.event_name == 'workflow_dispatch' && inputs.run_live == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Evaluate actual model on synthetic data
+        env:
+          STUDY_EVAL_API_KEY: ${{ secrets.STUDY_EVAL_API_KEY }}
+          EVAL_MODE: ${{ inputs.thinking_mode }}
+          EVAL_CASES: ${{ inputs.cases }}
+          EVAL_CREDITS: ${{ inputs.max_credits }}
+          EVAL_CALLS: ${{ inputs.max_calls }}
+        run: node design/study-agent-eval.cjs --live "--mode=$EVAL_MODE" "--case=$EVAL_CASES" "--max-credits=$EVAL_CREDITS" "--max-calls=$EVAL_CALLS" --out=study-agent-live-report.json
+      - name: Upload actual model evaluation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: study-agent-live-report
+          path: study-agent-live-report.json
           if-no-files-found: warn
           retention-days: 90
