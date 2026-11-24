@@ -101,6 +101,7 @@ export async function explore(snapshot:any, question:string, history:any[], comp
     if (answer && queried) {
       let refs = Array.isArray(data.refs) ? [...new Set<number>(data.refs)].slice(0,6) : [];
       const saysUnavailable = /数据不足|(?:成绩|排名|数据).{0,5}(?:空白|是空的)|(?:无法|没法|不能)(?:给出|做出|进行|直接)?(?:预测|估计)|没有(?:可用的|生成)?(?:估计|预测)/.test(answer);
+      const claimsNoRecords = /(?:没有|不存在|未录入任何|没有录入任何)(?:任何|可用的|已录入的)?(?:成绩|排名|考试)数据|(?:成绩|排名|数据).{0,5}(?:都是空|为空|是空的|空白)/.test(answer);
       const estimates = primary?.facts.filter(fact => fact.kind === 'estimate') || [];
       if (estimates.length) {
         const claimsOnlyOne = estimates.length > 1 && /只有.{1,12}(?:有|生成了|算出|能做).{0,6}(?:预测|估计)/.test(answer);
@@ -142,7 +143,7 @@ export async function explore(snapshot:any, question:string, history:any[], comp
       }
       if (refs.some(id => !Number.isInteger(id) || !tools.facts[id - 1])) throw Error('invalid_reference');
       // A broad 'no data' answer is not valid when the selected records contain facts.
-      if (saysUnavailable && !primary && !refs.length && tools.facts.length && step < maxSteps-1) {
+      if ((claimsNoRecords || saysUnavailable && !refs.length) && !primary && tools.facts.length && step < maxSteps-1) {
         messages.push({role:'assistant',content:JSON.stringify(data)}, {role:'user',content:'已有事实与结论不符。请区分真实缺项和查询范围问题；重新查看本轮事实并回答可回答的部分。'});
         continue;
       }
@@ -166,7 +167,17 @@ export async function explore(snapshot:any, question:string, history:any[], comp
     }
     queries.forEach(args=>seenQueries.add(queryKey(args)));
     progress?.({stage:'tools',tools:[...new Set<string>(queries.map((args: any) => args.tool))]});
-    const results = await Promise.all(queries.map(async (args: any) => ({tool: args.tool, ...await tools.query(args)})));
+    const results = await Promise.all(queries.map(async (args: any) => {
+      try {
+        const result = await tools.query(args);
+        return {tool:args.tool,...result,status:result.facts.length || result.series.length ? 'ok' : 'empty'};
+      } catch {
+        // A single failed lookup must not discard other successful queries.
+        // No raw upstream errors or credentials are sent to the model.
+        return {tool:args.tool,facts:[],series:[],notes:['此项查询失败，不代表用户未录入数据。可重新查询或使用其它已查到的依据。'],status:'failed'};
+      }
+    }));
+    results.forEach((result,i)=>{if(result.status==='failed')seenQueries.delete(queryKey(queries[i]));});
     if (!queried && required) primary = results[0];
     progress?.({stage:'analysis'});
     queried = true;
