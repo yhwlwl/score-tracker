@@ -298,6 +298,18 @@ async function checkAgentCompleteness(snapshot) {
     return {answer:'数学成绩已经查到，考试反思暂时未能读取。',refs:[results[0].facts[0].id]};
   });
   assert.match(partial.answer,/成绩已经查到/);
+  let combined=0;
+  const mixed=await explore(rich,'看下我的物理，最近如何，预测下下一次',[],async messages=>{
+    if(combined++===0)return {tool:'trajectory',scopes:['s:物理'],metric:'score'};
+    const {results}=JSON.parse(messages.at(-1).content);
+    assert.equal(results[0].tool,'trajectory');
+    assert.equal(results[1].tool,'results');
+    return {answer:'近期得分上升。',analysis:'物理近期的实际得分有所提升。',refs:[results[1].facts[0].id]};
+  });
+  assert.match(mixed.answer,/物理近期的实际得分有所提升/);
+  assert.match(mixed.answer,/下次物理的得分率大概是 66%/);
+  assert.match(mixed.answer,/历史粗略参考/);
+  assert.ok(mixed.evidence.some(f=>f.label==='物理'));
 }
 
 async function main() {
