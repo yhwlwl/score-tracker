@@ -48,5 +48,10 @@
     "remote": "/v1/8f3b6b302c8e6cf8/support-qr-8f3b6b302c8e6cf8.jpg",
     "sha256": "8f3b6b302c8e6cf87b0a7cf77334abe19821600f00e7885092b7edf25252cdd2",
     "bytes": 103619
+  },
+  "/assets/community/community-qr-f13b9b3e6ac2d78b.jpg": {
+    "remote": "/v1/f13b9b3e6ac2d78b/community-qr-f13b9b3e6ac2d78b.jpg",
+    "sha256": "f13b9b3e6ac2d78b5a49151d4d4dcbea2e2ab76e075985f42ba5ab268fad3e50",
+    "bytes": 232291
   }
 }
