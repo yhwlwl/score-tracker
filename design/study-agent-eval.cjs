@@ -45,7 +45,14 @@ const cases=[
 ];
 const argv=process.argv.slice(2);
 const option=(name,fallback)=>argv.find(x=>x.startsWith('--'+name+'='))?.split('=').slice(1).join('=')??fallback;
+const probe=argv.includes('--probe');
 const live=argv.includes('--live');
+const provider=option('provider',process.env.STUDY_EVAL_PROVIDER||'deepseek');
+const providers={deepseek:{model:'deepseek-flash',baseUrl:'https://api.deepseek.com'},'opencode-go':{model:'deepseek-v4-flash',baseUrl:'https://opencode.ai/zen/go/v1'}};
+if(!Object.hasOwn(providers,provider))throw Error('unknown evaluation provider');
+const target=providers[provider];
+if(probe&&live)throw Error('choose --probe or --live');
+if(probe&&!process.env.STUDY_EVAL_API_KEY)throw Error('missing dedicated STUDY_EVAL_API_KEY');
 const selectedMode=option('mode','standard');
 const selection=option('case','all');
 const repeat=Number(option('repeat','1'));
@@ -56,7 +63,7 @@ const baselinePath=option('baseline','');
 const modes=selectedMode==='all'?['low','standard','high']:[selectedMode];
 if(modes.some(m=>!['low','standard','high'].includes(m))||!Number.isInteger(repeat)||repeat<1||repeat>5)throw Error('invalid mode or repeat');
 if(live&&(!process.env.STUDY_EVAL_API_KEY||!(maxCredits>0&&maxCredits<=10000)||!Number.isInteger(maxCalls)||maxCalls<1||maxCalls>150))throw Error('Live evaluation requires a dedicated STUDY_EVAL_API_KEY, --max-credits and --max-calls. No production account or data is used.');
-const budget={spent:0,calls:0,unknown:false};
+const budget={spent:0,calls:0,unknown:false,stopReason:null};
 const providerFetch=global.fetch;
 function fakeDb(test,mode){
   const tasks=new Map(),turns=new Map();
@@ -69,7 +76,7 @@ function fakeDb(test,mode){
   return {priorId,stats:()=>({spent,calls,usage,trace}),db:{
     from(table){
       const filters={};
-      const read=()=>table==='score_tracker_ai_configs'?{data:{enabled:true,model:'deepseek-flash',base_url:'https://api.deepseek.com',openrouter_api_key:live?process.env.STUDY_EVAL_API_KEY:'synthetic'}}:
+      const read=()=>table==='score_tracker_ai_configs'?{data:{enabled:true,model:live?target.model:'deepseek-flash',base_url:live?target.baseUrl:'https://api.deepseek.com',openrouter_api_key:live?process.env.STUDY_EVAL_API_KEY:'synthetic'}}:
         {data:[...(table==='score_tracker_study_turns'?turns:tasks).values()].find(r=>Object.entries(filters).every(([k,v])=>r[k]===v))||null};
       return {select(){return this},eq(k,v){filters[k]=v;return this},maybeSingle:read,single:read};
     },
@@ -93,11 +100,19 @@ function fakeDb(test,mode){
     const body=JSON.parse(init.body);
     // Approximate conservative pre-call ceiling (not a provider billing guarantee).
     const upper=(Buffer.byteLength(JSON.stringify(body.messages),'utf8')*2+body.max_tokens*8)/1000;
-    if(live&&(budget.unknown||budget.calls>=maxCalls||budget.spent+upper>maxCredits))throw Error('evaluation budget stop');
+    if(live&&(budget.stopReason||budget.unknown||budget.calls>=maxCalls||budget.spent+upper>maxCredits))throw Error('evaluation budget stop');
     if(live)budget.calls++;
     calls++;
     trace.push({thinking:body.thinking?.type,maxTokens:body.max_tokens});
-    if(live)return providerFetch(url,init);
+    if(live){
+      // Never send the credential to any other origin, including redirects.
+      if(url!==target.baseUrl+'/chat/completions')throw Error('unexpected evaluation endpoint');
+      let response;
+      try{response=await providerFetch(url,{...init,redirect:'error'});}
+      catch(e){budget.stopReason='provider_connection_failed';throw e;}
+      if(!response.ok){budget.stopReason='provider_http_'+response.status;console.error('Provider HTTP '+response.status+'; stopping live evaluation.');}
+      return response;
+    }
     const item=test.script[Math.min(calls-1,test.script.length-1)];
     const answer=typeof item==='function'?item(body.messages):item;
     return Response.json({choices:[{finish_reason:'stop',message:{content:JSON.stringify(answer)}}],usage:{prompt_tokens:100,completion_tokens:50,prompt_cache_hit_tokens:0}});
@@ -113,7 +128,21 @@ function structureChecks(r){
     !/<(?:script|iframe)\b/i.test(r.answer||'')
   ];
 }
+async function checkConnection(){
+  const start=performance.now();
+  const response=await providerFetch(target.baseUrl+'/chat/completions',{
+    method:'POST',redirect:'error',signal:AbortSignal.timeout(30000),
+    headers:{'Content-Type':'application/json',Authorization:'Bearer '+process.env.STUDY_EVAL_API_KEY},
+    body:JSON.stringify({model:target.model,messages:[{role:'user',content:'Return exactly this JSON object: {"ok":true}'}],thinking:{type:'disabled'},response_format:{type:'json_object'},max_tokens:64,stream:false})
+  });
+  const payload=await response.json().catch(()=>null);
+  const choice=payload?.choices?.[0];
+  let valid=false;try{valid=JSON.parse(choice?.message?.content)?.ok===true;}catch{}
+  console.log(JSON.stringify({provider,model:target.model,status:response.status,ms:Math.round(performance.now()-start),jsonOk:valid,finishReason:choice?.finish_reason,usage:payload?.usage||null}));
+  if(!response.ok||!valid)process.exitCode=1;
+}
 async function main(){
+  if(probe)return checkConnection();
   const chosen=cases.filter(c=>selection==='all'||selection.split(',').includes(c.id));
   if(!chosen.length)throw Error('unknown case selection');
   const rows=[];
@@ -121,7 +150,7 @@ async function main(){
   studyTools(snapshot());
   try{
     run: for(const mode of modes)for(let trial=1;trial<=repeat;trial++)for(const c of chosen){
-      if(live&&(budget.unknown||budget.calls>=maxCalls||budget.spent>=maxCredits))break run;
+      if(live&&(budget.stopReason||budget.unknown||budget.calls>=maxCalls||budget.spent>=maxCredits))break run;
       const f=fakeDb(c,mode);global.fetch=f.fetch;global.Deno={env:{get:()=>undefined}};
       const start=performance.now();
       const response=await studyQuestion(f.db,'eval-owner',{requestId:crypto.randomUUID(),question:c.q,thinking:mode,previous:c.previous?f.priorId:undefined},async()=> (c.snapshot||snapshot)());
@@ -132,15 +161,15 @@ async function main(){
       const passed=checks.every(Boolean);
       rows.push({id:c.id,group:c.group,question:c.q,mode,trial,passed,status:response.status,checks,ms:Math.round(performance.now()-start),calls:stats.calls,usage:stats.usage,estimatedCredits:Math.round(stats.spent*1000)/1000,charged:r.charged??0,trace:stats.trace,answer:r.answer||'',evidence:r.evidence||[]});
       console.log((passed?'PASS':'FAIL')+' '+mode+' '+c.id+' '+checks.filter(Boolean).length+'/'+checks.length+' checks, '+stats.calls+' model '+(live?'calls':'replays'));
-      if(live&&(budget.unknown||budget.calls>=maxCalls||budget.spent>=maxCredits))break run;
+      if(live&&(budget.stopReason||budget.unknown||budget.calls>=maxCalls||budget.spent>=maxCredits))break run;
     }
   }finally{global.fetch=providerFetch;delete global.Deno;}
-  const report={schema:1,kind:live?'live-model':'deterministic-replay',commit:process.env.GITHUB_SHA||null,planned:chosen.length*modes.length*repeat,executed:rows.length,passed:rows.filter(r=>r.passed).length,results:rows,manualReview:live?['关键结论是否有依据且正确','是否完整回答所有子问题','是否有超越数据复述的分析价值','语言是否自然清楚','组件是否有助于理解']:[]};
+  const report={schema:1,kind:live?'live-model':'deterministic-replay',commit:process.env.GITHUB_SHA||null,provider:live?provider:null,model:live?target.model:null,stopReason:budget.stopReason,pricingBasis:'Score Tracker production reference credits, not provider invoice',planned:chosen.length*modes.length*repeat,executed:rows.length,passed:rows.filter(r=>r.passed).length,results:rows,manualReview:live?['关键结论是否有依据且正确','是否完整回答所有子问题','是否有超越数据复述的分析价值','语言是否自然清楚','组件是否有助于理解']:[]};
   const average=(arr,key)=>arr.length?Math.round(arr.reduce((sum,r)=>sum+r[key],0)/arr.length*100)/100:null;
   report.summary=modes.map(mode=>{const rs=rows.filter(r=>r.mode===mode);return {mode,cases:rs.length,passed:rs.filter(r=>r.passed).length,avgMs:average(rs,'ms'),avgCalls:average(rs,'calls'),avgCredits:average(rs,'estimatedCredits')};});
   if(baselinePath){
     const prev=JSON.parse(fs.readFileSync(baselinePath,'utf8'));
-    if(prev.schema!==report.schema||prev.kind!==report.kind)throw Error('baseline must use the same report schema and evaluation kind');
+    if(prev.schema!==report.schema||prev.kind!==report.kind||(live&&(prev.provider!==report.provider||prev.model!==report.model)))throw Error('baseline must use the same report schema and evaluation kind');
     const old=new Map(prev.results.map(r=>[r.mode+':'+r.trial+':'+r.id,r]));
     report.comparison=rows.flatMap(r=>{
       const p=old.get(r.mode+':'+r.trial+':'+r.id);
