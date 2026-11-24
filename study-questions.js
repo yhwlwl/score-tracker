@@ -10,6 +10,7 @@
     results:'成绩变化', examList:'考试记录', matrix:'考试矩阵', structure:'学科对比', profile:'历史表现',
     difficulty:'难度参考', forecast:'成绩预测', trajectory:'相似轨迹', goals:'考试目标', longGoal:'长期目标',
     plan:'预设目标', benchmarks:'均分和最高分', types:'题型表现', paper:'逐题得分', reflection:'考试反思',
+    statistics:'指标关联', scenario:'分数模拟',
   };
   let session, launcher, dialog;
   function current() { return typeof state !== 'undefined' && state.user && state.token; }
@@ -119,10 +120,13 @@
   function showAnswer(article, turn) {
     article.querySelector('.sq-feedback').remove();
     article.append(element('p','sq-answer',turn.answer));
-    const chart=window.ScoreStudyChart?.render(turn.chart);
-    if (chart) {
-      article.append(chart.figure);
-      session.charts.push(chart.dispose);
+    const specs=Array.isArray(turn.charts)&&turn.charts.length ? turn.charts.slice(0,3) : [turn.chart];
+    for (const spec of specs) {
+      const chart=window.ScoreStudyChart?.render(spec);
+      if (chart) {
+        article.append(chart.figure);
+        session.charts.push(chart.dispose);
+      }
     }
     if (turn.takeaway) {
       article.append(element('p','sq-takeaway',turn.takeaway));
