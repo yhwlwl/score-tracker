@@ -17,7 +17,7 @@ node design/study-agent-eval.cjs --case=trimmed-mean,rank-vs-score --mode=standa
 
 ## 实际模型对比（显式付费测试）
 
-仅在开发者主动执行时使用环境变量 STUDY_EVAL_API_KEY（不要提交、打印或使用生产共享 Key）。也可以在 GitHub Actions 手动运行 Study agent quality，勾选 run_live 并选择题目、思考强度和预算；需事先配置同名独立仓库 Secret。PR、push 不会触发 live-model 作业，也没有定时任务。评测支持 DeepSeek 官方 API（deepseek-flash）和 OpenCode Go（deepseek-v4-flash）；均使用三档思考策略。选择 provider 时必须匹配独立评测密钥。
+仅在开发者主动执行时使用环境变量 STUDY_EVAL_API_KEY（不要提交、打印或使用生产共享 Key）。也可以在 GitHub Actions 手动运行 Study agent quality，勾选 run_live 并选择题目、思考强度和预算；需事先配置同名独立仓库 Secret。PR、push 不会触发 live-model 作业，也没有定时任务。评测支持 DeepSeek 官方 API（deepseek-flash）和 OpenCode Go（deepseek-v4.1-flash）；均使用三档思考策略。选择 provider 时必须匹配独立评测密钥。
 
 先执行单次连通性探测（最多64个输出 token，不会启动题库评测）：
 
@@ -44,4 +44,4 @@ node design/study-agent-eval.cjs --provider=opencode-go --live --mode=all --case
 
 14道基础题：最新成绩、分数与排名反向、不同满分、零分、仅排名、组合、去极值、分类稳定性、同步进退、全科预测、常态总分、情景模拟、图表可信性、多轮追问。三档共42次确定性回放。
 
-OpenCode Go 采用官方公开接口 `https://opencode.ai/zen/go/v1/chat/completions`；若收到 HTTP 403、认证失败或网络错误，评测终止，不自动改用其它接口、密钥或绕过服务商访问限制。建议检查 Go 订阅权限及官方支持渠道。
+OpenCode Go 采用官方公开接口 `https://opencode.ai/inference/go/openai/v1/chat/completions`，按官方文档为每次独立评测会话生成稳定会话 ID，并以真实应用名 score-tracker-eval 标识请求。Go 面向编码代理及类似请求，其他评测用途的支持范围需遵守供应商政策；DeepSeek 模型还受工作区 Regions 设置约束。若收到 HTTP 403、认证失败或网络错误，评测终止，不自动改用其它接口、密钥或绕过服务商访问限制。建议检查 Go 订阅权限及官方支持渠道。
