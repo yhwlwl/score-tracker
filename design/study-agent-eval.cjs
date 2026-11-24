@@ -121,7 +121,8 @@ function fakeDb(test,mode){
       // Never send the credential to any other origin, including redirects.
       if(url!==target.baseUrl+'/chat/completions')throw Error('unexpected evaluation endpoint');
       let response;
-      try{response=await providerFetch(url,{...init,headers:{...init.headers,...goHeaders(session)},redirect:'error'});}
+      // Use the exact production-prepared Headers instance. Object spread on Headers silently drops Authorization and Content-Type.
+      try{response=await providerFetch(url,{...init,headers:new Headers(init.headers),redirect:'error'});}
       catch(e){budget.stopReason='provider_connection_failed';throw e;}
       const providerPayload=await response.clone().json().catch(()=>null);
       providerCalls.push({status:response.status,usage:providerPayload?.usage||null});
