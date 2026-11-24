@@ -311,3 +311,17 @@
 .sq-simulator-row { display:grid; gap:5px; font-size:calc(13px * var(--ui-scale,1)); }
 .sq-simulator-row input { width:100%; min-width:0; accent-color:var(--accent); margin:0; }
 .sq-dialog .sq-simulator-reset { color:var(--accent); background:transparent; border:1px solid var(--line); border-radius:8px; padding:5px 10px; }
+
+.sq-relations { display:grid; gap:10px; min-width:0; border:1px solid var(--line); padding:12px; border-radius:14px; }
+.sq-relations .sq-simulator-header { flex-wrap:wrap; }
+.sq-relations-tabs { display:flex; gap:4px; flex-wrap:wrap; }
+.sq-dialog .sq-relations-tab { border:1px solid var(--line); padding:5px 8px; border-radius:8px; background:transparent; color:inherit; font-size:12px; }
+.sq-dialog .sq-relations-tab[aria-pressed=true] { border-color:var(--accent); color:var(--accent); }
+.sq-relations-scroll { max-width:100%; overflow:auto; }
+.sq-relations table { border-spacing:3px; width:100%; min-width:max-content; text-align:center; font-size:11px; }
+.sq-relations th { font-weight:500; white-space:nowrap; }
+.sq-relations td { min-width:36px; }
+.sq-dialog .sq-relations-cell { width:100%; min-width:36px; border:0; border-radius:5px; padding:6px 3px; font-variant-numeric:tabular-nums; color:inherit; background:transparent; }
+.sq-dialog .sq-relations-cell.is-positive { background:color-mix(in srgb,var(--accent) var(--sq-strength),transparent); }
+.sq-dialog .sq-relations-cell.is-negative { background:color-mix(in srgb,#d97757 var(--sq-strength),transparent); }
+.sq-relations-detail { font-size:12px; line-height:1.5; }
