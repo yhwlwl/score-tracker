@@ -264,7 +264,7 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
         const adjustments = args.adjustments && typeof args.adjustments==='object' && !Array.isArray(args.adjustments) ? Object.entries(args.adjustments).slice(0,24) : [];
         let total = row.actual.score;
         const changes: {label:string;before:number;after:number}[] = [];
-        let valid = adjustments.length>0;
+        let valid = adjustments.length>0 || args.interactive===true && Boolean(simulator(row.id));
         for (const [key,delta] of adjustments) {
           const name = key.startsWith('s:') ? key.slice(2) : '';
           const subject = measure(row.exam,key,modules);
