@@ -50,7 +50,8 @@ async function checkEventStream() {
   assert.equal(settled,true,'allow the original metered turn to settle after disconnect');
 }
 async function roundTrip(snapshot) {
-  const tasks=new Map(), turns=new Map(), requests=[];
+  const tasks=new Map(), turns=new Map(), requests=[],caps=[];
+  let settleCredits=0;
   let modelCalls=0, settledCalls=0, saved=0, failed=0;
   global.Deno={env:{get:k=>({STUDY_ANALYSIS_BASE_URL:'https://fixture.invalid/api',STUDY_ANALYSIS_MODEL:'deepseek-v4-flash',STUDY_ANALYSIS_API_KEY:'fixture'})[k]}};
   const db={
@@ -65,11 +66,11 @@ async function roundTrip(snapshot) {
     async rpc(fn,p){
       if(fn.endsWith('task_start')){
         assert.equal(p.p_feature,'study_question');
-        tasks.set(p.p_task,{id:p.p_task,user_id:p.p_user,feature:p.p_feature,status:'active'});
-        return {data:{allowed:true}};
+        caps.push(p.p_cap);tasks.set(p.p_task,{id:p.p_task,user_id:p.p_user,feature:p.p_feature,status:'active'});
+        return {data:{allowed:true,approved:p.p_cap}};
       }
       if(fn.endsWith('call_reserve'))return {data:{allowed:true}};
-      if(fn.endsWith('call_settle')){settledCalls++;return {data:{known:true}};}
+      if(fn.endsWith('call_settle')){settledCalls++;return {data:{known:true,credits:settleCredits}};}
       if(fn.endsWith('study_finish')){
         saved++;
         Object.assign(tasks.get(p.p_task),{status:'succeeded',charged_credits:2});
@@ -121,6 +122,37 @@ async function roundTrip(snapshot) {
     global.fetch=async()=>new Response('',{status:503});
     assert.equal((await run('owner',{...first,requestId:crypto.randomUUID()})).status,503);
     assert.equal(failed,1);assert.equal(saved,3);
+    for(const [mode,cap,expected] of [['low',60,['disabled','disabled']],['standard',100,['disabled','enabled']],['high',200,['enabled','enabled']]]){
+      const actual=[];
+      global.fetch=async(_,init)=>{
+        const b=JSON.parse(init.body);actual.push(b.thinking.type);
+        const result=actual.length===1?{tool:'results',scopes:['s:数学'],limit:2}:{answer:'数学有变化。',refs:[1]};
+        return Response.json({choices:[{message:{content:JSON.stringify(result)}}],usage:{prompt_tokens:128,completion_tokens:20}});
+      };
+      const input={...first,requestId:crypto.randomUUID(),thinking:mode};
+      const result=await run('owner',input);
+      assert.equal(result.status,200);
+      assert.equal(result.data.thinking,mode);
+      assert.equal(caps.at(-1),cap);
+      assert.deepEqual(actual,expected);
+      assert.equal((await run('owner',input)).status,200);
+      assert.equal((await run('owner',{...input,thinking:mode==='low'?'high':'low'})).status,409);
+    }
+    // Actual database settlement, not estimated token count, triggers final-only mode.
+    settleCredits=50;
+    let attempts=0;
+    global.fetch=async(_,init)=>{
+      const b=JSON.parse(init.body);
+      const result=attempts++===0?{tool:'results',scopes:['s:数学'],limit:2}:{tool:'profile',scopes:['s:数学']};
+      if(attempts===2)assert.match(b.messages.at(-1).content,/不再发起查询/);
+      return Response.json({choices:[{message:{content:JSON.stringify(result)}}],usage:{prompt_tokens:128,completion_tokens:20}});
+    };
+    const partial=await run('owner',{...first,requestId:crypto.randomUUID(),thinking:'low'});
+    assert.equal(partial.status,200);
+    assert.equal(attempts,2);
+    assert.match(partial.data.answer,/已查到的结果/);
+    assert.ok(partial.data.evidence.length);
+    settleCredits=0;
   } finally {global.fetch=old;delete global.Deno;}
 }
 async function checkOtherData(snapshot) {
@@ -454,7 +486,7 @@ async function main() {
   let respond, sendEvent, disconnect;
   w.fetch=async(url,init)=>{
     const b=JSON.parse(init.body);requests.push(b);
-    if(b.action==='study_status')return Response.json({enabled:true,cap:60});
+    if(b.action==='study_status')return Response.json({enabled:true,cap:100,thinkingModes:{low:60,standard:100,high:200}});
     assert.equal(b.stream,true);
     return new Response(new ReadableStream({start(controller){
       sendEvent=(event,data)=>{
@@ -476,8 +508,14 @@ async function main() {
   const attach=()=>w.ScoreStudyQuestions.attach($('.an-layout'),$('.an-navigation'));
   attach();await tick();$('.an-study-open').click();
   assert.equal(requests.length,1);
+  assert.equal($('.sq-thinking select').value,'standard');
+  assert.match($('.sq-cap').textContent,/100/);
+  $('.sq-thinking select').value='low';$('.sq-thinking select').dispatchEvent(new w.Event('change'));
+  assert.match($('.sq-cap').textContent,/60/);
   $('.sq-choice').click();$('button[type=submit]').click();
   assert.equal($('button[type=submit]').disabled,true);
+  assert.equal(requests.at(-1).thinking,'low');
+  assert.equal($('.sq-thinking select').disabled,true);
   assert.equal($('.sq-question').textContent,'最近两场，哪科变化最大？');
   assert.equal($('textarea').value,'');
   assert.equal($('[role=status]').textContent,'正在发送…');
