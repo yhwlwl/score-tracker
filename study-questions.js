@@ -119,14 +119,32 @@
   }
   function showAnswer(article, turn) {
     article.querySelector('.sq-feedback').remove();
-    article.append(element('p','sq-answer',turn.answer));
     const specs=Array.isArray(turn.charts)&&turn.charts.length ? turn.charts.slice(0,3) : [turn.chart];
-    for (const spec of specs) {
-      const chart=window.ScoreStudyChart?.render(spec);
-      if (chart) {
-        article.append(chart.figure);
-        session.charts.push(chart.dispose);
+    const appendText=text=>{
+      const p=element('p','sq-answer');
+      // Only paired bold markers are supported. No HTML interpretation.
+      const parts=String(text||'').split(/(\*\*[^*\n]+\*\*)/g);
+      for(const part of parts) {
+        if(part.startsWith('**')&&part.endsWith('**')&&part.length>4) p.append(element('strong','',part.slice(2,-2)));
+        else p.append(document.createTextNode(part));
       }
+      article.append(p);
+    };
+    const appendChart=spec=>{
+      const chart=window.ScoreStudyChart?.render(spec);
+      if(chart){article.append(chart.figure);session.charts.push(chart.dispose);}
+    };
+    if(Array.isArray(turn.chartAfter)&&turn.chartAfter.length===specs.length) {
+      const paragraphs=String(turn.answer||'').split(/\n\s*\n/).filter(p=>p.trim());
+      const positions=specs.map((_,i)=>Number.isInteger(turn.chartAfter[i])?Math.max(1,Math.min(paragraphs.length,turn.chartAfter[i])):paragraphs.length);
+      paragraphs.forEach((paragraph,i)=>{
+        appendText(paragraph);
+        specs.forEach((spec,j)=>{if(positions[j]===i+1)appendChart(spec);});
+      });
+      if(!paragraphs.length)specs.forEach(appendChart);
+    } else {
+      appendText(turn.answer);
+      specs.forEach(appendChart);
     }
     if (turn.takeaway) {
       article.append(element('p','sq-takeaway',turn.takeaway));
