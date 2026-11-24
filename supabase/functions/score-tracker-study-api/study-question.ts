@@ -240,13 +240,35 @@ export async function studyQuestion(db:any, user:string, body:any, load:()=>Prom
     started=true;
     let calls=0;
     const signal=AbortSignal.timeout(80000);
+    const deepseek = /(?:^|\/)deepseek-(?:flash|v4(?:[.-][a-z0-9]+)*|chat|reasoner)$/i.test(cfg.model);
     const result = await explore(snapshot,question,history,async messages=>{
-      const response = await meteredModelFetch(db,user,id,id+':study:'+ ++calls,cfg.url+'/chat/completions',{
-        method:'POST',signal,headers:{'Content-Type':'application/json',Authorization:'Bearer '+cfg.key},
-        body:JSON.stringify({model:cfg.model,messages,max_tokens:1000,response_format:{type:'json_object'},stream:false})
-      });
-      if (!response.ok) throw Error('provider_unavailable');
-      return JSON.parse((await response.json()).choices[0].message.content);
+      const planning = messages.length===2;
+      for (let attempt=0; attempt<2; attempt++) {
+        const quick = planning || attempt>0;
+        const maxTokens = quick ? (planning && !attempt ? 800 : 1400) : 2000;
+        const response = await meteredModelFetch(db,user,id,id+':study:'+ ++calls,cfg.url+'/chat/completions',{
+          method:'POST',signal,headers:{'Content-Type':'application/json',Authorization:'Bearer '+cfg.key},
+          body:JSON.stringify({model:cfg.model,messages:attempt ? [...messages,{role:'user',content:'上次未生成完整 JSON。请直接返回完整、简洁的 JSON 对象；不要输出推理过程。'}] : messages,
+            max_tokens:maxTokens,response_format:{type:'json_object'},stream:false,
+            ...(deepseek ? {thinking:{type:quick?'disabled':'enabled'}} : {})})
+        });
+        if (!response.ok) throw Error('provider_unavailable');
+        try {
+          const payload = await response.json();
+          const choice = payload?.choices?.[0];
+          const content = choice?.message?.content;
+          if (choice?.finish_reason==='length' || typeof content!=='string' || !content.trim()) throw Error('empty_or_truncated');
+          const parsed = JSON.parse(content.trim().replace(/^\x60\x60\x60(?:json)?\s*/i,'').replace(/\s*\x60\x60\x60$/,''));
+          if (!parsed || typeof parsed!=='object' || Array.isArray(parsed) ||
+              !(typeof parsed.answer==='string' && parsed.answer.trim() || parsed.outside===true ||
+              Array.isArray(parsed.queries) && parsed.queries.length || toolNames.has(parsed.tool))) throw Error('invalid_json_shape');
+          return parsed;
+        } catch {
+          console.warn('study_model_output_incomplete',id,'call',calls,'retry',attempt===0);
+          if (attempt===1) throw Error('model_output_incomplete');
+        }
+      }
+      throw Error('model_output_incomplete');
     }, loadTrajectory, progress);
     const settled=await creditRpc(db,'score_tracker_study_finish',{p_user:user,p_task:id,p_turn:{question,previous:parent,result}});
     return {status:200,data:{...result,charged:settled.charged,id}};
