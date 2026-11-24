@@ -325,3 +325,15 @@
 .sq-dialog .sq-relations-cell.is-positive { background:color-mix(in srgb,var(--accent) var(--sq-strength),transparent); }
 .sq-dialog .sq-relations-cell.is-negative { background:color-mix(in srgb,#d97757 var(--sq-strength),transparent); }
 .sq-relations-detail { font-size:12px; line-height:1.5; }
+
+.sq-metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,135px),1fr)); gap:8px; min-width:0; }
+.sq-metric { display:grid; align-content:start; gap:5px; min-width:0; border:1px solid var(--line); border-radius:12px; padding:11px; overflow-wrap:anywhere; }
+.sq-metric > b { font-size:calc(18px * var(--ui-scale,1)); font-variant-numeric:tabular-nums; line-height:1.35; }
+.sq-metric-detail,.sq-metric-source { font-size:12px; line-height:1.5; }
+.sq-metric-source { color:var(--muted); }
+.sq-metric-source summary { cursor:pointer; }
+.sq-aggregate { display:grid; gap:10px; border:1px solid var(--line); border-radius:14px; padding:12px; min-width:0; }
+.sq-aggregate table { border-collapse:collapse; width:100%; min-width:max-content; text-align:right; font-size:12px; font-variant-numeric:tabular-nums; }
+.sq-aggregate th,.sq-aggregate td { padding:6px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
+.sq-aggregate th:first-child { text-align:left; }
+.sq-dialog .sq-sort { background:transparent; border:0; color:inherit; padding:3px 0; font-weight:500; font-size:12px; }
