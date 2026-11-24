@@ -8,7 +8,7 @@
 
 ## 自动运行
 
-Study agent quality 工作流在相关 PR、main 更新和合并后的每周一北京时间03:00执行。JSON报告作为 artifact 保存90天，含题号、思考模式、检查结果、回答、依据、调用数、耗时和模拟计量。无秘密、无付费调用。现有 PR release checks 继续负责安全、结算、功能及浏览器布局。
+Study agent quality 工作流仅在相关 PR、main 更新或手动触发时执行，不设置定时任务。JSON报告作为 artifact 保存90天，含题号、思考模式、检查结果、回答、依据、调用数、耗时和模拟计量。无秘密、无付费调用。现有 PR release checks 继续负责安全、结算、功能及浏览器布局。
 
 ```sh
 node design/study-agent-eval.cjs --mode=all --out=study-agent-report.json
@@ -17,7 +17,7 @@ node design/study-agent-eval.cjs --case=trimmed-mean,rank-vs-score --mode=standa
 
 ## 实际模型对比（显式付费测试）
 
-仅在开发者主动执行时使用环境变量 STUDY_EVAL_API_KEY（不要提交、打印或使用生产共享 Key）。也可以在 GitHub Actions 手动运行 Study agent quality，勾选 run_live 并选择题目、思考强度和预算；需事先配置同名独立仓库 Secret。PR、push、定时任务绝不触发 live-model 作业。当前适配与线上相同的 deepseek-flash 与三档思考策略。
+仅在开发者主动执行时使用环境变量 STUDY_EVAL_API_KEY（不要提交、打印或使用生产共享 Key）。也可以在 GitHub Actions 手动运行 Study agent quality，勾选 run_live 并选择题目、思考强度和预算；需事先配置同名独立仓库 Secret。PR、push 不会触发 live-model 作业，也没有定时任务。当前适配与线上相同的 deepseek-flash 与三档思考策略。
 
 ```sh
 node design/study-agent-eval.cjs --live --mode=all --case=rank-vs-score,trimmed-mean --max-credits=1000 --max-calls=20 --out=live-report.json
