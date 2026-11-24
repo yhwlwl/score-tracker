@@ -1,4 +1,5 @@
-import { goProviderReadiness } from '../_shared/recognition-config.ts';
+import { goProviderReadiness, verifiedProviderRow, PROVIDER_COLUMNS, GO_BASE_URL, GO_MODEL, goKeyFingerprint, officialKey } from '../_shared/recognition-config.ts';
+import { runGoProbe } from './go-probe.ts';
 import { startAiTask, finishAiTask, meteredModelFetch, AiBudgetError } from '../_shared/ai-credits.ts';
 import { aiReleaseCapabilities } from '../_shared/ai-release.ts';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -40,9 +41,9 @@ async function login(username,password){const {data:u}=await db.from('score_trac
 const group=(a,key)=>{const m=new Map();for(const x of a){const k=key(x);if(!k)continue;m.set(k,(m.get(k)||0)+1)}return[...m].map(([key,count])=>({key,count})).sort((a,b)=>b.count-a.count)};
 function source(l){const r=l.first_referrer||l.referrer_origin||'';if(!r)return'直接访问 / 无 Referrer';try{const h=new URL(r).hostname.replace(/^www\./,'');if(/score-tracker|vercel\.app/.test(h))return'站内 / Preview';if(h.includes('weixin'))return'微信';if(h.includes('baidu'))return'百度';if(h.includes('bing'))return'Bing';if(h.includes('github'))return'GitHub';return h}catch{return String(r).slice(0,80)}}
 async function readAiConfig(){
-  const ai=await db.from('score_tracker_ai_configs').select('openrouter_api_key,base_url,model,enabled,beta_only,daily_limit,global_daily_limit,cooldown_seconds,tier_enabled,tier_rules,updated_at').eq('id','score_vision').maybeSingle();
+  const ai=await db.from('score_tracker_ai_configs').select('openrouter_api_key,base_url,model,enabled,beta_only,daily_limit,global_daily_limit,cooldown_seconds,tier_enabled,tier_rules,updated_at,'+PROVIDER_COLUMNS).eq('id','score_vision').maybeSingle();
   if(ai.error)throw ai.error;return {
-        go_provider:goProviderReadiness(),
+        go_provider:goProviderReadiness(undefined,await verifiedProviderRow(ai.data)),
         configured:!!ai.data?.openrouter_api_key,
         masked_key:maskVisionKey(ai.data?.openrouter_api_key),
         base_url:ai.data?.base_url||DEFAULT_VISION_BASE_URL,
@@ -132,6 +133,40 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
     const r=await db.rpc('score_tracker_ai_call_settle',{p_user:task.data.user_id,p_call:b.call_id,p_usage:b.usage,p_provider:String(b.provider_request_id||'').slice(0,240),p_status:Number.isInteger(b.http_status)?b.http_status:null});if(r.error)throw r.error;return json({ok:true,settled:r.data});
   }
   if(action==='ai_config'&&req.method==='GET')return json(await readAiConfig());
+  if(action==='go_provider_test'&&req.method==='POST'){
+    const key=String(Deno.env.get('OPENCODE_GO_API_KEY')||'').trim();
+    const fingerprint=await goKeyFingerprint();
+    if(!key||!fingerprint)return json({error:'后端尚未配置 OpenCode Go Key'},400);
+    const task=crypto.randomUUID();
+    let started=false, results;
+    try{
+      await startAiTask(db,admin.id,task,'admin_test',0,0);started=true;
+      results=await runGoProbe((kind,body)=>meteredModelFetch(db,admin.id,task,task+':'+kind,GO_BASE_URL+'/chat/completions',
+        {method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({...body,model:GO_MODEL})},
+        (url,init)=>fetchWithTimeout(url,init,18000)));
+    }catch(e){
+      if(e instanceof AiBudgetError)return json({error:e.message,code:e.code},e.status);
+      throw e;
+    }finally{if(started)await finishAiTask(db,admin.id,task,!!results?.text.ok&&!!results?.vision.ok);}
+    const report={...results,checked_at:new Date().toISOString(),key_hash:fingerprint};
+    const saved=await db.from('score_tracker_ai_configs').update({go_test:report}).eq('id','score_vision').select('id').single();
+    if(saved.error)throw saved.error;
+    return json({go_provider:(await readAiConfig()).go_provider});
+  }
+  if(action==='ai_provider_save'&&req.method==='POST'){
+    const b=await req.json(),allowed=['legacy','deepseek','opencode-go'];
+    if(!allowed.includes(b.study_provider)||!allowed.includes(b.vision_provider))return json({error:'请选择有效的服务渠道'},400);
+    const current=await db.from('score_tracker_ai_configs').select('openrouter_api_key,base_url,'+PROVIDER_COLUMNS).eq('id','score_vision').single();
+    if(current.error)throw current.error;
+    const row=await verifiedProviderRow(current.data);
+    const readiness=goProviderReadiness(undefined,row);
+    if((b.study_provider==='deepseek'||b.vision_provider==='deepseek')&&!officialKey(row))return json({error:'DeepSeek 官方 Key 未配置；请先配置官方服务'},409);
+    if(b.study_provider==='opencode-go'&&(!readiness.configured||readiness.text_live!=='passed'))return json({error:'请先通过 OpenCode 文本连通性测试'},409);
+    if(b.vision_provider==='opencode-go'&&(!readiness.configured||readiness.vision_live!=='passed'))return json({error:'请先通过 OpenCode 图片连通性测试'},409);
+    const saved=await db.from('score_tracker_ai_configs').update({study_provider:b.study_provider,vision_provider:b.vision_provider}).eq('id','score_vision').select('id').single();
+    if(saved.error)throw saved.error;
+    return json({ok:true,go_provider:(await readAiConfig()).go_provider});
+  }
   if(action==='growth_contribution'&&req.method==='POST'){
     const b=await req.json();if(!/^[0-9a-f-]{36}$/i.test(b.feedback_id||''))return json({error:'反馈编号不正确'},400);
     const r=await db.rpc('score_tracker_growth_contribution',{p_admin:admin.id,p_issue:b.feedback_id});if(r.error)throw r.error;return json(r.data);

@@ -1,5 +1,5 @@
 import { AiBudgetError, creditRpc, finishAiTask, meteredModelFetch, startAiTask } from '../_shared/ai-credits.ts';
-import { normalizeBaseUrl, goOverride } from '../_shared/recognition-config.ts';
+import { normalizeBaseUrl, goOverride, verifiedProviderRow, PROVIDER_COLUMNS } from '../_shared/recognition-config.ts';
 import { asksForEachSubject, nextExamMetric, studyTools, type TrajectoryLoader } from './study-tools.ts';
 import type { ProgressListener } from './study-events.ts';
 
@@ -11,12 +11,12 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{1
 export async function studySettings(db: any) {
   const configured = await db
     .from('score_tracker_ai_configs')
-    .select('openrouter_api_key,base_url,model,enabled')
+    .select('openrouter_api_key,base_url,model,enabled,'+PROVIDER_COLUMNS)
     .eq('id', 'score_vision')
     .maybeSingle();
   if (configured.error) throw configured.error;
-  const row = configured.data || {};
-  const selected = goOverride('study');
+  const row = await verifiedProviderRow(configured.data || {});
+  const selected = goOverride('study', undefined, row);
   if (selected) return {url:selected.baseUrl,model:selected.model,key:selected.apiKey,
     public:{enabled:row.enabled!==false&&selected.configured,cap,thinkingModes:{low:modes.low.cap,standard:modes.standard.cap,high:modes.high.cap},defaultThinking:'standard'}};
   const base = row.enabled === false

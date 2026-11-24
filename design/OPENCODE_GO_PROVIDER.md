@@ -20,3 +20,7 @@ Existing score_vision config, enabled flag and shared credit caps remain intact.
 ## Admin readiness panel
 
 The service and quota settings page displays the independent provider selection, whether the backend has a Go credential, and image activation flag. It does not send an upstream request, report live connectivity as successful, display credentials or change routing. The panel also shows evidence from the committed independent live-model evaluation report (2026-11-24). Its metadata is checked against the original report by offline CI. This verifies historical independent text connectivity only; current Supabase text and image connectivity remain unverified. The normal original provider settings remain available.
+
+## Dashboard routing and live probes
+
+Apply the routing migration before deploying admin, study and vision functions together. The dashboard offers per-feature DeepSeek official (fixed endpoint/model and DEEPSEEK_API_KEY, or existing key only when its URL is explicitly official), OpenCode Go, and original provider. Null columns retain existing env behavior. Go test runs real metered text and synthetic image JSON checks, with no student data and no personal credits. Results are persisted with a key fingerprint; rotation invalidates verification. Dashboard-managed Go routes require capability-specific successful checks; failed tests do not silently fall back. Vision cache expires after 30 seconds. Do not switch production routing until approved provider/data-processing terms and budget are verified.

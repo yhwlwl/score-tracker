@@ -5,6 +5,12 @@ const {meteredModelFetch}=require('../supabase/functions/_shared/ai-credits.ts')
  const env=values=>k=>values[k];
  const row={model:'deepseek-flash',base_url:'https://api.deepseek.com',openrouter_api_key:'fixture-legacy',enabled:true};
  assert.equal(goOverride('study',env({})),null);
+ assert.equal(goOverride('study',env({DEEPSEEK_API_KEY:'official'}),{study_provider:'deepseek'}).apiKey,'official');
+ assert.equal(goOverride('vision',env({}),{...row,vision_provider:'deepseek'}).apiKey,'fixture-legacy');
+ assert.equal(goOverride('vision',env({}),{...row,base_url:'https://example.com',vision_provider:'deepseek'}).configured,false);
+ assert.equal(goOverride('study',env({OPENCODE_GO_API_KEY:'go'}),{study_provider:'opencode-go'}).configured,false);
+ assert.equal(goOverride('study',env({OPENCODE_GO_API_KEY:'go'}),{study_provider:'opencode-go',go_test:{text:{ok:true}}}).configured,true);
+ assert.equal(goOverride('vision',env({OPENCODE_GO_API_KEY:'go'}),{vision_provider:'opencode-go',go_test:{text:{ok:true}}}).configured,false);
  assert.equal(recognitionConfig(row,env({})).apiKey,'fixture-legacy');
  const flags={SCORE_TRACKER_STUDY_PROVIDER:'opencode-go',OPENCODE_GO_API_KEY:'fixture-go'};
  assert.equal(goOverride('study',env(flags)).apiKey,'fixture-go');
