@@ -12,6 +12,9 @@
     plan:'预设目标', benchmarks:'均分和最高分', types:'题型表现', paper:'逐题得分', reflection:'考试反思',
     statistics:'指标关联', aggregate:'统计计算', baseline:'历史常态与总分', scenario:'分数模拟',
   };
+  const thinkingLabels={low:'低',standard:'标准',high:'高'};
+  const thinkingKey=()=> 'st.study.thinking.'+String(state.user?.id||'local');
+  function savedThinking(){try{const v=localStorage.getItem(thinkingKey());if(Object.hasOwn(thinkingLabels,v))return v;}catch(_){}return 'standard';}
   let session, launcher, dialog;
   function current() { return typeof state !== 'undefined' && state.user && state.token; }
   function reset() {
@@ -86,10 +89,13 @@
     if (session && token !== session.token) reset();
     if (!page || !anchor || !token) return;
     if (!session) {
-      const s = session = {token,charts:[],pending:null,lastAnswer:null,cap:null};
+      const s = session = {token,charts:[],pending:null,lastAnswer:null,cap:null,thinking:'standard',thinkingModes:null};
       request(s,{action:'study_status'}).then(value=>{
         if (s!==session || token!==current() || !value.enabled) return;
         s.cap=value.cap;
+        if(value.thinkingModes&&Object.keys(thinkingLabels).every(k=>Number.isFinite(value.thinkingModes[k])&&value.thinkingModes[k]>0)){
+          s.thinkingModes=value.thinkingModes;s.thinking=savedThinking();
+        }
         const mounted=document.querySelector('#content .an-layout');
         attach(mounted,mounted?.querySelector(':scope > .an-navigation'));
       }).catch(()=>{ if (s===session) s.unavailableAt=Date.now(); });
@@ -116,6 +122,8 @@
   function controls() {
     const input=dialog.querySelector('textarea');
     dialog.querySelector('[type=submit]').disabled=!!session.pending?.running || !input.value.trim();
+    const select=dialog.querySelector('.sq-thinking select');if(select)select.disabled=!!session.pending?.running;
+    const notice=dialog.querySelector('.sq-cap');if(notice)notice.textContent='每问最多 '+(session.thinkingModes?.[session.thinking]??session.cap)+' 积分';
   }
   function scenarioWidget(spec) {
     if(spec?.type!=='scenario'||!Array.isArray(spec.subjects)||!spec.subjects.length||spec.subjects.length>24)return null;
@@ -266,7 +274,7 @@
       }
       meta.append(details);
     }
-    if (turn.charged != null) meta.append(element('small','sq-charge',Number(turn.charged)+' 积分'));
+    if (turn.charged != null) meta.append(element('small','sq-charge',(Object.hasOwn(thinkingLabels,turn.thinking)?'思考·'+thinkingLabels[turn.thinking]+' · ':'')+Number(turn.charged)+' 积分'));
     article.append(meta);
     if (turn.next) article.append(button(turn.next,'sq-choice sq-next',()=>pick(turn.next)));
   }
@@ -321,7 +329,7 @@
     if (!question) return;
     input.value='';
     input.placeholder='继续问…';
-    if (s.pending?.payload.question===question) {
+    if (s.pending?.payload.question===question && (s.pending.payload.thinking??'standard')===s.thinking) {
       send(s,s.pending);
       return;
     }
@@ -336,7 +344,7 @@
     feedback.append(status);
     article.append(element('p','sq-question',question),feedback);
     list.append(article);
-    const pending=s.pending={article,feedback,status,payload:{question,previous:s.lastAnswer,requestId:crypto.randomUUID()}};
+    const pending=s.pending={article,feedback,status,payload:{question,previous:s.lastAnswer,requestId:crypto.randomUUID(),...(s.thinkingModes?{thinking:s.thinking}:{})}};
     send(s,pending);
     article.scrollIntoView?.({block:'nearest',behavior:'instant'});
   }
@@ -345,9 +353,18 @@
     if (!dialog) {
       dialog=element('dialog','sq-dialog');
       dialog.setAttribute('aria-labelledby','sq-title');
-      dialog.innerHTML='<header class="sq-header"><div><span class="sq-spark" aria-hidden="true">✦</span><h2 id="sq-title">问成绩</h2></div><button type="button" aria-label="关闭">×</button></header><div class="sq-thread"></div><form class="sq-composer"><label class="sq-sr-only" for="sq-input">你的问题</label><div class="sq-input-row"><textarea id="sq-input" rows="2" maxlength="300" placeholder="想问问哪科成绩？"></textarea><button type="submit">提问</button></div><footer><small></small></footer></form>';
+      dialog.innerHTML='<header class="sq-header"><div><span class="sq-spark" aria-hidden="true">✦</span><h2 id="sq-title">问成绩</h2></div><button type="button" aria-label="关闭">×</button></header><div class="sq-thread"></div><form class="sq-composer"><label class="sq-sr-only" for="sq-input">你的问题</label><div class="sq-input-row"><textarea id="sq-input" rows="2" maxlength="300" placeholder="想问问哪科成绩？"></textarea><button type="submit">提问</button></div><footer><label class="sq-thinking" hidden><span>思考</span><select aria-label="思考强度"><option value="low">低</option><option value="standard">标准</option><option value="high">高</option></select></label><small class="sq-cap"></small></footer></form>';
       dialog.querySelector('header button').onclick=()=>dialog.close();
-      dialog.querySelector('footer small').textContent='每问最多 '+session.cap+' 积分';
+      const thinking=dialog.querySelector('.sq-thinking'),select=thinking.querySelector('select');
+      if(session.thinkingModes){
+        thinking.hidden=false;select.value=session.thinking;
+        select.addEventListener('change',()=>{
+          if(!Object.hasOwn(thinkingLabels,select.value)||session.pending?.running)return;
+          session.thinking=select.value;
+          try{localStorage.setItem(thinkingKey(),select.value);}catch(_){}
+          controls();
+        });
+      }
       dialog.querySelector('textarea').addEventListener('input',controls);
       dialog.querySelector('form').addEventListener('submit',ask);
       document.body.append(dialog);
