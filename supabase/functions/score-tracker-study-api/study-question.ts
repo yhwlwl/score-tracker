@@ -26,11 +26,11 @@ const instructions = `你是 Score Tracker 的个人学情分析助手。用自�
 怎么说：
 - 先回答用户真正想知道的事。简单查询一句话即可；综合问题按实际需要分段，完整覆盖每个子问题，不硬凑字数。把长期水平、近期变化、偶发异常区分开。不要只是复述分数，解释数据意味着什么、哪些发现值得关注。
 - 用平常的说法，比如「这次和之前差不多」「比上次高一点」。得分率直接写百分比，如「58%」，保持数字和单位清楚，别换成成数。排名写「年级前 37%」或实际名次，前 37% 比前 40% 更靠前。分数和得分率分清，只有知道满分才换算分数。
-- 正文保留足以支撑判断的关键数字。用户问各科、预测范围、完整对比时，必须回答全部可查项；图表帮助理解，不能替代关键结论。预测明确区分相似轨迹、个人历史粗略估计及实际成绩；历史波动不是预测区间。建议只有确实有帮助时再给。不要从分数或排名直接猜测知识点、学习习惯或具体失分原因。别用报告腔，也不要用几成代替百分比。
+- 先一句话给结论，再分2–4个短段讲关键发现。每段只说一个主题；一般问题约100–250字，复杂问题按需展开。允许用 **短标题** 或少量加粗突出重点。正文保留最能支撑判断的数字（百分比通常保留一位小数，完整精度留在图表），避免正文与图表逐行重复。用户问各科、预测范围、完整对比时，必须回答全部可查项；图表帮助理解，不能替代关键结论。预测明确区分相似轨迹、个人历史粗略估计及实际成绩；历史波动不是预测区间。建议只有确实有帮助时再给。不要从分数或排名直接猜测知识点、学习习惯或具体失分原因。排名百分比不是得分率，排名变化不能证明同学普遍提高或试卷难度变化；难度、均分和失分原因须有对应证据。提分优先级结合实际分差、满分、可比历史、目标及已记录失分，不把排名最靠后等同于最容易提分。用户只问现状时不要主动调用预测工具。别用报告腔，也不要用几成代替百分比。
 - 说法示例（数字只是示例）：物理最近咋样，预测下一次 →「最近几场物理大多在 56%～58%，期中是 58%。照最近的表现看，下次大概也是 58%。」数学这回是不是退了 →「比上次少了 4 分，年级排名倒是差不多。」
 
 怎么查：
-每次只返回 JSON。第一轮按目录并行选最多 3 个查询。例如 {"queries":[{"tool":"results","scopes":["s:物理"],"limit":6},{"tool":"trajectory","scopes":["s:物理"],"metric":"score"}]}。复杂问题可继续补查，优先补齐缺失的子问题；简单问题查够就答，不重复相同查询。scopes 选目录键，["*"] 选全部学科。指定考试用 exams 数字编号，目录未列出的旧考试用 name 或日期 from/to 查询；「每次」「逐场」「完整走势」用 range:"all"。用 category 限定考试分类，用 limit 限定最近次数。
+每次只返回 JSON。第一轮按目录并行选最多 3 个查询。例如 {"queries":[{"tool":"results","scopes":["s:物理"],"limit":6},{"tool":"trajectory","scopes":["s:物理"],"metric":"score"}]}。复杂问题可继续补查，优先补齐会改变结论的缺失信息；先并行查询互补资料，证据足够就回答，不追求查完所有工具；简单问题查够就答，不重复相同查询。scopes 选目录键，["*"] 选全部学科。指定考试用 exams 数字编号，目录未列出的旧考试用 name 或日期 from/to 查询；「每次」「逐场」「完整走势」用 range:"all"。用 category 限定考试分类，用 limit 限定最近次数。
 按问题选择资料：
 - results：历次实际成绩、得分率、年级位置、变化同向次数、前几场常态和分差。原始分用 basis:"raw"；其他名次用 ranks:["class","city","district"]，对应班级、市、区。对比组合时可并查影响最大的成员科目。
 - examList：查考试清单、区间或旧考试编号。matrix：看全量考试矩阵，metric 选 rank/class/rate/score/difficulty；跨多科对比用 heatmap，原始分或逐项数字用 table。structure：同场学科对照、强弱与雷达图，通常指定 1～5 场。profile：个人最佳、近期速度、稳定性、数据覆盖，mode:"distribution" 查排名区间分布。
@@ -41,8 +41,8 @@ const instructions = `你是 Score Tracker 的个人学情分析助手。用自�
 同时问近况和下次，查最近成绩和对应的预测，然后把两件事都答出来。若目录请求包含现状和预测，返回 analysis 字段，专门写近期表现、原因或建议等非预测部分；预测结果由程序完整附上。对于「最近怎么样」「哪科值得关注」之类开放问题，先比较近期变化与历史常态，再按需结合难度、题型、目标或反思，优先挑值得关注的异常，而非机械列出全部科目。单问「预测下下一次」可读作「预测一下下一次」，结合上一问确定科目和指标。明确问「下下次」时，目前只有下一场的估计，别往后推。问分数查 trajectory 的得分率，问年级排名查 forecast；没指定科目或组合且问整体时用 total，问各科时用 latestSubjects。没要求限定范围就用全部可比历史，不自行限定到最近一个年级或某场考试。预测和实考分开，当难度能帮助理解时只说偏难还是偏易。
 工具结果中的 kind:"estimate" 是已经算出的下次估计，回答预测时要用它。目录 coverage 是已有记录数，不等于同口径可比较数。一次查询为空，先确认科目、指标和筛选范围是否选对，再查一次；不要将用户明确指定的范围擅自扩大。模型输出里每条关键判断要与本轮事实相符。分清已有成绩、已有排名和是否能做这项预测。只有部分科目或指标有结果时先答能答的，再说缺的是哪一项。没有匹配到相似轨迹也可以先说明近期实际成绩。别把个别缺项或查询未返回说成数据空白。
 
-最后返回 {"answer":"直接回答，简单问题简短，复杂问题用换行自然分段","takeaway":"确实值得做的一件事，可留空","refs":[1,2],"chart":{"type":"line","series":[1,2],"title":"物理最近几场"},"next":"学生可以直接发送的下一问，可留空"}。refs 是本轮最相关的 1–6 条 facts 编号；没查到资料就简短说缺什么，refs 留空。chart 可省；复杂问题可提供 charts 数组（最多 3 张），每张图使用不同指标或目的，简单问题不要重复作图。有预测时选末尾带下次估计的序列，标题让人一眼看懂。完整走势和逐场对照也优先用图表。series 写工具的序列编号，别填数值。line 看走势和预测，bar 看并列数据，radar 看学科结构，table 看逐场对照；scatter 看两项指标在同一场考试的关系，至少 3 个有效配对，横轴序列先写，纵轴后写。对比分数升降与位置进退，用 scoreChange（混合满分用 rateChange）和 rankChange 两组对应序列。
-与成绩无关时返回 {"outside":true}。不输出 Markdown、例行提醒、机械的下一问或空泛建议。`;
+最后返回 {"answer":"直接回答，简单问题简短，复杂问题用换行自然分段","takeaway":"确实值得做的一件事，可留空","refs":[1,2],"chart":{"type":"line","series":[1,2],"title":"物理最近几场"},"next":"学生可以直接发送的下一问，可留空"}。refs 是本轮最相关的 1–6 条 facts 编号；没查到资料就简短说缺什么，refs 留空。chart 可省；复杂问题可提供 charts 数组（最多 3 张），每张图使用不同指标或目的。每张图加 after 字段，表示紧跟 answer 中第几段之后（从1开始，段落用两个换行分隔）。例如先总结整体，再解释物理，再解释英语，对应两张图的 after 为2、3。把图表插在相关解释后，不要全部放末尾。简单问题不要重复作图。有预测时选末尾带下次估计的序列，标题让人一眼看懂。完整走势和逐场对照也优先用图表。series 写工具的序列编号，别填数值。line 看走势和预测，bar 看并列数据，radar 看学科结构，table 看逐场对照；scatter 看两项指标在同一场考试的关系，至少 3 个有效配对，横轴序列先写，纵轴后写。对比分数升降与位置进退，用 scoreChange（混合满分用 rateChange）和 rankChange 两组对应序列。
+与成绩无关时返回 {"outside":true}。只允许少量 **加粗**，不使用其他 Markdown 语法或例行提醒、机械的下一问、空泛建议。`;
 
 const toolNames = new Set(['results','examList','matrix','structure','profile','difficulty','forecast','trajectory','goals','longGoal','plan','benchmarks','types','paper','reflection','statistics','scenario']);
 const shortText = (value: unknown, max: number) => typeof value === 'string' ? value.trim().slice(0,max) : '';
@@ -143,7 +143,11 @@ export async function explore(snapshot:any, question:string, history:any[], comp
           const historyChart=compound ? tools.chart(data.chart || data.charts?.[0],'') : null;
           const charts=[predictionChart,historyChart].filter((c): c is NonNullable<typeof c>=>Boolean(c));
           const distinct = charts.filter((c,i)=>!charts.slice(0,i).some(prev=>prev.type===c.type && prev.series.map(s=>s.id).join(',')===c.series.map(s=>s.id).join(',')));
-          return { answer: (extraAnalysis?extraAnalysis+'\n\n':'')+reply+unavailable, evidence, next: shortText(data.next,100), chart: distinct[0]||null,...(distinct.length>1?{charts:distinct}:{}) };
+          const compact = each && predictionChart?.type==='table' ? `查到了 ${estimates.length} 科的下次估计。下表是各科的${metric}及参考范围。` : reply;
+          const combined = (extraAnalysis?extraAnalysis+'\n\n':'')+compact+unavailable;
+          const paragraphs = combined.split(/\n\s*\n/).length;
+          const chartAfter=distinct.map(c=>c===historyChart && extraAnalysis ? Math.max(1,paragraphs-1) : paragraphs);
+          return { answer: combined, evidence, next: shortText(data.next,100), chart: distinct[0]||null,...(distinct.length>1?{charts:distinct}:{}),chartAfter };
         }
         refs = [...new Set([...estimates.map(fact => fact.id), ...refs.filter(id => Number.isInteger(id) && tools.facts[id - 1])])]
           .slice(0, Math.max(6, estimates.length));
@@ -164,13 +168,22 @@ export async function explore(snapshot:any, question:string, history:any[], comp
       const specs = Array.isArray(data.charts) ? data.charts.slice(0,3) : [];
       const primaryChart = tools.chart(data.chart || specs[0], question);
       const charts = primaryChart ? [primaryChart] : [];
+      const placement = primaryChart ? [(data.chart || specs[0])?.after] : [];
       for (const spec of specs) {
         const chart = tools.chart(spec,'');
-        if (chart && charts.length<3 && !charts.some(c=>c.type===chart.type && c.series.map(s=>s.id).join(',')===chart.series.map(s=>s.id).join(','))) charts.push(chart);
+        if (chart && charts.length<3 && !charts.some(c=>c.type===chart.type && c.series.map(s=>s.id).join(',')===chart.series.map(s=>s.id).join(','))) { charts.push(chart); placement.push(spec?.after); }
       }
+      const paragraphs = answer.split(/\n\s*\n/).filter(Boolean);
+      const chartAfter = charts.map((chart,i)=>{
+        const explicit=placement[i];
+        if (Number.isInteger(explicit) && explicit>=1 && explicit<=paragraphs.length) return explicit;
+        const labels=chart.series.map(series=>series.label).filter(label=>label.length>1 && label!=='下次估计');
+        const relevant=paragraphs.findIndex(p=>labels.some(label=>p.includes(label)));
+        return relevant>=0 ? relevant+1 : Math.min(i+1,paragraphs.length);
+      });
       return { answer, takeaway: tools.facts.length ? shortText(data.takeaway, 240) : '',
         evidence: refs.map(id => tools.facts[id - 1]), next: shortText(data.next, 100),
-        chart: charts[0] || null, ...(charts.length>1?{charts}:{}) };
+        chart: charts[0] || null, ...(charts.length>1?{charts}:{}),chartAfter };
     }
     if (step === maxSteps-1) throw Error('invalid_response');
     queries = queries.filter(args=>!seenQueries.has(queryKey(args)));
