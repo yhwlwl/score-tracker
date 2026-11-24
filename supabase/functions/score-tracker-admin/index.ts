@@ -1,3 +1,4 @@
+import { goProviderReadiness } from '../_shared/recognition-config.ts';
 import { startAiTask, finishAiTask, meteredModelFetch, AiBudgetError } from '../_shared/ai-credits.ts';
 import { aiReleaseCapabilities } from '../_shared/ai-release.ts';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -41,6 +42,7 @@ function source(l){const r=l.first_referrer||l.referrer_origin||'';if(!r)return'
 async function readAiConfig(){
   const ai=await db.from('score_tracker_ai_configs').select('openrouter_api_key,base_url,model,enabled,beta_only,daily_limit,global_daily_limit,cooldown_seconds,tier_enabled,tier_rules,updated_at').eq('id','score_vision').maybeSingle();
   if(ai.error)throw ai.error;return {
+        go_provider:goProviderReadiness(),
         configured:!!ai.data?.openrouter_api_key,
         masked_key:maskVisionKey(ai.data?.openrouter_api_key),
         base_url:ai.data?.base_url||DEFAULT_VISION_BASE_URL,

@@ -16,3 +16,7 @@ Go's public docs describe coding-agent use. Obtain written approval covering Sco
 - `SCORE_TRACKER_GO_VISION_VERIFIED`: leave unset until a synthetic image test confirms actual Go image input and JSON behavior.
 
 Existing score_vision config, enabled flag and shared credit caps remain intact. Missing Go secret/vision validation makes the selected route unavailable, not a silent fallback to another key. Keep both switches on legacy until verification; existing evaluation credential is not automatically copied or activated. Paper entry and analysis stay disabled in this release, regardless of provider. All metered calls continue reserving and settling the current conservative reference credit budget; subscription usage and actual Go charges must be reconciled separately. Extra Usage must be reviewed before activation. No live model requests from CI or scheduled tasks.
+
+## Admin readiness panel
+
+The service and quota settings page displays the independent provider selection, whether the backend has a Go credential, and image activation flag. It does not send an upstream request, report live connectivity as successful, display credentials or change routing. Both real connection tests remain unverified. The normal original provider settings remain available.

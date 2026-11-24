@@ -55,3 +55,20 @@ export async function prepareModelRequest(url: string, init: any, user: string, 
   // Prevent credential forwarding to another origin on a redirect.
   return {...init, headers, redirect: "error"};
 }
+
+/** Admin-only readiness information. Never returns credentials or sends a request. */
+export function goProviderReadiness(env = (key: string) => Deno.env.get(key)) {
+  const provider = (key: string) => {
+    const value = String(env(key) || "legacy").trim();
+    return value === "legacy" || value === "opencode-go" ? value : "invalid";
+  };
+  return {
+    configured: Boolean(String(env("OPENCODE_GO_API_KEY") || "").trim()),
+    study_provider: provider("SCORE_TRACKER_STUDY_PROVIDER"),
+    vision_provider: provider("SCORE_TRACKER_VISION_PROVIDER"),
+    vision_enabled_by_config: env("SCORE_TRACKER_GO_VISION_VERIFIED") === "true",
+    model: GO_MODEL,
+    text_live: "unverified",
+    vision_live: "unverified"
+  };
+}

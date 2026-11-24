@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict');
-const {goOverride,recognitionConfig,prepareModelRequest,GO_BASE_URL,GO_MODEL}=require('../supabase/functions/_shared/recognition-config.ts');
+const {goOverride,recognitionConfig,prepareModelRequest,GO_BASE_URL,GO_MODEL,goProviderReadiness}=require('../supabase/functions/_shared/recognition-config.ts');
 const {meteredModelFetch}=require('../supabase/functions/_shared/ai-credits.ts');
 (async()=>{
  const env=values=>k=>values[k];
@@ -8,6 +8,7 @@ const {meteredModelFetch}=require('../supabase/functions/_shared/ai-credits.ts')
  assert.equal(recognitionConfig(row,env({})).apiKey,'fixture-legacy');
  const flags={SCORE_TRACKER_STUDY_PROVIDER:'opencode-go',OPENCODE_GO_API_KEY:'fixture-go'};
  assert.equal(goOverride('study',env(flags)).apiKey,'fixture-go');
+ const readiness=goProviderReadiness(env(flags));assert.equal(readiness.configured,true);assert.equal(readiness.study_provider,'opencode-go');assert.equal(readiness.vision_provider,'legacy');assert.equal(readiness.text_live,'unverified');assert.equal(readiness.vision_live,'unverified');assert(!JSON.stringify(readiness).includes('fixture-go'));assert.equal(goProviderReadiness(env({})).configured,false);
  assert.equal(recognitionConfig(row,env(flags)).apiKey,'fixture-legacy');
  const vision={...flags,SCORE_TRACKER_VISION_PROVIDER:'opencode-go'};
  assert.equal(recognitionConfig(row,env(vision)).configured,false);
