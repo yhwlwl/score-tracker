@@ -1,5 +1,6 @@
 const assert=require('node:assert/strict');
-const {goOverride,recognitionConfig,prepareModelRequest,GO_BASE_URL,GO_MODEL,goProviderReadiness}=require('../supabase/functions/_shared/recognition-config.ts');
+const {goOverride,recognitionConfig,prepareModelRequest,GO_BASE_URL,GO_MODEL,goProviderReadiness,goKeyFingerprint,verifiedProviderRow}=require('../supabase/functions/_shared/recognition-config.ts');
+const {runGoProbe}=require('../supabase/functions/score-tracker-admin/go-probe.ts');
 const {meteredModelFetch}=require('../supabase/functions/_shared/ai-credits.ts');
 (async()=>{
  const env=values=>k=>values[k];
@@ -23,6 +24,23 @@ const {meteredModelFetch}=require('../supabase/functions/_shared/ai-credits.ts')
  assert.equal(recognitionConfig(row,env({...vision,SCORE_TRACKER_GO_VISION_VERIFIED:'true'})).apiKey,'fixture-go');
  assert.equal(recognitionConfig({...row,enabled:false},env({...vision,SCORE_TRACKER_GO_VISION_VERIFIED:'true'})).apiKey,'');
  assert.equal(goOverride('study',env({SCORE_TRACKER_STUDY_PROVIDER:'opencode-go'})).configured,false);
+ const keyEnv=env({OPENCODE_GO_API_KEY:'fixture-go'});
+ const verified={study_provider:'opencode-go',vision_provider:'opencode-go',go_test:{key_hash:await goKeyFingerprint(keyEnv),text:{ok:true},vision:{ok:false}}};
+ const clean=await verifiedProviderRow(verified,keyEnv);
+ assert.equal(goOverride('study',keyEnv,clean).configured,true);
+ assert.equal(goOverride('vision',keyEnv,clean).configured,false);
+ assert.equal(goProviderReadiness(keyEnv,clean).text_live,'passed');
+ assert.equal(goProviderReadiness(keyEnv,clean).vision_live,'failed');
+ assert(!JSON.stringify(goProviderReadiness(keyEnv,clean)).includes(verified.go_test.key_hash));
+ assert.equal(goOverride('study',env({OPENCODE_GO_API_KEY:'new-key'}),await verifiedProviderRow(verified,env({OPENCODE_GO_API_KEY:'new-key'}))).configured,false);
+ const probe=await runGoProbe(async(kind,body)=>{
+  if(kind==='vision'){assert.equal(body.messages[0].content[1].type,'image_url');assert(body.messages[0].content[1].image_url.url.startsWith('data:image/png;base64,'));return new Response('{}',{status:400});}
+  const value=body.messages[0].content.match(/st-[a-f0-9]{8}/)[0];
+  return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({value})}}]}));
+ });
+ assert.equal(probe.text.ok,true);assert.equal(probe.vision.ok,false);assert.equal(probe.vision.status,400);
+ const invalid=await runGoProbe(async()=>new Response(JSON.stringify({choices:[{message:{content:'not-json'}}]})));
+ assert.equal(invalid.text.code,'invalid_json');assert.equal(invalid.vision.code,'invalid_json');
  const init={method:'POST',headers:{Authorization:'Bearer fixture-go'},body:JSON.stringify({model:GO_MODEL,max_tokens:42,thinking:{type:'disabled'},messages:[{role:'user',content:'fixture'}]})};
  assert.equal(await prepareModelRequest('https://api.deepseek.com/chat/completions',init,'u','s'),init);
  const a=await prepareModelRequest(GO_BASE_URL+'/chat/completions',init,'u','s');

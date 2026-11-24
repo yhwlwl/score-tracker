@@ -6,7 +6,7 @@ const samples = [
  ["yellow","iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAIAAABt+uBvAAAAi0lEQVR42u3QMQEAAAgDILV/59nA0wsi0ElxGAWCBAkSJEiQIEEIEiRIkCBBggQhSJAgQYIECRKEIEGCBAkSJEiQIAQJEiRIkCBBghAkSJAgQYIECUKQIEGCBAkSJEgQggQJEiRIkCBBCBIkSJAgQYIEIUiQIEGCBAkSJAhBggQJEiRIkCAECRL0ZwEDsgK+657AAgAAAABJRU5ErkJggg=="]
 ];
 export async function runGoProbe(send:(kind:string,body:any)=>Promise<Response>) {
-  const nonce=crypto.randomUUID().slice(0,8);
+  const nonce="st-"+crypto.randomUUID().slice(0,8);
   const [color,png]=samples[crypto.getRandomValues(new Uint8Array(1))[0]%samples.length];
   const options={max_tokens:128,temperature:0,thinking:{type:"disabled"},response_format:{type:"json_object"}};
   async function check(kind:string,content:any,field:string,expected:string){
@@ -23,7 +23,7 @@ export async function runGoProbe(send:(kind:string,body:any)=>Promise<Response>)
     }catch(e){return result(false,0,e instanceof Error&&e.name==="AbortError"?"timeout":String((e as any)?.code||"network_error").slice(0,80));}
   }
   const [text,vision]=await Promise.all([
-    check("text",'Return only a JSON object with the field "value" equal to '+nonce+'.',"value",nonce),
+    check("text",'Return only a JSON object with the field "value" equal to the string "'+nonce+'".',"value",nonce),
     check("vision",[{type:"text",text:'Identify the dominant color of the attached image. Return JSON only, with an English lowercase "color" field.'},{type:"image_url",image_url:{url:"data:image/png;base64,"+png,detail:"high"}}],"color",color)
   ]);
   return {text,vision};

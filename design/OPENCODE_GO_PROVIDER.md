@@ -19,7 +19,7 @@ Existing score_vision config, enabled flag and shared credit caps remain intact.
 
 ## Admin readiness panel
 
-The service and quota settings page displays the independent provider selection, whether the backend has a Go credential, and image activation flag. It does not send an upstream request, report live connectivity as successful, display credentials or change routing. The panel also shows evidence from the committed independent live-model evaluation report (2026-11-24). Its metadata is checked against the original report by offline CI. This verifies historical independent text connectivity only; current Supabase text and image connectivity remain unverified. The normal original provider settings remain available.
+The service and quota settings page supports real backend probes and independent channel selection. The historical independent live-model report remains evidence of the separate evaluation environment only, not proof of backend connectivity. Normal original provider settings remain available.
 
 ## Dashboard routing and live probes
 
