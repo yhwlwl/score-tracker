@@ -24,6 +24,11 @@ on:
         description: 'Run paid model benchmark with a dedicated evaluation key'
         type: boolean
         default: false
+      provider:
+        description: 'Evaluation provider (key must match)'
+        type: choice
+        options: [deepseek, opencode-go]
+        default: opencode-go
       thinking_mode:
         type: choice
         options: [low, standard, high, all]
@@ -72,6 +77,7 @@ jobs:
       - name: Evaluate actual model on synthetic data
         env:
           STUDY_EVAL_API_KEY: ${{ secrets.STUDY_EVAL_API_KEY }}
+          STUDY_EVAL_PROVIDER: ${{ inputs.provider }}
           EVAL_MODE: ${{ inputs.thinking_mode }}
           EVAL_CASES: ${{ inputs.cases }}
           EVAL_CREDITS: ${{ inputs.max_credits }}
