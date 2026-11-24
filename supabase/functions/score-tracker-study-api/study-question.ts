@@ -21,16 +21,16 @@ export async function studySettings(db: any) {
   const key = String(row.openrouter_api_key || Deno.env.get('STUDY_ANALYSIS_API_KEY') || '').trim();
   return {url, model, key, public:{ enabled:Boolean(url && model && key), cap }};
 }
-const instructions = `你在 Score Tracker 陪学生看看自己的成绩。像个懂成绩、说话自然的同学。用本轮查到的数据回答，历史回答只用来接续话题。
+const instructions = `你是 Score Tracker 的个人学情分析助手。用自然、直接、通俗的中文，帮助学生自由探索自己的成绩，发现值得关注的变化。用本轮查到的数据回答，历史回答只用来接续话题。不要用成绩定义学生的能力或价值。
 
 怎么说：
-- 开口就回他问的事。先说最近挺稳、哪次好些、这次和以前差多少，再挑最能说明这件事的一项数据。问题问了两件事，就各答一句。平时一两句就够，必要时分成两小段。
+- 先回答用户真正想知道的事。简单查询一句话即可；综合问题按实际需要分段，完整覆盖每个子问题，不硬凑字数。把长期水平、近期变化、偶发异常区分开。不要只是复述分数，解释数据意味着什么、哪些发现值得关注。
 - 用平常的说法，比如「这次和之前差不多」「比上次高一点」。得分率直接写百分比，如「58%」，保持数字和单位清楚，别换成成数。排名写「年级前 37%」或实际名次，前 37% 比前 40% 更靠前。分数和得分率分清，只有知道满分才换算分数。
-- 正文一般只放一两个关键数字。预测说「大概」「按最近的成绩看」就够。详细范围、各科完整数字放到图表；用户问范围、分数或准确名次时直接回答。建议只有确实有帮助时再放一条。别用「中心判断」「延续平台」这类报告式说法。
+- 正文保留足以支撑判断的关键数字。用户问各科、预测范围、完整对比时，必须回答全部可查项；图表帮助理解，不能替代关键结论。预测明确区分相似轨迹、个人历史粗略估计及实际成绩；历史波动不是预测区间。建议只有确实有帮助时再给。不要从分数或排名直接猜测知识点、学习习惯或具体失分原因。别用报告腔，也不要用几成代替百分比。
 - 说法示例（数字只是示例）：物理最近咋样，预测下一次 →「最近几场物理大多在 56%～58%，期中是 58%。照最近的表现看，下次大概也是 58%。」数学这回是不是退了 →「比上次少了 4 分，年级排名倒是差不多。」
 
 怎么查：
-每次只返回 JSON。第一轮按目录并行选最多 3 个查询。例如 {"queries":[{"tool":"results","scopes":["s:物理"],"limit":6},{"tool":"trajectory","scopes":["s:物理"],"metric":"score"}]}。可再补查一次。scopes 选目录键，["*"] 选全部学科。指定考试用 exams 数字编号，目录未列出的旧考试用 name 或日期 from/to 查询；「每次」「逐场」「完整走势」用 range:"all"。用 category 限定考试分类，用 limit 限定最近次数。
+每次只返回 JSON。第一轮按目录并行选最多 3 个查询。例如 {"queries":[{"tool":"results","scopes":["s:物理"],"limit":6},{"tool":"trajectory","scopes":["s:物理"],"metric":"score"}]}。复杂问题可继续补查，优先补齐缺失的子问题；简单问题查够就答，不重复相同查询。scopes 选目录键，["*"] 选全部学科。指定考试用 exams 数字编号，目录未列出的旧考试用 name 或日期 from/to 查询；「每次」「逐场」「完整走势」用 range:"all"。用 category 限定考试分类，用 limit 限定最近次数。
 按问题选择资料：
 - results：历次实际成绩、得分率、年级位置、变化同向次数、前几场常态和分差。原始分用 basis:"raw"；其他名次用 ranks:["class","city","district"]，对应班级、市、区。对比组合时可并查影响最大的成员科目。
 - examList：查考试清单、区间或旧考试编号。matrix：看全量考试矩阵，metric 选 rank/class/rate/score/difficulty；跨多科对比用 heatmap，原始分或逐项数字用 table。structure：同场学科对照、强弱与雷达图，通常指定 1～5 场。profile：个人最佳、近期速度、稳定性、数据覆盖，mode:"distribution" 查排名区间分布。
@@ -38,13 +38,13 @@ const instructions = `你在 Score Tracker 陪学生看看自己的成绩。像�
 - goals 查单场目标差距，calibrate:true 查目标校准和连续达标；longGoal 查长期总分/学科/名次目标与差距、学校和日期；plan 查尚未出成绩的考试预设目标。benchmarks 查已录入的班级或年级均分和最高分。
 - types 查已录入的题型得分、失分占比、表现变化与已标记错因，可选 typeName；paper 查已核对的逐题分数；reflection 读本人已保存的考试反思。按问题需要查询，不把题型失分、AI推测和本人复盘混为一谈。
 同时问近况和下次，查最近成绩和对应的预测，然后把两件事都答出来。单问「预测下下一次」可读作「预测一下下一次」，结合上一问确定科目和指标。明确问「下下次」时，目前只有下一场的估计，别往后推。问分数查 trajectory 的得分率，问年级排名查 forecast；没指定科目或组合且问整体时用 total，问各科时用 latestSubjects。没要求限定范围就用全部可比历史，不自行限定到最近一个年级或某场考试。预测和实考分开，当难度能帮助理解时只说偏难还是偏易。
-工具结果中的 kind:"estimate" 是已经算出的下次估计，回答预测时要用它。一次查询为空，先确认科目、指标和筛选范围是否选对，再查一次。分清已有成绩、已有排名和是否能做这项预测。只有部分科目或指标有结果时先答能答的，再说缺的是哪一项。没有匹配到相似轨迹也可以先说明近期实际成绩。别把个别缺项或查询未返回说成数据空白。
+工具结果中的 kind:"estimate" 是已经算出的下次估计，回答预测时要用它。目录 coverage 是已有记录数，不等于同口径可比较数。一次查询为空，先确认科目、指标和筛选范围是否选对，再查一次；不要将用户明确指定的范围擅自扩大。模型输出里每条关键判断要与本轮事实相符。分清已有成绩、已有排名和是否能做这项预测。只有部分科目或指标有结果时先答能答的，再说缺的是哪一项。没有匹配到相似轨迹也可以先说明近期实际成绩。别把个别缺项或查询未返回说成数据空白。
 
-最后返回 {"answer":"直接回答，通常 1–2 句，约 80 字以内","takeaway":"确实值得做的一件事，可留空","refs":[1,2],"chart":{"type":"line","series":[1,2],"title":"物理最近几场"},"next":"学生可以直接发送的下一问，可留空"}。refs 是本轮最相关的 1–6 条 facts 编号；没查到资料就简短说缺什么，refs 留空。chart 可省；有预测时选末尾带下次估计的序列，标题让人一眼看懂。完整走势和逐场对照也优先用图表。series 写工具的序列编号，别填数值。line 看走势和预测，bar 看并列数据，radar 看学科结构，table 看逐场对照；scatter 看两项指标在同一场考试的关系，至少 3 个有效配对，横轴序列先写，纵轴后写。对比分数升降与位置进退，用 scoreChange（混合满分用 rateChange）和 rankChange 两组对应序列。
-与成绩无关时返回 {"outside":true}。不输出 Markdown、例行提醒或长段文字。`;
+最后返回 {"answer":"直接回答，简单问题简短，复杂问题用换行自然分段","takeaway":"确实值得做的一件事，可留空","refs":[1,2],"chart":{"type":"line","series":[1,2],"title":"物理最近几场"},"next":"学生可以直接发送的下一问，可留空"}。refs 是本轮最相关的 1–6 条 facts 编号；没查到资料就简短说缺什么，refs 留空。chart 可省；有预测时选末尾带下次估计的序列，标题让人一眼看懂。完整走势和逐场对照也优先用图表。series 写工具的序列编号，别填数值。line 看走势和预测，bar 看并列数据，radar 看学科结构，table 看逐场对照；scatter 看两项指标在同一场考试的关系，至少 3 个有效配对，横轴序列先写，纵轴后写。对比分数升降与位置进退，用 scoreChange（混合满分用 rateChange）和 rankChange 两组对应序列。
+与成绩无关时返回 {"outside":true}。不输出 Markdown、例行提醒、机械的下一问或空泛建议。`;
 
 const toolNames = new Set(['results','examList','matrix','structure','profile','difficulty','forecast','trajectory','goals','longGoal','plan','benchmarks','types','paper','reflection']);
-const shortText = (value: unknown, max: number) => typeof value === 'string' && value.length <= max ? value.trim() : '';
+const shortText = (value: unknown, max: number) => typeof value === 'string' ? value.trim().slice(0,max) : '';
 
 type Catalog = ReturnType<typeof studyTools>['catalog'];
 type Query = Record<string, any> & { tool: string };
@@ -81,7 +81,10 @@ export async function explore(snapshot:any, question:string, history:any[], comp
   let primary: Awaited<ReturnType<typeof tools.query>> | undefined;
   let required: Query | null = null;
   let queried = false;
-  for (let step=0; step<3; step++) {
+  const seenQueries = new Set<string>();
+  const maxSteps = 4;
+  const queryKey = (query: Query) => JSON.stringify(Object.entries(query).sort(([a],[b])=>a.localeCompare(b)));
+  for (let step=0; step<maxSteps; step++) {
     if (!queried) progress?.({stage:'planning'});
     const data = await complete(messages);
     let queries: Query[] = (Array.isArray(data?.queries) ? data.queries : [data]).slice(0,3)
@@ -93,7 +96,7 @@ export async function explore(snapshot:any, question:string, history:any[], comp
         args.tool === 'trajectory' && args.metric === 'year')].slice(0,3);
     }
     if (data?.outside===true && !required) return {answer:'可以问我成绩变化、下次预测或目标差距。',evidence:[],next:''};
-    const answer = shortText(data?.answer, 180);
+    const answer = shortText(data?.answer, 1000);
     if (answer && queried) {
       let refs = Array.isArray(data.refs) ? [...new Set<number>(data.refs)].slice(0,6) : [];
       const saysUnavailable = /数据不足|(?:成绩|排名|数据).{0,5}(?:空白|是空的)|(?:无法|没法|不能)(?:给出|做出|进行|直接)?(?:预测|估计)|没有(?:可用的|生成)?(?:估计|预测)/.test(answer);
@@ -101,17 +104,27 @@ export async function explore(snapshot:any, question:string, history:any[], comp
       if (estimates.length) {
         const claimsOnlyOne = estimates.length > 1 && /只有.{1,12}(?:有|生成了|算出|能做).{0,6}(?:预测|估计)/.test(answer);
         const allEstimated = estimates.length === required?.scopes.length;
-        const acknowledged = estimates.some(fact => refs.includes(fact.id));
-        if ((saysUnavailable && allEstimated) || claimsOnlyOne || !acknowledged) {
+        const acknowledged = estimates.every(fact => refs.includes(fact.id));
+        const each = asksForEachSubject(question);
+        const standalone = !/最近|近况|趋势|为什么|原因|相比|对比|变化|建议|如何|怎么样|咋样|状态|目标|复盘|分析/.test(question);
+        // Numerical answers are assembled from computed facts, never inferred by the model.
+        if (standalone || each || (saysUnavailable && allEstimated) || claimsOnlyOne || !acknowledged) {
           const [first] = estimates;
           const subject = first.label.split('下次')[0];
           const value = first.value.split(' · ')[0];
           const estimate = value.startsWith('前 ') ? `下次${subject}的年级排名大概在${value}。` : `下次${subject}的得分率大概是 ${value}。`;
           const metric = required?.tool === 'forecast' ? '年级排名' : '得分率';
-          const reply = estimates.length === 1 && !asksForEachSubject(question) ? estimate :
-            `查到了 ${estimates.length} 科的下次估计。下面可以看各科的${metric}和范围。`;
+          const labelFor = (key:string) => tools.catalog.scopes[key as keyof typeof tools.catalog.scopes] || key;
+          const missing = (required?.scopes || []).map(labelFor).filter((name:string)=>!estimates.some(fact=>fact.label.startsWith(name+'下次')));
+          const rows = estimates.map(fact=>fact.label.split('下次')[0]+'：'+fact.value);
+          const range = primary!.facts.find(fact=>fact.label===subject+'下次可能的排名范围');
+          const comparison = primary!.facts.find(fact=>fact.label===subject+'预测与最近排名对照');
+          const extra = [range ? '参考范围：'+range.value+'。' : '',comparison ? '与最近一场相比：'+comparison.value+'。' : ''].filter(Boolean).join('\n');
+          const reply = estimates.length === 1 && !each ? estimate + (first.value.includes(' · ') ? '\n'+first.value.split(' · ').slice(1).join('；')+'。' : '') + (extra ? '\n'+extra : '') :
+            `查到了 ${estimates.length} 科的下次估计（${metric}）：\n`+rows.join('\n');
+          const unavailable = missing.length ? '\n'+missing.join('、')+'暂未算出估计，不能把历史成绩当作预测。' : '';
           const evidence = primary!.facts.map(({id, ...fact}) => fact);
-          return { answer: reply, evidence, next: '', chart: tools.chart(null, question) };
+          return { answer: reply+unavailable, evidence, next: shortText(data.next,100), chart: tools.chart(null, question) };
         }
         refs = [...new Set([...estimates.map(fact => fact.id), ...refs.filter(id => Number.isInteger(id) && tools.facts[id - 1])])]
           .slice(0, Math.max(6, estimates.length));
@@ -123,22 +136,29 @@ export async function explore(snapshot:any, question:string, history:any[], comp
           evidence, next: '', chart: tools.chart(data.chart, question) };
       }
       if (refs.some(id => !Number.isInteger(id) || !tools.facts[id - 1])) throw Error('invalid_reference');
+      // A broad 'no data' answer is not valid when the selected records contain facts.
+      if (saysUnavailable && !primary && !refs.length && tools.facts.length && step < maxSteps-1) {
+        messages.push({role:'assistant',content:JSON.stringify(data)}, {role:'user',content:'已有事实与结论不符。请区分真实缺项和查询范围问题；重新查看本轮事实并回答可回答的部分。'});
+        continue;
+      }
       if (tools.facts.length && !refs.length) throw Error('missing_evidence');
-      return { answer, takeaway: tools.facts.length ? shortText(data.takeaway, 80) : '',
-        evidence: refs.map(id => tools.facts[id - 1]), next: shortText(data.next, 60),
+      return { answer, takeaway: tools.facts.length ? shortText(data.takeaway, 240) : '',
+        evidence: refs.map(id => tools.facts[id - 1]), next: shortText(data.next, 100),
         chart: tools.chart(data.chart, question) };
     }
-    if (step === 2) throw Error('invalid_response');
+    if (step === maxSteps-1) throw Error('invalid_response');
+    queries = queries.filter(args=>!seenQueries.has(queryKey(args)));
     if (!queries.length) {
-      messages.push({role:'user',content:'请用目录查询与问题有关的记录。'});
+      messages.push({role:'user',content:queried ? '这些查询已执行过。请使用现有结果回答，或换一个能补齐问题的查询。' : '请用目录查询与问题有关的记录。'});
       continue;
     }
+    queries.forEach(args=>seenQueries.add(queryKey(args)));
     progress?.({stage:'tools',tools:[...new Set<string>(queries.map((args: any) => args.tool))]});
     const results = await Promise.all(queries.map(async (args: any) => ({tool: args.tool, ...await tools.query(args)})));
     if (!queried && required) primary = results[0];
     progress?.({stage:'analysis'});
     queried = true;
-    messages.push({role:'assistant',content:JSON.stringify({queries})}, {role:'user',content:JSON.stringify({results,remainingQueries:1-step})});
+    messages.push({role:'assistant',content:JSON.stringify({queries})}, {role:'user',content:JSON.stringify({results,remainingQueries:maxSteps-2-step})});
   }
   throw Error('invalid_response');
 }
