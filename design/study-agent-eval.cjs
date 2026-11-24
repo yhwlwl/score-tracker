@@ -3,6 +3,7 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const {performance}=require('node:perf_hooks');
+global.ScoreExamGoals=require('../supabase/functions/_shared/exam-goals.js');
 const {studyQuestion}=require('../supabase/functions/score-tracker-study-api/study-question.ts');
 const {studyTools}=require('../supabase/functions/score-tracker-study-api/study-tools.ts');
 
@@ -116,6 +117,8 @@ async function main(){
   const chosen=cases.filter(c=>selection==='all'||selection.split(',').includes(c.id));
   if(!chosen.length)throw Error('unknown case selection');
   const rows=[];
+  // Fail clearly on fixture/bootstrap errors rather than classifying them as model failures.
+  studyTools(snapshot());
   try{
     run: for(const mode of modes)for(let trial=1;trial<=repeat;trial++)for(const c of chosen){
       if(live&&(budget.unknown||budget.calls>=maxCalls||budget.spent>=maxCredits))break run;
