@@ -1,3 +1,4 @@
+import { prepareModelRequest } from './recognition-config.ts';
 // Server-only metering. Nothing here trusts client points, balance, price or owner.
 export class AiBudgetError extends Error {
   aiBudget=true;status=429;code:string;
@@ -14,12 +15,13 @@ export async function startAiTask(db:any,user:string,task:string,feature:string,
  if(!r?.allowed)throw new AiBudgetError(r?.reason||'billing_unavailable');return r;
 }
 export async function finishAiTask(db:any,user:string,task:string,success:boolean){return creditRpc(db,'score_tracker_ai_task_finish',{p_user:user,p_task:task,p_success:success});}
-export async function meteredModelFetch(db:any,user:string,task:string,call:string,url:string,init:any,send:any=fetch,onSettled?:(credits:number)=>void){
+export async function meteredModelFetch(db:any,user:string,task:string,call:string,url:string,init:any,send:any=fetch,onSettled?:(credits:number)=>void,providerSession=task){
+ const prepared=await prepareModelRequest(url,init,user,providerSession);
  const body=JSON.parse(String(init.body||'{}'));
  const reserved=await creditRpc(db,'score_tracker_ai_call_reserve',{p_user:user,p_task:task,p_call:call,p_model:body.model,p_max_output:body.max_tokens});
  if(!reserved?.allowed)throw new AiBudgetError(reserved?.reason||'billing_unavailable');
  let response:any;
- try{response=await send(url,init);}catch(e){
+ try{response=await send(url,prepared);}catch(e){
   // A timeout may have reached the provider: retain the full global reservation.
   await creditRpc(db,'score_tracker_ai_call_settle',{p_user:user,p_call:call,p_usage:null,p_provider:null,p_status:null}).catch(()=>{});throw e;
  }

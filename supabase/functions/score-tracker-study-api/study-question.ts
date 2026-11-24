@@ -1,5 +1,5 @@
 import { AiBudgetError, creditRpc, finishAiTask, meteredModelFetch, startAiTask } from '../_shared/ai-credits.ts';
-import { normalizeBaseUrl } from '../_shared/recognition-config.ts';
+import { normalizeBaseUrl, goOverride } from '../_shared/recognition-config.ts';
 import { asksForEachSubject, nextExamMetric, studyTools, type TrajectoryLoader } from './study-tools.ts';
 import type { ProgressListener } from './study-events.ts';
 
@@ -16,6 +16,9 @@ export async function studySettings(db: any) {
     .maybeSingle();
   if (configured.error) throw configured.error;
   const row = configured.data || {};
+  const selected = goOverride('study');
+  if (selected) return {url:selected.baseUrl,model:selected.model,key:selected.apiKey,
+    public:{enabled:row.enabled!==false&&selected.configured,cap,thinkingModes:{low:modes.low.cap,standard:modes.standard.cap,high:modes.high.cap},defaultThinking:'standard'}};
   const base = row.enabled === false
     ? ''
     : String(row.base_url || Deno.env.get('STUDY_ANALYSIS_BASE_URL') || '').trim();
@@ -332,9 +335,11 @@ export async function studyQuestion(db:any, user:string, body:any, load:()=>Prom
     if (saved) return saved.status==='active' ? fail(409,'正在整理这条回答','pending') : fail(409,'再试一次','retry');
     const history:any[] = [];
     let cursor = parent;
+    let providerSession = id;
     while (cursor && history.length<3) {
       const prior = await turn(cursor);
       if (!prior?.study_turn || prior.status!=='succeeded') return fail(400,'请重新开始提问');
+      if (cursor===parent) providerSession=typeof prior.study_turn.providerSession==='string'&&uuid.test(prior.study_turn.providerSession)?prior.study_turn.providerSession:parent;
       const { answer, takeaway, next } = prior.study_turn.result;
       history.unshift({ question:prior.study_turn.question, answer:shortText(answer,420), takeaway:shortText(takeaway,120), next });
       cursor = prior.study_turn.previous;
@@ -360,7 +365,7 @@ export async function studyQuestion(db:any, user:string, body:any, load:()=>Prom
           body:JSON.stringify({model:cfg.model,messages:attempt ? [...messages,{role:'user',content:'上次未生成完整 JSON。请直接返回完整、简洁的 JSON 对象；不要输出推理过程。'}] : messages,
             max_tokens:maxTokens,response_format:{type:'json_object'},stream:false,
             ...(deepseek ? {thinking:{type:quick?'disabled':'enabled'}} : {})})
-        },fetch,credits=>{spent+=credits;});
+        },fetch,credits=>{spent+=credits;},providerSession);
         if (!response.ok) throw Error('provider_unavailable');
         try {
           const payload = await response.json();
@@ -379,7 +384,7 @@ export async function studyQuestion(db:any, user:string, body:any, load:()=>Prom
       }
       throw Error('model_output_incomplete');
     }, loadTrajectory, progress,{maxSteps:settings.steps,shouldFinalize});
-    const settled=await creditRpc(db,'score_tracker_study_finish',{p_user:user,p_task:id,p_turn:{question,previous:parent,thinking:mode,result:{...result,thinking:mode}}});
+    const settled=await creditRpc(db,'score_tracker_study_finish',{p_user:user,p_task:id,p_turn:{question,previous:parent,providerSession,thinking:mode,result:{...result,thinking:mode}}});
     return {status:200,data:{...result,thinking:mode,charged:settled.charged,id}};
   } catch (e) {
     if (started) await finishAiTask(db,user,id,false).catch(()=>{});
