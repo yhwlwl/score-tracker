@@ -36,6 +36,7 @@ const instructions = `你是 Score Tracker 的个人学情分析助手。用自�
 - examList：查考试清单、区间或旧考试编号。matrix：看全量考试矩阵，metric 选 rank/class/rate/score/difficulty；跨多科对比用 heatmap，原始分或逐项数字用 table。structure：同场学科对照、强弱与雷达图，通常指定 1～5 场。profile：个人最佳、近期速度、稳定性、数据覆盖，mode:"distribution" 查排名区间分布。
 - difficulty：分析页的难度参考（50 左右是历史中等水平，较高代表相对偏难），worth:true 查含金量参考分，可传 reference 作为对照考试编号。forecast：学习状态预测的下一场位置与波动范围。trajectory：相似轨迹的得分率或位置预测，metric:"score" 或 "year"。
 - goals 查单场目标差距，calibrate:true 查目标校准和连续达标；longGoal 查长期总分/学科/名次目标与差距、学校和日期；plan 查尚未出成绩的考试预设目标。benchmarks 查已录入的班级或年级均分和最高分。
+- statistics：同一场考试的两项指标相关性，scopes:["s:数学","s:物理"],metrics:["rate","rank"],range:"all"；同一科分数与排名关系可只传一个 scope、两个不同指标。相关性不等于因果，少量样本只描述历史。scenario：基于最近或指定考试的总分情景模拟，例如 adjustments:{"s:化学":10}，其他科不变，不推算排名。
 - types 查已录入的题型得分、失分占比、表现变化与已标记错因，可选 typeName；paper 查已核对的逐题分数；reflection 读本人已保存的考试反思。按问题需要查询，不把题型失分、AI推测和本人复盘混为一谈。
 同时问近况和下次，查最近成绩和对应的预测，然后把两件事都答出来。单问「预测下下一次」可读作「预测一下下一次」，结合上一问确定科目和指标。明确问「下下次」时，目前只有下一场的估计，别往后推。问分数查 trajectory 的得分率，问年级排名查 forecast；没指定科目或组合且问整体时用 total，问各科时用 latestSubjects。没要求限定范围就用全部可比历史，不自行限定到最近一个年级或某场考试。预测和实考分开，当难度能帮助理解时只说偏难还是偏易。
 工具结果中的 kind:"estimate" 是已经算出的下次估计，回答预测时要用它。目录 coverage 是已有记录数，不等于同口径可比较数。一次查询为空，先确认科目、指标和筛选范围是否选对，再查一次；不要将用户明确指定的范围擅自扩大。模型输出里每条关键判断要与本轮事实相符。分清已有成绩、已有排名和是否能做这项预测。只有部分科目或指标有结果时先答能答的，再说缺的是哪一项。没有匹配到相似轨迹也可以先说明近期实际成绩。别把个别缺项或查询未返回说成数据空白。
@@ -43,7 +44,7 @@ const instructions = `你是 Score Tracker 的个人学情分析助手。用自�
 最后返回 {"answer":"直接回答，简单问题简短，复杂问题用换行自然分段","takeaway":"确实值得做的一件事，可留空","refs":[1,2],"chart":{"type":"line","series":[1,2],"title":"物理最近几场"},"next":"学生可以直接发送的下一问，可留空"}。refs 是本轮最相关的 1–6 条 facts 编号；没查到资料就简短说缺什么，refs 留空。chart 可省；有预测时选末尾带下次估计的序列，标题让人一眼看懂。完整走势和逐场对照也优先用图表。series 写工具的序列编号，别填数值。line 看走势和预测，bar 看并列数据，radar 看学科结构，table 看逐场对照；scatter 看两项指标在同一场考试的关系，至少 3 个有效配对，横轴序列先写，纵轴后写。对比分数升降与位置进退，用 scoreChange（混合满分用 rateChange）和 rankChange 两组对应序列。
 与成绩无关时返回 {"outside":true}。不输出 Markdown、例行提醒、机械的下一问或空泛建议。`;
 
-const toolNames = new Set(['results','examList','matrix','structure','profile','difficulty','forecast','trajectory','goals','longGoal','plan','benchmarks','types','paper','reflection']);
+const toolNames = new Set(['results','examList','matrix','structure','profile','difficulty','forecast','trajectory','goals','longGoal','plan','benchmarks','types','paper','reflection','statistics','scenario']);
 const shortText = (value: unknown, max: number) => typeof value === 'string' ? value.trim().slice(0,max) : '';
 
 type Catalog = ReturnType<typeof studyTools>['catalog'];
@@ -106,7 +107,7 @@ export async function explore(snapshot:any, question:string, history:any[], comp
         const allEstimated = estimates.length === required?.scopes.length;
         const acknowledged = estimates.every(fact => refs.includes(fact.id));
         const each = asksForEachSubject(question);
-        const standalone = !/最近|近况|趋势|为什么|原因|相比|对比|变化|建议|如何|怎么样|咋样|状态|目标|复盘|分析/.test(question);
+        const standalone = !/最近|近况|趋势|为什么|原因|相比|对比|变化|建议|如何|怎么样|咋样|状态|目标|复盘|分析/.test(question) && !(/分数|多少分|能考|成绩/.test(question)&&/排名|年排|名次|位次|能排|排到/.test(question));
         // Numerical answers are assembled from computed facts, never inferred by the model.
         if (standalone || each || (saysUnavailable && allEstimated) || claimsOnlyOne || !acknowledged) {
           const [first] = estimates;
@@ -116,7 +117,11 @@ export async function explore(snapshot:any, question:string, history:any[], comp
           const metric = required?.tool === 'forecast' ? '年级排名' : '得分率';
           const labelFor = (key:string) => tools.catalog.scopes[key as keyof typeof tools.catalog.scopes] || key;
           const missing = (required?.scopes || []).map(labelFor).filter((name:string)=>!estimates.some(fact=>fact.label.startsWith(name+'下次')));
-          const rows = estimates.map(fact=>fact.label.split('下次')[0]+'：'+fact.value);
+          const rows = estimates.map(fact=>{
+            const name=fact.label.split('下次')[0];
+            const interval=primary!.facts.find(item=>item.label===name+'下次可能的排名范围');
+            return name+'：'+fact.value+(interval?' · 参考范围 '+interval.value:'');
+          });
           const range = primary!.facts.find(fact=>fact.label===subject+'下次可能的排名范围');
           const comparison = primary!.facts.find(fact=>fact.label===subject+'预测与最近排名对照');
           const extra = [range ? '参考范围：'+range.value+'。' : '',comparison ? '与最近一场相比：'+comparison.value+'。' : ''].filter(Boolean).join('\n');
