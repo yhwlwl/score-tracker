@@ -17,15 +17,23 @@ node design/study-agent-eval.cjs --case=trimmed-mean,rank-vs-score --mode=standa
 
 ## 实际模型对比（显式付费测试）
 
-仅在开发者主动执行时使用环境变量 STUDY_EVAL_API_KEY（不要提交、打印或使用生产共享 Key）。也可以在 GitHub Actions 手动运行 Study agent quality，勾选 run_live 并选择题目、思考强度和预算；需事先配置同名独立仓库 Secret。PR、push 不会触发 live-model 作业，也没有定时任务。当前适配与线上相同的 deepseek-flash 与三档思考策略。
+仅在开发者主动执行时使用环境变量 STUDY_EVAL_API_KEY（不要提交、打印或使用生产共享 Key）。也可以在 GitHub Actions 手动运行 Study agent quality，勾选 run_live 并选择题目、思考强度和预算；需事先配置同名独立仓库 Secret。PR、push 不会触发 live-model 作业，也没有定时任务。评测支持 DeepSeek 官方 API（deepseek-flash）和 OpenCode Go（deepseek-v4-flash）；均使用三档思考策略。选择 provider 时必须匹配独立评测密钥。
+
+先执行单次连通性探测（最多64个输出 token，不会启动题库评测）：
 
 ```sh
-node design/study-agent-eval.cjs --live --mode=all --case=rank-vs-score,trimmed-mean --max-credits=1000 --max-calls=20 --out=live-report.json
+node design/study-agent-eval.cjs --provider=opencode-go --probe
+```
+
+连通后才手动启动评测：
+
+```sh
+node design/study-agent-eval.cjs --provider=opencode-go --live --mode=all --case=rank-vs-score,trimmed-mean --max-credits=1000 --max-calls=20 --out=live-report.json
 ```
 
 - --repeat=2 或 3 用于考察随机性；同一用例、档位、重复次数才可对比。
 - --baseline=previous-report.json 对比历史报告；只允许同一报告类型及版本格式。
-- live 计量按目前项目的每百万 token 输入2、缓存0.04、输出8元估算（不代表实际服务商账单），记录输入、输出、缓存及推理 token；用调用数和保守预估额度拦截后续请求。预估不保证服务商最终费用，建议使用供应商侧独立额度控制。
+- live 计量按目前项目的每百万 token 输入2、缓存0.04、输出8元估算（仅为 Score Tracker 生产环境参考积分，不代表 OpenCode Go 订阅用量、剩余额度或任何服务商账单），记录输入、输出、缓存及推理 token；用调用数和保守预估额度拦截后续请求。预估不保证服务商最终费用，建议使用供应商侧独立额度控制。
 - 测试失败或预算停止会返回非零状态；未执行的题不能算通过。自动检查只覆盖明确的事实与结构条件，不代替人工语义判断。
 
 ## 发布门槛
@@ -35,3 +43,5 @@ node design/study-agent-eval.cjs --live --mode=all --case=rank-vs-score,trimmed-
 ## 首批覆盖
 
 14道基础题：最新成绩、分数与排名反向、不同满分、零分、仅排名、组合、去极值、分类稳定性、同步进退、全科预测、常态总分、情景模拟、图表可信性、多轮追问。三档共42次确定性回放。
+
+OpenCode Go 采用官方公开接口 `https://opencode.ai/zen/go/v1/chat/completions`；若收到 HTTP 403、认证失败或网络错误，评测终止，不自动改用其它接口、密钥或绕过服务商访问限制。建议检查 Go 订阅权限及官方支持渠道。
