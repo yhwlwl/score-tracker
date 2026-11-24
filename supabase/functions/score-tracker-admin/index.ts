@@ -107,9 +107,9 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
   const admin=await auth(req.headers.get('x-score-token')||'');if(!admin)return json({error:'unauthorized'},401);if(action==='ping')return json({ok:true});
   if(action==='ai_budget'&&req.method==='GET'){
     const period=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit'}).format(new Date())+'-01';
-    const [p,b,c]=await Promise.all([db.from('score_tracker_ai_policy').select('*').eq('id',true).single(),db.from('score_tracker_ai_budgets').select('*').eq('period',period).maybeSingle(),db.from('score_tracker_ai_calls').select('id,task_id,period,model,status,reserved_cny,provider_request_id,http_status,created_at').in('status',['unknown','reserved']).order('created_at',{ascending:false}).limit(100)]);
-    if(p.error||b.error||c.error)throw p.error||b.error||c.error;
-    return json({policy:p.data,budget:b.data||{period,spent_cny:0,reserved_cny:0},opening_required:!p.data.activated_at&&(period!==p.data.starts_period||!b.data?.opening_recorded),unresolved:c.data||[]});
+    const [p,b,c,recent]=await Promise.all([db.from('score_tracker_ai_policy').select('*').eq('id',true).single(),db.from('score_tracker_ai_budgets').select('*').eq('period',period).maybeSingle(),db.from('score_tracker_ai_calls').select('id,task_id,period,model,provider_channel,status,reserved_cny,provider_request_id,http_status,created_at').in('status',['unknown','reserved']).order('created_at',{ascending:false}).limit(100),db.from('score_tracker_ai_calls').select('id,task_id,provider_channel,model,status,http_status,prompt_tokens,completion_tokens,cost_cny,created_at,score_tracker_ai_tasks(feature)').order('created_at',{ascending:false}).limit(30)]);
+    if(p.error||b.error||c.error||recent.error)throw p.error||b.error||c.error||recent.error;
+    return json({policy:p.data,budget:b.data||{period,spent_cny:0,reserved_cny:0},opening_required:!p.data.activated_at&&(period!==p.data.starts_period||!b.data?.opening_recorded),unresolved:c.data||[],recent_calls:recent.data||[]});
   }
   if(action==='ai_budget_save'&&req.method==='POST'){
     const b=await req.json(),warning=Number(b.warning_cny),limit=Number(b.hard_limit_cny),factor=Number(b.cost_multiplier);

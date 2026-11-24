@@ -15,10 +15,17 @@ export async function startAiTask(db:any,user:string,task:string,feature:string,
  if(!r?.allowed)throw new AiBudgetError(r?.reason||'billing_unavailable');return r;
 }
 export async function finishAiTask(db:any,user:string,task:string,success:boolean){return creditRpc(db,'score_tracker_ai_task_finish',{p_user:user,p_task:task,p_success:success});}
+export function actualProviderChannel(url:string){
+ const u=new URL(url);
+ if(u.origin==="https://opencode.ai"&&u.pathname.startsWith("/inference/go/"))return "opencode-go";
+ if(u.origin==="https://api.deepseek.com")return "deepseek";
+ if(u.origin==="https://openrouter.ai")return "openrouter";
+ return "other";
+}
 export async function meteredModelFetch(db:any,user:string,task:string,call:string,url:string,init:any,send:any=fetch,onSettled?:(credits:number)=>void,providerSession=task){
  const prepared=await prepareModelRequest(url,init,user,providerSession);
  const body=JSON.parse(String(init.body||'{}'));
- const reserved=await creditRpc(db,'score_tracker_ai_call_reserve',{p_user:user,p_task:task,p_call:call,p_model:body.model,p_max_output:body.max_tokens});
+ const reserved=await creditRpc(db,'score_tracker_ai_call_reserve_routed',{p_user:user,p_task:task,p_call:call,p_model:body.model,p_max_output:body.max_tokens,p_channel:actualProviderChannel(url)});
  if(!reserved?.allowed)throw new AiBudgetError(reserved?.reason||'billing_unavailable');
  let response:any;
  try{response=await send(url,prepared);}catch(e){

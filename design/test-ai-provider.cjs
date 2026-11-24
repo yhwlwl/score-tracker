@@ -1,7 +1,7 @@
 const assert=require('node:assert/strict');
 const {goOverride,recognitionConfig,prepareModelRequest,GO_BASE_URL,GO_MODEL,goProviderReadiness,goKeyFingerprint,verifiedProviderRow}=require('../supabase/functions/_shared/recognition-config.ts');
 const {runGoProbe,makeProbePng}=require('../supabase/functions/score-tracker-admin/go-probe.ts');
-const {meteredModelFetch}=require('../supabase/functions/_shared/ai-credits.ts');
+const {meteredModelFetch,actualProviderChannel}=require('../supabase/functions/_shared/ai-credits.ts');
 (async()=>{
  const env=values=>k=>values[k];
  const row={model:'deepseek-flash',base_url:'https://api.deepseek.com',openrouter_api_key:'fixture-legacy',enabled:true};
@@ -70,6 +70,6 @@ const {meteredModelFetch}=require('../supabase/functions/_shared/ai-credits.ts')
  const calls=[];const db={rpc:async(name,args)=>{calls.push({name,args});return {data:{allowed:true,known:true,credits:2}}}};
  let sent=0,settled=0;
  await meteredModelFetch(db,'u','task','call',GO_BASE_URL+'/chat/completions',init,async(url,req)=>{sent++;assert.equal(req.headers.get('x-opencode-session'),a.headers.get('x-opencode-session'));return new Response(JSON.stringify({id:'fixture',usage:{prompt_tokens:3,completion_tokens:2}}));},n=>settled+=n,'s');
- assert.equal(sent,1);assert.equal(settled,2);assert.equal(calls[0].args.p_model,GO_MODEL);assert.equal(calls[1].args.p_usage.prompt_tokens,3);
+ assert.equal(actualProviderChannel('https://api.deepseek.com/v1/chat/completions'),'deepseek');assert.equal(actualProviderChannel('https://openrouter.ai/api/v1/chat/completions'),'openrouter');assert.equal(actualProviderChannel('https://api.deepseek.com.example.org/chat/completions'),'other');assert.equal(calls[0].name,'score_tracker_ai_call_reserve_routed');assert.equal(calls[0].args.p_channel,'opencode-go');assert.equal(sent,1);assert.equal(settled,2);assert.equal(calls[0].args.p_model,GO_MODEL);assert.equal(calls[1].args.p_usage.prompt_tokens,3);
  console.log('PASS: independent provider settings, disabled image route, session isolation, unchanged legacy request, metering with fake transport');
 })().catch(e=>{console.error(e);process.exitCode=1});
