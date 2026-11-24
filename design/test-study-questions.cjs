@@ -249,7 +249,7 @@ async function checkSnapshotOwnership() {
 }
 async function checkAgentCompleteness(snapshot) {
   const rich={...snapshot,exams:snapshot.exams.map((exam,i)=>({...exam,
-    scores:{...exam.scores,物理:{actual:60+3*i,max:100,rank:30-i,participants:200}},
+    scores:{...exam.scores,物理:{actual:[60,63,66,66,72][i],max:100,rank:30-i,participants:200}},
     total_actual_score:null,total_rank:40-i,total_participants:200
   }))};
   const requested=[];
