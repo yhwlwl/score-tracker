@@ -27,7 +27,7 @@ export type Metric = 'score' | 'rate' | 'rank' | 'classRank' | 'cityRank' | 'dis
 type Dimension = 'exams' | 'subjects' | 'bands' | 'types' | 'questions';
 type Axis = { key: string; label: string; detail?: string };
 type Row = { id: number; exam: any; actual: any; axis: Axis };
-type Point = Axis & { value: number | null; low?: number; high?: number; forecast?: true };
+type Point = Axis & { value: number | null; low?: number; high?: number; forecast?: true; scoreMax?: number };
 type Series = { id: number; label: string; metric: Metric; points: Point[]; dimension: Dimension };
 type Chart = { type: 'line' | 'bar' | 'table' | 'radar' | 'scatter' | 'heatmap'; title: string; series: Series[] };
 type Snapshot = {
@@ -619,7 +619,7 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
               add(label+'下次得分率估计', value+'%'+(max>0 ? ' · 按满分 '+max+' 分换算约 '+round(value*max/100)+' 分' : '')+' · 历史粗略参考',citation,'estimate');
               add(label+'历史得分率范围',round(Math.min(...values))+'% ～ '+round(Math.max(...values))+'%','历史实际波动，不是预测区间');
               const points = comparable.map(row=>point(row.axis,rate(row.actual)));
-              points.push({key:'next:trajectory',label:'下次估计',detail:citation,value,forecast:true});
+              points.push({key:'next:trajectory',label:'下次估计',detail:citation,value,forecast:true,...(max>0?{scoreMax:max}:{})});
               addSeries(label,'rate',points);
               continue;
             }
@@ -650,7 +650,7 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
           return point({ key: known ? String(known.id) : key + ':trajectory:' + offset,
             label: known?.name || date || '第 ' + (offset + 1) + ' 场', detail: date }, n);
         });
-        points.push({ key: 'next:trajectory', label: '下次估计', detail: reference, value: round(center), low: round(low), high: round(high), forecast: true });
+        points.push({ key: 'next:trajectory', label: '下次估计', detail: reference, value: round(center), low: round(low), high: round(high), forecast: true, ...(trajectoryMetric==='score' && max>0?{scoreMax:max}:{}) });
         addSeries(label, trajectoryMetric === 'year' ? 'rank' : 'rate', points);
       } else if (args.tool === 'benchmarks') {
         const gaps: Point[] = [];
@@ -719,8 +719,16 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
           const matched = predicted.find(s=>s.label===label);
           return matched ? {...matched.points.find(p=>p.forecast)!,key:label,label} : {key:label,label,value:null,detail:'暂未算出估计'};
         });
-        return { type: 'table', title: preferred === 'rank' ? '各科下次年级排名估计' : '各科下次成绩估计',
-          series: [{ id: predicted[0].id, label: '下次估计', metric: preferred, dimension: 'subjects', points }] };
+        const columns: Series[] = [{ id: predicted[0].id, label: '下次估计', metric: preferred, dimension: 'subjects', points }];
+        if (preferred==='rate' && points.some(p=>'scoreMax' in p && p.scoreMax>0)) {
+          const scorePoints = points.map(p=>{
+            const max='scoreMax' in p ? p.scoreMax : undefined;
+            const convert=(n:number|undefined|null)=>finite(n)&&finite(max)?round(n*max/100):null;
+            return {key:p.key,label:p.label,value:convert(p.value),forecast:true as const,low:convert('low' in p?p.low:null)??undefined,high:convert('high' in p?p.high:null)??undefined,detail:finite(max)?'按满分 '+max+' 分换算':p.detail};
+          });
+          columns.push({id:-predicted[0].id,label:'预计分数',metric:'score',dimension:'subjects',points:scorePoints});
+        }
+        return { type: 'table', title: preferred === 'rank' ? '各科下次年级排名估计' : '各科下次成绩估计', series:columns };
       }
     }
     if (preferred && (type === 'line' || type === 'bar')) {
