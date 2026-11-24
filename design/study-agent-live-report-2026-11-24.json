@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "kind": "live-model",
-  "commit": null,
+  "commit": "40144c1557933789a62650960949c35975081951",
   "provider": "opencode-go",
   "model": "deepseek-v4.1-flash",
   "stopReason": null,
