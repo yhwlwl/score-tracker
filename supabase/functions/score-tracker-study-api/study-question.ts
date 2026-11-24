@@ -186,7 +186,7 @@ export async function explore(snapshot:any, question:string, history:any[], comp
         const names=fact.value.split(isRank?' → ':' > ').map(x=>x.trim().split(' ')[0]);
         const metric=isRank?'(?:排名|年级位置)':'(?:得分率|得分比例)';
         for(const subject of names){
-          const safe=subject.replace(/[.*+?^${}()|[\]\\]/g,'\\      if (refs.some(id => !Number.isInteger(id) || !tools.facts[id - 1])) throw Error('invalid_reference');');
+          const safe=subject.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
           const claims=new RegExp(safe+'[^。；，\\n]{0,30}'+metric+'[^。；，\\n]{0,15}(?:六科|各科|所有科目|全科)?(?:中)?(?:最[高低好差]|最靠[前后])','g');
           for(const m of answer.matchAll(claims)){
             const best=/最高|最好|最靠前/.test(m[0]),worst=/最低|最差|最靠后/.test(m[0]);
