@@ -274,6 +274,30 @@ async function checkAgentCompleteness(snapshot) {
   });
   assert.equal(calls,4);
   assert.ok(deeper.answer.length>180);
+  let multi=0;
+  const charts=await explore(rich,'比较数学的得分率和排名',[],async messages=>{
+    if(multi++===0)return {tool:'results',scopes:['s:数学'],range:'all'};
+    const {results:[result]}=JSON.parse(messages.at(-1).content);
+    const rate=result.series.find(s=>s.metric==='rate').id,rank=result.series.find(s=>s.metric==='rank').id;
+    return {answer:'得分率和排名分别看。',refs:[1],charts:[
+      {type:'line',series:[rate],title:'得分率走势'},
+      {type:'line',series:[rank],title:'排名走势'},
+      {type:'line',series:[rate],title:'重复图表'}]};
+  });
+  assert.equal(charts.charts.length,2);
+  assert.equal(charts.charts[0].series[0].metric,'rate');
+  assert.equal(charts.charts[1].series[0].metric,'rank');
+  let attempt=0;
+  const unavailable={...rich,async details(){throw Error('private upstream error')}};
+  const partial=await explore(unavailable,'结合数学成绩和考试反思',[],async messages=>{
+    if(attempt++===0)return {queries:[{tool:'results',scopes:['s:数学']},{tool:'reflection'}]};
+    const {results}=JSON.parse(messages.at(-1).content);
+    assert.equal(results[0].status,'ok');
+    assert.equal(results[1].status,'failed');
+    assert.doesNotMatch(JSON.stringify(results),/private upstream error/);
+    return {answer:'数学成绩已经查到，考试反思暂时未能读取。',refs:[results[0].facts[0].id]};
+  });
+  assert.match(partial.answer,/成绩已经查到/);
 }
 
 async function main() {
