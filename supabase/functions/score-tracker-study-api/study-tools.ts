@@ -21,7 +21,7 @@ const median = (values: number[]) => goals.quantile(values, .5);
 const examName = (exam: any) => String(exam.name || '未命名考试').slice(0, 100);
 const source = (exam: any) => [examName(exam), exam.exam_date].filter(Boolean).join(' · ');
 
-export type Evidence = { label: string; value: string; source: string; kind?: 'change' };
+export type Evidence = { label: string; value: string; source: string; kind?: 'change' | 'estimate' };
 export type Metric = 'score' | 'rate' | 'rank' | 'classRank' | 'cityRank' | 'districtRank' |
   'scoreChange' | 'rateChange' | 'rankChange' | 'difficulty' | 'averageGap' | 'count' | 'lost';
 type Dimension = 'exams' | 'subjects' | 'bands' | 'types' | 'questions';
@@ -50,6 +50,16 @@ const rankDetails = (r: any) => r ? [finite(r.rank) ? '第 ' + r.rank + ' 名' +
 const rankMetrics = { class: 'classRank', city: 'cityRank', district: 'districtRank' } as const;
 const rankNames = { class: '班级', city: '市', district: '区' } as const;
 
+export function nextExamMetric(question: string): 'rank' | 'rate' | null {
+  const text = question.replace(/(?:预测|预估)下(?=下一[场次])/g, '预测');
+  if (!/下(?:一)?[场次]|下回|接下来/.test(text) ||
+      !/预测|预估|估算|大概|大约|能考|考多少|多少分|能排|排到|第几/.test(text) ||
+      /下下(?:一)?[场次]|再下一[场次]/.test(text)) return null;
+  return /排名|年排|名次|位次|排到|能排|排多少|第几/.test(text) ? 'rank' : 'rate';
+}
+
+export const asksForEachSubject = (question: string) => /各科|每(?:一)?科|每门课|(?:所有|全部)(?:科目|学科)/.test(question);
+
 export function studyTools({ exams, modules, plans = [], details, longGoal }: Snapshot, loadTrajectory?: TrajectoryLoader) {
   const scopes = new Map<string, string>([['total', '总分']]);
   for (const exam of exams) for (const name of Object.keys(exam.scores)) scopes.set('s:' + name, name);
@@ -61,17 +71,36 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
     counts[key] = (counts[key] || 0) + 1;
     return counts;
   }, Object.create(null)));
+  const subjectKeys = (exam: any) => Object.keys(exam?.scores || {}).flatMap(name => {
+    const subject = measure(exam, 's:' + name, modules);
+    return finite(subject.score) || finite(subject.rank) || position(subject) !== null ? ['s:' + name] : [];
+  });
+  const latestSubjects = subjectKeys(exams.findLast(exam => subjectKeys(exam).length > 1) || exams.at(-1));
+  const totalRankCount = (selected: any[]) => selected.filter(exam =>
+    goals.num(exam.total_rank) > 0 || percentage(goals.num(exam.total_year_position_percent))).length;
   const catalog = {
     exams: metadata.slice(-30),
-    history: { count: exams.length, from: exams[0]?.exam_date, to: exams.at(-1)?.exam_date, categories },
-    planned: plans.length, scopes: Object.fromEntries(scopes), groups,
+    history: { count: exams.length, totalRankCount: totalRankCount(exams), from: exams[0]?.exam_date, to: exams.at(-1)?.exam_date, categories },
+    planned: plans.length, scopes: Object.fromEntries(scopes), latestSubjects, groups,
   };
   const rowsByScope = new Map<string, Row[]>();
   const facts: Evidence[] = [];
   const series: Series[] = [];
   const refs = new Map<string, number>();
   const seriesRefs = new Map<string, number>();
-  let trajectoryUsed = false;
+  const trajectoryRequests = new Map<string, Promise<any>>();
+  const trajectoryLanes = [Promise.resolve(), Promise.resolve(), Promise.resolve()];
+
+  function requestTrajectory(subjects: string[] | null, metric: 'score' | 'year', category: string) {
+    const key = JSON.stringify([subjects?.slice().sort() ?? null, metric, category]);
+    if (!trajectoryRequests.has(key)) {
+      const lane = trajectoryRequests.size % trajectoryLanes.length;
+      const request = trajectoryLanes[lane].then(() => loadTrajectory?.(subjects, metric, category)).catch(() => null);
+      trajectoryLanes[lane] = request.then(() => {});
+      trajectoryRequests.set(key, request);
+    }
+    return trajectoryRequests.get(key)!;
+  }
 
   function scopeRows(key: string) {
     if (!rowsByScope.has(key)) {
@@ -87,7 +116,7 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
     const found = new Set<number>();
     const datasets = new Set<number>();
     const notes: string[] = [];
-    function add(label: string, value: string, citation: string, kind?: 'change') {
+    function add(label: string, value: string, citation: string, kind?: Evidence['kind']) {
       const fact = { label, value, source: citation, kind };
       const hash = JSON.stringify(fact);
       if (!refs.has(hash)) refs.set(hash, facts.push(fact));
@@ -107,9 +136,14 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
     const ids = new Set(candidate(args.exams).filter((id): id is number => Number.isInteger(id) && exams[(id as number) - 1] != null));
     if (candidate(args.exams).length && !ids.size) return { facts: [], series: [], notes: ['没有找到指定的考试。'] };
     const requestedScopes = candidate(args.scopes);
-    const keyLimit = args.tool === 'matrix' || args.tool === 'structure' ? 24 : 8;
+    const keyLimit = ['matrix', 'structure', 'forecast', 'trajectory'].includes(args.tool) ? 24 : 8;
+    const defaultScopes = ['results', 'forecast', 'trajectory', 'goals', 'benchmarks', 'profile', 'matrix'].includes(args.tool) ? ['total'] : [];
     const keys = (requestedScopes.includes('*') ? [...scopes.keys()].filter(k => k.startsWith('s:')) :
-      [...new Set(requestedScopes.filter((k): k is string => typeof k === 'string' && scopes.has(k)))]).slice(0, keyLimit);
+      requestedScopes.length ? [...new Set(requestedScopes.filter((k): k is string => typeof k === 'string' && scopes.has(k)))] :
+      defaultScopes).slice(0, keyLimit);
+    if (requestedScopes.length && !keys.length) {
+      return { facts: [], series: [], notes: ['查询的科目或组合未匹配目录。请核对 scopes，再查一次。'] };
+    }
     const category = typeof args.category === 'string' && args.category.length <= 40 ? args.category : '__all__';
     const from = dateArg(args.from), to = dateArg(args.to);
     const name = typeof args.name === 'string' ? args.name.trim().slice(0, 100) : '';
@@ -131,6 +165,7 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
     if (args.tool === 'examList') {
       const matches = matching();
       add('考试记录', matches.length + ' 场', '所选考试范围');
+      add('已录入总分年级排名', totalRankCount(matches.map(row => row.exam)) + ' 场', '所选考试范围 · 含不同科目组合');
       for (const row of matches.slice(-20)) {
         const e = row.exam;
         add('考试 #' + row.id, [e.grade_level, e.end_date && e.end_date !== e.exam_date ? '结束 ' + e.end_date : '', Object.keys(e.scores).join('、')].filter(Boolean).join(' · ') || '已录入', source(e));
@@ -263,6 +298,15 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
         }
       }
     }
+    if (args.tool === 'trajectory' && (ids.size || from || to || name)) {
+      notes.push('相似轨迹按考试分类匹配，估计使用该分类下全部可比历史。');
+    }
+    const trajectoryMetric = args.metric === 'year' ? 'year' : 'score';
+    const matchesByKey = new Map(args.tool === 'trajectory' && loadTrajectory ? await Promise.all(keys.map(async key => {
+      const subjects = key === 'total' ? null : key.startsWith('s:') ? [key.slice(2)] : groups.find(group => group.key === key)?.subjects;
+      if (subjects !== null && (!Array.isArray(subjects) || subjects.length === 0 || subjects.length > 20)) return [key, null] as const;
+      return [key, await requestTrajectory(subjects, trajectoryMetric, category)] as const;
+    })) : []);
     for (const key of keys) {
       const label = scopes.get(key)! + (args.tool === 'results' && args.basis === 'raw' ? '原始分' : '');
       const history = select(key);
@@ -465,7 +509,14 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
         const eligible = latest ? available.filter(row => sameScope(row, latest) &&
           Number.isInteger(row.actual.rank) && Number.isInteger(row.actual.people) &&
           row.actual.rank >= 1 && row.actual.rank <= row.actual.people) : [];
-        if (eligible.length < 2) { notes.push(label + '需要至少 2 场含年级名次和参考人数的同口径考试。'); continue; }
+        if (eligible.length < 2) {
+          const ranked = available.filter(row => rankDetails(row.actual));
+          const last = ranked.at(-1);
+          if (last) add(label + '最近一次年级排名', rankDetails(last.actual), source(last.exam));
+          notes.push(label + '已录入 ' + ranked.length + ' 场年级排名，其中可用于预测的同组合名次和参考人数有 ' +
+            eligible.length + ' 场。预测至少需要 2 场。');
+          continue;
+        }
         const report = pal.pipeline.analyzeSeries(eligible.map(row => ({
           rank: row.actual.rank, N: row.actual.people, score: row.actual.score ?? undefined, max: row.actual.max ?? undefined,
           date: row.exam.exam_date, label: row.axis.label,
@@ -473,36 +524,45 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
         if (!report.nextExam) continue;
         const value = round(report.ewmaForecast?.valid ? report.ewmaForecast.percentile : report.nextExam.medianPercentile);
         const [low, high] = report.nextExam.ci95Percentile.map(round);
-        add(label + '下次年级排名估计', '前 ' + value + '%', '参考 ' + eligible.length + ' 场考试 · 截至 ' + source(eligible.at(-1)!.exam));
+        add(label + '下次年级排名估计', '前 ' + value + '%', '参考 ' + eligible.length + ' 场考试 · 截至 ' + source(eligible.at(-1)!.exam), 'estimate');
         add(label + '下次可能的排名范围', '前 ' + low + '% ～ 前 ' + high + '%', '按以往排名的波动估计');
         const points = eligible.slice(-10).map(row => point(row.axis, 100 * row.actual.rank / row.actual.people));
         points.push({ key: 'next:rank', label: '下次估计', detail: '参考 ' + eligible.length + ' 场考试', value, low, high, forecast: true });
         addSeries(label, 'rank', points);
       } else if (args.tool === 'trajectory') {
-        if (trajectoryUsed || !loadTrajectory) continue;
-        const subjects = key === 'total' ? null : key.startsWith('s:') ? [key.slice(2)] : groups.find(group => group.key === key)?.subjects;
-        if (subjects !== null && (!Array.isArray(subjects) || subjects.length === 0 || subjects.length > 20)) continue;
-        trajectoryUsed = true;
-        const metric = args.metric === 'year' ? 'year' : 'score';
-        const matched = await loadTrajectory(subjects, metric, category).catch(() => null);
+        const matched = matchesByKey.get(key);
         const own = matched?.history;
         const estimate = matched?.enabled && !matched.preliminary && own?.length >= 3 && matched.matches?.length ?
           trajectory.estimate(own, matched.matches, 'shape') : null;
-        if (!estimate) { notes.push(label + '暂时没有可用的相似轨迹预测。'); continue; }
+        const lastScore = rows.findLast(row => rate(row.actual) !== null);
+        if (!estimate) {
+          if (trajectoryMetric === 'score' && lastScore) {
+            add(label + '最近一次实际成绩', fmtMark(lastScore.actual.score, lastScore.actual.max) +
+              ' · 得分率 ' + round(rate(lastScore.actual)!) + '%', source(lastScore.exam));
+          }
+          notes.push(label + (matched?.enabled === false ? '未开启相似轨迹。' :
+            !matched ? '相似轨迹查询暂时未返回。' :
+            own?.length < 3 ? '有 ' + own.length + ' 场可匹配的历史记录，匹配至少需要 3 场。' : '未匹配到可用于预测的相似轨迹。'));
+          continue;
+        }
         const { center, low, high, count } = estimate;
-        const prefix = metric === 'year' ? '前 ' : '';
+        const prefix = trajectoryMetric === 'year' ? '前 ' : '';
+        const max = lastScore?.actual.max;
+        const asPoints = trajectoryMetric === 'score' && max > 0 ? ' · 按满分 ' + max + ' 分换算约 ' + round(center * max / 100) + ' 分' : '';
         const reference = '参考 ' + count + ' 条相近的匿名成绩走势';
-        add(label + (metric === 'year' ? '下次年级排名估计' : '下次得分率估计'),
-          prefix + round(center) + '% · 可能范围 ' + prefix + round(low) + '% ～ ' + prefix + round(high) + '%',
-          reference);
+        add(label + (trajectoryMetric === 'year' ? '下次年级排名估计' : '下次得分率估计'),
+          prefix + round(center) + '% · 可能范围 ' + prefix + round(low) + '% ～ ' + prefix + round(high) + '%' + asPoints,
+          reference, 'estimate');
         const points: Point[] = own.slice(-10).map((n: number, index: number, values: number[]) => {
           const offset = own.length - values.length + index;
           const date = matched.history_dates?.[offset];
-          const exam = exams.filter(e => e.exam_date === date);
-          return point({ key: 'trajectory:' + offset, label: exam.length === 1 ? examName(exam[0]) : date || '第 ' + (offset + 1) + ' 场', detail: date }, n);
+          const days = date ? metadata.filter(row => row.date === date) : [];
+          const known = days.length === 1 ? days[0] : undefined;
+          return point({ key: known ? String(known.id) : key + ':trajectory:' + offset,
+            label: known?.name || date || '第 ' + (offset + 1) + ' 场', detail: date }, n);
         });
         points.push({ key: 'next:trajectory', label: '下次估计', detail: reference, value: round(center), low: round(low), high: round(high), forecast: true });
-        addSeries(label, metric === 'year' ? 'rank' : 'rate', points);
+        addSeries(label, trajectoryMetric === 'year' ? 'rank' : 'rate', points);
       } else if (args.tool === 'benchmarks') {
         const gaps: Point[] = [];
         for (const { exam, actual, axis } of rows.slice(-12)) {
@@ -521,6 +581,9 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
         }
         addSeries(label, 'averageGap', gaps);
       }
+    }
+    if (!found.size && !datasets.size && !notes.length) {
+      notes.push('这次查询未找到所选范围内的这项数据。若用户没有限定范围，请核对筛选条件后再查。');
     }
     return {
       facts: [...found].map(id => ({ id, ...facts[id - 1] })),
@@ -556,16 +619,25 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
       const options = comparison ? ['scoreChange', 'rankChange', 'rateChange'] : ['rate', 'rank', 'classRank', 'cityRank', 'districtRank', 'difficulty', 'score', 'averageGap', 'lost', 'count'];
       input = options.flatMap(metric => series.filter(s => s.metric === metric)).slice(0, 4);
     }
-    const nextQuestion = question.replace(/(?:预测|预估)下(?=下一[场次])/g, '预测');
-    const asksNext = /下(?:一)?[场次]|下回|接下来/.test(nextQuestion) &&
-      /预测|预估|估算|大概|大约|能考|能排/.test(nextQuestion) &&
-      !/下下(?:一)?[场次]|再下一[场次]/.test(nextQuestion);
-    if (asksNext && (type === 'line' || type === 'bar')) {
-      const hasForecast = (s: Series) => s.points.some(p => p.forecast);
+    const preferred = nextExamMetric(question);
+    const hasForecast = (s: Series) => s.points.some(p => p.forecast);
+    if (preferred && asksForEachSubject(question) && !requestedChart) {
+      const subjects = new Set(latestSubjects.map(key => scopes.get(key)));
+      const predicted = [...new Map(series.filter(s => s.metric === preferred && subjects.has(s.label) && hasForecast(s))
+        .map(s => [s.label, s])).values()];
+      if (predicted.length > 1) {
+        const points = predicted.map(s => ({
+          ...s.points.find(p => p.forecast)!, key: s.label, label: s.label, detail: undefined,
+        }));
+        return { type: 'table', title: preferred === 'rank' ? '各科下次年级排名估计' : '各科下次成绩估计',
+          series: [{ id: predicted[0].id, label: '下次估计', metric: preferred, dimension: 'subjects', points }] };
+      }
+    }
+    if (preferred && (type === 'line' || type === 'bar')) {
       const labelled = input.length ? series.filter(s => input.some(i => i.label === s.label)) : series;
       const predicted = labelled.filter(hasForecast);
-      const preferred = /排名|年排|位次|排到|排多少|第几/.test(question) ? 'rank' : 'rate';
-      const focus = input.find(hasForecast) || predicted.find(s => s.metric === preferred) || predicted[0];
+      const focus = input.find(s => s.metric === preferred && hasForecast(s)) || predicted.find(s => s.metric === preferred) ||
+        input.find(hasForecast) || predicted[0];
       if (focus) {
         if (!input.includes(focus) || !title) {
           title = (focus.label + (focus.metric === 'rank' ? '下次年级排名估计' : '下次成绩估计')).slice(0, 44);

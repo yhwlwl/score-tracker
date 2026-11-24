@@ -160,6 +160,58 @@ async function checkOtherData(snapshot) {
   assert.equal(list.facts[0].value,'2 场');
 }
 
+async function checkForecastLookup(snapshot) {
+  const ranked = {...snapshot, exams:snapshot.exams.map((exam,i)=>({
+    ...exam, total_rank:[44,null,55,null,36][i], total_participants:200,
+  }))};
+  let turns = 0;
+  const ranking = await explore(ranked,'下一场大概能排到哪里？',[],async messages=>{
+    if (!turns++) {
+      const {catalog} = JSON.parse(messages[1].content);
+      assert.equal(catalog.history.totalRankCount,3);
+      return {tool:'forecast',category:'高二',scopes:['错误科目']};
+    }
+    const {results:[forecast]} = JSON.parse(messages.at(-1).content);
+    assert.equal(forecast.facts[0].kind,'estimate');
+    assert.match(forecast.facts[0].source,/参考 3 场考试/);
+    return {answer:'暂时无法预测下一场排名，成绩和排名数据是空的。',refs:[]};
+  });
+  assert.match(ranking.answer,/下次总分的年级排名大概在前 \d+(\.\d+)?%/);
+  assert.equal(ranking.chart.series[0].points.at(-1).forecast,true);
+
+  turns = 0;
+  const latestOnly = {...ranked, exams:ranked.exams.slice(-1)};
+  const partial = await explore(latestOnly,'下一场大概能排到哪里？',[],async messages=>{
+    if (!turns++) return {tool:'forecast'};
+    const {results:[forecast]} = JSON.parse(messages.at(-1).content);
+    assert.match(forecast.notes[0],/已录入 1 场年级排名/);
+    return {answer:'数据不足。',refs:[]};
+  });
+  assert.match(partial.answer,/最近一次年级排名是 第 36 名/);
+  assert.equal(partial.evidence.length,1);
+
+  const requested = [];
+  turns = 0;
+  const all = await explore(ranked,'我各科下次大概能考多少？',[{question:'下一场大概能排到哪里？'}],async messages=>{
+    if (!turns++) return {tool:'trajectory',metric:'score',scopes:['s:数学']};
+    const {results:[forecast]} = JSON.parse(messages.at(-1).content);
+    assert.equal(forecast.facts.filter(f=>f.kind==='estimate').length,turns===2?2:1);
+    if (turns===2) return {tool:'trajectory',metric:'score',scopes:['s:数学']};
+    return {answer:'目前只有数学生成了下次估计。',refs:[forecast.facts[0].id]};
+  },async (subjects,metric,category)=>{
+    requested.push(subjects[0]);
+    assert.equal(metric,'score');
+    assert.equal(category,'__all__');
+    return {enabled:true,history:[66,77,70],history_dates:['2026-10-10','2026-10-11','2026-10-12'],
+      matches:[{history:[64,74,69],future:[72],match_score:90}]};
+  });
+  assert.deepEqual(requested.sort(),['数学','物理']);
+  assert.match(all.answer,/2 科的下次估计/);
+  assert.equal(all.chart.type,'table');
+  assert.deepEqual(all.chart.series[0].points.map(p=>[p.label,p.forecast]),[['数学',true],['物理',true]]);
+  assert.match(all.evidence[0].value,/按满分 150 分换算/);
+}
+
 async function checkSnapshotOwnership() {
   const seen=[];
   const rows=Array.from({length:81},(_,i)=>({id:'visible-'+i,name:'测试',exam_date:'2026-10-01',total_rank:50,
@@ -185,6 +237,7 @@ async function main() {
   await checkEventStream();
   await roundTrip(snapshot);
   await checkOtherData(snapshot);
+  await checkForecastLookup(snapshot);
   await checkSnapshotOwnership();
   const tools=studyTools(snapshot);
   const data=await tools.query({tool:'results',exams:[2,1,3,900],scopes:['total','m:custom','s:数学','s:物理','bogus']});
