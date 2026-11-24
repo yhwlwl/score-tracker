@@ -1,4 +1,4 @@
-import { recognitionConfig } from "../_shared/recognition-config.ts";
+import { recognitionConfig, verifiedProviderRow, PROVIDER_COLUMNS } from "../_shared/recognition-config.ts";
 import { creditRpc, startAiTask, finishAiTask, meteredModelFetch, AiBudgetError } from '../_shared/ai-credits.ts';
 import { aiReleaseCapabilities } from '../_shared/ai-release.ts';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -57,7 +57,7 @@ async function visionConfig() {
 
   const result = await withTimeout(
     readDatabase(() => db.from("score_tracker_ai_configs")
-      .select("openrouter_api_key,base_url,model,enabled,beta_only")
+      .select("openrouter_api_key,base_url,model,enabled,beta_only,"+PROVIDER_COLUMNS)
       .eq("id", "score_vision")
       .maybeSingle()),
     DATABASE_TIMEOUT_MS,
@@ -65,7 +65,7 @@ async function visionConfig() {
   );
   if (result.error) throw result.error;
 
-  const value = recognitionConfig(result.data);
+  const value = recognitionConfig(await verifiedProviderRow(result.data));
   visionConfigCache = { expiresAt: now + CACHE_TTL_MS, value };
   return value;
 }

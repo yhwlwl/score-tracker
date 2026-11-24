@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const context = { state: { user: { id: 'history-test' } }, document: { createElement: () => ({}), head: { appendChild() {} } } };
 context.window = context;
 vm.createContext(context);
-for (const file of ['score-worth-model.js', 'score-worth.js']) vm.runInContext(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'), context);
+for (const file of ['supabase/functions/_shared/score-worth-model.js', 'score-worth.js']) vm.runInContext(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'), context);
 const M = context.__stScoreWorthModel, UI = context.__stScoreWorth;
 function exam(i, grade = '阶段 A', population = 1000) {
   return { id: 'exam-' + i, name: '历史考试 ' + i, exam_date: '2026-10-' + String(i + 1).padStart(2, '0'), grade_level: grade,

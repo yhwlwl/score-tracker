@@ -5,26 +5,11 @@ const G=window.ScoreExamGoals;if(!G)return;
 const n=G.num,esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=(v)=>n(v)===null?'—':String(Math.round(v*100)/100);
 const mods=()=>state.modulesV18||[];
-function subjectActual(e,name){const s=e.scores?.[name]||{};return {score:n(s.actual)??(n(s.rawMax)===n(s.max)?n(s.raw):null),max:n(s.max),rank:n(s.rank),people:n(s.participants)??n(e.total_participants),percent:n(s.yearPositionPercent),scope:'subject:'+name};}
-function groupActual(e,key){
- const total=key==='total',m=total?null:mods().find(x=>String(x.id)===key.slice(2));
- if(!total&&(!m||!(e.moduleIds||[]).map(String).includes(String(m.id))))return {};
- const names=total?Object.keys(e.scores||{}).filter(s=>!e.scores[s].excludeFromTotal):m.subjects||[];
- const rows=names.map(s=>subjectActual(e,s));let max=rows.length&&rows.every(r=>n(r.max)>0)?rows.reduce((a,r)=>a+r.max,0):null;
- const score=(total?n(e.total_actual_score):null)??(rows.length&&rows.every(r=>n(r.score)!==null)?rows.reduce((a,r)=>a+r.score,0):null);
- const rank=m?e.moduleRanks?.[m.id]||{}:{yearRank:e.total_rank,yearParticipants:e.total_participants,yearPositionPercent:e.total_year_position_percent};
- return {score,max,rank:n(rank.yearRank),people:n(rank.yearParticipants),percent:n(rank.yearPositionPercent),scope:(total?'total:':'module:'+key+':')+names.slice().sort().join('|')};
-}
-function goalOf(e,key,original){
- let items=original&&e.exam_goals?.locked?e.exam_goals.locked:G.snapshot(e),g=items[key];
- if(key.startsWith('s:'))return g||null;
- let names=key==='total'?Object.keys(e.scores||{}).filter(s=>!e.scores[s].excludeFromTotal):mods().find(m=>String(m.id)===key.slice(2))?.subjects||[];
- if(key!=='total'&&!(e.moduleIds||[]).map(String).includes(key.slice(2)))return null;
- if(n(g?.score)===null&&names.length&&names.every(s=>n(items['s:'+s]?.score)!==null&&n(items['s:'+s]?.max)>0))return {...g,score:names.reduce((a,s)=>a+Number(items['s:'+s].score),0),max:names.reduce((a,s)=>a+Number(items['s:'+s].max),0)};
- return g||null;
-}
+function subjectActual(e,name){return G.measured(e,'s:'+name,mods());}
+function groupActual(e,key){return G.measured(e,key,mods());}
+function goalOf(e,key,original){return G.goalFor(e,key,mods(),original);}
 function data(exams,key){
- return exams.filter(e=>!G.pending(e)).slice().sort((a,b)=>String(a.exam_date||'').localeCompare(String(b.exam_date||''))||String(a.created_at||'').localeCompare(String(b.created_at||''))).map(e=>({exam:e,goal:goalOf(e,key,true),currentGoal:goalOf(e,key,false),actual:key.startsWith('s:')?subjectActual(e,key.slice(2)):groupActual(e,key),origin:e.exam_goals?.origin||'legacy'}));
+ return exams.filter(e=>!G.pending(e)).slice().sort((a,b)=>String(a.exam_date||'').localeCompare(String(b.exam_date||''))||String(a.created_at||'').localeCompare(String(b.created_at||''))).map(e=>({exam:e,goal:goalOf(e,key,true),currentGoal:goalOf(e,key,false),actual:G.measured(e,key,mods()),origin:e.exam_goals?.origin||'legacy'}));
 }
 function keys(exams,subjects){
  let set=new Set();if(!subjects||!subjects.length)set.add('total');

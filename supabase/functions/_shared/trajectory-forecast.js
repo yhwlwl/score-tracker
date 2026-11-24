@@ -1,5 +1,5 @@
 /* A descriptive estimate from anonymous references, not a calibrated probability. */
-(function () {
+(function (root) {
   'use strict';
   var defaults={similarity:1,history:0.5,width:1};
   function settings(input) {
@@ -55,5 +55,5 @@
     var disagreement=samples.some(function(s){return s.value<latest-0.05;})&&samples.some(function(s){return s.value>latest+0.05;});
     return {center:center,ownCenter:baseline,referenceCenter:mean,low:clamp(center-(center-low)*cfg.width),high:clamp(center+(high-center)*cfg.width),count:samples.length,disagreement:disagreement,bandwidth:bandwidth,samples:samples};
   }
-  window.__stTrajectoryForecast={settings:settings,align:align,estimate:estimate};
-})();
+  root.__stTrajectoryForecast={settings:settings,align:align,estimate:estimate};
+})(typeof window !== 'undefined' ? window : globalThis);

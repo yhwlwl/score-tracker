@@ -1,0 +1,2697 @@
+{
+  "schema": 1,
+  "kind": "live-model",
+  "commit": "40144c1557933789a62650960949c35975081951",
+  "provider": "opencode-go",
+  "model": "deepseek-v4.1-flash",
+  "stopReason": null,
+  "pricingBasis": "Score Tracker production reference credits, not provider invoice",
+  "planned": 42,
+  "executed": 42,
+  "passed": 35,
+  "results": [
+    {
+      "id": "latest-score",
+      "group": "准确性",
+      "question": "最近一次数学考了多少分？",
+      "mode": "low",
+      "trial": 1,
+      "passed": false,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "ms": 7111,
+      "calls": 2,
+      "usage": {
+        "prompt": 5626,
+        "output": 151,
+        "cache": 2560,
+        "reasoning": 0
+      },
+      "estimatedCredits": 7.442,
+      "charged": 8,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "disabled",
+          "maxTokens": 1400
+        }
+      ],
+      "answer": "最近一次数学是模拟考试6，**90/100 分，得分率 90%**。这个分数比此前几场的常态高不少（此前中位数 75%，这次高出 15 个百分点），而年级排名是第 35 名，前 35%，和平时差不多。",
+      "evidence": [
+        {
+          "label": "数学原始分",
+          "value": "90/100 分 · 得分率 90% · 年级第 35 名 / 100 人 · 年级前 35%",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学原始分得分率对照",
+          "value": "此前中位数 75% · 本次 90% · +15 个百分点",
+          "source": "模拟考试6 · 2026-10-16 · 此前 5 场可比记录"
+        },
+        {
+          "label": "数学原始分年级位置对照",
+          "value": "此前中位数前 30% · 本次前 35% · 后退 5 个百分点",
+          "source": "模拟考试6 · 2026-10-16 · 此前 5 场可比记录"
+        }
+      ]
+    },
+    {
+      "id": "rank-vs-score",
+      "group": "指标方向",
+      "question": "最近两次数学分数和年级位置分别怎么变了？",
+      "mode": "low",
+      "trial": 1,
+      "passed": false,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "ms": 8432,
+      "calls": 2,
+      "usage": {
+        "prompt": 6665,
+        "output": 356,
+        "cache": 2560,
+        "reasoning": 0
+      },
+      "estimatedCredits": 11.16,
+      "charged": 12,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "disabled",
+          "maxTokens": 1400
+        }
+      ],
+      "answer": "最近两场数学，**分数涨了，但年级位置退了**。模拟考试5是85分、年级第20名；模拟考试6是90分、年级第35名，分数多了5分，年级位置却从年级前20%落到前35%。\n\n单看这两场容易觉得矛盾，但对一下长期记录就清楚了：这次90分比此前中位数75%高了15个百分点，其实是明显超常的一回；而年级前35%也比长期中位的前30%略靠后。也就是说，分数上来了，但同场其他人也考得更高，位置反而没跟上。\n\n把6场连起来看，年级位置从最早的前45%一路进步到前20%，这两场确实又退了回去，整体仍是往前的。这次更像是分数和排名暂时不同步，不必因为名次一下退15个百分点就断定状态出了问题。",
+      "evidence": [
+        {
+          "label": "数学原始分",
+          "value": "85/100 分 · 得分率 85% · 年级第 20 名 / 100 人 · 年级前 20%",
+          "source": "模拟考试5 · 2026-10-15"
+        },
+        {
+          "label": "数学原始分",
+          "value": "90/100 分 · 得分率 90% · 年级第 35 名 / 100 人 · 年级前 35%",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学原始分分差",
+          "value": "+5 分",
+          "source": "模拟考试5 · 2026-10-15 → 模拟考试6 · 2026-10-16",
+          "kind": "change"
+        },
+        {
+          "label": "数学原始分年级位置",
+          "value": "后退 15 个百分点",
+          "source": "模拟考试5 · 2026-10-15 → 模拟考试6 · 2026-10-16",
+          "kind": "change"
+        },
+        {
+          "label": "数学原始分得分率对照",
+          "value": "此前中位数 75% · 本次 90% · +15 个百分点",
+          "source": "模拟考试6 · 2026-10-16 · 此前 5 场可比记录"
+        },
+        {
+          "label": "数学原始分年级位置对照",
+          "value": "此前中位数前 30% · 本次前 35% · 后退 5 个百分点",
+          "source": "模拟考试6 · 2026-10-16 · 此前 5 场可比记录"
+        }
+      ]
+    },
+    {
+      "id": "mixed-max",
+      "group": "统计口径",
+      "question": "两场数学满分不同，得分率进步了多少？",
+      "mode": "low",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 5805,
+      "calls": 2,
+      "usage": {
+        "prompt": 5509,
+        "output": 233,
+        "cache": 2432,
+        "reasoning": 0
+      },
+      "estimatedCredits": 8.115,
+      "charged": 9,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "disabled",
+          "maxTokens": 1400
+        }
+      ],
+      "answer": "得分率从 60% 升到 80%，**提高了 20 个百分点**。两场满分不同（100 分和 150 分），所以不能直接比原始分的 60 分和 120 分，比得分率才对：60% 对 80%。折算成同一标准，相当于原来 100 分满分考 60 分，这次能考 80 分。\n\n同时年级排名从第 45 名升到第 38 名（年级前 45% → 前 38%），位置也前进了 7 个百分点，说明这次进步不只是分数表象。",
+      "evidence": [
+        {
+          "label": "数学",
+          "value": "60/100 分 · 得分率 60% · 年级第 45 名 / 100 人 · 年级前 45%",
+          "source": "模拟考试1 · 2026-10-11"
+        },
+        {
+          "label": "数学",
+          "value": "120/150 分 · 得分率 80% · 年级第 38 名 / 100 人 · 年级前 38%",
+          "source": "模拟考试2 · 2026-10-12"
+        },
+        {
+          "label": "数学得分率变化",
+          "value": "+20 个百分点",
+          "source": "模拟考试1 · 2026-10-11 → 模拟考试2 · 2026-10-12",
+          "kind": "change"
+        },
+        {
+          "label": "数学年级位置",
+          "value": "前进 7 个百分点",
+          "source": "模拟考试1 · 2026-10-11 → 模拟考试2 · 2026-10-12",
+          "kind": "change"
+        }
+      ]
+    },
+    {
+      "id": "zero-score",
+      "group": "稀疏数据",
+      "question": "最近一次物理成绩是多少？",
+      "mode": "low",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 5440,
+      "calls": 2,
+      "usage": {
+        "prompt": 5498,
+        "output": 192,
+        "cache": 2560,
+        "reasoning": 0
+      },
+      "estimatedCredits": 7.514,
+      "charged": 8,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "disabled",
+          "maxTokens": 1400
+        }
+      ],
+      "answer": "最近一次物理是模拟考试6（2026-10-16），**0 分，满分 100，得分率 0%**。这和你之前物理的正常水平差得很远——此前 5 场的中位得分率是 60%，这次一下子低了 60 个百分点。这个 0 分更像一次特殊记录，比如缺考或没计入，不太像是正常发挥的结果，值得先确认一下这次成绩有没有录错或者漏考。",
+      "evidence": [
+        {
+          "label": "物理",
+          "value": "0/100 分 · 得分率 0%",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "物理得分率对照",
+          "value": "此前中位数 60% · 本次 0% · -60 个百分点",
+          "source": "模拟考试6 · 2026-10-16 · 此前 5 场可比记录"
+        }
+      ]
+    },
+    {
+      "id": "rank-only",
+      "group": "稀疏数据",
+      "question": "最近一次数学的成绩和年级排名是多少？",
+      "mode": "low",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 3748,
+      "calls": 2,
+      "usage": {
+        "prompt": 5175,
+        "output": 115,
+        "cache": 2432,
+        "reasoning": 0
+      },
+      "estimatedCredits": 6.503,
+      "charged": 7,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "disabled",
+          "maxTokens": 1400
+        }
+      ],
+      "answer": "最近一次数学（模拟考试6，2026-10-16）是**年级第 35 名，共 100 人，年级前 35%**。\n\n不过这次数学目前只录入了年级排名，没有录入具体分数和得分率，所以分数是多少暂时查不到。",
+      "evidence": [
+        {
+          "label": "数学",
+          "value": "年级第 35 名 / 100 人 · 年级前 35%",
+          "source": "模拟考试6 · 2026-10-16"
+        }
+      ]
+    },
+    {
+      "id": "custom-combination",
+      "group": "自定义组合",
+      "question": "最近一次自选理科组合总分多少？",
+      "mode": "low",
+      "trial": 1,
+      "passed": false,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "ms": 4833,
+      "calls": 2,
+      "usage": {
+        "prompt": 5633,
+        "output": 181,
+        "cache": 2688,
+        "reasoning": 0
+      },
+      "estimatedCredits": 7.446,
+      "charged": 8,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "disabled",
+          "maxTokens": 1400
+        }
+      ],
+      "answer": "最近一次是模拟考试6（2026-10-16），自选理科（数学＋物理）总分 **170/200，得分率 85%**。\n\n这个组合此前的中位得分率是 67.5%，这次高出 **17.5 个百分点**，是明显偏高的一次，不是常态水平。想判断是不是真进步，得再看后面几场能不能延续。",
+      "evidence": [
+        {
+          "label": "自选理科原始分",
+          "value": "170/200 分 · 得分率 85%",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "自选理科原始分得分率对照",
+          "value": "此前中位数 67.5% · 本次 85% · +17.5 个百分点",
+          "source": "模拟考试6 · 2026-10-16 · 此前 5 场可比记录"
+        }
+      ]
+    },
+    {
+      "id": "trimmed-mean",
+      "group": "通用分析",
+      "question": "数学去掉最高和最低的一场，剩下考试平均得分率是多少？",
+      "mode": "low",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 6159,
+      "calls": 2,
+      "usage": {
+        "prompt": 5711,
+        "output": 216,
+        "cache": 2560,
+        "reasoning": 0
+      },
+      "estimatedCredits": 8.132,
+      "charged": 9,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "disabled",
+          "maxTokens": 1400
+        }
+      ],
+      "answer": "数学 6 场考试去掉最高和最低各一场后，剩下 4 场的平均得分率是 **76.25%**。\n\n这 4 场在 65%～85% 之间，说明去掉极端值后中间水平大约在 3/4 上下。最低和最高的那两场被剔除后，这里反映的是平时的中间表现，不是最好或最差的状态。",
+      "evidence": [
+        {
+          "label": "数学得分率平均",
+          "value": "76.25%",
+          "source": "同口径 4 场 · 模拟考试2 · 2026-10-12 → 模拟考试5 · 2026-10-15 · 排除数值最低 1 场、最高 1 场"
+        },
+        {
+          "label": "数学得分率最小值",
+          "value": "65%",
+          "source": "同口径 4 场 · 模拟考试2 · 2026-10-12 → 模拟考试5 · 2026-10-15 · 排除数值最低 1 场、最高 1 场"
+        },
+        {
+          "label": "数学得分率最大值",
+          "value": "85%",
+          "source": "同口径 4 场 · 模拟考试2 · 2026-10-12 → 模拟考试5 · 2026-10-15 · 排除数值最低 1 场、最高 1 场"
+        },
+        {
+          "label": "数学得分率有效场次",
+          "value": "4 场",
+          "source": "同口径 4 场 · 模拟考试2 · 2026-10-12 → 模拟考试5 · 2026-10-15 · 排除数值最低 1 场、最高 1 场"
+        }
+      ]
+    },
+    {
+      "id": "grouped-stability",
+      "group": "通用分析",
+      "question": "比较高一和高二数学的得分率稳定性，用标准差和场次列成表。",
+      "mode": "low",
+      "trial": 1,
+      "passed": false,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        true
+      ],
+      "ms": 8829,
+      "calls": 2,
+      "usage": {
+        "prompt": 7411,
+        "output": 443,
+        "cache": 2560,
+        "reasoning": 0
+      },
+      "estimatedCredits": 13.348,
+      "charged": 14,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "disabled",
+          "maxTokens": 1400
+        }
+      ],
+      "answer": "高一和高二的数学得分率波动都不小，但**高二反而更不稳定一些**：标准差 10.8 个百分点，高一 8.5 个百分点。不过高二整体水平更高，平均 80%，高一为 71.7%。\n\n| 阶段 | 场次 | 平均得分率 | 标准差 | 最低～最高 |\n|---|---|---|---|---|\n| 高一 | 3 | 71.7% | 8.5 个百分点 | 60%～80% |\n| 高二 | 3 | 80.0% | 10.8 个百分点 | 65%～90% |\n\n**高一是稳定爬升，波动大多来自上涨。** 三场依次是 60%、75%、80%，方向一致。\n\n**高二则是上下跳动。** 三场依次是 65%、85%、90%，中间一次掉了 15 个百分点，上下落差大，这也是标准差更高的原因。不过高二三场都在 65% 以上，底子比高一更稳当。两边各只有 3 场，标准差只是个粗略参考。",
+      "evidence": [
+        {
+          "label": "数学得分率平均",
+          "value": "71.67%",
+          "source": "同口径 3 场 · 模拟考试1 · 2026-10-11 → 模拟考试3 · 2026-10-13"
+        },
+        {
+          "label": "数学得分率标准差",
+          "value": "8.5 个百分点",
+          "source": "同口径 3 场 · 模拟考试1 · 2026-10-11 → 模拟考试3 · 2026-10-13"
+        },
+        {
+          "label": "数学得分率有效场次",
+          "value": "3 场",
+          "source": "同口径 3 场 · 模拟考试1 · 2026-10-11 → 模拟考试3 · 2026-10-13"
+        },
+        {
+          "label": "数学得分率平均",
+          "value": "80%",
+          "source": "同口径 3 场 · 模拟考试4 · 2026-10-14 → 模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学得分率标准差",
+          "value": "10.8 个百分点",
+          "source": "同口径 3 场 · 模拟考试4 · 2026-10-14 → 模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学得分率有效场次",
+          "value": "3 场",
+          "source": "同口径 3 场 · 模拟考试4 · 2026-10-14 → 模拟考试6 · 2026-10-16"
+        }
+      ]
+    },
+    {
+      "id": "synchronized-change",
+      "group": "分析方法",
+      "question": "哪些科目容易同时进步或退步？有没有什么规律？",
+      "mode": "low",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 12229,
+      "calls": 2,
+      "usage": {
+        "prompt": 6995,
+        "output": 581,
+        "cache": 2560,
+        "reasoning": 0
+      },
+      "estimatedCredits": 13.62,
+      "charged": 14,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "disabled",
+          "maxTokens": 1400
+        }
+      ],
+      "answer": "有，而且规律挺明显：**数学和物理几乎是一条线在动，英语则常常和它们反着来。**\n\n**数学 ↔ 物理：同进同退**\n5 次相邻变化里，两科同向 5 次、反向 0 次，进退相关系数 0.98；水平上两科也高度同步（0.98）。比如从模拟3到模拟4，数学降了 15 个百分点、物理也降了 10 个百分点；模拟4到5，两科又一起涨了 20 个百分点。起点到最近一场，两科都整整提高了 30 个百分点（数学 60%→90%，物理 50%→80%）。这两科目前是绑在一起的。\n\n**英语 ↔ 数学、物理：多是此消彼长**\n英语和数学的进退相关性是 -0.84，和物理是 -0.85，5 次变化里都有 4 次反向。数学、物理冲得猛的场次，英语往往回落：模拟4→5，数学物理各涨 20 个百分点，英语掉了 15 个百分点；模拟1→2，两科上涨，英语降了 10 个百分点。整体上英语从 90% 一路滑到 70%。\n\n**怎么理解这个规律**\n这只是同一段时期里成绩变化的同步关系，**不代表一科拖累了另一科**，也不能说明具体原因——可能是复习时间分配、考试节奏或状态起伏，现有数据分不出来。值得留意的是英语的下滑是连续几场累积的，而数学物理近两场都在高点。\n\n如果只做一件事：把英语最近几场和数学物理高分场次的复习安排对照一下，看时间是不是明显偏向了理科。",
+      "evidence": [
+        {
+          "label": "数学得分率与物理得分率的进退相关性",
+          "value": "变化相关系数 0.98 · 5 组变化 · 同向 5 次 · 反向 0 次 · 持平 0 次",
+          "source": "相邻共同有效考试 · 进步为正、退步为负 · 不代表因果"
+        },
+        {
+          "label": "物理得分率与英语得分率的进退相关性",
+          "value": "变化相关系数 -0.85 · 5 组变化 · 同向 1 次 · 反向 4 次 · 持平 0 次",
+          "source": "相邻共同有效考试 · 进步为正、退步为负 · 不代表因果"
+        },
+        {
+          "label": "数学得分率与英语得分率的进退相关性",
+          "value": "变化相关系数 -0.84 · 5 组变化 · 同向 1 次 · 反向 4 次 · 持平 0 次",
+          "source": "相邻共同有效考试 · 进步为正、退步为负 · 不代表因果"
+        },
+        {
+          "label": "数学得分率首末变化",
+          "value": "30 个百分点",
+          "source": "同口径 6 场 · 模拟考试1 · 2026-10-11 → 模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "物理得分率首末变化",
+          "value": "30 个百分点",
+          "source": "同口径 6 场 · 模拟考试1 · 2026-10-11 → 模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "英语得分率首末变化",
+          "value": "-20 个百分点",
+          "source": "同口径 6 场 · 模拟考试1 · 2026-10-11 → 模拟考试6 · 2026-10-16"
+        }
+      ]
+    },
+    {
+      "id": "all-subject-forecast",
+      "group": "预测覆盖",
+      "question": "我各科下次大概能考多少？",
+      "mode": "low",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 7519,
+      "calls": 2,
+      "usage": {
+        "prompt": 5850,
+        "output": 405,
+        "cache": 2560,
+        "reasoning": 0
+      },
+      "estimatedCredits": 9.922,
+      "charged": 10,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "disabled",
+          "maxTokens": 1400
+        }
+      ],
+      "answer": "查到了 3 科的下次估计。下表是各科的得分率及参考范围。",
+      "evidence": [
+        {
+          "label": "数学下次得分率估计",
+          "value": "80% · 按满分 100 分换算约 80 分 · 历史粗略参考",
+          "source": "个人历史粗略参考 · 最近 5 场同口径得分率中位数 · 无适用相似轨迹估计",
+          "kind": "estimate"
+        },
+        {
+          "label": "数学历史得分率范围",
+          "value": "65% ～ 90%",
+          "source": "历史实际波动，不是预测区间"
+        },
+        {
+          "label": "物理下次得分率估计",
+          "value": "65% · 按满分 100 分换算约 65 分 · 历史粗略参考",
+          "source": "个人历史粗略参考 · 最近 5 场同口径得分率中位数 · 无适用相似轨迹估计",
+          "kind": "estimate"
+        },
+        {
+          "label": "物理历史得分率范围",
+          "value": "55% ～ 80%",
+          "source": "历史实际波动，不是预测区间"
+        },
+        {
+          "label": "英语下次得分率估计",
+          "value": "80% · 按满分 100 分换算约 80 分 · 历史粗略参考",
+          "source": "个人历史粗略参考 · 最近 5 场同口径得分率中位数 · 无适用相似轨迹估计",
+          "kind": "estimate"
+        },
+        {
+          "label": "英语历史得分率范围",
+          "value": "70% ～ 90%",
+          "source": "历史实际波动，不是预测区间"
+        }
+      ]
+    },
+    {
+      "id": "usual-total",
+      "group": "通用分析",
+      "question": "如果每科都发挥到平时的水平，总分大概是多少？和这次相比呢？",
+      "mode": "low",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 8930,
+      "calls": 2,
+      "usage": {
+        "prompt": 7486,
+        "output": 380,
+        "cache": 2560,
+        "reasoning": 0
+      },
+      "estimatedCredits": 12.994,
+      "charged": 13,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "disabled",
+          "maxTokens": 1400
+        }
+      ],
+      "answer": "按各科此前的中位得分率、换算成本次满分计算：**220/300 分**。\n\n实际 240/300 分，实际较常态 +20 分。这只是各科历史常态相加，不是下一场考试预测。",
+      "evidence": [
+        {
+          "id": 1,
+          "label": "数学正常发挥参考",
+          "value": "75/100 分 · 本次 90 分 · 实际较常态 +15 分",
+          "source": "模拟考试6 · 2026-10-16 · 此前 5 场同口径得分率中位数"
+        },
+        {
+          "id": 2,
+          "label": "物理正常发挥参考",
+          "value": "60/100 分 · 本次 80 分 · 实际较常态 +20 分",
+          "source": "模拟考试6 · 2026-10-16 · 此前 5 场同口径得分率中位数"
+        },
+        {
+          "id": 3,
+          "label": "英语正常发挥参考",
+          "value": "85/100 分 · 本次 70 分 · 实际较常态 -15 分",
+          "source": "模拟考试6 · 2026-10-16 · 此前 5 场同口径得分率中位数"
+        },
+        {
+          "id": 4,
+          "label": "各科正常发挥总分",
+          "value": "220/300 分 · 实际 240/300 分 · 实际较常态 +20 分",
+          "source": "模拟考试6 · 2026-10-16 · 各科此前中位得分率按本次满分换算，非预测"
+        }
+      ]
+    },
+    {
+      "id": "interactive-total",
+      "group": "交互组件",
+      "question": "如果物理再多5分，总分是多少？我想自己调整各科分数。",
+      "mode": "low",
+      "trial": 1,
+      "passed": false,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false
+      ],
+      "ms": 7758,
+      "calls": 2,
+      "usage": {
+        "prompt": 6433,
+        "output": 177,
+        "cache": 2560,
+        "reasoning": 0
+      },
+      "estimatedCredits": 9.264,
+      "charged": 10,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "disabled",
+          "maxTokens": 1400
+        }
+      ],
+      "answer": "模拟考试6 这次，数学 90、物理 80、英语 70，总分是 240/300。物理再多 5 分的话，总分就是 **245/300**。\n\n这个只是按其他科目分数不变算出来的模拟总分，不涉及年级排名变化。下边你可以自己调整各科分数，看看总分怎么变。",
+      "evidence": [
+        {
+          "label": "物理原始分",
+          "value": "80/100 分 · 得分率 80% · 年级第 35 名 / 100 人 · 年级前 35%",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "英语原始分",
+          "value": "70/100 分 · 得分率 70% · 年级第 40 名 / 100 人 · 年级前 40%",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学原始分",
+          "value": "90/100 分 · 得分率 90% · 年级第 35 名 / 100 人 · 年级前 35%",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "模拟总分",
+          "value": "240/300 分 · 实际 240/300 分 · 变化 0 分",
+          "source": "模拟考试6 · 2026-10-16 · 其他科目保持不变，不是排名预测"
+        }
+      ]
+    },
+    {
+      "id": "chart-grounding",
+      "group": "交互组件",
+      "question": "画出最近两场数学得分率的柱状图。",
+      "mode": "low",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 8037,
+      "calls": 2,
+      "usage": {
+        "prompt": 5889,
+        "output": 175,
+        "cache": 2560,
+        "reasoning": 0
+      },
+      "estimatedCredits": 8.16,
+      "charged": 9,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "disabled",
+          "maxTokens": 1400
+        }
+      ],
+      "answer": "最近两场数学得分率：模拟考试5 是 85%，模拟考试6 是 90%，比上一场高了 5 个百分点。\n\n不过这次年级排名反而从第 20 名（前 20%）退到第 35 名（前 35%）。分数涨了、位置却往后挪，说明这场大家整体考得更高，自己的涨幅没跟上队伍——值得留意。",
+      "evidence": [
+        {
+          "label": "数学",
+          "value": "85/100 分 · 得分率 85% · 年级第 20 名 / 100 人 · 年级前 20%",
+          "source": "模拟考试5 · 2026-10-15"
+        },
+        {
+          "label": "数学",
+          "value": "90/100 分 · 得分率 90% · 年级第 35 名 / 100 人 · 年级前 35%",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学分差",
+          "value": "+5 分",
+          "source": "模拟考试5 · 2026-10-15 → 模拟考试6 · 2026-10-16",
+          "kind": "change"
+        },
+        {
+          "label": "数学年级位置",
+          "value": "后退 15 个百分点",
+          "source": "模拟考试5 · 2026-10-15 → 模拟考试6 · 2026-10-16",
+          "kind": "change"
+        }
+      ]
+    },
+    {
+      "id": "follow-up-scope",
+      "group": "连续追问",
+      "question": "那只看高二呢？",
+      "mode": "low",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 5411,
+      "calls": 2,
+      "usage": {
+        "prompt": 5624,
+        "output": 196,
+        "cache": 2560,
+        "reasoning": 0
+      },
+      "estimatedCredits": 7.798,
+      "charged": 8,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "disabled",
+          "maxTokens": 1400
+        }
+      ],
+      "answer": "只看高二的 3 场数学，平均得分率是 **80%**，比全历史平均的 75.8% 高了约 4.2 个百分点。不过这 3 场之间波动不小：最低 65%，最高 90%，均值受中间那场影响较大。\n\n所以「高二平均 80%」只是一个总体数字，具体每场差得比较多，看单次成绩时别直接用这个均值去套。",
+      "evidence": [
+        {
+          "label": "数学得分率平均",
+          "value": "80%",
+          "source": "同口径 3 场 · 模拟考试4 · 2026-10-14 → 模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学得分率有效场次",
+          "value": "3 场",
+          "source": "同口径 3 场 · 模拟考试4 · 2026-10-14 → 模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学得分率最小值",
+          "value": "65%",
+          "source": "同口径 3 场 · 模拟考试4 · 2026-10-14 → 模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学得分率最大值",
+          "value": "90%",
+          "source": "同口径 3 场 · 模拟考试4 · 2026-10-14 → 模拟考试6 · 2026-10-16"
+        }
+      ]
+    },
+    {
+      "id": "latest-score",
+      "group": "准确性",
+      "question": "最近一次数学考了多少分？",
+      "mode": "standard",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 7108,
+      "calls": 2,
+      "usage": {
+        "prompt": 5634,
+        "output": 238,
+        "cache": 0,
+        "reasoning": 98
+      },
+      "estimatedCredits": 13.172,
+      "charged": 14,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 2000
+        }
+      ],
+      "answer": "最近一次数学（模拟考试6，10月16日）考了 **90/100 分，得分率 90%**，年级第 35 名（共 100 人），年级前 35%。\n\n和之前比，这次明显比平时的 75% 高了一截，但年级位置反而是前 35%，略低于此前的中位前 30%——分数好看了，排名却没跟着往前。",
+      "evidence": [
+        {
+          "label": "数学",
+          "value": "90/100 分 · 得分率 90% · 年级第 35 名 / 100 人 · 年级前 35%",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学得分率对照",
+          "value": "此前中位数 75% · 本次 90% · +15 个百分点",
+          "source": "模拟考试6 · 2026-10-16 · 此前 5 场可比记录"
+        },
+        {
+          "label": "数学年级位置对照",
+          "value": "此前中位数前 30% · 本次前 35% · 后退 5 个百分点",
+          "source": "模拟考试6 · 2026-10-16 · 此前 5 场可比记录"
+        }
+      ]
+    },
+    {
+      "id": "rank-vs-score",
+      "group": "指标方向",
+      "question": "最近两次数学分数和年级位置分别怎么变了？",
+      "mode": "standard",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 15546,
+      "calls": 2,
+      "usage": {
+        "prompt": 6128,
+        "output": 754,
+        "cache": 0,
+        "reasoning": 426
+      },
+      "estimatedCredits": 18.288,
+      "charged": 19,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 2000
+        }
+      ],
+      "answer": "数学这两次方向不太一样：**分数涨了，年级位置反而退了。**\n\n**分数**：模拟考试5 是 85/100（得分率 85%），模拟考试6 是 90/100（90%），提高了 5 分，也比此前几场的常态水平（中位 75%）高不少。\n\n**年级位置**：从第 20 名 / 100 人（年级前 20%）落到第 35 名（前 35%），名次后退 15 名、位置后退 15 个百分点。\n\n所以这次不是「考差了」，而是分数上去了、在年级里的相对位置没跟上——90 分放在这次考试里，不如 85 分在上一场里那么靠前。两件事同时看，才不至于被单看分数误导。",
+      "evidence": [
+        {
+          "label": "数学",
+          "value": "85/100 分 · 得分率 85% · 年级第 20 名 / 100 人 · 年级前 20%",
+          "source": "模拟考试5 · 2026-10-15"
+        },
+        {
+          "label": "数学",
+          "value": "90/100 分 · 得分率 90% · 年级第 35 名 / 100 人 · 年级前 35%",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学分差",
+          "value": "+5 分",
+          "source": "模拟考试5 · 2026-10-15 → 模拟考试6 · 2026-10-16",
+          "kind": "change"
+        },
+        {
+          "label": "数学年级位置",
+          "value": "后退 15 个百分点",
+          "source": "模拟考试5 · 2026-10-15 → 模拟考试6 · 2026-10-16",
+          "kind": "change"
+        }
+      ]
+    },
+    {
+      "id": "mixed-max",
+      "group": "统计口径",
+      "question": "两场数学满分不同，得分率进步了多少？",
+      "mode": "standard",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 8740,
+      "calls": 2,
+      "usage": {
+        "prompt": 5534,
+        "output": 216,
+        "cache": 0,
+        "reasoning": 32
+      },
+      "estimatedCredits": 12.796,
+      "charged": 13,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 2000
+        }
+      ],
+      "answer": "数学的得分率从 60% 升到 80%，进步了 20 个百分点。\n\n两场考试的满分确实不同：模拟考试1 是 60/100，模拟考试2 是 120/150。把两次都按得分率比较，才能看出真实进步。年级排名也从第 45 名升到第 38 名，位置前进了 7 个百分点，与得分率的进步方向一致。",
+      "evidence": [
+        {
+          "label": "数学",
+          "value": "60/100 分 · 得分率 60% · 年级第 45 名 / 100 人 · 年级前 45%",
+          "source": "模拟考试1 · 2026-10-11"
+        },
+        {
+          "label": "数学",
+          "value": "120/150 分 · 得分率 80% · 年级第 38 名 / 100 人 · 年级前 38%",
+          "source": "模拟考试2 · 2026-10-12"
+        },
+        {
+          "label": "数学得分率变化",
+          "value": "+20 个百分点",
+          "source": "模拟考试1 · 2026-10-11 → 模拟考试2 · 2026-10-12",
+          "kind": "change"
+        },
+        {
+          "label": "数学年级位置",
+          "value": "前进 7 个百分点",
+          "source": "模拟考试1 · 2026-10-11 → 模拟考试2 · 2026-10-12",
+          "kind": "change"
+        }
+      ]
+    },
+    {
+      "id": "zero-score",
+      "group": "稀疏数据",
+      "question": "最近一次物理成绩是多少？",
+      "mode": "standard",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 14489,
+      "calls": 3,
+      "usage": {
+        "prompt": 9632,
+        "output": 639,
+        "cache": 2816,
+        "reasoning": 463
+      },
+      "estimatedCredits": 18.857,
+      "charged": 19,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 2000
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 2000
+        }
+      ],
+      "answer": "最近一次物理是**模拟考试6（10月16日）**：**0/100 分，得分率 0%**。\n\n这个成绩和之前五场差别很大——之前物理在 50～75 分之间，中位数是 60%，所以这次更像是异常记录，而不像正常水平。建议先确认一下是不是缺考或者分数录入有问题。",
+      "evidence": [
+        {
+          "label": "物理",
+          "value": "0/100 分 · 得分率 0%",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "物理得分率对照",
+          "value": "此前中位数 60% · 本次 0% · -60 个百分点",
+          "source": "模拟考试6 · 2026-10-16 · 此前 5 场可比记录"
+        },
+        {
+          "label": "物理",
+          "value": "75/100 分 · 得分率 75% · 年级第 35 名 / 100 人 · 年级前 35%",
+          "source": "模拟考试5 · 2026-10-15"
+        }
+      ]
+    },
+    {
+      "id": "rank-only",
+      "group": "稀疏数据",
+      "question": "最近一次数学的成绩和年级排名是多少？",
+      "mode": "standard",
+      "trial": 1,
+      "passed": false,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        true,
+        true
+      ],
+      "ms": 10254,
+      "calls": 2,
+      "usage": {
+        "prompt": 5370,
+        "output": 399,
+        "cache": 2176,
+        "reasoning": 194
+      },
+      "estimatedCredits": 9.667,
+      "charged": 10,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 2000
+        }
+      ],
+      "answer": "最近一次数学是 **模拟考试6（2026-10-16）**：年级第 **35 名**（100 人），也就是年级前 **35%**。不过这次数学的分数没有录入，所以具体考了多少分暂时查不到，目前只有排名。\n\n因为只有这一场记录，还看不出和之前比是升了还是降了。之后把后续几场的成绩补上，就能看出位置大概在哪个区间、有没有明显变化。",
+      "evidence": [
+        {
+          "label": "数学",
+          "value": "年级第 35 名 / 100 人 · 年级前 35%",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "考试记录",
+          "value": "1 场",
+          "source": "所选考试范围"
+        }
+      ]
+    },
+    {
+      "id": "custom-combination",
+      "group": "自定义组合",
+      "question": "最近一次自选理科组合总分多少？",
+      "mode": "standard",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 8738,
+      "calls": 2,
+      "usage": {
+        "prompt": 5944,
+        "output": 239,
+        "cache": 0,
+        "reasoning": 75
+      },
+      "estimatedCredits": 13.8,
+      "charged": 14,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 2000
+        }
+      ],
+      "answer": "最近一次是模拟考试6（10月16日），自选理科（数学、物理）组合总分 **170/200**，得分率 **85%**。\n\n这比你此前几场的水平高出不少——之前这个组合的得分率中位数是 67.5%，这次往上提了一大截，算是近期明显更好的一场。",
+      "evidence": [
+        {
+          "label": "自选理科",
+          "value": "170/200 分 · 得分率 85%",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "自选理科得分率对照",
+          "value": "此前中位数 67.5% · 本次 85% · +17.5 个百分点",
+          "source": "模拟考试6 · 2026-10-16 · 此前 5 场可比记录"
+        }
+      ]
+    },
+    {
+      "id": "trimmed-mean",
+      "group": "通用分析",
+      "question": "数学去掉最高和最低的一场，剩下考试平均得分率是多少？",
+      "mode": "standard",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 12493,
+      "calls": 2,
+      "usage": {
+        "prompt": 5687,
+        "output": 434,
+        "cache": 0,
+        "reasoning": 238
+      },
+      "estimatedCredits": 14.846,
+      "charged": 15,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 2000
+        }
+      ],
+      "answer": "数学去掉最高和最低各一场后，剩下 4 场的平均得分率是 **76.25%**。\n\n这 4 场中最低 65%、最高 85%，说明去掉首尾后，中间这几场的波动仍然不小。76.25% 可以看作数学比较有代表性的常态水平；个别场次偏得很远，因此单看一场不太可靠。",
+      "evidence": [
+        {
+          "label": "数学得分率平均",
+          "value": "76.25%",
+          "source": "同口径 4 场 · 模拟考试2 · 2026-10-12 → 模拟考试5 · 2026-10-15 · 排除数值最低 1 场、最高 1 场"
+        },
+        {
+          "label": "数学得分率有效场次",
+          "value": "4 场",
+          "source": "同口径 4 场 · 模拟考试2 · 2026-10-12 → 模拟考试5 · 2026-10-15 · 排除数值最低 1 场、最高 1 场"
+        }
+      ]
+    },
+    {
+      "id": "grouped-stability",
+      "group": "通用分析",
+      "question": "比较高一和高二数学的得分率稳定性，用标准差和场次列成表。",
+      "mode": "standard",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 17027,
+      "calls": 2,
+      "usage": {
+        "prompt": 6075,
+        "output": 1098,
+        "cache": 0,
+        "reasoning": 742
+      },
+      "estimatedCredits": 20.934,
+      "charged": 21,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 2000
+        }
+      ],
+      "answer": "**高二数学得分率整体更高，但波动也更大；高一反而更稳。**\n\n高一 3 场平均 71.7%，标准差 8.5 个百分点；高二 3 场平均 80%，标准差 10.8 个百分点。高二高出 8.3 个百分点，但离散程度也大了约 2 个百分点。\n\n看具体走势：高一从 60% 到 75%，再到 80%，是一路往上抬；高二从 65% 到 85%，再到 90%，爬得更陡。高二那 10.8 个百分点的波动，主要是第一场 65% 拖出来的，后两场已经到 85%、90% 这个区间。所以与其说高二“不稳”，不如说它起点低、后面追得快。\n\n要留个心：两边各只有 3 场，标准差本身就很粗糙，差 2 个百分点谈不上明显区别，只能当个参考方向。",
+      "evidence": [
+        {
+          "label": "数学 · 高一得分率标准差",
+          "value": "8.5 个百分点",
+          "source": "同口径 3 场 · 模拟考试1 · 2026-10-11 → 模拟考试3 · 2026-10-13"
+        },
+        {
+          "label": "数学 · 高一得分率有效场次",
+          "value": "3 场",
+          "source": "同口径 3 场 · 模拟考试1 · 2026-10-11 → 模拟考试3 · 2026-10-13"
+        },
+        {
+          "label": "数学 · 高二得分率标准差",
+          "value": "10.8 个百分点",
+          "source": "同口径 3 场 · 模拟考试4 · 2026-10-14 → 模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学 · 高二得分率有效场次",
+          "value": "3 场",
+          "source": "同口径 3 场 · 模拟考试4 · 2026-10-14 → 模拟考试6 · 2026-10-16"
+        }
+      ]
+    },
+    {
+      "id": "synchronized-change",
+      "group": "分析方法",
+      "question": "哪些科目容易同时进步或退步？有没有什么规律？",
+      "mode": "standard",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 12757,
+      "calls": 2,
+      "usage": {
+        "prompt": 5991,
+        "output": 722,
+        "cache": 4480,
+        "reasoning": 292
+      },
+      "estimatedCredits": 8.977,
+      "charged": 9,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 2000
+        }
+      ],
+      "answer": "**结论先说：数学和物理基本是一起涨、一起跌；英语和它俩的节奏常常相反。**\n\n**数学 ↔ 物理：同进同退**\n5 次相邻考试里，两科的得分率变化有 5 次同向、0 次反向，变化相关系数 0.98。比如某场数学涨了，物理往往也在涨；数学掉的那次，物理也跟着掉。这两科在你目前的数据里，像是被同一股状态牵着走。\n\n**英语：多半和数学、物理反着来**\n数学与英语 5 次变化里 4 次反向，物理与英语也是 4 次反向。也就是说，数学物理一起好的那几场，英语常常偏弱；反过来英语上来时，数理可能回落。三科的水平高低也呈现类似方向（数学与英语 -0.92，物理与英语 -0.93）。\n\n**这只是 6 场考试里的观察**\n相关不等于因果，也不能说明是时间分配、状态还是别的原因造成的。样本只有 6 场，规律能当参考，但别当成铁律。真要验证，看接下来两三场：数学物理是否继续同步、英语是否还反着走，会比现在的 5 组变化更有说服力。",
+      "evidence": [
+        {
+          "label": "数学得分率与物理得分率的进退相关性",
+          "value": "变化相关系数 0.98 · 5 组变化 · 同向 5 次 · 反向 0 次 · 持平 0 次",
+          "source": "相邻共同有效考试 · 进步为正、退步为负 · 不代表因果"
+        },
+        {
+          "label": "物理得分率与英语得分率的进退相关性",
+          "value": "变化相关系数 -0.85 · 5 组变化 · 同向 1 次 · 反向 4 次 · 持平 0 次",
+          "source": "相邻共同有效考试 · 进步为正、退步为负 · 不代表因果"
+        },
+        {
+          "label": "数学得分率与英语得分率的进退相关性",
+          "value": "变化相关系数 -0.84 · 5 组变化 · 同向 1 次 · 反向 4 次 · 持平 0 次",
+          "source": "相邻共同有效考试 · 进步为正、退步为负 · 不代表因果"
+        }
+      ]
+    },
+    {
+      "id": "all-subject-forecast",
+      "group": "预测覆盖",
+      "question": "我各科下次大概能考多少？",
+      "mode": "standard",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 19401,
+      "calls": 2,
+      "usage": {
+        "prompt": 5875,
+        "output": 1349,
+        "cache": 2176,
+        "reasoning": 981
+      },
+      "estimatedCredits": 18.277,
+      "charged": 19,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 2000
+        }
+      ],
+      "answer": "查到了 3 科的下次估计。下表是各科的得分率及参考范围。",
+      "evidence": [
+        {
+          "label": "数学下次得分率估计",
+          "value": "80% · 按满分 100 分换算约 80 分 · 历史粗略参考",
+          "source": "个人历史粗略参考 · 最近 5 场同口径得分率中位数 · 无适用相似轨迹估计",
+          "kind": "estimate"
+        },
+        {
+          "label": "数学历史得分率范围",
+          "value": "65% ～ 90%",
+          "source": "历史实际波动，不是预测区间"
+        },
+        {
+          "label": "物理下次得分率估计",
+          "value": "65% · 按满分 100 分换算约 65 分 · 历史粗略参考",
+          "source": "个人历史粗略参考 · 最近 5 场同口径得分率中位数 · 无适用相似轨迹估计",
+          "kind": "estimate"
+        },
+        {
+          "label": "物理历史得分率范围",
+          "value": "55% ～ 80%",
+          "source": "历史实际波动，不是预测区间"
+        },
+        {
+          "label": "英语下次得分率估计",
+          "value": "80% · 按满分 100 分换算约 80 分 · 历史粗略参考",
+          "source": "个人历史粗略参考 · 最近 5 场同口径得分率中位数 · 无适用相似轨迹估计",
+          "kind": "estimate"
+        },
+        {
+          "label": "英语历史得分率范围",
+          "value": "70% ～ 90%",
+          "source": "历史实际波动，不是预测区间"
+        }
+      ]
+    },
+    {
+      "id": "usual-total",
+      "group": "通用分析",
+      "question": "如果每科都发挥到平时的水平，总分大概是多少？和这次相比呢？",
+      "mode": "standard",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 8602,
+      "calls": 2,
+      "usage": {
+        "prompt": 6708,
+        "output": 440,
+        "cache": 0,
+        "reasoning": 67
+      },
+      "estimatedCredits": 16.936,
+      "charged": 17,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 2000
+        }
+      ],
+      "answer": "按各科此前的中位得分率、换算成本次满分计算：**220/300 分**。\n\n实际 240/300 分，实际较常态 +20 分。这只是各科历史常态相加，不是下一场考试预测。",
+      "evidence": [
+        {
+          "id": 1,
+          "label": "数学正常发挥参考",
+          "value": "75/100 分 · 本次 90 分 · 实际较常态 +15 分",
+          "source": "模拟考试6 · 2026-10-16 · 此前 5 场同口径得分率中位数"
+        },
+        {
+          "id": 2,
+          "label": "物理正常发挥参考",
+          "value": "60/100 分 · 本次 80 分 · 实际较常态 +20 分",
+          "source": "模拟考试6 · 2026-10-16 · 此前 5 场同口径得分率中位数"
+        },
+        {
+          "id": 3,
+          "label": "英语正常发挥参考",
+          "value": "85/100 分 · 本次 70 分 · 实际较常态 -15 分",
+          "source": "模拟考试6 · 2026-10-16 · 此前 5 场同口径得分率中位数"
+        },
+        {
+          "id": 4,
+          "label": "各科正常发挥总分",
+          "value": "220/300 分 · 实际 240/300 分 · 实际较常态 +20 分",
+          "source": "模拟考试6 · 2026-10-16 · 各科此前中位得分率按本次满分换算，非预测"
+        }
+      ]
+    },
+    {
+      "id": "interactive-total",
+      "group": "交互组件",
+      "question": "如果物理再多5分，总分是多少？我想自己调整各科分数。",
+      "mode": "standard",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 6961,
+      "calls": 2,
+      "usage": {
+        "prompt": 6788,
+        "output": 334,
+        "cache": 2176,
+        "reasoning": 111
+      },
+      "estimatedCredits": 11.983,
+      "charged": 12,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 2000
+        }
+      ],
+      "answer": "物理从 80 分加到 85 分，**总分就从 240 变成 245 分**（满分 300），得分率从 80% 到 81.7%。这里只把物理这一科加了 5 分，其他科目不变，也不推算排名。\n\n想调其他科目的话，直接在下面的模拟器里改分数就行。总分目前只算了已录入的数学、物理、英语三科。",
+      "evidence": [
+        {
+          "label": "总分原始分",
+          "value": "240/300 分 · 得分率 80% · 年级第 32 名 / 100 人 · 年级前 32%",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "物理原始分",
+          "value": "80/100 分 · 得分率 80% · 年级第 35 名 / 100 人 · 年级前 35%",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "物理模拟成绩",
+          "value": "80 → 85 分",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "模拟总分",
+          "value": "245/300 分 · 实际 240/300 分 · 变化 +5 分",
+          "source": "模拟考试6 · 2026-10-16 · 其他科目保持不变，不是排名预测"
+        }
+      ]
+    },
+    {
+      "id": "chart-grounding",
+      "group": "交互组件",
+      "question": "画出最近两场数学得分率的柱状图。",
+      "mode": "standard",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 7275,
+      "calls": 2,
+      "usage": {
+        "prompt": 5918,
+        "output": 227,
+        "cache": 0,
+        "reasoning": 56
+      },
+      "estimatedCredits": 13.652,
+      "charged": 14,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 2000
+        }
+      ],
+      "answer": "最近两场数学得分率：**模拟考试5 是 85%，模拟考试6 升到 90%**，提高了 5 个百分点。分数从 85 分到 90 分（满分按 100 分计），但年级排名从第 20 名到第 35 名，往后了 15 名。分数在涨，年级位置反而靠后。",
+      "evidence": [
+        {
+          "label": "数学",
+          "value": "85/100 分 · 得分率 85% · 年级第 20 名 / 100 人 · 年级前 20%",
+          "source": "模拟考试5 · 2026-10-15"
+        },
+        {
+          "label": "数学",
+          "value": "90/100 分 · 得分率 90% · 年级第 35 名 / 100 人 · 年级前 35%",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学分差",
+          "value": "+5 分",
+          "source": "模拟考试5 · 2026-10-15 → 模拟考试6 · 2026-10-16",
+          "kind": "change"
+        },
+        {
+          "label": "数学年级位置",
+          "value": "后退 15 个百分点",
+          "source": "模拟考试5 · 2026-10-15 → 模拟考试6 · 2026-10-16",
+          "kind": "change"
+        }
+      ]
+    },
+    {
+      "id": "follow-up-scope",
+      "group": "连续追问",
+      "question": "那只看高二呢？",
+      "mode": "standard",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 13471,
+      "calls": 3,
+      "usage": {
+        "prompt": 9527,
+        "output": 518,
+        "cache": 2944,
+        "reasoning": 229
+      },
+      "estimatedCredits": 17.428,
+      "charged": 18,
+      "trace": [
+        {
+          "thinking": "disabled",
+          "maxTokens": 800
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 2000
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 2000
+        }
+      ],
+      "answer": "只看高二的话，数学平均得分率是 **80%**，比全历史均值 75.8% 高一些。\n\n高二这 3 场：65% → 85% → 90%，分数一路往上走，最近两场都在 85% 以上，比高一阶段整体更稳。\n\n不过最后一场要留意：分数涨到 90%，年级排名却从前 20% 退到前 35%。这次分数变高，但年级位置反而下降；报分时要分开看，不能只看到 90 分。",
+      "evidence": [
+        {
+          "label": "数学得分率平均",
+          "value": "80%",
+          "source": "同口径 3 场 · 模拟考试4 · 2026-10-14 → 模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学得分率有效场次",
+          "value": "3 场",
+          "source": "同口径 3 场 · 模拟考试4 · 2026-10-14 → 模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学得分率最早",
+          "value": "65%",
+          "source": "同口径 3 场 · 模拟考试4 · 2026-10-14 → 模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学得分率最近",
+          "value": "90%",
+          "source": "同口径 3 场 · 模拟考试4 · 2026-10-14 → 模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学得分率首末变化",
+          "value": "25 个百分点",
+          "source": "同口径 3 场 · 模拟考试4 · 2026-10-14 → 模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学",
+          "value": "65/100 分 · 得分率 65% · 年级第 22 名 / 100 人 · 年级前 22%",
+          "source": "模拟考试4 · 2026-10-14"
+        }
+      ]
+    },
+    {
+      "id": "latest-score",
+      "group": "准确性",
+      "question": "最近一次数学考了多少分？",
+      "mode": "high",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 7193,
+      "calls": 2,
+      "usage": {
+        "prompt": 5931,
+        "output": 381,
+        "cache": 2560,
+        "reasoning": 199
+      },
+      "estimatedCredits": 9.892,
+      "charged": 10,
+      "trace": [
+        {
+          "thinking": "enabled",
+          "maxTokens": 2400
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 3600
+        }
+      ],
+      "answer": "最近一次数学是模拟考试6（10月16日），**90/100 分，得分率 90%**，年级第 35 名（前 35%）。\n\n比上一场高了 5 分，但年级位置从第 20 名退到第 35 名，得分率也从 85% 升到 90% 却没能保住名次——说明这场拿高分的人不少，分数涨了不代表相对位置跟着涨。",
+      "evidence": [
+        {
+          "label": "数学",
+          "value": "90/100 分 · 得分率 90% · 年级第 35 名 / 100 人 · 年级前 35%",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学分差",
+          "value": "+5 分",
+          "source": "模拟考试5 · 2026-10-15 → 模拟考试6 · 2026-10-16",
+          "kind": "change"
+        },
+        {
+          "label": "数学年级位置",
+          "value": "后退 15 个百分点",
+          "source": "模拟考试5 · 2026-10-15 → 模拟考试6 · 2026-10-16",
+          "kind": "change"
+        }
+      ]
+    },
+    {
+      "id": "rank-vs-score",
+      "group": "指标方向",
+      "question": "最近两次数学分数和年级位置分别怎么变了？",
+      "mode": "high",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 12908,
+      "calls": 2,
+      "usage": {
+        "prompt": 6399,
+        "output": 841,
+        "cache": 2560,
+        "reasoning": 595
+      },
+      "estimatedCredits": 14.508,
+      "charged": 15,
+      "trace": [
+        {
+          "thinking": "enabled",
+          "maxTokens": 2400
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 3600
+        }
+      ],
+      "answer": "最近两次是模拟考试5到6：数学从85分涨到90分（+5分），但年级名次从第20名掉到第35名，从前20%退到前35%。\n\n再往前一次（模拟考试4→5）正好相反：分数从65分涨到85分（+20分），名次从第22名升到第20名，前进了2个百分点。\n\n所以最近的走势是**分数还在往上走，年级位置反而在退**。90分是这几场里最高的，也高于此前中位75%；但前35%的位置比此前中位前30%要靠后。分数和名次这回没同步，看位置变化时别只看分数。",
+      "evidence": [
+        {
+          "label": "数学",
+          "value": "85/100 分 · 得分率 85% · 年级第 20 名 / 100 人 · 年级前 20%",
+          "source": "模拟考试5 · 2026-10-15"
+        },
+        {
+          "label": "数学",
+          "value": "90/100 分 · 得分率 90% · 年级第 35 名 / 100 人 · 年级前 35%",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学分差",
+          "value": "+5 分",
+          "source": "模拟考试5 · 2026-10-15 → 模拟考试6 · 2026-10-16",
+          "kind": "change"
+        },
+        {
+          "label": "数学年级位置",
+          "value": "后退 15 个百分点",
+          "source": "模拟考试5 · 2026-10-15 → 模拟考试6 · 2026-10-16",
+          "kind": "change"
+        },
+        {
+          "label": "数学得分率对照",
+          "value": "此前中位数 75% · 本次 90% · +15 个百分点",
+          "source": "模拟考试6 · 2026-10-16 · 此前 5 场可比记录"
+        },
+        {
+          "label": "数学年级位置对照",
+          "value": "此前中位数前 30% · 本次前 35% · 后退 5 个百分点",
+          "source": "模拟考试6 · 2026-10-16 · 此前 5 场可比记录"
+        }
+      ]
+    },
+    {
+      "id": "mixed-max",
+      "group": "统计口径",
+      "question": "两场数学满分不同，得分率进步了多少？",
+      "mode": "high",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 7540,
+      "calls": 2,
+      "usage": {
+        "prompt": 5768,
+        "output": 419,
+        "cache": 2560,
+        "reasoning": 236
+      },
+      "estimatedCredits": 9.87,
+      "charged": 10,
+      "trace": [
+        {
+          "thinking": "enabled",
+          "maxTokens": 2400
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 3600
+        }
+      ],
+      "answer": "数学得分率从 **60%** 提高到 **80%**，进步了 **20 个百分点**。因为两场考试满分不同，所以 60 分和 120 分不能直接比；如果看排名，也从年级第 45 名升到第 38 名。",
+      "evidence": [
+        {
+          "label": "数学得分率变化",
+          "value": "+20 个百分点",
+          "source": "模拟考试1 · 2026-10-11 → 模拟考试2 · 2026-10-12",
+          "kind": "change"
+        },
+        {
+          "label": "数学年级位置",
+          "value": "前进 7 个百分点",
+          "source": "模拟考试1 · 2026-10-11 → 模拟考试2 · 2026-10-12",
+          "kind": "change"
+        }
+      ]
+    },
+    {
+      "id": "zero-score",
+      "group": "稀疏数据",
+      "question": "最近一次物理成绩是多少？",
+      "mode": "high",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 10031,
+      "calls": 2,
+      "usage": {
+        "prompt": 5768,
+        "output": 351,
+        "cache": 2560,
+        "reasoning": 106
+      },
+      "estimatedCredits": 9.326,
+      "charged": 10,
+      "trace": [
+        {
+          "thinking": "enabled",
+          "maxTokens": 2400
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 3600
+        }
+      ],
+      "answer": "最近一次物理是**模拟考试6（10月16日），0/100 分，得分率 0%**。这个成绩和上一场对不上——10月15日的模拟考试5还是 75 分、得分率 75%、年级第 35 名；两场之间直接少了 75 分，而物理此前几场的得分率中位数是 60%。\n\n模拟考试6这场也没有物理年级排名记录，所以暂时看不出它对应的位置。0 分明显偏离你平时的水平，更像是这场考试的分数没有正常录入，或者你没有正常参考，不太像一次普通的发挥波动。建议先核对一下这场物理的成绩记录。",
+      "evidence": [
+        {
+          "label": "物理",
+          "value": "75/100 分 · 得分率 75% · 年级第 35 名 / 100 人 · 年级前 35%",
+          "source": "模拟考试5 · 2026-10-15"
+        },
+        {
+          "label": "物理",
+          "value": "0/100 分 · 得分率 0%",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "物理分差",
+          "value": "-75 分",
+          "source": "模拟考试5 · 2026-10-15 → 模拟考试6 · 2026-10-16",
+          "kind": "change"
+        },
+        {
+          "label": "物理得分率对照",
+          "value": "此前中位数 60% · 本次 0% · -60 个百分点",
+          "source": "模拟考试6 · 2026-10-16 · 此前 5 场可比记录"
+        }
+      ]
+    },
+    {
+      "id": "rank-only",
+      "group": "稀疏数据",
+      "question": "最近一次数学的成绩和年级排名是多少？",
+      "mode": "high",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 6527,
+      "calls": 2,
+      "usage": {
+        "prompt": 5225,
+        "output": 300,
+        "cache": 2432,
+        "reasoning": 149
+      },
+      "estimatedCredits": 8.083,
+      "charged": 9,
+      "trace": [
+        {
+          "thinking": "enabled",
+          "maxTokens": 2400
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 3600
+        }
+      ],
+      "answer": "最近一次数学是**模拟考试6（2026-10-16）**，年级第 **35 名**，这次考试共 100 人，处于**年级前 35%**。\n\n不过这场数学只记录了年级排名，没有录入具体分数，所以分数多少暂时查不到。",
+      "evidence": [
+        {
+          "label": "数学",
+          "value": "年级第 35 名 / 100 人 · 年级前 35%",
+          "source": "模拟考试6 · 2026-10-16"
+        }
+      ]
+    },
+    {
+      "id": "custom-combination",
+      "group": "自定义组合",
+      "question": "最近一次自选理科组合总分多少？",
+      "mode": "high",
+      "trial": 1,
+      "passed": false,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "ms": 5370,
+      "calls": 2,
+      "usage": {
+        "prompt": 5862,
+        "output": 356,
+        "cache": 2688,
+        "reasoning": 215
+      },
+      "estimatedCredits": 9.304,
+      "charged": 10,
+      "trace": [
+        {
+          "thinking": "enabled",
+          "maxTokens": 2400
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 3600
+        }
+      ],
+      "answer": "最近一次自选理科（数学+物理）总分 **170/200 分**，得分率 85%，出自模拟考试6（10月16日）。\n\n比上一次（模拟考试5）的 160 分高 10 分；此前 5 场的中位得分率是 67.5%，这次高出 17.5 个百分点，属于明显高于平时水平的一场。",
+      "evidence": [
+        {
+          "label": "自选理科原始分",
+          "value": "170/200 分 · 得分率 85%",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "自选理科原始分分差",
+          "value": "+10 分",
+          "source": "模拟考试5 · 2026-10-15 → 模拟考试6 · 2026-10-16",
+          "kind": "change"
+        },
+        {
+          "label": "自选理科原始分得分率对照",
+          "value": "此前中位数 67.5% · 本次 85% · +17.5 个百分点",
+          "source": "模拟考试6 · 2026-10-16 · 此前 5 场可比记录"
+        }
+      ]
+    },
+    {
+      "id": "trimmed-mean",
+      "group": "通用分析",
+      "question": "数学去掉最高和最低的一场，剩下考试平均得分率是多少？",
+      "mode": "high",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 8357,
+      "calls": 2,
+      "usage": {
+        "prompt": 5761,
+        "output": 448,
+        "cache": 2560,
+        "reasoning": 268
+      },
+      "estimatedCredits": 10.088,
+      "charged": 11,
+      "trace": [
+        {
+          "thinking": "enabled",
+          "maxTokens": 2400
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 3600
+        }
+      ],
+      "answer": "去掉最高和最低各一场后，数学剩下 **4 场**考试，平均得分率是 **76.25%**。剩下的这 4 场中，最低是 65%，最高是 85%，相差 20 个百分点，可见波动仍然主要来自单场发挥，而不是整体水平变了。",
+      "evidence": [
+        {
+          "label": "数学得分率平均",
+          "value": "76.25%",
+          "source": "同口径 4 场 · 模拟考试2 · 2026-10-12 → 模拟考试5 · 2026-10-15 · 排除数值最低 1 场、最高 1 场"
+        },
+        {
+          "label": "数学得分率有效场次",
+          "value": "4 场",
+          "source": "同口径 4 场 · 模拟考试2 · 2026-10-12 → 模拟考试5 · 2026-10-15 · 排除数值最低 1 场、最高 1 场"
+        },
+        {
+          "label": "数学得分率最小值",
+          "value": "65%",
+          "source": "同口径 4 场 · 模拟考试2 · 2026-10-12 → 模拟考试5 · 2026-10-15 · 排除数值最低 1 场、最高 1 场"
+        },
+        {
+          "label": "数学得分率最大值",
+          "value": "85%",
+          "source": "同口径 4 场 · 模拟考试2 · 2026-10-12 → 模拟考试5 · 2026-10-15 · 排除数值最低 1 场、最高 1 场"
+        }
+      ]
+    },
+    {
+      "id": "grouped-stability",
+      "group": "通用分析",
+      "question": "比较高一和高二数学的得分率稳定性，用标准差和场次列成表。",
+      "mode": "high",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 14658,
+      "calls": 2,
+      "usage": {
+        "prompt": 7513,
+        "output": 1271,
+        "cache": 2560,
+        "reasoning": 878
+      },
+      "estimatedCredits": 20.176,
+      "charged": 21,
+      "trace": [
+        {
+          "thinking": "enabled",
+          "maxTokens": 2400
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 3600
+        }
+      ],
+      "answer": "**结论：高一的数学得分率更稳，高二整体水平更高但起伏更大。**\n\n场次 | 平均得分率 | 标准差 | 最低 | 最高\n高一 3 场 | 71.67% | 8.5 个百分点 | 60% | 80%\n高二 3 场 | 80% | 10.8 个百分点 | 65% | 90%\n\n高一的 3 场从 60% 到 80%，跨度 20 个百分点；高二从 65% 到 90%，跨度 25 个百分点。高二的平均分高出约 8 个百分点，代价是波动也更明显：那次 65% 明显低出其他两场 85%、90%，把标准差拉大了。高一的上升比较连续，60%→75%→80%，没有明显掉点。\n\n不过两边都只有 3 场，标准差本身也算不上很稳的估计，只能当作大致参考。真要判断高二是不是“更不稳”，还得看后面几场；如果下次又回到 85% 左右，那 65% 就更像单次异常。",
+      "evidence": [
+        {
+          "label": "数学 · 高一得分率有效场次",
+          "value": "3 场",
+          "source": "同口径 3 场 · 模拟考试1 · 2026-10-11 → 模拟考试3 · 2026-10-13"
+        },
+        {
+          "label": "数学 · 高一得分率平均",
+          "value": "71.67%",
+          "source": "同口径 3 场 · 模拟考试1 · 2026-10-11 → 模拟考试3 · 2026-10-13"
+        },
+        {
+          "label": "数学 · 高一得分率标准差",
+          "value": "8.5 个百分点",
+          "source": "同口径 3 场 · 模拟考试1 · 2026-10-11 → 模拟考试3 · 2026-10-13"
+        },
+        {
+          "label": "数学 · 高一得分率最小值",
+          "value": "60%",
+          "source": "同口径 3 场 · 模拟考试1 · 2026-10-11 → 模拟考试3 · 2026-10-13"
+        },
+        {
+          "label": "数学 · 高一得分率最大值",
+          "value": "80%",
+          "source": "同口径 3 场 · 模拟考试1 · 2026-10-11 → 模拟考试3 · 2026-10-13"
+        },
+        {
+          "label": "数学 · 高二得分率有效场次",
+          "value": "3 场",
+          "source": "同口径 3 场 · 模拟考试4 · 2026-10-14 → 模拟考试6 · 2026-10-16"
+        }
+      ]
+    },
+    {
+      "id": "synchronized-change",
+      "group": "分析方法",
+      "question": "哪些科目容易同时进步或退步？有没有什么规律？",
+      "mode": "high",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 17730,
+      "calls": 2,
+      "usage": {
+        "prompt": 6744,
+        "output": 1292,
+        "cache": 2560,
+        "reasoning": 909
+      },
+      "estimatedCredits": 18.806,
+      "charged": 19,
+      "trace": [
+        {
+          "thinking": "enabled",
+          "maxTokens": 2400
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 3600
+        }
+      ],
+      "answer": "从这 6 场看，**数学和物理基本同进同退，英语常和它们反着走**。\n\n数学和物理之间有 5 组相邻变化，5 次全部同向，变化相关系数 0.98；两科同场水平也高度接近。英语和数学、物理各 5 组变化里，有 4 组反向，变化相关系数分别是 -0.84 和 -0.85。\n\n从走势看也一致：数学从 60% 升到 90%，物理从 50% 升到 80%，都在往上；英语从 90% 降到 70%，方向相反。不过目前只有 6 场、5 组变化，样本还小，这只能说明这段时间里的同步现象，不能当成固定规律，也不能据此推断原因。",
+      "evidence": [
+        {
+          "label": "数学得分率与物理得分率的进退相关性",
+          "value": "变化相关系数 0.98 · 5 组变化 · 同向 5 次 · 反向 0 次 · 持平 0 次",
+          "source": "相邻共同有效考试 · 进步为正、退步为负 · 不代表因果"
+        },
+        {
+          "label": "物理得分率与英语得分率的进退相关性",
+          "value": "变化相关系数 -0.85 · 5 组变化 · 同向 1 次 · 反向 4 次 · 持平 0 次",
+          "source": "相邻共同有效考试 · 进步为正、退步为负 · 不代表因果"
+        },
+        {
+          "label": "数学得分率与英语得分率的进退相关性",
+          "value": "变化相关系数 -0.84 · 5 组变化 · 同向 1 次 · 反向 4 次 · 持平 0 次",
+          "source": "相邻共同有效考试 · 进步为正、退步为负 · 不代表因果"
+        },
+        {
+          "label": "数学得分率首末变化",
+          "value": "30 个百分点",
+          "source": "同口径 6 场 · 模拟考试1 · 2026-10-11 → 模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "物理得分率首末变化",
+          "value": "30 个百分点",
+          "source": "同口径 6 场 · 模拟考试1 · 2026-10-11 → 模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "英语得分率首末变化",
+          "value": "-20 个百分点",
+          "source": "同口径 6 场 · 模拟考试1 · 2026-10-11 → 模拟考试6 · 2026-10-16"
+        }
+      ]
+    },
+    {
+      "id": "all-subject-forecast",
+      "group": "预测覆盖",
+      "question": "我各科下次大概能考多少？",
+      "mode": "high",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 9708,
+      "calls": 2,
+      "usage": {
+        "prompt": 5900,
+        "output": 694,
+        "cache": 2560,
+        "reasoning": 275
+      },
+      "estimatedCredits": 12.334,
+      "charged": 13,
+      "trace": [
+        {
+          "thinking": "enabled",
+          "maxTokens": 2400
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 3600
+        }
+      ],
+      "answer": "查到了 3 科的下次估计。下表是各科的得分率及参考范围。",
+      "evidence": [
+        {
+          "label": "数学下次得分率估计",
+          "value": "80% · 按满分 100 分换算约 80 分 · 历史粗略参考",
+          "source": "个人历史粗略参考 · 最近 5 场同口径得分率中位数 · 无适用相似轨迹估计",
+          "kind": "estimate"
+        },
+        {
+          "label": "数学历史得分率范围",
+          "value": "65% ～ 90%",
+          "source": "历史实际波动，不是预测区间"
+        },
+        {
+          "label": "物理下次得分率估计",
+          "value": "65% · 按满分 100 分换算约 65 分 · 历史粗略参考",
+          "source": "个人历史粗略参考 · 最近 5 场同口径得分率中位数 · 无适用相似轨迹估计",
+          "kind": "estimate"
+        },
+        {
+          "label": "物理历史得分率范围",
+          "value": "55% ～ 80%",
+          "source": "历史实际波动，不是预测区间"
+        },
+        {
+          "label": "英语下次得分率估计",
+          "value": "80% · 按满分 100 分换算约 80 分 · 历史粗略参考",
+          "source": "个人历史粗略参考 · 最近 5 场同口径得分率中位数 · 无适用相似轨迹估计",
+          "kind": "estimate"
+        },
+        {
+          "label": "英语历史得分率范围",
+          "value": "70% ～ 90%",
+          "source": "历史实际波动，不是预测区间"
+        }
+      ]
+    },
+    {
+      "id": "usual-total",
+      "group": "通用分析",
+      "question": "如果每科都发挥到平时的水平，总分大概是多少？和这次相比呢？",
+      "mode": "high",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 11976,
+      "calls": 2,
+      "usage": {
+        "prompt": 7536,
+        "output": 948,
+        "cache": 4864,
+        "reasoning": 620
+      },
+      "estimatedCredits": 13.123,
+      "charged": 14,
+      "trace": [
+        {
+          "thinking": "enabled",
+          "maxTokens": 2400
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 3600
+        }
+      ],
+      "answer": "按各科此前的中位得分率、换算成本次满分计算：**220/300 分**。\n\n实际 240/300 分，实际较常态 +20 分。这只是各科历史常态相加，不是下一场考试预测。",
+      "evidence": [
+        {
+          "id": 1,
+          "label": "数学正常发挥参考",
+          "value": "75/100 分 · 本次 90 分 · 实际较常态 +15 分",
+          "source": "模拟考试6 · 2026-10-16 · 此前 5 场同口径得分率中位数"
+        },
+        {
+          "id": 2,
+          "label": "物理正常发挥参考",
+          "value": "60/100 分 · 本次 80 分 · 实际较常态 +20 分",
+          "source": "模拟考试6 · 2026-10-16 · 此前 5 场同口径得分率中位数"
+        },
+        {
+          "id": 3,
+          "label": "英语正常发挥参考",
+          "value": "85/100 分 · 本次 70 分 · 实际较常态 -15 分",
+          "source": "模拟考试6 · 2026-10-16 · 此前 5 场同口径得分率中位数"
+        },
+        {
+          "id": 4,
+          "label": "各科正常发挥总分",
+          "value": "220/300 分 · 实际 240/300 分 · 实际较常态 +20 分",
+          "source": "模拟考试6 · 2026-10-16 · 各科此前中位得分率按本次满分换算，非预测"
+        }
+      ]
+    },
+    {
+      "id": "interactive-total",
+      "group": "交互组件",
+      "question": "如果物理再多5分，总分是多少？我想自己调整各科分数。",
+      "mode": "high",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 7250,
+      "calls": 2,
+      "usage": {
+        "prompt": 6110,
+        "output": 535,
+        "cache": 4864,
+        "reasoning": 340
+      },
+      "estimatedCredits": 6.967,
+      "charged": 7,
+      "trace": [
+        {
+          "thinking": "enabled",
+          "maxTokens": 2400
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 3600
+        }
+      ],
+      "answer": "按最近一场模拟考试6来算：物理从 80 分加到 85 分，其他科目不变，总分就从 240 分变成 **245/300 分**，提高 5 分。\n\n想自己继续调各科分数，可以用下面的模拟器改物理或其他科，看看总分怎么变。这个只是总分模拟，不代表排名会同步变化。",
+      "evidence": [
+        {
+          "label": "总分",
+          "value": "240/300 分 · 得分率 80% · 年级第 32 名 / 100 人 · 年级前 32%",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "物理",
+          "value": "80/100 分 · 得分率 80% · 年级第 35 名 / 100 人 · 年级前 35%",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "物理模拟成绩",
+          "value": "80 → 85 分",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "模拟总分",
+          "value": "245/300 分 · 实际 240/300 分 · 变化 +5 分",
+          "source": "模拟考试6 · 2026-10-16 · 其他科目保持不变，不是排名预测"
+        }
+      ]
+    },
+    {
+      "id": "chart-grounding",
+      "group": "交互组件",
+      "question": "画出最近两场数学得分率的柱状图。",
+      "mode": "high",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 5225,
+      "calls": 2,
+      "usage": {
+        "prompt": 5939,
+        "output": 271,
+        "cache": 2560,
+        "reasoning": 126
+      },
+      "estimatedCredits": 9.028,
+      "charged": 10,
+      "trace": [
+        {
+          "thinking": "enabled",
+          "maxTokens": 2400
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 3600
+        }
+      ],
+      "answer": "最近两场数学得分率：模拟考试5 是 **85%**，模拟考试6 是 **90%**，高了 5 个百分点。不过年级排名从第 20 名退到第 35 名，分数涨了但位置没跟上。",
+      "evidence": [
+        {
+          "label": "数学",
+          "value": "85/100 分 · 得分率 85% · 年级第 20 名 / 100 人 · 年级前 20%",
+          "source": "模拟考试5 · 2026-10-15"
+        },
+        {
+          "label": "数学",
+          "value": "90/100 分 · 得分率 90% · 年级第 35 名 / 100 人 · 年级前 35%",
+          "source": "模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学分差",
+          "value": "+5 分",
+          "source": "模拟考试5 · 2026-10-15 → 模拟考试6 · 2026-10-16",
+          "kind": "change"
+        },
+        {
+          "label": "数学年级位置",
+          "value": "后退 15 个百分点",
+          "source": "模拟考试5 · 2026-10-15 → 模拟考试6 · 2026-10-16",
+          "kind": "change"
+        }
+      ]
+    },
+    {
+      "id": "follow-up-scope",
+      "group": "连续追问",
+      "question": "那只看高二呢？",
+      "mode": "high",
+      "trial": 1,
+      "passed": true,
+      "status": 200,
+      "checks": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "ms": 7672,
+      "calls": 2,
+      "usage": {
+        "prompt": 5718,
+        "output": 379,
+        "cache": 2688,
+        "reasoning": 148
+      },
+      "estimatedCredits": 9.2,
+      "charged": 10,
+      "trace": [
+        {
+          "thinking": "enabled",
+          "maxTokens": 2400
+        },
+        {
+          "thinking": "enabled",
+          "maxTokens": 3600
+        }
+      ],
+      "answer": "只看高二的话，数学平均得分率是 **80%**，比全历史均值 75.8% 高一些。\n\n高二目前记录了 3 场：65%、85%、90%，最低的 65% 是明显偏低的一场，后两场都在 85% 以上。所以高二整体水平不低，但有一场波动比较大；如果那场属于偶发失误，高二的常态会接近 85%～90%。",
+      "evidence": [
+        {
+          "label": "数学得分率平均",
+          "value": "80%",
+          "source": "同口径 3 场 · 模拟考试4 · 2026-10-14 → 模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学得分率最小值",
+          "value": "65%",
+          "source": "同口径 3 场 · 模拟考试4 · 2026-10-14 → 模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学得分率最大值",
+          "value": "90%",
+          "source": "同口径 3 场 · 模拟考试4 · 2026-10-14 → 模拟考试6 · 2026-10-16"
+        },
+        {
+          "label": "数学得分率有效场次",
+          "value": "3 场",
+          "source": "同口径 3 场 · 模拟考试4 · 2026-10-14 → 模拟考试6 · 2026-10-16"
+        }
+      ]
+    }
+  ],
+  "manualReview": [
+    "关键结论是否有依据且正确",
+    "是否完整回答所有子问题",
+    "是否有超越数据复述的分析价值",
+    "语言是否自然清楚",
+    "组件是否有助于理解"
+  ],
+  "summary": [
+    {
+      "mode": "low",
+      "cases": 14,
+      "passed": 9,
+      "avgMs": 7160.07,
+      "avgCalls": 2,
+      "avgCredits": 9.39
+    },
+    {
+      "mode": "standard",
+      "cases": 14,
+      "passed": 13,
+      "avgMs": 11633,
+      "avgCalls": 2.14,
+      "avgCredits": 14.97
+    },
+    {
+      "mode": "high",
+      "cases": 14,
+      "passed": 13,
+      "avgMs": 9438.93,
+      "avgCalls": 2,
+      "avgCredits": 11.48
+    }
+  ]
+}

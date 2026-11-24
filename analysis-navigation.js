@@ -186,7 +186,9 @@
     if(!page){lastPage=null;viewed=false;return;}
     hydrate();lastPage=page;
     page.classList.add('an-layout');
-    var nav=mountNav(page);split(page);
+    var nav=mountNav(page);
+    window.ScoreStudyQuestions?.attach(page,nav);
+    split(page);
     var count=0,visible=0;
     var cards=orderCards(page,Array.from(page.children).filter(function(c){return c.classList.contains('card');}));
     cards.forEach(function(c){
@@ -210,7 +212,7 @@
     });
     var densitySelect=page.querySelector('.an-density-select');if(densitySelect&&window.ScoreDisplayDensity&&densitySelect.value!==window.ScoreDisplayDensity.get())densitySelect.value=window.ScoreDisplayDensity.get();
     updateNotice(page,count,visible);
-    var rows=Math.max(2,1+visible+(page.querySelector(':scope > .an-notice')?1:0));
+    var rows=Math.max(2,1+visible+page.querySelectorAll(':scope > .an-notice, :scope > .an-study-open').length);
     var span='span '+rows;if(nav.style.gridRowEnd!==span)nav.style.gridRowEnd=span;
     if(!viewed){viewed=true;track('analysis_section_view');}
   }

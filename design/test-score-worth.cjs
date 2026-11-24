@@ -17,7 +17,7 @@ function balanced(repeat = 1) {
 }
 function isolated() {
   const dom = new JSDOM('<main></main>', { runScripts: 'outside-only', url: 'https://worth.test/' }), w = dom.window;
-  w.state = { user: { id: 'test' } }; w.eval(read('score-worth-model.js')); w.eval(read('score-worth.js'));
+  w.state = { user: { id: 'test' } }; w.eval(read('supabase/functions/_shared/score-worth-model.js')); w.eval(read('score-worth.js'));
   return { w, api: w.__stScoreWorth, model: w.__stScoreWorthModel, close: () => w.close() };
 }
 function check(title, fn) { fn(); console.log('PASS: ' + title); }

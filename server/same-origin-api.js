@@ -2,6 +2,7 @@ const UPSTREAM_ROOT = 'https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/';
 export const API_ENDPOINTS = Object.freeze([
   'score-tracker-api',
   'score-tracker-data-api',
+  'score-tracker-study-api',
   'score-tracker-modules-api',
   'score-tracker-username-api',
   'score-tracker-notices',
@@ -79,12 +80,19 @@ export async function proxyApi(request, options = {}) {
   const abort = () => controller.abort();
   if (request.signal.aborted) abort();
   else request.signal.addEventListener('abort', abort, { once: true });
-  const timeoutMs = options.timeoutMs ?? (endpoint === 'score-tracker-vision-preview' ? 115000 : endpoint === 'score-tracker-import' ? 55000 : 25000);
+  const studyQuestion = endpoint === 'score-tracker-study-api';
+  const timeoutMs = options.timeoutMs ?? (studyQuestion || endpoint === 'score-tracker-vision-preview' ? 115000 : endpoint === 'score-tracker-import' ? 55000 : 25000);
   let timedOut = false;
   const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
+  function cleanup() {
+    clearTimeout(timeout);
+    request.signal.removeEventListener('abort', abort);
+  }
+  let streaming = false;
   const upstreamHeaders = new Headers({
     'Content-Type': 'application/json',
-    'Accept': 'application/json',
+    'Accept': studyQuestion && request.headers.get('accept')?.includes('text/event-stream')
+      ? 'text/event-stream, application/json' : 'application/json',
     'X-Score-Request-Id': id,
   });
   const clientNetwork = getClientNetwork(request);
@@ -125,12 +133,22 @@ export async function proxyApi(request, options = {}) {
       await upstream.body?.cancel();
       return failure(502, 'API_UPSTREAM_REDIRECT', '登录服务暂时无法连接，请稍后重试');
     }
-    // Read through completion so the timeout also covers a stalled response body.
-    const body = await upstream.arrayBuffer();
     const headers = new Headers(baseHeaders);
     headers.set('Content-Type', upstream.headers.get('content-type') || 'application/json; charset=utf-8');
     headers.set('Server-Timing', 'upstream;dur=' + (Date.now() - startedAt));
     if (upstream.headers.has('retry-after')) headers.set('Retry-After', upstream.headers.get('retry-after'));
+    if (studyQuestion && upstream.ok && upstream.body &&
+        headers.get('Content-Type').startsWith('text/event-stream')) {
+      headers.set('Cache-Control', NO_STORE + ', no-transform');
+      const relay = new TransformStream();
+      const response = new Response(relay.readable, { status: upstream.status, headers });
+      streaming = true;
+      // Keep the request deadline and cancellation in force until the last event.
+      upstream.body.pipeTo(relay.writable, { signal: controller.signal }).catch(() => {}).finally(cleanup);
+      return response;
+    }
+    // Read JSON through completion so the timeout also covers a stalled body.
+    const body = await upstream.arrayBuffer();
     if (!upstream.ok) {
       console.warn('[Score Tracker] API upstream error', JSON.stringify({
         request_id: id, endpoint, status: upstream.status, duration_ms: Date.now() - startedAt,
@@ -148,7 +166,6 @@ export async function proxyApi(request, options = {}) {
     return failure(timedOut ? 504 : 502, code, timedOut
       ? '服务响应超时，请稍后重试' : '暂时无法连接服务，请稍后重试');
   } finally {
-    clearTimeout(timeout);
-    request.signal.removeEventListener('abort', abort);
+    if (!streaming) cleanup();
   }
 }
