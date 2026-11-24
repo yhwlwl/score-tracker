@@ -145,6 +145,41 @@
     frame.append(element('small','','仅模拟总分，不预测排名；调整不扣 AI 积分。'));
     refresh();return frame;
   }
+  function relationsWidget(spec) {
+    if(spec?.type!=='relations'||!Array.isArray(spec.subjects)||spec.subjects.length<2||spec.subjects.length>16||!spec.subjects.every(s=>typeof s==='string')||!Array.isArray(spec.pairs))return null;
+    const frame=element('section','sq-relations');
+    const header=element('div','sq-simulator-header'),tabs=element('div','sq-relations-tabs');
+    header.append(element('strong','','学科相关性'),tabs);frame.append(header);
+    const detail=element('div','sq-relations-detail','点击两门科目的交叉格，查看计算依据。');
+    const scroll=element('div','sq-relations-scroll'),table=element('table','');scroll.append(table);
+    const note=element('small','','');let mode=spec.mode==='change'?'change':'level',active=null;
+    const pair=(a,b)=>spec.pairs.find(p=>p&&((p.a===a&&p.b===b)||(p.a===b&&p.b===a)));
+    const show=(p,a,b)=>{
+      if(!p){detail.textContent='没有足够的共同有效记录。';return;}
+      const n=p[mode];detail.textContent=a+' × '+b+'：'+(Number.isFinite(n)?n.toFixed(2):'无法计算')+' · '+(mode==='change'?p.steps+' 组变化，同向 '+p.same+' 次，反向 '+p.opposite+' 次':p.n+' 场共同有效考试');
+    };
+    const draw=()=>{
+      table.replaceChildren();const head=element('tr','');head.append(element('th','','科目'));
+      spec.subjects.forEach(s=>head.append(element('th','',s)));table.append(head);
+      spec.subjects.forEach(a=>{const row=element('tr','');row.append(element('th','',a));
+        spec.subjects.forEach(b=>{const cell=element('td','');
+          if(a===b){cell.textContent='—';row.append(cell);return;}
+          const p=pair(a,b),n=p?.[mode],valid=Number.isFinite(n)&&Math.abs(n)<=1;
+          const btn=button(valid?n.toFixed(2):'—','sq-relations-cell',()=>{active=[a,b];show(p,a,b);});
+          btn.setAttribute('aria-label',a+'与'+b+'：'+(valid?n.toFixed(2):'无数据'));
+          if(valid){btn.style.setProperty('--sq-strength',String(Math.round(Math.abs(n)*24))+'%');btn.classList.add(n<0?'is-negative':'is-positive');}
+          cell.append(btn);row.append(cell);
+        });table.append(row);
+      });
+      for(const b of tabs.children)b.setAttribute('aria-pressed',String(b.dataset.mode===mode));
+      note.textContent=(spec.metric==='rank'?'指标：年级位置。':'指标：得分率。')+(mode==='change'?'比较相邻共同有效考试的进退变化。':'比较同场考试的成绩水平。')+'样本较少时结果不稳定；相关不代表因果。';
+      if(active)show(pair(...active),...active);else detail.textContent='点击交叉格，查看配对场次与相关系数。';
+    };
+    for(const [id,label] of [['change','进退同步'],['level','水平相关']]){
+      const b=button(label,'sq-relations-tab',()=>{mode=id;draw();});b.dataset.mode=id;tabs.append(b);
+    }
+    frame.append(scroll,detail,note);draw();return frame;
+  }
   function showAnswer(article, turn) {
     article.querySelector('.sq-feedback').remove();
     const specs=Array.isArray(turn.charts)&&turn.charts.length ? turn.charts.slice(0,3) : [turn.chart];
@@ -163,7 +198,7 @@
       if(chart){article.append(chart.figure);session.charts.push(chart.dispose);}
     };
     const widgets=Array.isArray(turn.widgets)?turn.widgets.slice(0,2):[];
-    const appendWidgets=i=>widgets.filter(w=>Math.max(1,Number(w.after)||1)===i).forEach(w=>{const node=scenarioWidget(w);if(node)article.append(node);});
+    const appendWidgets=i=>widgets.filter(w=>Math.max(1,Number(w.after)||1)===i).forEach(w=>{const node=w.type==='relations'?relationsWidget(w):scenarioWidget(w);if(node)article.append(node);});
     if(Array.isArray(turn.chartAfter)&&turn.chartAfter.length===specs.length || widgets.length) {
       const paragraphs=String(turn.answer||'').split(/\n\s*\n/).filter(p=>p.trim());
       const positions=specs.map((_,i)=>Number.isInteger(turn.chartAfter?.[i])?Math.max(1,Math.min(paragraphs.length,turn.chartAfter[i])):paragraphs.length);
