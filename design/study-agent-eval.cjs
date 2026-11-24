@@ -20,7 +20,11 @@ const sparse=()=>{const s=snapshot();s.exams=s.exams.slice(-1);s.exams[0].scores
 const custom=()=>{const s=snapshot();s.modules=[{id:'eval-combo',name:'自选理科',subjects:['数学','物理']}];return s;};
 const factsFrom=m=>JSON.parse(m.at(-1).content).results.flatMap(r=>r.facts||[]);
 const seriesFrom=m=>JSON.parse(m.at(-1).content).results.flatMap(r=>r.series||[]);
-const fact=(r,label,pattern)=>r.evidence?.some(f=>f.label===label&&pattern.test(f.value));
+// Evidence labels may include the metric family (for example “原始分”) while
+// the assertion names the shorter user-facing label. Normalize only that
+// stable decoration; keep the value check strict so real mismatches fail.
+const normalizeFactLabel=label=>String(label||'').replace(/原始分/g,'');
+const fact=(r,label,pattern)=>r.evidence?.some(f=>normalizeFactLabel(f.label)===normalizeFactLabel(label)&&pattern.test(f.value));
 const chartList=r=>r.charts?.length?r.charts:r.chart?[r.chart]:[];
 const match=(r,pattern)=>pattern.test(r.answer||'');
 const widget=(r,type)=>r.widgets?.find(w=>w.type===type);
@@ -32,7 +36,7 @@ const cases=[
   {id:'rank-vs-score',group:'指标方向',q:'最近两次数学分数和年级位置分别怎么变了？',script:simple({tool:'results',scopes:['s:数学'],limit:2},'数学增加5分，但年级位置从前20%退到前35%，后退15个百分点。',/数学分差|数学年级位置$/),check:r=>[match(r,/5\s*分/),match(r,/15\s*个?百分点|前\s*35%/),match(r,/后退|靠后|下降|退步/),fact(r,'数学年级位置',/后退 15/)]},
   {id:'mixed-max',group:'统计口径',snapshot:mixed,q:'两场数学满分不同，得分率进步了多少？',script:simple({tool:'results',scopes:['s:数学'],range:'all'},'得分率由60%提高到80%，增加20个百分点。',/数学得分率变化/),check:r=>[match(r,/20\s*个?百分点/),fact(r,'数学得分率变化',/\+20/),!fact(r,'数学分差',/\+60/)]},
   {id:'zero-score',group:'稀疏数据',snapshot:zero,q:'最近一次物理成绩是多少？',script:simple({tool:'results',scopes:['s:物理'],limit:1},'最近一次物理是0分，满分100分。',/^物理$/),check:r=>[match(r,/0\s*分|0\/100/),fact(r,'物理',/^0\/100/),!match(r,/没有录入|没有成绩数据/)]},
-  {id:'rank-only',group:'稀疏数据',snapshot:sparse,q:'最近一次数学的成绩和年级排名是多少？',script:simple({tool:'results',scopes:['s:数学'],limit:1},'数学未录入分数，年级第35名，前35%。',/^数学$/),check:r=>[match(r,/未录入|没有.*分数|缺少.*分/),match(r,/35\s*名|前\s*35%/),fact(r,'数学',/年级第 35 名/)]},
+  {id:'rank-only',group:'稀疏数据',snapshot:sparse,q:'最近一次数学的成绩和年级排名是多少？',script:simple({tool:'results',scopes:['s:数学'],limit:1},'数学未录入分数，年级第35名，前35%。',/^数学$/),check:r=>[match(r,/未录入|(?:没有|缺少).{0,6}分数|分数.{0,6}(?:没有|未)录入/),match(r,/35\s*名|前\s*35%/),fact(r,'数学',/年级第 35 名/)]},
   {id:'custom-combination',group:'自定义组合',snapshot:custom,q:'最近一次自选理科组合总分多少？',script:simple({tool:'results',scopes:['m:eval-combo'],limit:1},'自选理科组合总分170分，满分200分。',/^自选理科$/),check:r=>[match(r,/170\s*分|170\/200/),fact(r,'自选理科',/170\/200/)]},
   {id:'trimmed-mean',group:'通用分析',q:'数学去掉最高和最低的一场，剩下考试平均得分率是多少？',script:simple({tool:'aggregate',scopes:['s:数学'],metric:'rate',ops:['mean','count'],trimLow:1,trimHigh:1,range:'all'},'剩下4场，平均得分率76.25%。',/数学得分率平均|数学得分率有效场次/,{components:[{type:'metric',refs:[1,2],after:1}]}),check:r=>[match(r,/76\.2[45]?%|76\.3%/),fact(r,'数学得分率平均',/76\.25%/),fact(r,'数学得分率有效场次',/4 场/)]},
   {id:'grouped-stability',group:'通用分析',q:'比较高一和高二数学的得分率稳定性，用标准差和场次列成表。',script:simple({tool:'aggregate',scopes:['s:数学'],metric:'rate',ops:['std','count'],groupBy:'category',range:'all'},'高一、高二均有3场有效记录，高一的得分率波动较小。',/标准差|有效场次/,{components:[{type:'aggregate',index:1,after:1}]}),check:r=>{const w=widget(r,'aggregate');return [!!w,w?.rows?.length===2,w?.rows?.every(x=>x.count===3&&Number.isFinite(x.values.std)),match(r,/高一/)&&match(r,/高二/)];}},
@@ -40,6 +44,8 @@ const cases=[
   {id:'all-subject-forecast',group:'预测覆盖',q:'我各科下次大概能考多少？',script:simple({tool:'trajectory',scopes:['s:数学'],metric:'score'},'请看各科历史参考。',/下次得分率估计/),check:r=>{const c=chartList(r).find(c=>c.type==='table');return [c?.series?.[0]?.points?.length===3,c?.series?.[0]?.points?.every(p=>p.forecast===true),c?.series?.some(s=>s.metric==='score'),match(r,/3\s*科/),c?.series?.[0]?.points?.every(p=>p.low==null&&p.high==null)];}},
   {id:'usual-total',group:'通用分析',q:'如果每科都发挥到平时的水平，总分大概是多少？和这次相比呢？',script:simple({tool:'baseline'},'正常发挥总分220分，本次240分。',/各科正常发挥总分/),check:r=>[match(r,/220/),match(r,/240/),fact(r,'各科正常发挥总分',/220\/300.*240\/300/),chartList(r).some(c=>c.series.some(s=>s.metric==='scoreChange'))]},
   {id:'interactive-total',group:'交互组件',q:'如果物理再多5分，总分是多少？我想自己调整各科分数。',script:simple({tool:'scenario',adjustments:{'s:物理':5}},'物理多5分，总分245分。可以调整各科成绩。',/模拟总分/),check:r=>{const w=widget(r,'scenario');return [match(r,/245/),fact(r,'模拟总分',/245\/300/),w?.subjects?.find(s=>s.label==='物理')?.value===85];}},
+  {id:'scenario-grounding',group:'证据一致性',q:'如果物理增加5分，模拟总分是多少？请把调整后的物理分数和模拟总分都列出来。',script:simple({tool:'scenario',adjustments:{'s:物理':5}},'物理从80分变成85分，模拟总分从240分变成245/300分。',/模拟总分/),check:r=>{const w=widget(r,'scenario');return [match(r,/85/),match(r,/245/),fact(r,'模拟总分',/245\/300/),w?.subjects?.some(s=>s.label==='物理'&&s.value===85)];}},
+  {id:'grouped-trend',group:'分析方法',q:'高一和高二数学得分率分别是怎么变化的？不要只看标准差。',script:simple({tool:'results',scopes:['s:数学'],range:'all'},'高一是60%→75%→80%，高二是65%→85%→90%，两段都是逐场上升，没有中间回落。',/数学/),check:r=>[match(r,/60%.*75%.*80%/),match(r,/65%.*85%.*90%/),!/(?:高二|第二段).{0,20}(?:掉|跌|下降|回落|上下跳)/.test(r.answer)]},
   {id:'chart-grounding',group:'交互组件',q:'画出最近两场数学得分率的柱状图。',script:simple({tool:'results',scopes:['s:数学'],limit:2},'数学得分率从85%提高到90%。',/^数学$/,m=>({chart:{type:'bar',series:[seriesFrom(m).find(s=>s.metric==='rate').id],title:'错误的生物排名',after:1}})),check:r=>{const c=chartList(r)[0];return [!!c,c?.series?.every(s=>s.label==='数学'&&s.metric==='rate'),!(/生物|排名/.test(c?.title||'')),c?.series?.[0]?.points?.at(-1)?.value===90];}},
   {id:'follow-up-scope',group:'连续追问',q:'那只看高二呢？',previous:{question:'数学历史平均得分率是多少？',result:{answer:'全历史均值约75.8%。'},previous:null},script:simple({tool:'aggregate',scopes:['s:数学'],metric:'rate',ops:['mean','count'],category:'高二',range:'all'},'高二3场，平均80%。',/数学得分率平均|数学得分率有效场次/),check:r=>[match(r,/80%/),fact(r,'数学得分率平均',/^80%/),fact(r,'数学得分率有效场次',/^3 场/)]},
 ];
@@ -75,8 +81,8 @@ function fakeDb(test,mode){
     tasks.set(priorId,{id:priorId,user_id:'eval-owner',feature:'study_question',status:'succeeded',charged_credits:0});
     turns.set(priorId,{task_id:priorId,user_id:'eval-owner',turn:test.previous});
   }
-  let spent=0,approved=0,calls=0,usage={prompt:0,output:0,cache:0,reasoning:0},trace=[];
-  return {priorId,stats:()=>({spent,calls,usage,trace}),db:{
+  let spent=0,approved=0,calls=0,usage={prompt:0,output:0,cache:0,reasoning:0},trace=[],providerCalls=[];
+  return {priorId,stats:()=>({spent,calls,usage,trace,providerCalls}),db:{
     from(table){
       const filters={};
       const read=()=>table==='score_tracker_ai_configs'?{data:{enabled:true,model:live?target.model:'deepseek-flash',base_url:live?target.baseUrl:'https://api.deepseek.com',openrouter_api_key:live?process.env.STUDY_EVAL_API_KEY:'synthetic'}}:
@@ -113,12 +119,18 @@ function fakeDb(test,mode){
       let response;
       try{response=await providerFetch(url,{...init,headers:{...init.headers,...goHeaders(session)},redirect:'error'});}
       catch(e){budget.stopReason='provider_connection_failed';throw e;}
+      const providerPayload=await response.clone().json().catch(()=>null);
+      providerCalls.push({status:response.status,usage:providerPayload?.usage||null});
+      trace.at(-1).providerUsage=providerPayload?.usage||null;
       if(!response.ok){budget.stopReason='provider_http_'+response.status;console.error('Provider HTTP '+response.status+'; stopping live evaluation.');}
       return response;
     }
     const item=test.script[Math.min(calls-1,test.script.length-1)];
     const answer=typeof item==='function'?item(body.messages):item;
-    return Response.json({choices:[{finish_reason:'stop',message:{content:JSON.stringify(answer)}}],usage:{prompt_tokens:100,completion_tokens:50,prompt_cache_hit_tokens:0}});
+    const syntheticUsage={prompt_tokens:100,completion_tokens:50,prompt_cache_hit_tokens:0};
+    providerCalls.push({status:200,usage:syntheticUsage});
+    trace.at(-1).providerUsage=syntheticUsage;
+    return Response.json({choices:[{finish_reason:'stop',message:{content:JSON.stringify(answer)}}],usage:syntheticUsage});
   }};
 }
 function structureChecks(r){
@@ -162,14 +174,21 @@ async function main(){
       let checks=[];
       try{checks=ok?[...structureChecks(r),...c.check(r)].map(Boolean):[false];}catch{checks=[false];}
       const passed=checks.every(Boolean);
-      rows.push({id:c.id,group:c.group,question:c.q,mode,trial,passed,status:response.status,checks,ms:Math.round(performance.now()-start),calls:stats.calls,usage:stats.usage,estimatedCredits:Math.round(stats.spent*1000)/1000,charged:r.charged??0,trace:stats.trace,answer:r.answer||'',evidence:r.evidence||[]});
+      const result={answer:r.answer||'',takeaway:r.takeaway||'',evidence:r.evidence||[],chart:r.chart||null,charts:r.charts||null,chartAfter:r.chartAfter||[],widgets:r.widgets||[],next:r.next||'',thinking:r.thinking||null};
+      rows.push({id:c.id,group:c.group,question:c.q,mode,trial,passed,status:response.status,checks,ms:Math.round(performance.now()-start),calls:stats.calls,usage:stats.usage,providerUsage:stats.providerCalls,estimatedCredits:Math.round(stats.spent*1000)/1000,charged:r.charged??0,trace:stats.trace,result,answer:result.answer,evidence:result.evidence});
       console.log((passed?'PASS':'FAIL')+' '+mode+' '+c.id+' '+checks.filter(Boolean).length+'/'+checks.length+' checks, '+stats.calls+' model '+(live?'calls':'replays'));
       if(live&&(budget.stopReason||budget.unknown||budget.calls>=maxCalls||budget.spent>=maxCredits))break run;
     }
   }finally{global.fetch=providerFetch;delete global.Deno;}
   const report={schema:1,kind:live?'live-model':'deterministic-replay',commit:process.env.GITHUB_SHA||null,provider:live?provider:null,model:live?target.model:null,stopReason:budget.stopReason,pricingBasis:'Score Tracker production reference credits, not provider invoice',planned:chosen.length*modes.length*repeat,executed:rows.length,passed:rows.filter(r=>r.passed).length,results:rows,manualReview:live?['关键结论是否有依据且正确','是否完整回答所有子问题','是否有超越数据复述的分析价值','语言是否自然清楚','组件是否有助于理解']:[]};
   const average=(arr,key)=>arr.length?Math.round(arr.reduce((sum,r)=>sum+r[key],0)/arr.length*100)/100:null;
-  report.summary=modes.map(mode=>{const rs=rows.filter(r=>r.mode===mode);return {mode,cases:rs.length,passed:rs.filter(r=>r.passed).length,avgMs:average(rs,'ms'),avgCalls:average(rs,'calls'),avgCredits:average(rs,'estimatedCredits')};});
+  const providerSummary=rs=>{
+    const calls=rs.flatMap(r=>r.providerUsage||[]), usages=calls.map(c=>c.usage||{});
+    const sum=(fn)=>usages.reduce((total,u)=>total+(Number(fn(u))||0),0);
+    return {calls:calls.length,billingSources:[...new Set(usages.map(u=>u.opencode?.billing_source).filter(Boolean))],allowanceUsd:Math.round(sum(u=>u.opencode?.allowance)*1e6)/1e6,listCostUsd:Math.round(sum(u=>u.opencode?.list_cost)*1e6)/1e6,tokens:{input:sum(u=>u.opencode?.tokens?.input),output:sum(u=>u.opencode?.tokens?.output),reasoning:sum(u=>u.opencode?.tokens?.reasoning),cacheRead:sum(u=>u.opencode?.tokens?.cache_read)}};
+  };
+  report.summary=modes.map(mode=>{const rs=rows.filter(r=>r.mode===mode);return {mode,cases:rs.length,passed:rs.filter(r=>r.passed).length,avgMs:average(rs,'ms'),avgCalls:average(rs,'calls'),avgCredits:average(rs,'estimatedCredits'),provider:providerSummary(rs)};});
+  report.providerUsage=live?{name:provider,model:target.model,summary:providerSummary(rows)}:null;
   if(baselinePath){
     const prev=JSON.parse(fs.readFileSync(baselinePath,'utf8'));
     if(prev.schema!==report.schema||prev.kind!==report.kind||(live&&(prev.provider!==report.provider||prev.model!==report.model)))throw Error('baseline must use the same report schema and evaluation kind');
@@ -187,3 +206,4 @@ async function main(){
   if(report.passed!==report.executed||report.executed!==report.planned)process.exitCode=1;
 }
 main().catch(e=>{console.error(e.message);process.exitCode=1;});
+
