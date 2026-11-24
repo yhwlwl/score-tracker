@@ -10,7 +10,7 @@
     results:'成绩变化', examList:'考试记录', matrix:'考试矩阵', structure:'学科对比', profile:'历史表现',
     difficulty:'难度参考', forecast:'成绩预测', trajectory:'相似轨迹', goals:'考试目标', longGoal:'长期目标',
     plan:'预设目标', benchmarks:'均分和最高分', types:'题型表现', paper:'逐题得分', reflection:'考试反思',
-    statistics:'指标关联', baseline:'历史常态与总分', scenario:'分数模拟',
+    statistics:'指标关联', aggregate:'统计计算', baseline:'历史常态与总分', scenario:'分数模拟',
   };
   let session, launcher, dialog;
   function current() { return typeof state !== 'undefined' && state.user && state.token; }
@@ -180,6 +180,45 @@
     }
     frame.append(scroll,detail,note);draw();return frame;
   }
+  function metricWidget(spec){
+    if(!['metric','compare'].includes(spec?.type)||!Array.isArray(spec.items))return null;
+    const items=spec.items.slice(0,4).filter(i=>i&&typeof i.label==='string'&&typeof i.value==='string');
+    if(!items.length)return null;
+    const grid=element('section','sq-metrics'+(spec.type==='compare'?' is-compare':''));
+    for(const i of items){
+      const parts=i.value.split(' · '),card=element('div','sq-metric');
+      card.append(element('small','',i.label),element('b','',parts[0]));
+      if(parts.length>1)card.append(element('span','sq-metric-detail',parts.slice(1).join(' · ')));
+      if(i.source){const details=element('details','sq-metric-source');details.append(element('summary','','依据'),element('span','',String(i.source)));card.append(details);}
+      grid.append(card);
+    }
+    return grid;
+  }
+  function aggregateWidget(spec){
+    if(spec?.type!=='aggregate'||!Array.isArray(spec.columns)||!Array.isArray(spec.rows))return null;
+    const cols=spec.columns.filter(c=>c&&typeof c.key==='string'&&typeof c.label==='string').slice(0,6);
+    const rows=spec.rows.filter(r=>r&&typeof r.scope==='string'&&r.values&&typeof r.values==='object').slice(0,32);
+    if(!cols.length||!rows.length)return null;
+    const frame=element('section','sq-aggregate'),heading=element('div','sq-simulator-header');
+    heading.append(element('strong','','统计对比 · '+String(spec.metric||'')));
+    const scroll=element('div','sq-relations-scroll'),table=element('table',''),detail=element('div','sq-relations-detail','点击行名称查看计算范围。');
+    scroll.append(table);frame.append(heading,scroll,detail,element('small','','点击表头排序；缺失值不参与计算。'));
+    let sort=null,ascending=true;
+    const draw=()=>{
+      table.replaceChildren();const header=element('tr','');header.append(element('th','','范围'));
+      cols.forEach(c=>{const th=element('th',''),b=button(c.label+(sort===c.key?(ascending?' ↑':' ↓'):''),'sq-sort',()=>{ascending=sort===c.key?!ascending:Boolean(c.ascending);sort=c.key;draw();});th.append(b);header.append(th);});
+      table.append(header);
+      const ordered=rows.slice().sort((a,b)=>{if(!sort)return 0;const x=a.values[sort],y=b.values[sort];if(!Number.isFinite(x))return Number.isFinite(y)?1:0;if(!Number.isFinite(y))return -1;return (ascending?1:-1)*(x-y);});
+      for(const r of ordered){
+        const tr=element('tr',''),th=element('th','');
+        th.append(button(r.scope+(r.group&&r.group!=='全部'?' · '+r.group:''),'sq-sort',()=>{detail.textContent=String(r.source||'')+' · 有效 '+r.count+' 场';}));
+        tr.append(th);
+        for(const c of cols){const v=r.values[c.key];tr.append(element('td','',Number.isFinite(v)?(c.rank?'前 ':'')+v+String(c.unit||''):'—'));}
+        table.append(tr);
+      }
+    };
+    draw();return frame;
+  }
   function showAnswer(article, turn) {
     article.querySelector('.sq-feedback').remove();
     const specs=Array.isArray(turn.charts)&&turn.charts.length ? turn.charts.slice(0,3) : [turn.chart];
@@ -197,8 +236,8 @@
       const chart=window.ScoreStudyChart?.render(spec);
       if(chart){article.append(chart.figure);session.charts.push(chart.dispose);}
     };
-    const widgets=Array.isArray(turn.widgets)?turn.widgets.slice(0,2):[];
-    const appendWidgets=i=>widgets.filter(w=>Math.max(1,Number(w.after)||1)===i).forEach(w=>{const node=w.type==='relations'?relationsWidget(w):scenarioWidget(w);if(node)article.append(node);});
+    const widgets=Array.isArray(turn.widgets)?turn.widgets.slice(0,3):[];
+    const appendWidgets=i=>widgets.filter(w=>Math.max(1,Number(w.after)||1)===i).forEach(w=>{const node=w.type==='relations'?relationsWidget(w):w.type==='aggregate'?aggregateWidget(w):['metric','compare'].includes(w.type)?metricWidget(w):scenarioWidget(w);if(node)article.append(node);});
     if(Array.isArray(turn.chartAfter)&&turn.chartAfter.length===specs.length || widgets.length) {
       const paragraphs=String(turn.answer||'').split(/\n\s*\n/).filter(p=>p.trim());
       const positions=specs.map((_,i)=>Number.isInteger(turn.chartAfter?.[i])?Math.max(1,Math.min(paragraphs.length,turn.chartAfter[i])):paragraphs.length);
