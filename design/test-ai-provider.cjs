@@ -9,6 +9,8 @@ const {meteredModelFetch}=require('../supabase/functions/_shared/ai-credits.ts')
  const flags={SCORE_TRACKER_STUDY_PROVIDER:'opencode-go',OPENCODE_GO_API_KEY:'fixture-go'};
  assert.equal(goOverride('study',env(flags)).apiKey,'fixture-go');
  const readiness=goProviderReadiness(env(flags));assert.equal(readiness.configured,true);assert.equal(readiness.study_provider,'opencode-go');assert.equal(readiness.vision_provider,'legacy');assert.equal(readiness.text_live,'unverified');assert.equal(readiness.vision_live,'unverified');assert(!JSON.stringify(readiness).includes('fixture-go'));assert.equal(goProviderReadiness(env({})).configured,false);
+ const report=require('./study-agent-live-report-2026-11-24.json');const evidence=readiness.independent_eval;
+ assert.equal(report.kind,'live-model');assert.equal(report.provider,'opencode-go');assert.equal(evidence.scope,'independent_evaluation');assert.equal(evidence.model,report.model);assert.equal(evidence.commit,report.commit);assert.equal(evidence.scenarios,report.executed);assert.equal(evidence.success,report.results.filter(r=>r.status===200&&r.usage?.prompt>0&&r.usage?.output>0).length);assert.equal(evidence.model_calls,report.results.reduce((sum,r)=>sum+r.calls,0));assert.equal(evidence.quality_passed,report.passed);
  assert.equal(recognitionConfig(row,env(flags)).apiKey,'fixture-legacy');
  const vision={...flags,SCORE_TRACKER_VISION_PROVIDER:'opencode-go'};
  assert.equal(recognitionConfig(row,env(vision)).configured,false);

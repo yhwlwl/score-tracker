@@ -69,6 +69,8 @@ export function goProviderReadiness(env = (key: string) => Deno.env.get(key)) {
     vision_enabled_by_config: env("SCORE_TRACKER_GO_VISION_VERIFIED") === "true",
     model: GO_MODEL,
     text_live: "unverified",
-    vision_live: "unverified"
+    vision_live: "unverified",
+    // Historical independent evaluation evidence, not a health check of this backend.
+    independent_eval: {"date":"2026-11-24","scope":"independent_evaluation","model":"deepseek-v4.1-flash","commit":"40144c1557933789a62650960949c35975081951","scenarios":42,"success":42,"model_calls":86,"quality_passed":35,"report_path":"design/study-agent-live-report-2026-11-24.json"}
   };
 }
