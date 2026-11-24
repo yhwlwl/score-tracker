@@ -143,7 +143,7 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
       await startAiTask(db,admin.id,task,'admin_test',0,0);started=true;
       results=await runGoProbe((kind,body)=>meteredModelFetch(db,admin.id,task,task+':'+kind,GO_BASE_URL+'/chat/completions',
         {method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({...body,model:GO_MODEL})},
-        (url,init)=>fetchWithTimeout(url,init,18000)));
+        (url,init)=>fetchWithTimeout(url,init,18000),undefined,task+':'+kind));
     }catch(e){
       if(e instanceof AiBudgetError)return json({error:e.message,code:e.code},e.status);
       throw e;

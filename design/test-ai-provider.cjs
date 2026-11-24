@@ -1,6 +1,6 @@
 const assert=require('node:assert/strict');
 const {goOverride,recognitionConfig,prepareModelRequest,GO_BASE_URL,GO_MODEL,goProviderReadiness,goKeyFingerprint,verifiedProviderRow}=require('../supabase/functions/_shared/recognition-config.ts');
-const {runGoProbe}=require('../supabase/functions/score-tracker-admin/go-probe.ts');
+const {runGoProbe,makeProbePng}=require('../supabase/functions/score-tracker-admin/go-probe.ts');
 const {meteredModelFetch}=require('../supabase/functions/_shared/ai-credits.ts');
 (async()=>{
  const env=values=>k=>values[k];
@@ -33,6 +33,22 @@ const {meteredModelFetch}=require('../supabase/functions/_shared/ai-credits.ts')
  assert.equal(goProviderReadiness(keyEnv,clean).vision_live,'failed');
  assert(!JSON.stringify(goProviderReadiness(keyEnv,clean)).includes(verified.go_test.key_hash));
  assert.equal(goOverride('study',env({OPENCODE_GO_API_KEY:'new-key'}),await verifiedProviderRow(verified,env({OPENCODE_GO_API_KEY:'new-key'}))).configured,false);
+ const zlib=require('node:zlib');
+ const expectedColors={red:[255,0,0],blue:[0,0,255],green:[0,255,0],yellow:[255,255,0]};
+ for(const [color,rgb] of Object.entries(expectedColors)){
+  const png=Buffer.from(await makeProbePng(color),'base64');assert.equal(png.subarray(0,8).toString('hex'),'89504e470d0a1a0a');
+  let pos=8,ended=false,idat=[];
+  while(pos+12<=png.length){
+   const n=png.readUInt32BE(pos),tag=png.toString('ascii',pos+4,pos+8);assert(pos+12+n<=png.length);
+   const data=png.subarray(pos+8,pos+8+n);
+   let crc=0xffffffff;for(const byte of png.subarray(pos+4,pos+8+n)){crc^=byte;for(let i=0;i<8;i++)crc=(crc>>>1)^((crc&1)?0xedb88320:0);}
+   assert.equal((crc^0xffffffff)>>>0,png.readUInt32BE(pos+8+n));
+   if(tag==='IDAT')idat.push(data);if(tag==='IEND')ended=true;pos+=12+n;
+  }
+  assert(ended);assert.equal(pos,png.length);
+  const raw=zlib.inflateSync(Buffer.concat(idat));assert.equal(raw.length,96*(1+96*3));
+  for(let y=0;y<96;y++){assert.equal(raw[y*289],0);for(let x=0;x<96;x++)assert.deepEqual([...raw.subarray(y*289+1+x*3,y*289+4+x*3)],rgb);}
+ }
  const probe=await runGoProbe(async(kind,body)=>{
   if(kind==='vision'){assert.equal(body.messages[0].content[1].type,'image_url');assert(body.messages[0].content[1].image_url.url.startsWith('data:image/png;base64,'));return new Response('{}',{status:400});}
   const value=body.messages[0].content.match(/st-[a-f0-9]{8}/)[0];
