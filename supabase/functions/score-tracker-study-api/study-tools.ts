@@ -93,6 +93,7 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
   const facts: Evidence[] = [];
   const series: Series[] = [];
   const refs = new Map<string, number>();
+  let relations: {type:'relations';title:string;subjects:string[];mode:'level'|'change';metric:'rate'|'rank';pairs:{a:string;b:string;level:number|null;change:number|null;n:number;steps:number;same:number;opposite:number}[]} | null = null;
   const seriesRefs = new Map<string, number>();
   const trajectoryRequests = new Map<string, Promise<any>>();
   const trajectoryLanes = [Promise.resolve(), Promise.resolve(), Promise.resolve()];
@@ -224,7 +225,11 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
         addSeries(describe(r.a,aMetric),delta?(aMetric==='rank'?'rankChange':'rateChange'):aMetric,values.map(p=>point(p.axis,p.a)));
         addSeries(describe(r.b,bMetric),delta?(bMetric==='rank'?'rankChange':'rateChange'):bMetric,values.map(p=>point(p.axis,p.b)));
       }
-      if(all)notes.push('已计算 '+combinations.length+' 对科目；水平相关与进退相关是不同指标。按相邻共同有效考试计算变化，缺考可能跨场。');
+      if(all){
+        notes.push('已计算 '+combinations.length+' 对科目；水平相关与进退相关是不同指标。按相邻共同有效考试计算变化，缺考可能跨场。');
+        if(aMetric===bMetric&&selected.length<=16)relations={type:'relations',title:'学科相关性',subjects:selected.map(k=>scopes.get(k)!),mode:delta?'change':'level',metric:aMetric,
+          pairs:results.map(r=>({a:scopes.get(r.a)!,b:scopes.get(r.b)!,level:r.level,change:r.change,n:r.pairs.length,steps:r.changes.length,same:r.same,opposite:r.opposite}))};
+      }
       if(!results.length)notes.push('请指定不同科目或不同指标。');
     } else if (args.tool === 'baseline') {
       const row=matching().filter(r=>finite(r.actual.score)&&r.actual.max>0).at(-1);
@@ -411,6 +416,21 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
         }
         for (const metric of ['rate','rank'] as const) {
           addSeries(row.axis.label,metric,measured.map(m=>point({key:m.key,label:m.label},metric==='rank'?position(m.actual):rate(m.actual))),'subjects');
+        }
+      }
+    }
+    if(args.tool==='results'&&keys.filter(k=>k.startsWith('s:')).length>=2){
+      const selected=matching().slice(-maxExams);
+      const recent=selected.at(-1);
+      if(recent){
+        const members=subjectKeys(recent.exam);
+        const chosen=members.filter(k=>keys.includes(k));
+        if(chosen.length===members.length&&chosen.length>=2){
+          const values=chosen.map(k=>({label:scopes.get(k)!,r:measure(recent.exam,k,modules)}));
+          const rates=values.filter(v=>rate(v.r)!==null).sort((a,b)=>rate(b.r)!-rate(a.r)!);
+          const ranks=values.filter(v=>position(v.r)!==null).sort((a,b)=>position(a.r)!-position(b.r)!);
+          if(rates.length>1)add('本场得分率排序',rates.map(v=>v.label+' '+round(rate(v.r)!)+'%').join(' > '),source(recent.exam)+' · 从高到低，仅已录入科目');
+          if(ranks.length>1)add('本场年级位置排序',ranks.map(v=>v.label+' 前 '+round(position(v.r)!)+'%').join(' → '),source(recent.exam)+' · 从靠前到靠后，仅已录入科目');
         }
       }
     }
@@ -846,5 +866,5 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
     if(Math.abs(subjects.reduce((sum,s)=>sum+s.actual,0)-row.actual.score)>.01||Math.abs(subjects.reduce((sum,s)=>sum+s.max,0)-row.actual.max)>.01)return null;
     return {type:'scenario' as const,title:'总分情景模拟',exam:row.axis.label,actual:row.actual.score,max:row.actual.max,subjects};
   }
-  return { catalog, query, facts, chart, simulator };
+  return { catalog, query, facts, chart, simulator, relationships:()=>relations };
 }
