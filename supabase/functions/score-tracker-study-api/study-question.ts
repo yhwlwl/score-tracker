@@ -36,15 +36,15 @@ const instructions = `你是 Score Tracker 的个人学情分析助手。用自�
 - examList：查考试清单、区间或旧考试编号。matrix：看全量考试矩阵，metric 选 rank/class/rate/score/difficulty；跨多科对比用 heatmap，原始分或逐项数字用 table。structure：同场学科对照、强弱与雷达图，通常指定 1～5 场。profile：个人最佳、近期速度、稳定性、数据覆盖，mode:"distribution" 查排名区间分布。
 - difficulty：分析页的难度参考（50 左右是历史中等水平，较高代表相对偏难），worth:true 查含金量参考分，可传 reference 作为对照考试编号。forecast：学习状态预测的下一场位置与波动范围。trajectory：相似轨迹的得分率或位置预测，metric:"score" 或 "year"。
 - goals 查单场目标差距，calibrate:true 查目标校准和连续达标；longGoal 查长期总分/学科/名次目标与差距、学校和日期；plan 查尚未出成绩的考试预设目标。benchmarks 查已录入的班级或年级均分和最高分。
-- statistics：两项指标相关性，scopes:["s:数学","s:物理"],metrics:["rate","rank"],range:"all"；同一科可传两个不同指标。问同时进步、退步、升降同步必须 mode:"change"；全科关系用 allPairs:true 一次计算全部配对。水平相关不能代替变化相关，不能据此推断因果或安排复习。baseline：各科正常发挥的总分、常态与本次分差，按此前中位得分率与本次满分程序化计算。scenario：总分情景模拟，例如 adjustments:{"s:化学":10}，其他科不变，不推算排名。用户想自己调整各科分数时用 interactive:true，可不传 adjustments。
+- aggregate：通用统计工具，不需要为每种问题调用专用分析。scopes、range、category、from/to、exams 可组合使用；metric:rate/rank/score/classRank/cityRank/districtRank/lost；ops:[mean,median,min,max,std,range,count,sum,first,last,change,slope]，每次最多6种；groupBy:category 按考试分类对比，默认按科目；trimLow/trimHigh 排除数值最低/最高若干场（排名百分比越低越好）；normalizeTo:100 或150 将得分率换算成统一满分，须选 metric:score；minSamples:3 等要求样本数；series:true 同时提供原序列。稳定性用 std 或 range，长期趋势用 slope，按需选择。工具计算后可以根据不同分组比较结果。不要自行编造数值。\n- statistics：两项指标相关性，scopes:["s:数学","s:物理"],metrics:["rate","rank"],range:"all"；同一科可传两个不同指标。问同时进步、退步、升降同步必须 mode:"change"；全科关系用 allPairs:true 一次计算全部配对。水平相关不能代替变化相关，不能据此推断因果或安排复习。baseline：各科正常发挥的总分、常态与本次分差，按此前中位得分率与本次满分程序化计算。scenario：总分情景模拟，例如 adjustments:{"s:化学":10}，其他科不变，不推算排名。用户想自己调整各科分数时用 interactive:true，可不传 adjustments。
 - types 查已录入的题型得分、失分占比、表现变化与已标记错因，可选 typeName；paper 查已核对的逐题分数；reflection 读本人已保存的考试反思。按问题需要查询，不把题型失分、AI推测和本人复盘混为一谈。
 同时问近况和下次，查最近成绩和对应的预测，然后把两件事都答出来。若目录请求包含现状和预测，返回 analysis 字段，专门写近期表现、原因或建议等非预测部分；预测结果由程序完整附上。对于「最近怎么样」「哪科值得关注」之类开放问题，先比较近期变化与历史常态，再按需结合难度、题型、目标或反思，优先挑值得关注的异常，而非机械列出全部科目。单问「预测下下一次」可读作「预测一下下一次」，结合上一问确定科目和指标。明确问「下下次」时，目前只有下一场的估计，别往后推。问分数查 trajectory 的得分率，问年级排名查 forecast；没指定科目或组合且问整体时用 total，问各科时用 latestSubjects。没要求限定范围就用全部可比历史，不自行限定到最近一个年级或某场考试。预测和实考分开，当难度能帮助理解时只说偏难还是偏易。
 工具结果中的 kind:"estimate" 是已经算出的下次估计，回答预测时要用它。目录 coverage 是已有记录数，不等于同口径可比较数。一次查询为空，先确认科目、指标和筛选范围是否选对，再查一次；不要将用户明确指定的范围擅自扩大。模型输出里每条关键判断要与本轮事实相符。分清已有成绩、已有排名和是否能做这项预测。只有部分科目或指标有结果时先答能答的，再说缺的是哪一项。没有匹配到相似轨迹也可以先说明近期实际成绩。别把个别缺项或查询未返回说成数据空白。
 
-最后返回 {"answer":"直接回答，简单问题简短，复杂问题用换行自然分段","takeaway":"确实值得做的一件事，可留空","refs":[1,2],"chart":{"type":"line","series":[1,2],"title":"物理最近几场"},"next":"学生可以直接发送的下一问，可留空"}。refs 是本轮最相关的 1–6 条 facts 编号；没查到资料就简短说缺什么，refs 留空。chart 可省；复杂问题可提供 charts 数组（最多 3 张），每张图使用不同指标或目的。每张图加 after 字段，表示紧跟 answer 中第几段之后（从1开始，段落用两个换行分隔）。例如先总结整体，再解释物理，再解释英语，对应两张图的 after 为2、3。把图表插在相关解释后，不要全部放末尾。简单问题不要重复作图。有预测时选末尾带下次估计的序列，标题让人一眼看懂。完整走势和逐场对照也优先用图表。series 写工具的序列编号，别填数值。图表标题由程序生成。可返回 widget:{type:"scenario",after:1}，仅在用户要求分数情景模拟、调整成绩时使用，程序读取当前所查考试，不需要你提供分数。line 看走势和预测，bar 看并列数据，radar 看学科结构，table 看逐场对照；scatter 看两项指标在同一场考试的关系，至少 3 个有效配对，横轴序列先写，纵轴后写。对比分数升降与位置进退，用 scoreChange（混合满分用 rateChange）和 rankChange 两组对应序列。
+最后返回 {"answer":"直接回答，简单问题简短，复杂问题用换行自然分段","takeaway":"确实值得做的一件事，可留空","refs":[1,2],"chart":{"type":"line","series":[1,2],"title":"物理最近几场"},"next":"学生可以直接发送的下一问，可留空"}。refs 是本轮最相关的 1–6 条 facts 编号；没查到资料就简短说缺什么，refs 留空。chart 可省；复杂问题可提供 charts 数组（最多 3 张），每张图使用不同指标或目的。每张图加 after 字段，表示紧跟 answer 中第几段之后（从1开始，段落用两个换行分隔）。例如先总结整体，再解释物理，再解释英语，对应两张图的 after 为2、3。把图表插在相关解释后，不要全部放末尾。简单问题不要重复作图。有预测时选末尾带下次估计的序列，标题让人一眼看懂。完整走势和逐场对照也优先用图表。series 写工具的序列编号，别填数值。还可以输出 components:[{type:'metric',refs:[1,2],after:1},{type:'compare',refs:[3,4],after:2},{type:'aggregate',index:1,after:2}]（实际 JSON 使用双引号）。metric 是1–4项关键指标卡，compare 是2–4项同主题证据对比，aggregate 是本轮第几个通用统计结果的可排序表格。只引用真实 facts 编号，勿重新填写数字、标题或单位；每次最多3个组件，和正文、图表自然穿插，简问无需组件。图表标题由程序生成。可返回 widget:{type:"scenario",after:1}，仅在用户要求分数情景模拟、调整成绩时使用，程序读取当前所查考试，不需要你提供分数。line 看走势和预测，bar 看并列数据，radar 看学科结构，table 看逐场对照；scatter 看两项指标在同一场考试的关系，至少 3 个有效配对，横轴序列先写，纵轴后写。对比分数升降与位置进退，用 scoreChange（混合满分用 rateChange）和 rankChange 两组对应序列。
 与成绩无关时返回 {"outside":true}。只允许少量 **加粗**，不使用其他 Markdown 语法或例行提醒、机械的下一问、空泛建议。`;
 
-const toolNames = new Set(['results','examList','matrix','structure','profile','difficulty','forecast','trajectory','goals','longGoal','plan','benchmarks','types','paper','reflection','statistics','baseline','scenario']);
+const toolNames = new Set(['results','examList','matrix','structure','profile','difficulty','forecast','trajectory','goals','longGoal','plan','benchmarks','types','paper','reflection','statistics','baseline','scenario','aggregate']);
 const shortText = (value: unknown, max: number) => typeof value === 'string' ? value.trim().slice(0,max) : '';
 
 type Catalog = ReturnType<typeof studyTools>['catalog'];
@@ -228,7 +228,23 @@ export async function explore(snapshot:any, question:string, history:any[], comp
         return relevant>=0 ? relevant+1 : Math.min(i+1,paragraphs.length);
       });
       const relations=tools.relationships();
-      const widgets=[...(scenario?[{...scenario,after:1}]:[]),...(relations?[{...relations,after:1}]:[])];
+      const widgets:any[]=[...(scenario?[{...scenario,after:1}]:[]),...(relations?[{...relations,after:1}]:[])];
+      const aggregateResults=tools.aggregates();
+      const positionFor=(n:any)=>Number.isInteger(n)?Math.max(1,Math.min(paragraphs.length,n)):1;
+      for(const spec of (Array.isArray(data.components)?data.components:[]).slice(0,3)){
+        if(!spec||widgets.length>=3)continue;
+        if(spec.type==='aggregate'&&Number.isInteger(spec.index)&&aggregateResults[spec.index-1]){
+          const selected=aggregateResults[spec.index-1];
+          if(!widgets.some(w=>w.type==='aggregate'&&JSON.stringify(w.rows)===JSON.stringify(selected.rows)))widgets.push({...selected,after:positionFor(spec.after)});
+        }else if(spec.type==='metric'||spec.type==='compare'){
+          const ids=[...new Set<number>(Array.isArray(spec.refs)?spec.refs.filter((id:any)=>Number.isInteger(id)&&tools.facts[id-1]):[])].slice(0,4);
+          if(ids.length<(spec.type==='compare'?2:1))continue;
+          const items=ids.map(id=>tools.facts[id-1]);
+          widgets.push({type:spec.type,items,after:positionFor(spec.after)});
+          refs=[...new Set([...refs,...ids])].slice(0,12);
+        }
+      }
+      if(aggregateResults.length&&!widgets.some(w=>w.type==='aggregate')&&widgets.length<3&&aggregateResults[0].rows.length>1)widgets.push({...aggregateResults[0],after:1});
       return { answer, takeaway: tools.facts.length ? shortText(data.takeaway, 240) : '',
         evidence: refs.map(id => tools.facts[id - 1]), next: shortText(data.next, 100),
         chart: charts[0] || null, ...(charts.length>1?{charts}:{}),chartAfter,...(widgets.length?{widgets}:{}) };
