@@ -1,0 +1,44 @@
+name: Study agent quality
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/functions/score-tracker-study-api/**'
+      - 'supabase/functions/_shared/**'
+      - 'study-question*.js'
+      - 'study-question*.css'
+      - 'design/study-agent-eval.cjs'
+      - '.github/workflows/study-agent-quality.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/score-tracker-study-api/**'
+      - 'supabase/functions/_shared/**'
+      - 'study-question*.js'
+      - 'study-question*.css'
+      - 'design/study-agent-eval.cjs'
+      - '.github/workflows/study-agent-quality.yml'
+  schedule:
+    - cron: '0 19 * * 0'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  quality-replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Replay synthetic quality cases in all thinking modes
+        run: node design/study-agent-eval.cjs --mode=all --out=study-agent-report.json
+      - name: Upload evaluation report (including failed cases)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: study-agent-quality-report
+          path: study-agent-report.json
+          if-no-files-found: warn
+          retention-days: 90
