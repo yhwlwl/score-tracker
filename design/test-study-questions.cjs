@@ -221,6 +221,7 @@ async function checkForecastLookup(snapshot) {
   });
   assert.deepEqual(requested.sort(),['数学','物理']);
   assert.match(all.answer,/2 科的下次估计/);
+  assert.doesNotMatch(all.answer,/按满分/);
   assert.equal(all.chart.type,'table');
   assert.deepEqual(all.chart.series[0].points.map(p=>[p.label,p.forecast]),[['数学',true],['物理',true]]);
   assert.match(all.evidence[0].value,/按满分 150 分换算/);
@@ -268,6 +269,10 @@ async function checkAgentCompleteness(snapshot) {
   assert.equal(p.value,66);
   assert.equal(p.low,undefined);
   assert.equal(p.high,undefined);
+  const converted=table.series.find(s=>s.metric==='score');
+  assert.ok(converted);
+  assert.equal(converted.points.find(p=>p.label==='物理').value,66);
+  assert.equal(converted.points.find(p=>p.label==='物理').low,undefined);
   const relation=await tools.query({tool:'statistics',scopes:['s:数学','s:物理'],metrics:['rate','rate'],range:'all'});
   assert.match(relation.facts[0].value,/相关系数.*5 场配对/);
   assert.equal(tools.chart({type:'scatter',series:relation.series.map(s=>s.id)},'这两科有关系吗').type,'scatter');
@@ -293,14 +298,15 @@ async function checkAgentCompleteness(snapshot) {
     if(multi++===0)return {tool:'results',scopes:['s:数学'],range:'all'};
     const {results:[result]}=JSON.parse(messages.at(-1).content);
     const rate=result.series.find(s=>s.metric==='rate').id,rank=result.series.find(s=>s.metric==='rank').id;
-    return {answer:'得分率和排名分别看。',refs:[1],charts:[
-      {type:'line',series:[rate],title:'得分率走势'},
-      {type:'line',series:[rank],title:'排名走势'},
+    return {answer:'**得分率**有变化。\n\n排名也需要单独看。',refs:[1],charts:[
+      {type:'line',series:[rate],title:'得分率走势',after:1},
+      {type:'line',series:[rank],title:'排名走势',after:2},
       {type:'line',series:[rate],title:'重复图表'}]};
   });
   assert.equal(charts.charts.length,2);
   assert.equal(charts.charts[0].series[0].metric,'rate');
   assert.equal(charts.charts[1].series[0].metric,'rank');
+  assert.deepEqual(charts.chartAfter,[1,2]);
   let attempt=0;
   const unavailable={...rich,async details(){throw Error('private upstream error')}};
   const partial=await explore(unavailable,'结合数学成绩和考试反思',[],async messages=>{
