@@ -224,9 +224,18 @@ async function main() {
     return {enabled:true,history:[65,72,68],history_dates:['2026-10-10','2026-10-11','2026-10-12'],
       matches:[{history:[63,70,67],future:[72],match_score:89,private_label:'should-never-leave'}]};
   });
+  const recent=await tracked.query({tool:'results',scopes:['s:数学'],limit:3});
   const matched = await tracked.query({tool:'trajectory',scopes:['s:数学']});
-  assert.match(JSON.stringify(matched.facts),/1 条匿名参考/);
+  assert.match(JSON.stringify(matched.facts),/下次得分率估计.*参考 1 条相近的匿名成绩走势/);
   assert.doesNotMatch(JSON.stringify(matched),/should-never-leave/);
+  const historyOnly={type:'line',series:[recent.series.find(s=>s.metric==='rate').id],title:'数学最近几场'};
+  const upcoming=tracked.chart(historyOnly,'看下数学最近如何，预测下下一次');
+  assert.equal(upcoming.title,'数学下次成绩估计');
+  assert.equal(upcoming.series[0].id,matched.series[0].id);
+  assert.equal(upcoming.series[0].points.at(-1).forecast,true);
+  assert.equal(tracked.chart(historyOnly,'看看最近成绩').series[0].id,historyOnly.series[0]);
+  assert.equal(tracked.chart(null,'预测下下次'),null);
+  assert.equal(tracked.chart({...historyOnly,type:'table'},'预测下下一次，最近成绩用表格').type,'table');
   const pairs = studyTools(snapshot);
   const whole = await pairs.query({tool:'results',scopes:['s:数学'],range:'all'});
   const insight = whole.facts.find(f=>f.label==='数学得分率与年级位置');

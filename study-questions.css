@@ -121,7 +121,12 @@
   background: var(--panel-solid, #fff);
   color: var(--accent);
 }
-.sq-answer { font-weight: 550; font-size: calc(15px * var(--ui-scale, 1)); line-height: 1.65; }
+.sq-answer {
+  font-weight: 400;
+  font-size: calc(15px * var(--ui-scale, 1));
+  line-height: 1.65;
+  white-space: pre-line;
+}
 .sq-takeaway {
   padding: 8px 11px;
   border-left: 2px solid var(--accent);

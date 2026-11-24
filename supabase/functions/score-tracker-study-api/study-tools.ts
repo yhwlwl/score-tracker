@@ -473,10 +473,10 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
         if (!report.nextExam) continue;
         const value = round(report.ewmaForecast?.valid ? report.ewmaForecast.percentile : report.nextExam.medianPercentile);
         const [low, high] = report.nextExam.ci95Percentile.map(round);
-        add(label + '下一场参考位置', '前 ' + value + '%', '学习状态预测 · ' + eligible.length + ' 场 · 截至 ' + source(eligible.at(-1)!.exam));
-        add(label + '可能波动范围', '前 ' + low + '% ～ 前 ' + high + '%', '学习状态预测 · 同口径排名 · 状态模型');
+        add(label + '下次年级排名估计', '前 ' + value + '%', '参考 ' + eligible.length + ' 场考试 · 截至 ' + source(eligible.at(-1)!.exam));
+        add(label + '下次可能的排名范围', '前 ' + low + '% ～ 前 ' + high + '%', '按以往排名的波动估计');
         const points = eligible.slice(-10).map(row => point(row.axis, 100 * row.actual.rank / row.actual.people));
-        points.push({ key: 'next:rank', label: '下次参考', detail: '学习状态预测', value, low, high, forecast: true });
+        points.push({ key: 'next:rank', label: '下次估计', detail: '参考 ' + eligible.length + ' 场考试', value, low, high, forecast: true });
         addSeries(label, 'rank', points);
       } else if (args.tool === 'trajectory') {
         if (trajectoryUsed || !loadTrajectory) continue;
@@ -491,15 +491,17 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
         if (!estimate) { notes.push(label + '暂时没有可用的相似轨迹预测。'); continue; }
         const { center, low, high, count } = estimate;
         const prefix = metric === 'year' ? '前 ' : '';
-        add(label + '相似轨迹预测', prefix + round(center) + '% · 参考范围 ' + prefix + round(low) + '% ～ ' + prefix + round(high) + '%',
-          '相似轨迹 · ' + count + ' 条匿名参考 · 默认匹配设置');
+        const reference = '参考 ' + count + ' 条相近的匿名成绩走势';
+        add(label + (metric === 'year' ? '下次年级排名估计' : '下次得分率估计'),
+          prefix + round(center) + '% · 可能范围 ' + prefix + round(low) + '% ～ ' + prefix + round(high) + '%',
+          reference);
         const points: Point[] = own.slice(-10).map((n: number, index: number, values: number[]) => {
           const offset = own.length - values.length + index;
           const date = matched.history_dates?.[offset];
           const exam = exams.filter(e => e.exam_date === date);
           return point({ key: 'trajectory:' + offset, label: exam.length === 1 ? examName(exam[0]) : date || '第 ' + (offset + 1) + ' 场', detail: date }, n);
         });
-        points.push({ key: 'next:trajectory', label: '下次参考', detail: '相似轨迹 · ' + count + ' 条参考', value: round(center), low: round(low), high: round(high), forecast: true });
+        points.push({ key: 'next:trajectory', label: '下次估计', detail: reference, value: round(center), low: round(low), high: round(high), forecast: true });
         addSeries(label, metric === 'year' ? 'rank' : 'rate', points);
       } else if (args.tool === 'benchmarks') {
         const gaps: Point[] = [];
@@ -534,7 +536,7 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
   }
 
   function chart(spec: any, question: string): Chart | null {
-    const title = typeof spec?.title === 'string' ? spec.title.trim().slice(0, 44) : '';
+    let title = typeof spec?.title === 'string' ? spec.title.trim().slice(0, 44) : '';
     const requestedMatrix = /矩阵/.test(question);
     const scatter = /散点/.test(question) || spec?.type === 'scatter';
     const heatmap = /热力图/.test(question) || spec?.type === 'heatmap';
@@ -553,6 +555,26 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
     if (!input.length && (requestedTable || requestedChart)) {
       const options = comparison ? ['scoreChange', 'rankChange', 'rateChange'] : ['rate', 'rank', 'classRank', 'cityRank', 'districtRank', 'difficulty', 'score', 'averageGap', 'lost', 'count'];
       input = options.flatMap(metric => series.filter(s => s.metric === metric)).slice(0, 4);
+    }
+    const nextQuestion = question.replace(/(?:预测|预估)下(?=下一[场次])/g, '预测');
+    const asksNext = /下(?:一)?[场次]|下回|接下来/.test(nextQuestion) &&
+      /预测|预估|估算|大概|大约|能考|能排/.test(nextQuestion) &&
+      !/下下(?:一)?[场次]|再下一[场次]/.test(nextQuestion);
+    if (asksNext && (type === 'line' || type === 'bar')) {
+      const hasForecast = (s: Series) => s.points.some(p => p.forecast);
+      const labelled = input.length ? series.filter(s => input.some(i => i.label === s.label)) : series;
+      const predicted = labelled.filter(hasForecast);
+      const preferred = /排名|年排|位次|排到|排多少|第几/.test(question) ? 'rank' : 'rate';
+      const focus = input.find(hasForecast) || predicted.find(s => s.metric === preferred) || predicted[0];
+      if (focus) {
+        if (!input.includes(focus) || !title) {
+          title = (focus.label + (focus.metric === 'rank' ? '下次年级排名估计' : '下次成绩估计')).slice(0, 44);
+        }
+        // A history-only chart may use different point keys. Anchor on the
+        // estimate so the user's next-exam answer is always visible in the chart.
+        input = [focus, ...input.filter(s => s !== focus)];
+        type = 'line';
+      }
     }
     if (!input.length) return null;
     const axisKind = (p: Point) => p.key.includes(':') && /^\d+:\d+$/.test(p.key);
