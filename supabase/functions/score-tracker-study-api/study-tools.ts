@@ -130,6 +130,7 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
     const found = new Set<number>();
     const datasets = new Set<number>();
     const notes: string[] = [];
+    let scenarioWidget: ReturnType<typeof simulator> = null;
     function add(label: string, value: string, citation: string, kind?: Evidence['kind']) {
       const fact = { label, value, source: citation, kind };
       const hash = JSON.stringify(fact);
@@ -159,10 +160,12 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
       return { facts: [], series: [], notes: ['查询的科目或组合未匹配目录。请核对 scopes，再查一次。'] };
     }
     const category = typeof args.category === 'string' && args.category.length <= 40 ? args.category : '__all__';
+    const selectedCategories = new Set(candidate(args.categories).filter((v): v is string => typeof v==='string' && v.length<=40));
     const from = dateArg(args.from), to = dateArg(args.to);
     const name = typeof args.name === 'string' ? args.name.trim().slice(0, 100) : '';
     const matchExam = (exam: any) => (category === '__all__' ||
       (category === '__none__' ? !exam.grade_level : exam.grade_level === category)) &&
+      (!selectedCategories.size || selectedCategories.has(exam.grade_level || '__none__')) &&
       (!from || exam.exam_date >= from) && (!to || exam.exam_date <= to) && (!name || examName(exam).includes(name));
     const inCategory = (row: Row) => matchExam(row.exam);
     const maxExams = args.range === 'all' ? Infinity :
@@ -212,7 +215,7 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
       if(metric==='difficulty'){
         notes.push('难度需使用专用 difficulty 工具；暂不支持在 aggregate 中直接聚合难度。');
       }else{
-        const resultRows:{scope:string;group:string;count:number;values:Partial<Record<Op,number>>;source:string}[]=[];
+        const resultRows:{scope:string;group:string;count:number;values:Partial<Record<Op,number>>;source:string;trend:{up:number;down:number;same:number;first:number;last:number}}[]=[];
         for(const key of selected){
           // Anchor on the latest selected scope, avoiding mixed subject combinations.
           const rows=select(key).filter(r=>finite(get(r,key)));
@@ -248,7 +251,12 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
               result[op]=round(v);
               add(label+metricLabel[metric]+opLabel[op],(validRank&&['mean','median','min','max','first','last'].includes(op)?'前 ':'')+round(v)+unit(op),citation+(validRank&&['change','slope'].includes(op)?' · 正值代表排名进步':''));
             }
-            resultRows.push({scope:scopes.get(key)!,group,count:n,values:result,source:citation});
+            const changes=values.slice(1).map((v,i)=>round(v-values[i]));
+            const trend={up:changes.filter(v=>v>0).length,down:changes.filter(v=>v<0).length,same:changes.filter(v=>v===0).length,first:round(values[0]),last:round(values[n-1])};
+            if(groupBy==='category' && metric==='rate' && n>=2){
+              add(label+'得分率逐场变化',`上升 ${trend.up} 次 · 下降 ${trend.down} 次 · 持平 ${trend.same} 次 · ${trend.first}% → ${trend.last}%`,citation);
+            }
+            resultRows.push({scope:scopes.get(key)!,group,count:n,values:result,source:citation,trend});
             // Retain exact selected records as a reusable data series for charting.
             if(args.series===true&&resultRows.length<=8)addSeries(label,metric,list.map(x=>point(x.r.axis,x.v)));
           }
@@ -348,7 +356,10 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
         const adjustments = args.adjustments && typeof args.adjustments==='object' && !Array.isArray(args.adjustments) ? Object.entries(args.adjustments).slice(0,24) : [];
         let total = row.actual.score;
         const changes: {label:string;before:number;after:number}[] = [];
-        let valid = adjustments.length>0 || args.interactive===true && Boolean(simulator(row.id));
+        // A delta in a subject does not necessarily add the same amount to a weighted/manual total.
+        const baseSimulator=simulator(row.id);
+        let valid = Boolean(baseSimulator) && (adjustments.length>0 || args.interactive===true);
+        if(!baseSimulator)notes.push('总分与科目合计或满分不一致，不能直接按科目加减模拟。');
         for (const [key,delta] of adjustments) {
           const name = key.startsWith('s:') ? key.slice(2) : '';
           const subject = measure(row.exam,key,modules);
@@ -358,6 +369,7 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
           total+=delta; changes.push({label:name,before:subject.score,after:subject.score+delta});
         }
         if (valid && total>=0 && total<=row.actual.max) {
+          scenarioWidget=simulator(row.id,Object.fromEntries(adjustments) as Record<string,number>);
           for (const change of changes) add(change.label+'模拟成绩',round(change.before)+' → '+round(change.after)+' 分',source(row.exam));
           add('模拟总分',fmtMark(total,row.actual.max)+' · 实际 '+fmtMark(row.actual.score,row.actual.max)+' · 变化 '+signed(total-row.actual.score)+' 分',source(row.exam)+' · 其他科目保持不变，不是排名预测');
           addSeries('总分','score',[point({key:'actual',label:'实际总分'},row.actual.score),point({key:'scenario',label:'模拟总分'},total)],'subjects');
@@ -841,6 +853,7 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
             dimension === 'exams' ? [p.key, p.value] : [p.label, p.value]) };
       }),
       notes,
+      ...(scenarioWidget?{scenarioWidget}:{}),
     };
   }
 
