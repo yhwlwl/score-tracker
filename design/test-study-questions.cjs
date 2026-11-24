@@ -209,9 +209,9 @@ async function checkForecastLookup(snapshot) {
   const all = await explore(ranked,'我各科下次大概能考多少？',[{question:'下一场大概能排到哪里？'}],async messages=>{
     if (!turns++) return {tool:'trajectory',metric:'score',scopes:['s:数学']};
     const {results:[forecast]} = JSON.parse(messages.at(-1).content);
-    assert.equal(forecast.facts.filter(f=>f.kind==='estimate').length,turns===2?2:1);
+    assert.equal(forecast.facts.filter(f=>f.kind==='estimate').length,turns===2?2:0);
     if (turns===2) return {tool:'trajectory',metric:'score',scopes:['s:数学']};
-    return {answer:'目前只有数学生成了下次估计。',refs:[forecast.facts[0].id]};
+    return {answer:'目前只有数学生成了下次估计。',refs:[1]};
   },async (subjects,metric,category)=>{
     requested.push(subjects[0]);
     assert.equal(metric,'score');
@@ -274,6 +274,28 @@ async function checkAgentCompleteness(snapshot) {
   assert.equal(converted.points.find(p=>p.label==='物理').value,66);
   assert.equal(converted.points.find(p=>p.label==='物理').low,undefined);
   const relation=await tools.query({tool:'statistics',scopes:['s:数学','s:物理'],metrics:['rate','rate'],range:'all'});
+  const sync=await tools.query({tool:'statistics',scopes:['s:数学','s:物理'],range:'all',mode:'change',allPairs:true});
+  assert.ok(sync.facts.some(f=>f.label.endsWith('进退相关性')&&f.value.includes('4 组变化')));
+  assert.ok(sync.series.every(s=>s.metric==='rateChange'));
+  const verified=tools.chart({type:'line',title:'语文与生物年级排名预测',series:sync.series.map(s=>s.id)},'');
+  assert.doesNotMatch(verified.title,/语文|生物|排名|预测/);
+  assert.match(verified.title,/数学.*物理.*得分率变化/);
+  const normal=await tools.query({tool:'baseline'});
+  assert.ok(normal.facts.some(f=>f.label==='各科正常发挥总分'));
+  assert.ok(normal.series.some(s=>s.label==='实际较常态'));
+  const simulator=tools.simulator(5,{'s:数学':10});
+  assert.ok(simulator);
+  assert.equal(simulator.subjects.find(s=>s.label==='数学').value,130);
+  assert.equal(tools.simulator(5,{'s:数学':100}),null);
+  let routeCalls=0;
+  const routed=await explore(rich,'我的哪些科目容易同时进步或退步？',[],async messages=>{
+    if(routeCalls++===0)return {tool:'statistics',scopes:['s:数学','s:物理']};
+    const {results}=JSON.parse(messages.at(-1).content);
+    assert.ok(results[0].facts.some(f=>f.label.endsWith('进退相关性')));
+    return {answer:'两科的进退关系可参考。',refs:[results[0].facts[0].id]};
+  });
+  assert.match(routed.answer,/进退关系/);
+
   assert.match(relation.facts[0].value,/相关系数.*5 场配对/);
   assert.equal(tools.chart({type:'scatter',series:relation.series.map(s=>s.id)},'这两科有关系吗').type,'scatter');
   const scenario=await tools.query({tool:'scenario',exams:[5],adjustments:{'s:数学':10}});
