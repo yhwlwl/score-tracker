@@ -74,7 +74,7 @@ async function main(){
       const points=Array.from({length:7},(_,i)=>({key:String(i+1),label:i===0?'十月月考':i===1?'期中考试':'测试'+i,
         detail:'2026-10-'+(12+i),value:i===0?75:80+i}));
       stream.emit('result',{status:200,data:{
-        id:stream.q.requestId,answer:'数学比上次多拿了几分。\n\n排名也更靠前了。',takeaway:'复盘两场数学里进步最大的题型。',
+        id:stream.q.requestId,answer:'**数学**比上次多拿了几分。\n\n排名也更靠前了。',chartAfter:[1],takeaway:'复盘两场数学里进步最大的题型。',
         charged:2,next:'物理也有变化吗？',evidence:[{kind:'change',label:'数学分差',value:'+5 分',source:'月考一 → 月考二'}],
         chart:{type:'line',title:'历次得分率与位置',series:[
           {label:'数学',metric:'rate',dimension:'exams',points},
@@ -84,11 +84,13 @@ async function main(){
       }});
       stream.end();
       await page.getByRole('button',{name:'数据',exact:true}).click();
-      const answerStyle=await page.locator('.sq-answer').evaluate(el=>{
+      const answerStyle=await page.locator('.sq-answer').first().evaluate(el=>{
         const style=getComputedStyle(el);
         return {weight:style.fontWeight,spacing:style.whiteSpace};
       });
       assert.deepEqual(answerStyle,{weight:'400',spacing:'pre-line'});
+      assert.equal(await page.locator('.sq-answer strong').textContent(),'数学');
+      assert.deepEqual(await page.locator('.sq-turn').evaluate(el=>Array.from(el.children).filter(x=>x.matches('.sq-answer,.sq-chart')).map(x=>x.classList.contains('sq-chart')?'chart':'text')),['text','chart','text']);
       assert.equal(await page.locator('#sq-input').inputValue(),'下一条草稿');
       assert.equal(await page.locator('.sq-chart tbody tr').count(),7);
       await page.getByRole('combobox',{name:'考试范围'}).selectOption('5');
