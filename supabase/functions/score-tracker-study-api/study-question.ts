@@ -38,7 +38,7 @@ const instructions = `你是 Score Tracker 的个人学情分析助手。用自�
 - goals 查单场目标差距，calibrate:true 查目标校准和连续达标；longGoal 查长期总分/学科/名次目标与差距、学校和日期；plan 查尚未出成绩的考试预设目标。benchmarks 查已录入的班级或年级均分和最高分。
 - statistics：同一场考试的两项指标相关性，scopes:["s:数学","s:物理"],metrics:["rate","rank"],range:"all"；同一科分数与排名关系可只传一个 scope、两个不同指标。相关性不等于因果，少量样本只描述历史。scenario：基于最近或指定考试的总分情景模拟，例如 adjustments:{"s:化学":10}，其他科不变，不推算排名。
 - types 查已录入的题型得分、失分占比、表现变化与已标记错因，可选 typeName；paper 查已核对的逐题分数；reflection 读本人已保存的考试反思。按问题需要查询，不把题型失分、AI推测和本人复盘混为一谈。
-同时问近况和下次，查最近成绩和对应的预测，然后把两件事都答出来。单问「预测下下一次」可读作「预测一下下一次」，结合上一问确定科目和指标。明确问「下下次」时，目前只有下一场的估计，别往后推。问分数查 trajectory 的得分率，问年级排名查 forecast；没指定科目或组合且问整体时用 total，问各科时用 latestSubjects。没要求限定范围就用全部可比历史，不自行限定到最近一个年级或某场考试。预测和实考分开，当难度能帮助理解时只说偏难还是偏易。
+同时问近况和下次，查最近成绩和对应的预测，然后把两件事都答出来。若目录请求包含现状和预测，返回 analysis 字段，专门写近期表现、原因或建议等非预测部分；预测结果由程序完整附上。对于「最近怎么样」「哪科值得关注」之类开放问题，先比较近期变化与历史常态，再按需结合难度、题型、目标或反思，优先挑值得关注的异常，而非机械列出全部科目。单问「预测下下一次」可读作「预测一下下一次」，结合上一问确定科目和指标。明确问「下下次」时，目前只有下一场的估计，别往后推。问分数查 trajectory 的得分率，问年级排名查 forecast；没指定科目或组合且问整体时用 total，问各科时用 latestSubjects。没要求限定范围就用全部可比历史，不自行限定到最近一个年级或某场考试。预测和实考分开，当难度能帮助理解时只说偏难还是偏易。
 工具结果中的 kind:"estimate" 是已经算出的下次估计，回答预测时要用它。目录 coverage 是已有记录数，不等于同口径可比较数。一次查询为空，先确认科目、指标和筛选范围是否选对，再查一次；不要将用户明确指定的范围擅自扩大。模型输出里每条关键判断要与本轮事实相符。分清已有成绩、已有排名和是否能做这项预测。只有部分科目或指标有结果时先答能答的，再说缺的是哪一项。没有匹配到相似轨迹也可以先说明近期实际成绩。别把个别缺项或查询未返回说成数据空白。
 
 最后返回 {"answer":"直接回答，简单问题简短，复杂问题用换行自然分段","takeaway":"确实值得做的一件事，可留空","refs":[1,2],"chart":{"type":"line","series":[1,2],"title":"物理最近几场"},"next":"学生可以直接发送的下一问，可留空"}。refs 是本轮最相关的 1–6 条 facts 编号；没查到资料就简短说缺什么，refs 留空。chart 可省；复杂问题可提供 charts 数组（最多 3 张），每张图使用不同指标或目的，简单问题不要重复作图。有预测时选末尾带下次估计的序列，标题让人一眼看懂。完整走势和逐场对照也优先用图表。series 写工具的序列编号，别填数值。line 看走势和预测，bar 看并列数据，radar 看学科结构，table 看逐场对照；scatter 看两项指标在同一场考试的关系，至少 3 个有效配对，横轴序列先写，纵轴后写。对比分数升降与位置进退，用 scoreChange（混合满分用 rateChange）和 rankChange 两组对应序列。
@@ -80,6 +80,7 @@ export async function explore(snapshot:any, question:string, history:any[], comp
   const messages:any[] = [{role:'system',content:instructions},
     {role:'user',content:JSON.stringify({history,question,catalog:tools.catalog})}];
   let primary: Awaited<ReturnType<typeof tools.query>> | undefined;
+  const compound = /最近|近况|趋势|为什么|原因|相比|对比|变化|建议|如何|怎么样|咋样|状态|目标|复盘|分析/.test(question);
   let required: Query | null = null;
   let queried = false;
   const seenQueries = new Set<string>();
@@ -93,8 +94,12 @@ export async function explore(snapshot:any, question:string, history:any[], comp
     const forecast = queried ? null : primaryForecast(question, history, tools.catalog, queries);
     if (forecast) {
       required = forecast;
-      queries = [forecast, ...queries.filter(args => args.tool !== forecast.tool ||
-        args.tool === 'trajectory' && args.metric === 'year')].slice(0,3);
+      const others = queries.filter(args => args.tool !== forecast.tool || args.tool === 'trajectory' && args.metric === 'year');
+      if (compound && !others.some(args=>args.tool==='results')) {
+        const {scopes,category,from,to,exams,name} = forecast;
+        others.unshift({tool:'results',scopes,category,from,to,exams,name,limit:6});
+      }
+      queries = [forecast, ...others].slice(0,3);
     }
     if (data?.outside===true && !required) return {answer:'可以问我成绩变化、下次预测或目标差距。',evidence:[],next:''};
     const answer = shortText(data?.answer, 1000);
@@ -108,9 +113,9 @@ export async function explore(snapshot:any, question:string, history:any[], comp
         const allEstimated = estimates.length === required?.scopes.length;
         const acknowledged = estimates.every(fact => refs.includes(fact.id));
         const each = asksForEachSubject(question);
-        const standalone = !/最近|近况|趋势|为什么|原因|相比|对比|变化|建议|如何|怎么样|咋样|状态|目标|复盘|分析/.test(question) && !(/分数|多少分|能考|成绩/.test(question)&&/排名|年排|名次|位次|能排|排到/.test(question));
+        const standalone = !compound && !(/分数|多少分|能考|成绩/.test(question)&&/排名|年排|名次|位次|能排|排到/.test(question));
         // Numerical answers are assembled from computed facts, never inferred by the model.
-        if (standalone || each || (saysUnavailable && allEstimated) || claimsOnlyOne || !acknowledged) {
+        if (standalone || compound || each || (saysUnavailable && allEstimated) || claimsOnlyOne || !acknowledged) {
           const [first] = estimates;
           const subject = first.label.split('下次')[0];
           const value = first.value.split(' · ')[0];
@@ -129,8 +134,16 @@ export async function explore(snapshot:any, question:string, history:any[], comp
           const reply = estimates.length === 1 && !each ? estimate + (first.value.includes(' · ') ? '\n'+first.value.split(' · ').slice(1).join('；')+'。' : '') + (extra ? '\n'+extra : '') :
             `查到了 ${estimates.length} 科的下次估计（${metric}）：\n`+rows.join('\n');
           const unavailable = missing.length ? '\n'+missing.join('、')+'暂未算出估计，不能把历史成绩当作预测。' : '';
-          const evidence = primary!.facts.map(({id, ...fact}) => fact);
-          return { answer: reply+unavailable, evidence, next: shortText(data.next,100), chart: tools.chart(null, question) };
+          const evidenceIds = [...new Set([...primary!.facts.map(f=>f.id),...refs.filter(id=>Number.isInteger(id)&&tools.facts[id-1])])];
+          const evidence = evidenceIds.map(id=>tools.facts[id-1]);
+          const analysis = compound ? shortText(data.analysis,800) : '';
+          const relevant = compound && !analysis ? tools.facts.filter(f=>f.label.endsWith('得分率对照')||f.label.endsWith('年级位置对照')).slice(0,4).map(f=>f.label+'：'+f.value).join('\n') : '';
+          const extraAnalysis = analysis || relevant;
+          const predictionChart=tools.chart(null,question);
+          const historyChart=compound ? tools.chart(data.chart || data.charts?.[0],'') : null;
+          const charts=[predictionChart,historyChart].filter((c): c is NonNullable<typeof c>=>Boolean(c));
+          const distinct = charts.filter((c,i)=>!charts.slice(0,i).some(prev=>prev.type===c.type && prev.series.map(s=>s.id).join(',')===c.series.map(s=>s.id).join(',')));
+          return { answer: (extraAnalysis?extraAnalysis+'\n\n':'')+reply+unavailable, evidence, next: shortText(data.next,100), chart: distinct[0]||null,...(distinct.length>1?{charts:distinct}:{}) };
         }
         refs = [...new Set([...estimates.map(fact => fact.id), ...refs.filter(id => Number.isInteger(id) && tools.facts[id - 1])])]
           .slice(0, Math.max(6, estimates.length));
@@ -178,7 +191,10 @@ export async function explore(snapshot:any, question:string, history:any[], comp
       }
     }));
     results.forEach((result,i)=>{if(result.status==='failed')seenQueries.delete(queryKey(queries[i]));});
-    if (!queried && required) primary = results[0];
+    if (required) {
+      const index=queries.findIndex(args=>queryKey(args)===queryKey(required!));
+      if (index>=0 && (!primary || results[index].facts.some(f=>f.kind==='estimate'))) primary=results[index];
+    }
     progress?.({stage:'analysis'});
     queried = true;
     messages.push({role:'assistant',content:JSON.stringify({queries})}, {role:'user',content:JSON.stringify({results,remainingQueries:maxSteps-2-step})});
