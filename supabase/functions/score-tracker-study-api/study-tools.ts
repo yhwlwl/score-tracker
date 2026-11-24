@@ -176,7 +176,7 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
     const matching = () => scopeRows('total').filter(row => inCategory(row) && (!ids.size || ids.has(row.id)));
     if (args.tool === 'statistics') {
       const aMetric = args.metrics?.[0]==='rank' ? 'rank' : 'rate';
-      const bMetric = args.metrics?.[1]==='rank' ? 'rank' : aMetric;
+      const bMetric = args.metrics?.[1]==='rank' ? 'rank' : args.metrics?.[1]==='rate' ? 'rate' : aMetric;
       const delta = args.mode==='change';
       const all = args.mode==='all' || args.allPairs===true;
       const get = (actual:any, metric:'rate'|'rank') => metric==='rank' ? position(actual) : rate(actual);
@@ -821,10 +821,30 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
     if (type === 'bar' && input.some(s => s.points.some(p => p.forecast))) type = 'line';
     if (!requestedTable && !requestedChart && !input.some(s => s.points.some(p => p.forecast)) &&
         new Set(input.flatMap(s => s.points.filter(p => p.value !== null).map(p => p.key))).size < 2) return null;
-    const fallback = requestedMatrix || type === 'heatmap' ? '考试矩阵' : requestedTable ? '逐场对照' :
-      type === 'scatter' ? '逐场关系' : isRadar ? '学科对照' : '成绩走势';
-    return { type, title: title || fallback, series: input };
+    // The displayed title describes the final, validated series, never the model's unverified claims.
+    const metricNames:Record<Metric,string>={score:'分数',rate:'得分率',rank:'年级位置',classRank:'班级位置',cityRank:'市排名位置',districtRank:'区排名位置',scoreChange:'分数变化',rateChange:'得分率变化',rankChange:'年级位置变化',difficulty:'难度参考',averageGap:'与年级均分差',count:'场数',lost:'失分'};
+    const subjects=[...new Set(input.map(s=>s.label.replace(/(?:年级位置|得分率)$/,'')))];
+    const labels=[...new Set(input.map(s=>metricNames[s.metric]))].join('、');
+    const suffix=type==='scatter'?'关系':type==='table'?'对照表':type==='heatmap'?'矩阵':type==='radar'?'对照':type==='bar'?'对比':'走势';
+    const forecastSeries=input.find(s=>s.points.some(p=>p.forecast));
+    const honestTitle=forecastSeries ? forecastSeries.label+(forecastSeries.metric==='rank'?'下次年级排名估计':'下次成绩估计') :
+      anchor.dimension==='subjects' ? (subjects.length>1?subjects.slice(0,3).join('与')+'：':'各科')+labels+suffix :
+      (subjects.length>4?'多科':subjects.join('、'))+'：'+labels+suffix;
+    return { type, title: honestTitle, series: input };
   }
 
-  return { catalog, query, facts, chart };
+  // Client-side calculator is derived from actual exam records, not arbitrary model values.
+  function simulator(examId?:number, adjustments?:Record<string,number>) {
+    const rows=scopeRows('total').filter(r=>finite(r.actual.score)&&r.actual.max>0);
+    const row=Number.isInteger(examId)?rows.find(r=>r.id===examId):rows.at(-1);
+    if(!row)return null;
+    const subjects=includedSubjects(row.exam).filter(name=>!modules.some(m=>m.name===name)).map(label=>{
+      const key='s:'+label,r=measure(row.exam,key,modules);
+      return {key,label,actual:r.score,max:r.max,value:finite(r.score)&&finite(adjustments?.[key])?r.score+adjustments![key]:r.score};
+    });
+    if(!subjects.length||subjects.length>24||!subjects.every(s=>finite(s.actual)&&finite(s.max)&&s.max>0&&s.actual>=0&&s.actual<=s.max&&finite(s.value)&&s.value>=0&&s.value<=s.max))return null;
+    if(Math.abs(subjects.reduce((sum,s)=>sum+s.actual,0)-row.actual.score)>.01||Math.abs(subjects.reduce((sum,s)=>sum+s.max,0)-row.actual.max)>.01)return null;
+    return {type:'scenario' as const,title:'总分情景模拟',exam:row.axis.label,actual:row.actual.score,max:row.actual.max,subjects};
+  }
+  return { catalog, query, facts, chart, simulator };
 }
