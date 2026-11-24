@@ -337,3 +337,9 @@
 .sq-aggregate th,.sq-aggregate td { padding:6px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
 .sq-aggregate th:first-child { text-align:left; }
 .sq-dialog .sq-sort { background:transparent; border:0; color:inherit; padding:3px 0; font-weight:500; font-size:12px; }
+
+.sq-thinking { display:inline-flex; align-items:center; gap:5px; padding:3px 7px; border:1px solid var(--line); border-radius:8px; font-size:calc(12px * var(--ui-scale,1)); color:var(--muted); }
+.sq-thinking[hidden] { display:none; }
+.sq-thinking select { font:inherit; color:var(--text); background:transparent; border:0; padding:1px 2px; min-width:48px; cursor:pointer; }
+.sq-composer footer .sq-cap { margin-left:auto; white-space:nowrap; }
+@media (max-width:360px){.sq-composer footer {gap:4px;}.sq-thinking{gap:2px;padding:3px 4px;}}
