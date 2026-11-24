@@ -148,7 +148,7 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
     const ids = new Set(candidate(args.exams).filter((id): id is number => Number.isInteger(id) && exams[(id as number) - 1] != null));
     if (candidate(args.exams).length && !ids.size) return { facts: [], series: [], notes: ['没有找到指定的考试。'] };
     const requestedScopes = candidate(args.scopes);
-    const keyLimit = ['matrix', 'structure', 'forecast', 'trajectory'].includes(args.tool) ? 24 : 8;
+    const keyLimit = ['matrix', 'structure', 'forecast', 'trajectory','statistics'].includes(args.tool) ? 24 : 8;
     const defaultScopes = ['results', 'forecast', 'trajectory', 'goals', 'benchmarks', 'profile', 'matrix'].includes(args.tool) ? ['total'] : [];
     const keys = (requestedScopes.includes('*') ? [...scopes.keys()].filter(k => k.startsWith('s:')) :
       requestedScopes.length ? [...new Set(requestedScopes.filter((k): k is string => typeof k === 'string' && scopes.has(k)))] :
@@ -175,32 +175,81 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
     };
     const matching = () => scopeRows('total').filter(row => inCategory(row) && (!ids.size || ids.has(row.id)));
     if (args.tool === 'statistics') {
-      const metrics = ['rate','rank'] as const;
-      const aMetric = metrics.includes(args.metrics?.[0]) ? args.metrics[0] as 'rate'|'rank' : 'rate';
-      const bMetric = metrics.includes(args.metrics?.[1]) ? args.metrics[1] as 'rate'|'rank' : aMetric;
-      const aKey = keys[0], bKey = keys[1] || aKey;
+      const aMetric = args.metrics?.[0]==='rank' ? 'rank' : 'rate';
+      const bMetric = args.metrics?.[1]==='rank' ? 'rank' : aMetric;
+      const delta = args.mode==='change';
+      const all = args.mode==='all' || args.allPairs===true;
       const get = (actual:any, metric:'rate'|'rank') => metric==='rank' ? position(actual) : rate(actual);
-      const aRows = aKey ? select(aKey) : [], bRows = bKey ? select(bKey) : [];
-      const aAnchor = aRows.findLast(row=>get(row.actual,aMetric)!==null), bAnchor = bRows.findLast(row=>get(row.actual,bMetric)!==null);
-      const bMap = new Map(bRows.filter(row=>bAnchor && sameScope(row,bAnchor)).map(row=>[row.id,row]));
-      const pairs = aRows.flatMap(row=>{
-        const other = bMap.get(row.id);
-        if (!aAnchor || !sameScope(row,aAnchor) || !other) return [];
-        const a = get(row.actual,aMetric), b = get(other.actual,bMetric);
-        return finite(a) && finite(b) ? [{axis:row.axis,a,b}] : [];
+      const describe = (key:string,metric:'rate'|'rank')=>scopes.get(key)+(metric==='rank'?'年级位置':'得分率');
+      const pairsOf = (aKey:string,bKey:string) => {
+        const aRows=select(aKey),bRows=select(bKey);
+        const aAnchor=aRows.findLast(row=>get(row.actual,aMetric)!==null),bAnchor=bRows.findLast(row=>get(row.actual,bMetric)!==null);
+        const bMap=new Map(bRows.filter(row=>bAnchor&&sameScope(row,bAnchor)).map(row=>[row.id,row]));
+        return aRows.flatMap(row=>{
+          const other=bMap.get(row.id);
+          if(!aAnchor||!sameScope(row,aAnchor)||!other)return [];
+          const a=get(row.actual,aMetric),b=get(other.actual,bMetric);
+          return finite(a)&&finite(b)?[{axis:row.axis,a,b}]:[];
+        });
+      };
+      const corr=(pairs:{a:number;b:number}[])=>{
+        if(pairs.length<4)return null;
+        const x=pairs.reduce((s,p)=>s+p.a,0)/pairs.length,y=pairs.reduce((s,p)=>s+p.b,0)/pairs.length;
+        const d=Math.sqrt(pairs.reduce((s,p)=>s+(p.a-x)**2,0)*pairs.reduce((s,p)=>s+(p.b-y)**2,0));
+        return d>0?round(pairs.reduce((s,p)=>s+(p.a-x)*(p.b-y),0)/d):null;
+      };
+      const selected=keys.length?keys:latestSubjects;
+      const combinations: [string,string][] = all ? selected.flatMap((a,i)=>selected.slice(i+1).map(b=>[a,b] as [string,string])) :
+        selected.length?[[selected[0],selected[1]||selected[0]]]:[];
+      const results=combinations.filter(([a,b])=>a!==b||aMetric!==bMetric).map(([a,b])=>{
+        const pairs=pairsOf(a,b);
+        const changes=pairs.slice(1).map((p,i)=>({
+          axis:{key:pairs[i].axis.key+':'+p.axis.key,label:p.axis.label,detail:pairs[i].axis.label+' → '+p.axis.label},
+          a:(p.a-pairs[i].a)*(aMetric==='rank'?-1:1),b:(p.b-pairs[i].b)*(bMetric==='rank'?-1:1)
+        }));
+        const level=corr(pairs),change=corr(changes);
+        const same=changes.filter(p=>p.a*p.b>1e-9).length,opposite=changes.filter(p=>p.a*p.b< -1e-9).length;
+        return {a,b,pairs,changes,level,change,same,opposite};
       });
-      if (!aKey || !bKey || aKey===bKey && aMetric===bMetric) notes.push('请指定两项不同的科目或指标。');
-      else if (pairs.length<4) notes.push('只有 '+pairs.length+' 场同场、同口径有效配对，至少 4 场才计算相关性。');
+      const ordered=results.slice().sort((a,b)=>Math.abs((delta?b.change:b.level)??-0)-Math.abs((delta?a.change:a.level)??-0));
+      for(const r of ordered){
+        const label=describe(r.a,aMetric)+'与'+describe(r.b,bMetric);
+        if(r.level!==null)add(label+'的相关性','相关系数 '+r.level+' · '+r.pairs.length+' 场配对','同场历史水平 · 相关不代表因果');
+        if(r.change!==null)add(label+'的进退相关性','变化相关系数 '+r.change+' · '+r.changes.length+' 组变化 · 同向 '+r.same+' 次 · 反向 '+r.opposite+' 次 · 持平 '+(r.changes.length-r.same-r.opposite)+' 次','相邻共同有效考试 · 进步为正、退步为负 · 不代表因果');
+        if(r.level===null&&r.change===null)notes.push(label+'：有效配对不足或指标无波动。');
+      }
+      for(const r of ordered.slice(0,all?3:1)){
+        const values=delta?r.changes:r.pairs;
+        if((delta?r.change:r.level)===null)continue;
+        addSeries(describe(r.a,aMetric),delta?(aMetric==='rank'?'rankChange':'rateChange'):aMetric,values.map(p=>point(p.axis,p.a)));
+        addSeries(describe(r.b,bMetric),delta?(bMetric==='rank'?'rankChange':'rateChange'):bMetric,values.map(p=>point(p.axis,p.b)));
+      }
+      if(all)notes.push('已计算 '+combinations.length+' 对科目；水平相关与进退相关是不同指标。按相邻共同有效考试计算变化，缺考可能跨场。');
+      if(!results.length)notes.push('请指定不同科目或不同指标。');
+    } else if (args.tool === 'baseline') {
+      const row=matching().filter(r=>finite(r.actual.score)&&r.actual.max>0).at(-1);
+      if(!row)notes.push('没有可用于对照的实际总分。');
       else {
-        const average = (values:number[]) => values.reduce((sum,n)=>sum+n,0)/values.length;
-        const ax = average(pairs.map(p=>p.a)), by = average(pairs.map(p=>p.b));
-        const numerator = pairs.reduce((sum,p)=>sum+(p.a-ax)*(p.b-by),0);
-        const denominator = Math.sqrt(pairs.reduce((sum,p)=>sum+(p.a-ax)**2,0)*pairs.reduce((sum,p)=>sum+(p.b-by)**2,0));
-        const describe = (key:string,metric:'rate'|'rank')=>scopes.get(key)+(metric==='rank'?'年级位置':'得分率');
-        if (denominator>0) add(describe(aKey,aMetric)+'与'+describe(bKey,bMetric)+'的相关性', '相关系数 '+round(numerator/denominator)+' · '+pairs.length+' 场配对', '同场历史记录 · 年级前百分比越小越好 · 相关不代表因果');
-        else notes.push('其中一个指标没有变化，相关系数无法计算。');
-        addSeries(describe(aKey,aMetric),aMetric,pairs.map(p=>point(p.axis,p.a)));
-        addSeries(describe(bKey,bMetric),bMetric,pairs.map(p=>point(p.axis,p.b)));
+        const members=includedSubjects(row.exam).filter(name=>!modules.some(m=>m.name===name));
+        const entries=members.map(label=>{
+          const key='s:'+label,actual=measure(row.exam,key,modules);
+          const prior=scopeRows(key).filter(r=>r.id<row.id&&inCategory(r)&&sameScope(r,{...row,actual})).map(r=>rate(r.actual)).filter(percentage).slice(-8);
+          return {label,key,actual:actual.score,max:actual.max,n:prior.length,usual:prior.length>=3&&actual.max>0?median(prior)*actual.max/100:null};
+        });
+        const complete=entries.length>0&&entries.every(e=>finite(e.usual)&&finite(e.actual)&&e.max>0);
+        const consistent=complete&&Math.abs(entries.reduce((sum,e)=>sum+e.actual,0)-row.actual.score)<0.011&&Math.abs(entries.reduce((sum,e)=>sum+e.max,0)-row.actual.max)<0.011;
+        if(!consistent)notes.push('至少一科历史不足、缺少成绩或总分口径与科目合计不一致，不能直接估算完整总分。');
+        for(const e of entries){
+          if(!finite(e.usual)||!finite(e.actual))continue;
+          add(e.label+'正常发挥参考',round(e.usual)+'/'+e.max+' 分 · 本次 '+round(e.actual)+' 分 · 实际较常态 '+signed(e.actual-e.usual)+' 分',source(row.exam)+' · 此前 '+e.n+' 场同口径得分率中位数');
+        }
+        if(consistent){
+          const typical=entries.reduce((sum,e)=>sum+e.usual!,0);
+          add('各科正常发挥总分',fmtMark(typical,row.actual.max)+' · 实际 '+fmtMark(row.actual.score,row.actual.max)+' · 实际较常态 '+signed(row.actual.score-typical)+' 分',source(row.exam)+' · 各科此前中位得分率按本次满分换算，非预测');
+          addSeries('正常发挥','score',entries.map(e=>point({key:e.key,label:e.label},e.usual)),'subjects');
+          addSeries('本次实际','score',entries.map(e=>point({key:e.key,label:e.label},e.actual)),'subjects');
+          addSeries('实际较常态','scoreChange',entries.map(e=>point({key:e.key,label:e.label},e.actual-e.usual!)),'subjects');
+        }
       }
     } else if (args.tool === 'scenario') {
       const row = matching().filter(row=>finite(row.actual.score) && row.actual.max>0).at(-1);
@@ -350,6 +399,10 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
         const measured = subjects.map(key=>({key,label:scopes.get(key)!,actual:measure(row.exam,key,modules)}));
         const positions = measured.map(m=>position(m.actual)).filter(finite);
         const typical = positions.length >= 3 ? median(positions) : null;
+        const byRate=measured.filter(m=>rate(m.actual)!==null).sort((a,b)=>rate(b.actual)!-rate(a.actual)!);
+        const byRank=measured.filter(m=>position(m.actual)!==null).sort((a,b)=>position(a.actual)!-position(b.actual)!);
+        if(byRate.length>1)add('本场得分率排序',byRate.map(m=>m.label+' '+round(rate(m.actual)!)+'%').join(' > '),source(row.exam)+' · 从高到低，仅已录入科目');
+        if(byRank.length>1)add('本场年级位置排序',byRank.map(m=>m.label+' 前 '+round(position(m.actual)!)+'%').join(' → '),source(row.exam)+' · 从靠前到靠后，仅已录入科目');
         for (const m of measured) {
           const r = m.actual, pct = position(r);
           const value = [finite(r.score) ? fmtMark(r.score,r.max) : '', rankDetails(r),
