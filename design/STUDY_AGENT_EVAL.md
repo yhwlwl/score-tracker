@@ -33,7 +33,7 @@ node design/study-agent-eval.cjs --provider=opencode-go --live --mode=all --case
 
 - --repeat=2 或 3 用于考察随机性；同一用例、档位、重复次数才可对比。
 - --baseline=previous-report.json 对比历史报告；只允许同一报告类型及版本格式。
-- live 计量按目前项目的每百万 token 输入2、缓存0.04、输出8元估算（仅为 Score Tracker 生产环境参考积分，不代表 OpenCode Go 订阅用量、剩余额度或任何服务商账单），记录输入、输出、缓存及推理 token；用调用数和保守预估额度拦截后续请求。预估不保证服务商最终费用，建议使用供应商侧独立额度控制。
+- live 计量按目前项目的每百万 token 输入2、缓存0.04、输出8元估算（仅为 Score Tracker 生产环境参考积分，不代表 OpenCode Go 订阅用量、剩余额度或任何服务商账单），记录输入、输出、缓存及推理 token；真实 OpenCode Go 报告还保存每次响应的 `usage.opencode.allowance`、`list_cost` 和 `billing_source`；用调用数和保守预估额度拦截后续请求。预估不保证服务商最终费用，建议使用供应商侧独立额度控制。
 - 测试失败或预算停止会返回非零状态；未执行的题不能算通过。自动检查只覆盖明确的事实与结构条件，不代替人工语义判断。
 
 ## 发布门槛
@@ -42,6 +42,6 @@ node design/study-agent-eval.cjs --provider=opencode-go --live --mode=all --case
 
 ## 首批覆盖
 
-14道基础题：最新成绩、分数与排名反向、不同满分、零分、仅排名、组合、去极值、分类稳定性、同步进退、全科预测、常态总分、情景模拟、图表可信性、多轮追问。三档共42次确定性回放。
+16道基础题：最新成绩、分数与排名反向、不同满分、零分、仅排名、组合、去极值、分类稳定性、同步进退、全科预测、常态总分、情景模拟、图表可信性、多轮追问。三档共48次确定性回放。
 
 OpenCode Go 采用官方公开接口 `https://opencode.ai/inference/go/openai/v1/chat/completions`，按官方文档为每次独立评测会话生成稳定会话 ID，并以真实应用名 score-tracker-eval 标识请求。Go 面向编码代理及类似请求，其他评测用途的支持范围需遵守供应商政策；DeepSeek 模型还受工作区 Regions 设置约束。若收到 HTTP 403、认证失败或网络错误，评测终止，不自动改用其它接口、密钥或绕过服务商访问限制。建议检查 Go 订阅权限及官方支持渠道。
