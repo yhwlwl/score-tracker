@@ -95,7 +95,7 @@ function fakeDb(test,mode){
     },
     async rpc(fn,p){
       if(fn.endsWith('task_start')){approved=p.p_cap;tasks.set(p.p_task,{id:p.p_task,user_id:p.p_user,feature:'study_question',status:'active'});return {data:{allowed:true,approved}};}
-      if(fn.endsWith('call_reserve'))return {data:spent>=approved?{allowed:false,reason:'task_credit_cap'}:{allowed:true}};
+      if(fn.endsWith('call_reserve_routed'))return {data:spent>=approved?{allowed:false,reason:'task_credit_cap'}:{allowed:true}};
       if(fn.endsWith('call_settle')){
         const u=p.p_usage;
         if(!Number.isFinite(u?.prompt_tokens)||!Number.isFinite(u?.completion_tokens)){if(live)budget.unknown=true;return {data:{known:false}};}
