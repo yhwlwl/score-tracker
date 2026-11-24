@@ -82,6 +82,12 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
     exams: metadata.slice(-30),
     history: { count: exams.length, totalRankCount: totalRankCount(exams), from: exams[0]?.exam_date, to: exams.at(-1)?.exam_date, categories },
     planned: plans.length, scopes: Object.fromEntries(scopes), latestSubjects, groups,
+    coverage: Object.fromEntries([...scopes.keys()].map(key => {
+      const values = exams.map(exam => measure(exam,key,modules));
+      const latest = values.findLast(value => finite(value.score) || position(value) !== null);
+      return [key,{scores:values.filter(value=>finite(value.score)).length, ranks:values.filter(value=>position(value)!==null).length,
+        comparableRanks:latest ? values.filter(value=>value.scope===latest.scope && position(value)!==null).length : 0}];
+    })),
   };
   const rowsByScope = new Map<string, Row[]>();
   const facts: Evidence[] = [];
@@ -95,7 +101,13 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
     const key = JSON.stringify([subjects?.slice().sort() ?? null, metric, category]);
     if (!trajectoryRequests.has(key)) {
       const lane = trajectoryRequests.size % trajectoryLanes.length;
-      const request = trajectoryLanes[lane].then(() => loadTrajectory?.(subjects, metric, category)).catch(() => null);
+      const request = trajectoryLanes[lane].then(async () => {
+        try { return await loadTrajectory?.(subjects, metric, category); }
+        catch {
+          try { return await loadTrajectory?.(subjects, metric, category); }
+          catch { return { queryFailed: true }; }
+        }
+      });
       trajectoryLanes[lane] = request.then(() => {});
       trajectoryRequests.set(key, request);
     }
@@ -526,21 +538,44 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
         const [low, high] = report.nextExam.ci95Percentile.map(round);
         add(label + '下次年级排名估计', '前 ' + value + '%', '参考 ' + eligible.length + ' 场考试 · 截至 ' + source(eligible.at(-1)!.exam), 'estimate');
         add(label + '下次可能的排名范围', '前 ' + low + '% ～ 前 ' + high + '%', '按以往排名的波动估计');
+        const recentPosition = position(eligible.at(-1)!.actual);
+        if (recentPosition !== null) add(label+'预测与最近排名对照','最近前 '+round(recentPosition)+'% · 预测前 '+value+'% · '+changeName(round(recentPosition-value)),source(eligible.at(-1)!.exam));
         const points = eligible.slice(-10).map(row => point(row.axis, 100 * row.actual.rank / row.actual.people));
         points.push({ key: 'next:rank', label: '下次估计', detail: '参考 ' + eligible.length + ' 场考试', value, low, high, forecast: true });
         addSeries(label, 'rank', points);
       } else if (args.tool === 'trajectory') {
         const matched = matchesByKey.get(key);
         const own = matched?.history;
-        const estimate = matched?.enabled && !matched.preliminary && own?.length >= 3 && matched.matches?.length ?
+        const estimate = !ids.size && !from && !to && !name && matched?.enabled && !matched.preliminary && own?.length >= 3 && matched.matches?.length ?
           trajectory.estimate(own, matched.matches, 'shape') : null;
         const lastScore = rows.findLast(row => rate(row.actual) !== null);
         if (!estimate) {
+          // Independent, descriptive fallback uses only the student's own comparable records.
+          // Its median is not a calibrated probability forecast; the historical spread is not a prediction interval.
+          const available = scopeRows(key).filter(row => inCategory(row) && (!ids.size || ids.has(row.id)) && rate(row.actual) !== null);
+          const anchor = available.at(-1);
+          const comparable = anchor ? available.filter(row => sameScope(row,anchor)).slice(-5) : [];
+          if (trajectoryMetric === 'score' && comparable.length >= 3) {
+            const values = comparable.map(row=>rate(row.actual)!).filter(percentage);
+            if (values.length >= 3) {
+              const value = round(median(values));
+              const max = anchor!.actual.max;
+              const reason = matched?.queryFailed ? '相似轨迹查询暂时失败' : matched?.enabled === false ? '未开启相似轨迹' : '无适用相似轨迹估计';
+              const citation = '个人历史粗略参考 · 最近 ' + values.length + ' 场同口径得分率中位数 · ' + reason;
+              add(label+'下次得分率估计', value+'%'+(max>0 ? ' · 按满分 '+max+' 分换算约 '+round(value*max/100)+' 分' : '')+' · 历史粗略参考',citation,'estimate');
+              add(label+'历史得分率范围',round(Math.min(...values))+'% ～ '+round(Math.max(...values))+'%','历史实际波动，不是预测区间');
+              const points = comparable.map(row=>point(row.axis,rate(row.actual)));
+              points.push({key:'next:trajectory',label:'下次估计',detail:citation,value,forecast:true});
+              addSeries(label,'rate',points);
+              continue;
+            }
+          }
           if (trajectoryMetric === 'score' && lastScore) {
             add(label + '最近一次实际成绩', fmtMark(lastScore.actual.score, lastScore.actual.max) +
               ' · 得分率 ' + round(rate(lastScore.actual)!) + '%', source(lastScore.exam));
           }
           notes.push(label + (matched?.enabled === false ? '未开启相似轨迹。' :
+            matched?.queryFailed ? '相似轨迹查询重试失败；不等于没有成绩。' :
             !matched ? '相似轨迹查询暂时未返回。' :
             own?.length < 3 ? '有 ' + own.length + ' 场可匹配的历史记录，匹配至少需要 3 场。' : '未匹配到可用于预测的相似轨迹。'));
           continue;
@@ -625,10 +660,11 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
       const subjects = new Set(latestSubjects.map(key => scopes.get(key)));
       const predicted = [...new Map(series.filter(s => s.metric === preferred && subjects.has(s.label) && hasForecast(s))
         .map(s => [s.label, s])).values()];
-      if (predicted.length > 1) {
-        const points = predicted.map(s => ({
-          ...s.points.find(p => p.forecast)!, key: s.label, label: s.label, detail: undefined,
-        }));
+      if (predicted.length > 0) {
+        const points = [...subjects].map(label => {
+          const matched = predicted.find(s=>s.label===label);
+          return matched ? {...matched.points.find(p=>p.forecast)!,key:label,label} : {key:label,label,value:null,detail:'暂未算出估计'};
+        });
         return { type: 'table', title: preferred === 'rank' ? '各科下次年级排名估计' : '各科下次成绩估计',
           series: [{ id: predicted[0].id, label: '下次估计', metric: preferred, dimension: 'subjects', points }] };
       }
