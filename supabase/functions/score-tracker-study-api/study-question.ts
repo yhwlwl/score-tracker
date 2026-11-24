@@ -84,6 +84,8 @@ export async function explore(snapshot:any, question:string, history:any[], comp
   let required: Query | null = null;
   let queried = false;
   const seenQueries = new Set<string>();
+  const sentFacts = new Set<number>();
+  const sentSeries = new Set<number>();
   const maxSteps = 4;
   const queryKey = (query: Query) => JSON.stringify(Object.entries(query).sort(([a],[b])=>a.localeCompare(b)));
   for (let step=0; step<maxSteps; step++) {
@@ -210,7 +212,10 @@ export async function explore(snapshot:any, question:string, history:any[], comp
     }
     progress?.({stage:'analysis'});
     queried = true;
-    messages.push({role:'assistant',content:JSON.stringify({queries})}, {role:'user',content:JSON.stringify({results,remainingQueries:maxSteps-2-step})});
+    const compactResults=results.map(result=>({...result,
+      facts:result.facts.filter(f=>{if(sentFacts.has(f.id))return false;sentFacts.add(f.id);return true;}),
+      series:result.series.filter(s=>{if(sentSeries.has(s.id))return false;sentSeries.add(s.id);return true;})}));
+    messages.push({role:'assistant',content:JSON.stringify({queries})}, {role:'user',content:JSON.stringify({results:compactResults,remainingQueries:maxSteps-2-step, ...(step>0?{note:'本轮只发送新增事实及图表序列，之前已发送的编号仍可引用。若已有足够依据，请直接回答。'}:{})})});
   }
   throw Error('invalid_response');
 }
@@ -242,7 +247,7 @@ export async function studyQuestion(db:any, user:string, body:any, load:()=>Prom
       const prior = await turn(cursor);
       if (!prior?.study_turn || prior.status!=='succeeded') return fail(400,'请重新开始提问');
       const { answer, takeaway, next } = prior.study_turn.result;
-      history.unshift({ question:prior.study_turn.question, answer, takeaway, next });
+      history.unshift({ question:prior.study_turn.question, answer:shortText(answer,420), takeaway:shortText(takeaway,120), next });
       cursor = prior.study_turn.previous;
     }
     progress?.({stage:'records'});
