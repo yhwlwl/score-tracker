@@ -36,15 +36,15 @@ const instructions = `你是 Score Tracker 的个人学情分析助手。用自�
 - examList：查考试清单、区间或旧考试编号。matrix：看全量考试矩阵，metric 选 rank/class/rate/score/difficulty；跨多科对比用 heatmap，原始分或逐项数字用 table。structure：同场学科对照、强弱与雷达图，通常指定 1～5 场。profile：个人最佳、近期速度、稳定性、数据覆盖，mode:"distribution" 查排名区间分布。
 - difficulty：分析页的难度参考（50 左右是历史中等水平，较高代表相对偏难），worth:true 查含金量参考分，可传 reference 作为对照考试编号。forecast：学习状态预测的下一场位置与波动范围。trajectory：相似轨迹的得分率或位置预测，metric:"score" 或 "year"。
 - goals 查单场目标差距，calibrate:true 查目标校准和连续达标；longGoal 查长期总分/学科/名次目标与差距、学校和日期；plan 查尚未出成绩的考试预设目标。benchmarks 查已录入的班级或年级均分和最高分。
-- statistics：同一场考试的两项指标相关性，scopes:["s:数学","s:物理"],metrics:["rate","rank"],range:"all"；同一科分数与排名关系可只传一个 scope、两个不同指标。相关性不等于因果，少量样本只描述历史。scenario：基于最近或指定考试的总分情景模拟，例如 adjustments:{"s:化学":10}，其他科不变，不推算排名。
+- statistics：两项指标相关性，scopes:["s:数学","s:物理"],metrics:["rate","rank"],range:"all"；同一科可传两个不同指标。问同时进步、退步、升降同步必须 mode:"change"；全科关系用 allPairs:true 一次计算全部配对。水平相关不能代替变化相关，不能据此推断因果或安排复习。baseline：各科正常发挥的总分、常态与本次分差，按此前中位得分率与本次满分程序化计算。scenario：总分情景模拟，例如 adjustments:{"s:化学":10}，其他科不变，不推算排名。
 - types 查已录入的题型得分、失分占比、表现变化与已标记错因，可选 typeName；paper 查已核对的逐题分数；reflection 读本人已保存的考试反思。按问题需要查询，不把题型失分、AI推测和本人复盘混为一谈。
 同时问近况和下次，查最近成绩和对应的预测，然后把两件事都答出来。若目录请求包含现状和预测，返回 analysis 字段，专门写近期表现、原因或建议等非预测部分；预测结果由程序完整附上。对于「最近怎么样」「哪科值得关注」之类开放问题，先比较近期变化与历史常态，再按需结合难度、题型、目标或反思，优先挑值得关注的异常，而非机械列出全部科目。单问「预测下下一次」可读作「预测一下下一次」，结合上一问确定科目和指标。明确问「下下次」时，目前只有下一场的估计，别往后推。问分数查 trajectory 的得分率，问年级排名查 forecast；没指定科目或组合且问整体时用 total，问各科时用 latestSubjects。没要求限定范围就用全部可比历史，不自行限定到最近一个年级或某场考试。预测和实考分开，当难度能帮助理解时只说偏难还是偏易。
 工具结果中的 kind:"estimate" 是已经算出的下次估计，回答预测时要用它。目录 coverage 是已有记录数，不等于同口径可比较数。一次查询为空，先确认科目、指标和筛选范围是否选对，再查一次；不要将用户明确指定的范围擅自扩大。模型输出里每条关键判断要与本轮事实相符。分清已有成绩、已有排名和是否能做这项预测。只有部分科目或指标有结果时先答能答的，再说缺的是哪一项。没有匹配到相似轨迹也可以先说明近期实际成绩。别把个别缺项或查询未返回说成数据空白。
 
-最后返回 {"answer":"直接回答，简单问题简短，复杂问题用换行自然分段","takeaway":"确实值得做的一件事，可留空","refs":[1,2],"chart":{"type":"line","series":[1,2],"title":"物理最近几场"},"next":"学生可以直接发送的下一问，可留空"}。refs 是本轮最相关的 1–6 条 facts 编号；没查到资料就简短说缺什么，refs 留空。chart 可省；复杂问题可提供 charts 数组（最多 3 张），每张图使用不同指标或目的。每张图加 after 字段，表示紧跟 answer 中第几段之后（从1开始，段落用两个换行分隔）。例如先总结整体，再解释物理，再解释英语，对应两张图的 after 为2、3。把图表插在相关解释后，不要全部放末尾。简单问题不要重复作图。有预测时选末尾带下次估计的序列，标题让人一眼看懂。完整走势和逐场对照也优先用图表。series 写工具的序列编号，别填数值。line 看走势和预测，bar 看并列数据，radar 看学科结构，table 看逐场对照；scatter 看两项指标在同一场考试的关系，至少 3 个有效配对，横轴序列先写，纵轴后写。对比分数升降与位置进退，用 scoreChange（混合满分用 rateChange）和 rankChange 两组对应序列。
+最后返回 {"answer":"直接回答，简单问题简短，复杂问题用换行自然分段","takeaway":"确实值得做的一件事，可留空","refs":[1,2],"chart":{"type":"line","series":[1,2],"title":"物理最近几场"},"next":"学生可以直接发送的下一问，可留空"}。refs 是本轮最相关的 1–6 条 facts 编号；没查到资料就简短说缺什么，refs 留空。chart 可省；复杂问题可提供 charts 数组（最多 3 张），每张图使用不同指标或目的。每张图加 after 字段，表示紧跟 answer 中第几段之后（从1开始，段落用两个换行分隔）。例如先总结整体，再解释物理，再解释英语，对应两张图的 after 为2、3。把图表插在相关解释后，不要全部放末尾。简单问题不要重复作图。有预测时选末尾带下次估计的序列，标题让人一眼看懂。完整走势和逐场对照也优先用图表。series 写工具的序列编号，别填数值。图表标题由程序生成。可返回 widget:{type:"scenario",after:1}，仅在用户要求分数情景模拟、调整成绩时使用，程序读取当前所查考试，不需要你提供分数。line 看走势和预测，bar 看并列数据，radar 看学科结构，table 看逐场对照；scatter 看两项指标在同一场考试的关系，至少 3 个有效配对，横轴序列先写，纵轴后写。对比分数升降与位置进退，用 scoreChange（混合满分用 rateChange）和 rankChange 两组对应序列。
 与成绩无关时返回 {"outside":true}。只允许少量 **加粗**，不使用其他 Markdown 语法或例行提醒、机械的下一问、空泛建议。`;
 
-const toolNames = new Set(['results','examList','matrix','structure','profile','difficulty','forecast','trajectory','goals','longGoal','plan','benchmarks','types','paper','reflection','statistics','scenario']);
+const toolNames = new Set(['results','examList','matrix','structure','profile','difficulty','forecast','trajectory','goals','longGoal','plan','benchmarks','types','paper','reflection','statistics','baseline','scenario']);
 const shortText = (value: unknown, max: number) => typeof value === 'string' ? value.trim().slice(0,max) : '';
 
 type Catalog = ReturnType<typeof studyTools>['catalog'];
@@ -86,6 +86,12 @@ export async function explore(snapshot:any, question:string, history:any[], comp
   const seenQueries = new Set<string>();
   const sentFacts = new Set<number>();
   const sentSeries = new Set<number>();
+  let scenario:ReturnType<typeof tools.simulator> = null;
+  let baseline:Awaited<ReturnType<typeof tools.query>>|undefined;
+  const syncQuestion=/同时.{0,12}(?:进步|退步|提高|下降|升降)|(?:进退|升降|涨跌).{0,8}(?:同步|同向|规律)|(?:一起|共同).{0,6}(?:进步|退步)/.test(question);
+  const normalQuestion=/(?:各科|每科|每一科|所有科目).{0,24}(?:平时|常态|正常|通常).{0,18}(?:总分|总成绩)|(?:各科|每科).{0,20}(?:正常|平时).{0,10}发挥/.test(question);
+  const namedSubjects=tools.catalog.latestSubjects.filter(key=>question.includes(tools.catalog.scopes[key]));
+  const restricted=/(?:仅|只)(?:看|用|算)|\d{4}-\d{2}|\d+月|高[一二三](?:上|下|以来|开始)|指定|这[两三四五六七八九]场/.test(question);
   const maxSteps = 4;
   const queryKey = (query: Query) => JSON.stringify(Object.entries(query).sort(([a],[b])=>a.localeCompare(b)));
   for (let step=0; step<maxSteps; step++) {
@@ -93,6 +99,12 @@ export async function explore(snapshot:any, question:string, history:any[], comp
     const data = await complete(messages);
     let queries: Query[] = (Array.isArray(data?.queries) ? data.queries : [data]).slice(0,3)
       .filter((args: any) => toolNames.has(args?.tool));
+    if(!queried && syncQuestion && !restricted && namedSubjects.length!==1){
+      const chosen=namedSubjects.length>1?namedSubjects:tools.catalog.latestSubjects;
+      if(chosen.length>=2)queries=[{tool:'statistics',scopes:chosen,range:'all',mode:'change',allPairs:chosen.length>2,metrics:[/排名|年排|位次/.test(question)?'rank':'rate']},...queries.filter(q=>q.tool!=='statistics')].slice(0,3);
+    }
+    if(!queried && normalQuestion && !restricted)queries=[{tool:'baseline'},...queries.filter(q=>q.tool!=='baseline')].slice(0,3);
+    if(syncQuestion)queries=queries.map(q=>q.tool==='statistics'?{...q,mode:'change'}:q);
     const forecast = queried ? null : primaryForecast(question, history, tools.catalog, queries);
     if (forecast) {
       required = forecast;
@@ -110,6 +122,12 @@ export async function explore(snapshot:any, question:string, history:any[], comp
       const saysUnavailable = /数据不足|(?:成绩|排名|数据).{0,5}(?:空白|是空的)|(?:无法|没法|不能)(?:给出|做出|进行|直接)?(?:预测|估计)|没有(?:可用的|生成)?(?:估计|预测)/.test(answer);
       const claimsNoRecords = /(?:没有|不存在|未录入任何|没有录入任何)(?:任何|可用的|已录入的)?(?:成绩|排名|考试)数据|(?:成绩|排名|数据).{0,5}(?:都是空|为空|是空的|空白)/.test(answer);
       const estimates = primary?.facts.filter(fact => fact.kind === 'estimate') || [];
+      if(normalQuestion&&baseline?.facts.some(f=>f.label==='各科正常发挥总分')){
+        const total=baseline.facts.find(f=>f.label==='各科正常发挥总分')!;
+        const diff=baseline.series.find(s=>s.label==='实际较常态');
+        const chart=diff?tools.chart({type:'bar',series:[diff.id]},''):null;
+        return {answer:'按各科此前的中位得分率、换算成本次满分计算：**'+total.value.split(' · ')[0]+'**。\n\n'+total.value.split(' · ').slice(1).join('，')+'。这只是各科历史常态相加，不是下一场考试预测。',evidence:baseline.facts,chart,chartAfter:chart?[2]:[],next:''};
+      }
       if (estimates.length) {
         const claimsOnlyOne = estimates.length > 1 && /只有.{1,12}(?:有|生成了|算出|能做).{0,6}(?:预测|估计)/.test(answer);
         const allEstimated = estimates.length === required?.scopes.length;
@@ -161,6 +179,25 @@ export async function explore(snapshot:any, question:string, history:any[], comp
           evidence, next: '', chart: tools.chart(data.chart, question) };
       }
       if (refs.some(id => !Number.isInteger(id) || !tools.facts[id - 1])) throw Error('invalid_reference');
+      // Cross-check explicit current-exam extrema with the program's ordered subject list.
+      const violations:string[]=[];
+      for(const fact of tools.facts.filter(f=>f.label==='本场得分率排序'||f.label==='本场年级位置排序')){
+        const isRank=fact.label.includes('位置');
+        const names=fact.value.split(isRank?' → ':' > ').map(x=>x.trim().split(' ')[0]);
+        const metric=isRank?'(?:排名|年级位置)':'(?:得分率|得分比例)';
+        for(const subject of names){
+          const safe=subject.replace(/[.*+?^${}()|[\]\\]/g,'\\      if (refs.some(id => !Number.isInteger(id) || !tools.facts[id - 1])) throw Error('invalid_reference');');
+          const claims=new RegExp(safe+'[^。；，\\n]{0,30}'+metric+'[^。；，\\n]{0,15}(?:六科|各科|所有科目|全科)?(?:中)?(?:最[高低好差]|最靠[前后])','g');
+          for(const m of answer.matchAll(claims)){
+            const best=/最高|最好|最靠前/.test(m[0]),worst=/最低|最差|最靠后/.test(m[0]);
+            if(best&&subject!==names[0]||worst&&subject!==names.at(-1))violations.push(fact.label+'：'+fact.value);
+          }
+        }
+      }
+      if(violations.length&&step<maxSteps-1){
+        messages.push({role:'assistant',content:JSON.stringify(data)},{role:'user',content:'你的最高/最低判断与本场排序冲突，请修正后返回答案：'+[...new Set(violations)].join('；')});
+        continue;
+      }
       // A broad 'no data' answer is not valid when the selected records contain facts.
       if ((claimsNoRecords || saysUnavailable && !refs.length) && !primary && tools.facts.length && step < maxSteps-1) {
         messages.push({role:'assistant',content:JSON.stringify(data)}, {role:'user',content:'已有事实与结论不符。请区分真实缺项和查询范围问题；重新查看本轮事实并回答可回答的部分。'});
@@ -185,7 +222,7 @@ export async function explore(snapshot:any, question:string, history:any[], comp
       });
       return { answer, takeaway: tools.facts.length ? shortText(data.takeaway, 240) : '',
         evidence: refs.map(id => tools.facts[id - 1]), next: shortText(data.next, 100),
-        chart: charts[0] || null, ...(charts.length>1?{charts}:{}),chartAfter };
+        chart: charts[0] || null, ...(charts.length>1?{charts}:{}),chartAfter,...(scenario?{widgets:[{...scenario,after:1}]}:{}) };
     }
     if (step === maxSteps-1) throw Error('invalid_response');
     queries = queries.filter(args=>!seenQueries.has(queryKey(args)));
@@ -205,7 +242,13 @@ export async function explore(snapshot:any, question:string, history:any[], comp
         return {tool:args.tool,facts:[],series:[],notes:['此项查询失败，不代表用户未录入数据。可重新查询或使用其它已查到的依据。'],status:'failed'};
       }
     }));
-    results.forEach((result,i)=>{if(result.status==='failed')seenQueries.delete(queryKey(queries[i]));});
+    results.forEach((result,i)=>{if(result.status==='failed')seenQueries.delete(queryKey(queries[i]));
+      if(result.tool==='baseline'&&result.status==='ok')baseline=result;
+      if(result.tool==='scenario'&&result.status==='ok'&&result.facts.some(f=>f.label==='模拟总分')){
+        const q=queries[i];const ids=Array.isArray(q.exams)?q.exams:[];
+        if(!q.category&&!q.from&&!q.to&&!q.name&&ids.length<=1)scenario=tools.simulator(ids[0],q.adjustments);
+      }
+    });
     if (required) {
       const index=queries.findIndex(args=>queryKey(args)===queryKey(required!));
       if (index>=0 && (!primary || results[index].facts.some(f=>f.kind==='estimate'))) primary=results[index];
