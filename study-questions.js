@@ -10,7 +10,7 @@
     results:'成绩变化', examList:'考试记录', matrix:'考试矩阵', structure:'学科对比', profile:'历史表现',
     difficulty:'难度参考', forecast:'成绩预测', trajectory:'相似轨迹', goals:'考试目标', longGoal:'长期目标',
     plan:'预设目标', benchmarks:'均分和最高分', types:'题型表现', paper:'逐题得分', reflection:'考试反思',
-    statistics:'指标关联', scenario:'分数模拟',
+    statistics:'指标关联', baseline:'历史常态与总分', scenario:'分数模拟',
   };
   let session, launcher, dialog;
   function current() { return typeof state !== 'undefined' && state.user && state.token; }
@@ -117,6 +117,34 @@
     const input=dialog.querySelector('textarea');
     dialog.querySelector('[type=submit]').disabled=!!session.pending?.running || !input.value.trim();
   }
+  function scenarioWidget(spec) {
+    if(spec?.type!=='scenario'||!Array.isArray(spec.subjects)||!spec.subjects.length||spec.subjects.length>24)return null;
+    const valid=spec.subjects.every(s=>typeof s.label==='string'&&[s.actual,s.max,s.value].every(Number.isFinite)&&s.max>0&&s.actual>=0&&s.actual<=s.max&&s.value>=0&&s.value<=s.max);
+    if(!valid||!Number.isFinite(spec.actual)||!Number.isFinite(spec.max)||Math.abs(spec.subjects.reduce((a,s)=>a+s.actual,0)-spec.actual)>.01||Math.abs(spec.subjects.reduce((a,s)=>a+s.max,0)-spec.max)>.01)return null;
+    const frame=element('section','sq-simulator');
+    const header=element('div','sq-simulator-header');
+    const reset=button('重置','sq-simulator-reset',()=>{controls.forEach((c,i)=>{c.input.value=spec.subjects[i].actual;c.update();});refresh();});
+    header.append(element('strong','','总分情景模拟'),reset);
+    const metrics=element('div','sq-simulator-metrics'),current=element('div',''),delta=element('div','');
+    metrics.append(current,delta);
+    const total=element('b',''),difference=element('b','');
+    current.append(element('small','','模拟总分'),total);delta.append(element('small','','较本次实际'),difference);
+    frame.append(header,metrics,element('small','',String(spec.exam||'')+' · 实际 '+spec.actual+'/'+spec.max+' 分'));
+    const fmt=n=>String(Math.round(n*100)/100);
+    const controls=[];
+    const refresh=()=>{const n=controls.reduce((sum,c)=>sum+Number(c.input.value),0);total.textContent=fmt(n)+' / '+spec.max;difference.textContent=(n>=spec.actual?'+':'')+fmt(n-spec.actual)+' 分';};
+    for(const s of spec.subjects){
+      const row=element('label','sq-simulator-row'),caption=element('span','sq-simulator-caption'),value=element('b','');
+      caption.append(element('span','',s.label),value);
+      const input=element('input','');input.type='range';input.min='0';input.max=String(s.max);input.step='.01';input.value=String(s.value);
+      input.setAttribute('aria-label',s.label+'模拟分数');
+      const update=()=>{value.textContent=fmt(Number(input.value))+'/'+s.max;};
+      input.addEventListener('input',()=>{update();refresh();});
+      controls.push({input,update});update();row.append(caption,input);frame.append(row);
+    }
+    frame.append(element('small','','仅模拟总分，不预测排名；调整不扣 AI 积分。'));
+    refresh();return frame;
+  }
   function showAnswer(article, turn) {
     article.querySelector('.sq-feedback').remove();
     const specs=Array.isArray(turn.charts)&&turn.charts.length ? turn.charts.slice(0,3) : [turn.chart];
@@ -134,12 +162,15 @@
       const chart=window.ScoreStudyChart?.render(spec);
       if(chart){article.append(chart.figure);session.charts.push(chart.dispose);}
     };
-    if(Array.isArray(turn.chartAfter)&&turn.chartAfter.length===specs.length) {
+    const widgets=Array.isArray(turn.widgets)?turn.widgets.slice(0,2):[];
+    const appendWidgets=i=>widgets.filter(w=>Math.max(1,Number(w.after)||1)===i).forEach(w=>{const node=scenarioWidget(w);if(node)article.append(node);});
+    if(Array.isArray(turn.chartAfter)&&turn.chartAfter.length===specs.length || widgets.length) {
       const paragraphs=String(turn.answer||'').split(/\n\s*\n/).filter(p=>p.trim());
-      const positions=specs.map((_,i)=>Number.isInteger(turn.chartAfter[i])?Math.max(1,Math.min(paragraphs.length,turn.chartAfter[i])):paragraphs.length);
+      const positions=specs.map((_,i)=>Number.isInteger(turn.chartAfter?.[i])?Math.max(1,Math.min(paragraphs.length,turn.chartAfter[i])):paragraphs.length);
       paragraphs.forEach((paragraph,i)=>{
         appendText(paragraph);
         specs.forEach((spec,j)=>{if(positions[j]===i+1)appendChart(spec);});
+        appendWidgets(i+1);
       });
       if(!paragraphs.length)specs.forEach(appendChart);
     } else {
