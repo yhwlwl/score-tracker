@@ -280,6 +280,23 @@ async function checkAgentCompleteness(snapshot) {
   const verified=tools.chart({type:'line',title:'语文与生物年级排名预测',series:sync.series.map(s=>s.id)},'');
   assert.doesNotMatch(verified.title,/语文|生物|排名|预测/);
   assert.match(verified.title,/数学.*物理.*得分率变化/);
+  const grouped=await tools.query({tool:'aggregate',scopes:['s:数学'],metric:'rate',ops:['median','std','count'],groupBy:'category',range:'all'});
+  assert.equal(grouped.facts.filter(f=>f.label.endsWith('有效场次')).length,2);
+  assert.ok(grouped.facts.some(f=>f.label.includes('高一')&&f.value==='3 场'));
+  const trimmed=await tools.query({tool:'aggregate',scopes:['s:数学'],metric:'score',normalizeTo:100,ops:['mean','count'],trimLow:1,trimHigh:1,range:'all',series:true});
+  assert.ok(trimmed.facts.some(f=>f.label.endsWith('有效场次')&&f.value==='3 场'));
+  assert.equal(trimmed.series[0].count,3);
+  const expected=(70+76.66666666666667+80)/3;
+  assert.ok(trimmed.facts.some(f=>f.label.endsWith('平均')&&f.value===Math.round(expected*100)/100+' 分'));
+  assert.ok(tools.aggregates().length>=2);
+  let aggStep=0;
+  const aggregated=await explore(rich,'按考试分类对比数学表现',[],async messages=>{
+    if(aggStep++===0)return {tool:'aggregate',scopes:['s:数学'],metric:'rate',ops:['median','count'],groupBy:'category',range:'all'};
+    const {results}=JSON.parse(messages.at(-1).content);
+    return {answer:'按分类对比。',refs:[results[0].facts[0].id],components:[{type:'metric',refs:[results[0].facts[0].id],after:1},{type:'aggregate',index:1,after:1}]};
+  });
+  assert.ok(aggregated.widgets.some(w=>w.type==='metric'));
+  assert.ok(aggregated.widgets.some(w=>w.type==='aggregate'));
   const normal=await tools.query({tool:'baseline'});
   assert.ok(normal.facts.some(f=>f.label==='各科正常发挥总分'));
   assert.ok(normal.series.some(s=>s.label==='实际较常态'));
@@ -447,7 +464,11 @@ async function main() {
         controller.enqueue(bytes.slice(cutoff));
       };
       disconnect=()=>controller.close();
-      respond=()=>{sendEvent('result',{status:200,data:{...result,id:b.requestId,charged:3}});disconnect();};
+      respond=()=>{sendEvent('result',{status:200,data:{...result,id:b.requestId,charged:3,widgets:[
+        {type:'metric',after:1,items:[{label:'数学得分',value:'105 分',source:'月考二'}]},
+        {type:'aggregate',after:1,metric:'得分率',columns:[{key:'median',label:'中位数',unit:'%',ascending:false}],rows:[{scope:'数学',group:'高一',count:3,values:{median:70},source:'三场'},{scope:'数学',group:'高二',count:2,values:{median:80},source:'两场'}]},
+        {type:'scenario',after:1,exam:'月考二',actual:105,max:150,subjects:[{label:'数学',actual:105,max:150,value:110}]}
+      ]}});disconnect();};
     }}),{headers:{'content-type':'text/event-stream'}});
   };
   for (const name of ['study-question-chart.js','study-questions.js']) w.eval(fs.readFileSync(path.join(root,name),'utf8'));
@@ -464,6 +485,14 @@ async function main() {
   assert.equal($('[role=status]').textContent,'正在查看成绩变化和难度参考…');
   respond();await tick();
   assert.equal($('.sq-answer').textContent,result.answer);assert.equal($('details').open,false);
+  assert.match($('.sq-metric').textContent,/105 分/);
+  $('.sq-aggregate th button').click();
+  assert.match($('.sq-aggregate tr:nth-child(2)').textContent,/高二/);
+  const slider=$('.sq-simulator input[type=range]');slider.value='120';slider.dispatchEvent(new w.Event('input'));
+  assert.match($('.sq-simulator-metrics').textContent,/120 \/ 150/);
+  $('.sq-simulator-reset').click();
+  assert.match($('.sq-simulator-metrics').textContent,/105 \/ 150/);
+  assert.equal(requests.length,2);
   $('.sq-turn .sq-choice').click();$('button[type=submit]').click();assert.equal(requests.at(-1).previous,requests[1].requestId);
   const followId=requests.at(-1).requestId;
   disconnect();await tick();$('.sq-retry').click();
