@@ -41,7 +41,7 @@ const instructions = `你是 Score Tracker 的个人学情分析助手。用自�
 同时问近况和下次，查最近成绩和对应的预测，然后把两件事都答出来。单问「预测下下一次」可读作「预测一下下一次」，结合上一问确定科目和指标。明确问「下下次」时，目前只有下一场的估计，别往后推。问分数查 trajectory 的得分率，问年级排名查 forecast；没指定科目或组合且问整体时用 total，问各科时用 latestSubjects。没要求限定范围就用全部可比历史，不自行限定到最近一个年级或某场考试。预测和实考分开，当难度能帮助理解时只说偏难还是偏易。
 工具结果中的 kind:"estimate" 是已经算出的下次估计，回答预测时要用它。目录 coverage 是已有记录数，不等于同口径可比较数。一次查询为空，先确认科目、指标和筛选范围是否选对，再查一次；不要将用户明确指定的范围擅自扩大。模型输出里每条关键判断要与本轮事实相符。分清已有成绩、已有排名和是否能做这项预测。只有部分科目或指标有结果时先答能答的，再说缺的是哪一项。没有匹配到相似轨迹也可以先说明近期实际成绩。别把个别缺项或查询未返回说成数据空白。
 
-最后返回 {"answer":"直接回答，简单问题简短，复杂问题用换行自然分段","takeaway":"确实值得做的一件事，可留空","refs":[1,2],"chart":{"type":"line","series":[1,2],"title":"物理最近几场"},"next":"学生可以直接发送的下一问，可留空"}。refs 是本轮最相关的 1–6 条 facts 编号；没查到资料就简短说缺什么，refs 留空。chart 可省；有预测时选末尾带下次估计的序列，标题让人一眼看懂。完整走势和逐场对照也优先用图表。series 写工具的序列编号，别填数值。line 看走势和预测，bar 看并列数据，radar 看学科结构，table 看逐场对照；scatter 看两项指标在同一场考试的关系，至少 3 个有效配对，横轴序列先写，纵轴后写。对比分数升降与位置进退，用 scoreChange（混合满分用 rateChange）和 rankChange 两组对应序列。
+最后返回 {"answer":"直接回答，简单问题简短，复杂问题用换行自然分段","takeaway":"确实值得做的一件事，可留空","refs":[1,2],"chart":{"type":"line","series":[1,2],"title":"物理最近几场"},"next":"学生可以直接发送的下一问，可留空"}。refs 是本轮最相关的 1–6 条 facts 编号；没查到资料就简短说缺什么，refs 留空。chart 可省；复杂问题可提供 charts 数组（最多 3 张），每张图使用不同指标或目的，简单问题不要重复作图。有预测时选末尾带下次估计的序列，标题让人一眼看懂。完整走势和逐场对照也优先用图表。series 写工具的序列编号，别填数值。line 看走势和预测，bar 看并列数据，radar 看学科结构，table 看逐场对照；scatter 看两项指标在同一场考试的关系，至少 3 个有效配对，横轴序列先写，纵轴后写。对比分数升降与位置进退，用 scoreChange（混合满分用 rateChange）和 rankChange 两组对应序列。
 与成绩无关时返回 {"outside":true}。不输出 Markdown、例行提醒、机械的下一问或空泛建议。`;
 
 const toolNames = new Set(['results','examList','matrix','structure','profile','difficulty','forecast','trajectory','goals','longGoal','plan','benchmarks','types','paper','reflection','statistics','scenario']);
@@ -147,9 +147,16 @@ export async function explore(snapshot:any, question:string, history:any[], comp
         continue;
       }
       if (tools.facts.length && !refs.length) throw Error('missing_evidence');
+      const specs = Array.isArray(data.charts) ? data.charts.slice(0,3) : [];
+      const primaryChart = tools.chart(data.chart || specs[0], question);
+      const charts = primaryChart ? [primaryChart] : [];
+      for (const spec of specs) {
+        const chart = tools.chart(spec,'');
+        if (chart && charts.length<3 && !charts.some(c=>c.type===chart.type && c.series.map(s=>s.id).join(',')===chart.series.map(s=>s.id).join(','))) charts.push(chart);
+      }
       return { answer, takeaway: tools.facts.length ? shortText(data.takeaway, 240) : '',
         evidence: refs.map(id => tools.facts[id - 1]), next: shortText(data.next, 100),
-        chart: tools.chart(data.chart, question) };
+        chart: charts[0] || null, ...(charts.length>1?{charts}:{}) };
     }
     if (step === maxSteps-1) throw Error('invalid_response');
     queries = queries.filter(args=>!seenQueries.has(queryKey(args)));
