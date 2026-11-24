@@ -181,16 +181,19 @@ export async function explore(snapshot:any, question:string, history:any[], comp
       if (refs.some(id => !Number.isInteger(id) || !tools.facts[id - 1])) throw Error('invalid_reference');
       // Cross-check explicit current-exam extrema with the program's ordered subject list.
       const violations:string[]=[];
-      for(const fact of tools.facts.filter(f=>f.label==='本场得分率排序'||f.label==='本场年级位置排序')){
+      const currentSorts=['本场得分率排序','本场年级位置排序'].map(label=>tools.facts.findLast(f=>f.label===label)).filter((f):f is NonNullable<typeof f>=>Boolean(f));
+      for(const fact of currentSorts){
         const isRank=fact.label.includes('位置');
-        const names=fact.value.split(isRank?' → ':' > ').map(x=>x.trim().split(' ')[0]);
+        const entries=fact.value.split(isRank?' → ':' > ').map(x=>({name:x.trim().split(' ')[0],value:Number(x.match(/([0-9.]+)%$/)?.[1])}));
+        const names=entries.map(x=>x.name);
         const metric=isRank?'(?:排名|年级位置)':'(?:得分率|得分比例)';
         for(const subject of names){
           const safe=subject.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
           const claims=new RegExp(safe+'[^。；，\\n]{0,30}'+metric+'[^。；，\\n]{0,15}(?:六科|各科|所有科目|全科)?(?:中)?(?:最[高低好差]|最靠[前后])','g');
           for(const m of answer.matchAll(claims)){
             const best=/最高|最好|最靠前/.test(m[0]),worst=/最低|最差|最靠后/.test(m[0]);
-            if(best&&subject!==names[0]||worst&&subject!==names.at(-1))violations.push(fact.label+'：'+fact.value);
+            const value=entries.find(x=>x.name===subject)?.value;
+            if(best&&value!==entries[0].value||worst&&value!==entries.at(-1)?.value)violations.push(fact.label+'：'+fact.value);
           }
         }
       }
@@ -220,9 +223,11 @@ export async function explore(snapshot:any, question:string, history:any[], comp
         const relevant=paragraphs.findIndex(p=>labels.some(label=>p.includes(label)));
         return relevant>=0 ? relevant+1 : Math.min(i+1,paragraphs.length);
       });
+      const relations=tools.relationships();
+      const widgets=[...(scenario?[{...scenario,after:1}]:[]),...(relations?[{...relations,after:1}]:[])];
       return { answer, takeaway: tools.facts.length ? shortText(data.takeaway, 240) : '',
         evidence: refs.map(id => tools.facts[id - 1]), next: shortText(data.next, 100),
-        chart: charts[0] || null, ...(charts.length>1?{charts}:{}),chartAfter,...(scenario?{widgets:[{...scenario,after:1}]}:{}) };
+        chart: charts[0] || null, ...(charts.length>1?{charts}:{}),chartAfter,...(widgets.length?{widgets}:{}) };
     }
     if (step === maxSteps-1) throw Error('invalid_response');
     queries = queries.filter(args=>!seenQueries.has(queryKey(args)));
