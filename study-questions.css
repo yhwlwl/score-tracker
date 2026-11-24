@@ -301,3 +301,13 @@
   .sq-chart-frame canvas { height: 142px; }
 }
 @media print { .an-layout > .an-study-open, .sq-dialog { display: none !important; } }
+
+/* Answer-native simulator. Theme colors, no fixed viewport widths. */
+.sq-simulator { display:grid; gap:12px; min-width:0; padding:14px; border:1px solid var(--line); border-radius:14px; }
+.sq-simulator-header,.sq-simulator-caption { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.sq-simulator-metrics { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.sq-simulator-metrics > div { display:grid; gap:4px; min-width:0; }
+.sq-simulator-metrics b { font-size:calc(18px * var(--ui-scale,1)); font-variant-numeric:tabular-nums; }
+.sq-simulator-row { display:grid; gap:5px; font-size:calc(13px * var(--ui-scale,1)); }
+.sq-simulator-row input { width:100%; min-width:0; accent-color:var(--accent); margin:0; }
+.sq-dialog .sq-simulator-reset { color:var(--accent); background:transparent; border:1px solid var(--line); border-radius:8px; padding:5px 10px; }
