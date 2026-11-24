@@ -48,7 +48,7 @@ const option=(name,fallback)=>argv.find(x=>x.startsWith('--'+name+'='))?.split('
 const probe=argv.includes('--probe');
 const live=argv.includes('--live');
 const provider=option('provider',process.env.STUDY_EVAL_PROVIDER||'deepseek');
-const providers={deepseek:{model:'deepseek-flash',baseUrl:'https://api.deepseek.com'},'opencode-go':{model:'deepseek-v4-flash',baseUrl:'https://opencode.ai/zen/go/v1'}};
+const providers={deepseek:{model:'deepseek-flash',baseUrl:'https://api.deepseek.com'},'opencode-go':{model:'deepseek-v4.1-flash',baseUrl:'https://opencode.ai/inference/go/openai/v1'}};
 if(!Object.hasOwn(providers,provider))throw Error('unknown evaluation provider');
 const target=providers[provider];
 if(probe&&live)throw Error('choose --probe or --live');
@@ -65,8 +65,11 @@ if(modes.some(m=>!['low','standard','high'].includes(m))||!Number.isInteger(repe
 if(live&&(!process.env.STUDY_EVAL_API_KEY||!(maxCredits>0&&maxCredits<=10000)||!Number.isInteger(maxCalls)||maxCalls<1||maxCalls>150))throw Error('Live evaluation requires a dedicated STUDY_EVAL_API_KEY, --max-credits and --max-calls. No production account or data is used.');
 const budget={spent:0,calls:0,unknown:false,stopReason:null};
 const providerFetch=global.fetch;
+// Official Go API routing contract: stable per conversation, genuine application identity.
+const goHeaders=session=>provider==='opencode-go'?{'x-opencode-session':session,'User-Agent':'score-tracker-eval/1.0'}:{};
 function fakeDb(test,mode){
   const tasks=new Map(),turns=new Map();
+  const session='ses_'+crypto.randomUUID();
   const priorId='01000000-0000-4000-8000-000000000001';
   if(test.previous){
     tasks.set(priorId,{id:priorId,user_id:'eval-owner',feature:'study_question',status:'succeeded',charged_credits:0});
@@ -108,7 +111,7 @@ function fakeDb(test,mode){
       // Never send the credential to any other origin, including redirects.
       if(url!==target.baseUrl+'/chat/completions')throw Error('unexpected evaluation endpoint');
       let response;
-      try{response=await providerFetch(url,{...init,redirect:'error'});}
+      try{response=await providerFetch(url,{...init,headers:{...init.headers,...goHeaders(session)},redirect:'error'});}
       catch(e){budget.stopReason='provider_connection_failed';throw e;}
       if(!response.ok){budget.stopReason='provider_http_'+response.status;console.error('Provider HTTP '+response.status+'; stopping live evaluation.');}
       return response;
@@ -132,7 +135,7 @@ async function checkConnection(){
   const start=performance.now();
   const response=await providerFetch(target.baseUrl+'/chat/completions',{
     method:'POST',redirect:'error',signal:AbortSignal.timeout(30000),
-    headers:{'Content-Type':'application/json',Authorization:'Bearer '+process.env.STUDY_EVAL_API_KEY},
+    headers:{'Content-Type':'application/json',Authorization:'Bearer '+process.env.STUDY_EVAL_API_KEY,...goHeaders('ses_'+crypto.randomUUID())},
     body:JSON.stringify({model:target.model,messages:[{role:'user',content:'Return exactly this JSON object: {"ok":true}'}],thinking:{type:'disabled'},response_format:{type:'json_object'},max_tokens:64,stream:false})
   });
   const payload=await response.json().catch(()=>null);
