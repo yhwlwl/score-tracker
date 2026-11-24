@@ -32,7 +32,7 @@ const instructions = `你是 Score Tracker 的个人学情分析助手。用自�
 怎么说：
 - 先回答用户真正想知道的事。简单查询一句话即可；综合问题按实际需要分段，完整覆盖每个子问题，不硬凑字数。把长期水平、近期变化、偶发异常区分开。不要只是复述分数，解释数据意味着什么、哪些发现值得关注。
 - 用平常的说法，比如「这次和之前差不多」「比上次高一点」。得分率直接写百分比，如「58%」，保持数字和单位清楚，别换成成数。排名写「年级前 37%」或实际名次，前 37% 比前 40% 更靠前。分数和得分率分清，只有知道满分才换算分数。
-- 先一句话给结论，再分2–4个短段讲关键发现。每段只说一个主题；一般问题约100–250字，复杂问题按需展开。允许用 **短标题** 或少量加粗突出重点。正文保留最能支撑判断的数字（百分比通常保留一位小数，完整精度留在图表），避免正文与图表逐行重复。用户问各科、预测范围、完整对比时，必须回答全部可查项；图表帮助理解，不能替代关键结论。预测明确区分相似轨迹、个人历史粗略估计及实际成绩；历史波动不是预测区间。建议只有确实有帮助时再给。不要从分数或排名直接猜测知识点、学习习惯或具体失分原因。排名百分比不是得分率，排名变化不能证明同学普遍提高或试卷难度变化；难度、均分和失分原因须有对应证据。提分优先级结合实际分差、满分、可比历史、目标及已记录失分，不把排名最靠后等同于最容易提分。用户只问现状时不要主动调用预测工具。别用报告腔，也不要用几成代替百分比。
+- 先一句话给结论，再分2–4个短段讲关键发现。每段只说一个主题；一般问题约100–250字，复杂问题按需展开。允许用 **短标题** 或少量加粗突出重点。正文保留最能支撑判断的数字（百分比通常保留一位小数，完整精度留在图表），避免正文与图表逐行重复。用户问各科、预测范围、完整对比时，必须回答全部可查项；图表帮助理解，不能替代关键结论。预测明确区分相似轨迹、个人历史粗略估计及实际成绩；历史波动不是预测区间。建议只有确实有帮助时再给。不要从分数或排名直接猜测知识点、学习习惯或具体失分原因。排名百分比不是得分率，排名变化不能证明同学普遍提高或试卷难度变化；难度、均分和失分原因须有对应证据。提分优先级结合实际分差、满分、可比历史、目标及已记录失分，不把排名最靠后等同于最容易提分。用户只问现状时不要主动调用预测工具。别用报告腔，也不要用几成代替百分比。简单查分不必强行分析排名；开放性问题优先说最值得关注的一个或两个发现。区分持续变化与单场异常；仅凭分数不能把低分定性为录错、缺考或偶发失误。相关系数高不等于两科分数接近。历史范围只是观测范围，不能承诺下次落在其中。
 - 说法示例（数字只是示例）：物理最近咋样，预测下一次 →「最近几场物理大多在 56%～58%，期中是 58%。照最近的表现看，下次大概也是 58%。」数学这回是不是退了 →「比上次少了 4 分，年级排名倒是差不多。」
 
 怎么查：
@@ -42,7 +42,7 @@ const instructions = `你是 Score Tracker 的个人学情分析助手。用自�
 - examList：查考试清单、区间或旧考试编号。matrix：看全量考试矩阵，metric 选 rank/class/rate/score/difficulty；跨多科对比用 heatmap，原始分或逐项数字用 table。structure：同场学科对照、强弱与雷达图，通常指定 1～5 场。profile：个人最佳、近期速度、稳定性、数据覆盖，mode:"distribution" 查排名区间分布。
 - difficulty：分析页的难度参考（50 左右是历史中等水平，较高代表相对偏难），worth:true 查含金量参考分，可传 reference 作为对照考试编号。forecast：学习状态预测的下一场位置与波动范围。trajectory：相似轨迹的得分率或位置预测，metric:"score" 或 "year"。
 - goals 查单场目标差距，calibrate:true 查目标校准和连续达标；longGoal 查长期总分/学科/名次目标与差距、学校和日期；plan 查尚未出成绩的考试预设目标。benchmarks 查已录入的班级或年级均分和最高分。
-- aggregate：通用统计工具，不需要为每种问题调用专用分析。scopes、range、category、from/to、exams 可组合使用；metric:rate/rank/score/classRank/cityRank/districtRank/lost；ops:[mean,median,min,max,std,range,count,sum,first,last,change,slope]，每次最多6种；groupBy:category 按考试分类对比，默认按科目；trimLow/trimHigh 排除数值最低/最高若干场（排名百分比越低越好）；normalizeTo:100 或150 将得分率换算成统一满分，须选 metric:score；minSamples:3 等要求样本数；series:true 同时提供原序列。稳定性用 std 或 range，长期趋势用 slope，按需选择。工具计算后可以根据不同分组比较结果。不要自行编造数值。\n- statistics：两项指标相关性，scopes:["s:数学","s:物理"],metrics:["rate","rank"],range:"all"；同一科可传两个不同指标。问同时进步、退步、升降同步必须 mode:"change"；全科关系用 allPairs:true 一次计算全部配对。水平相关不能代替变化相关，不能据此推断因果或安排复习。baseline：各科正常发挥的总分、常态与本次分差，按此前中位得分率与本次满分程序化计算。scenario：总分情景模拟，例如 adjustments:{"s:化学":10}，其他科不变，不推算排名。用户想自己调整各科分数时用 interactive:true，可不传 adjustments。
+- aggregate：通用统计工具，不需要为每种问题调用专用分析。scopes、range、category、from/to、exams 可组合使用；metric:rate/rank/score/classRank/cityRank/districtRank/lost；ops:[mean,median,min,max,std,range,count,sum,first,last,change,slope]，每次最多6种；groupBy:category 按考试分类对比，默认按科目；trimLow/trimHigh 排除数值最低/最高若干场（排名百分比越低越好）；normalizeTo:100 或150 将得分率换算成统一满分，须选 metric:score；minSamples:3 等要求样本数；series:true 同时提供原序列。稳定性用 std 或 range，长期趋势用 slope，按需选择。标准差只说明数值离散程度，不代表反复涨跌；必须根据逐场变化的上升、下降次数判断走势，不把持续上涨中的离散解释成失常。工具计算后可以根据不同分组比较结果。不要自行编造数值。\n- statistics：两项指标相关性，scopes:["s:数学","s:物理"],metrics:["rate","rank"],range:"all"；同一科可传两个不同指标。问同时进步、退步、升降同步必须 mode:"change"；全科关系用 allPairs:true 一次计算全部配对。水平相关不能代替变化相关，不能据此推断因果或安排复习。baseline：各科正常发挥的总分、常态与本次分差，按此前中位得分率与本次满分程序化计算。scenario：总分情景模拟，例如 adjustments:{"s:化学":10}，其他科不变，不推算排名。用户想自己调整各科分数时用 interactive:true；仅在用户没有给出具体分数变化时才可省略 adjustments。任何具体模拟必须先执行 scenario 并采用其计算值，不自行心算或承诺未生成的组件。
 - types 查已录入的题型得分、失分占比、表现变化与已标记错因，可选 typeName；paper 查已核对的逐题分数；reflection 读本人已保存的考试反思。按问题需要查询，不把题型失分、AI推测和本人复盘混为一谈。
 同时问近况和下次，查最近成绩和对应的预测，然后把两件事都答出来。若目录请求包含现状和预测，返回 analysis 字段，专门写近期表现、原因或建议等非预测部分；预测结果由程序完整附上。对于「最近怎么样」「哪科值得关注」之类开放问题，先比较近期变化与历史常态，再按需结合难度、题型、目标或反思，优先挑值得关注的异常，而非机械列出全部科目。单问「预测下下一次」可读作「预测一下下一次」，结合上一问确定科目和指标。明确问「下下次」时，目前只有下一场的估计，别往后推。问分数查 trajectory 的得分率，问年级排名查 forecast；没指定科目或组合且问整体时用 total，问各科时用 latestSubjects。没要求限定范围就用全部可比历史，不自行限定到最近一个年级或某场考试。预测和实考分开，当难度能帮助理解时只说偏难还是偏易。
 工具结果中的 kind:"estimate" 是已经算出的下次估计，回答预测时要用它。目录 coverage 是已有记录数，不等于同口径可比较数。一次查询为空，先确认科目、指标和筛选范围是否选对，再查一次；不要将用户明确指定的范围擅自扩大。模型输出里每条关键判断要与本轮事实相符。分清已有成绩、已有排名和是否能做这项预测。只有部分科目或指标有结果时先答能答的，再说缺的是哪一项。没有匹配到相似轨迹也可以先说明近期实际成绩。别把个别缺项或查询未返回说成数据空白。
@@ -98,6 +98,17 @@ export async function explore(snapshot:any, question:string, history:any[], comp
   const normalQuestion=/(?:各科|每科|每一科|所有科目).{0,24}(?:平时|常态|正常|通常).{0,18}(?:总分|总成绩)|(?:各科|每科).{0,20}(?:正常|平时).{0,10}发挥/.test(question);
   const namedSubjects=tools.catalog.latestSubjects.filter(key=>question.includes(tools.catalog.scopes[key]));
   const restricted=/(?:仅|只)(?:看|用|算)|\d{4}-\d{2}|\d+月|高[一二三](?:上|下|以来|开始)|指定|这[两三四五六七八九]场/.test(question);
+  const categoryNames=tools.catalog.history.categories.map(([name])=>name).filter(name=>name!=='__none__'&&question.includes(name));
+  const mentionedExams=tools.catalog.exams.filter(exam=>question.includes(exam.name));
+  // Deterministic routing only for an unambiguous single-subject score delta.
+  const deltaMatches=[...question.matchAll(/(?:再\s*)?(多|少|增加|提高|提升|加上|加|减少|降低|减去|减)\s*(\d+(?:\.\d+)?)\s*分/g)];
+  const delta=deltaMatches.length===1?deltaMatches[0]:null;
+  const scenarioIntent=/总分|总成绩/.test(question)&&/如果|假设|模拟|再多|再少|增加|减少|调整/.test(question)&&!/排名|名次|位次|预测|下次|目标|平时|常态/.test(question);
+  const explicitScenario=scenarioIntent&&delta&&namedSubjects.length===1&&delta.index!>=question.indexOf(tools.catalog.scopes[namedSubjects[0]])&&
+    !/分别|同时|每科|每一科|各科.{0,5}(?:多|少|增加|减少)|或是|或者/.test(question)?
+    {[namedSubjects[0]]:Number(delta[2])*(/少|减少|降低|减/.test(delta[1])?-1:1)}:null;
+  const simpleGrouped=categoryNames.length>=2&&namedSubjects.length===1&&/标准差|稳定性/.test(question)&&/比较|对比|哪个|哪段|分别/.test(question)&&
+    /得分率/.test(question)&&!/不要只看|仅看|只看|最高|最低|去掉|排除|难度|排名|预测|目标|\d+月|\d{4}|最近\d|最近[一二三四五六七八九十]/.test(question)&&!mentionedExams.length;
   const maxSteps = budget?.maxSteps ?? 4;
   const queryKey = (query: Query) => JSON.stringify(Object.entries(query).sort(([a],[b])=>a.localeCompare(b)));
   for (let step=0; step<maxSteps; step++) {
@@ -128,6 +139,13 @@ export async function explore(snapshot:any, question:string, history:any[], comp
     }
     if(!queried && normalQuestion && !restricted)queries=[{tool:'baseline'},...queries.filter(q=>q.tool!=='baseline')].slice(0,3);
     if(syncQuestion)queries=queries.map(q=>q.tool==='statistics'?{...q,mode:'change'}:q);
+    if(!queried&&explicitScenario){
+      const planned=queries.find(q=>q.tool==='scenario');
+      queries=[{tool:'scenario',...(restricted?{category:planned?.category,from:planned?.from,to:planned?.to,name:planned?.name,exams:planned?.exams}:{}),
+        ...(mentionedExams.length===1?{exams:[mentionedExams[0].id]}:{}),...(categoryNames.length===1?{category:categoryNames[0]}:{}),adjustments:explicitScenario,interactive:true}];
+    }else if(!queried&&simpleGrouped){
+      queries=[{tool:'aggregate',scopes:namedSubjects,metric:'rate',ops:['mean','std','count','min','max'],groupBy:'category',categories:categoryNames,range:'all',series:true}];
+    }
     const forecast = queried ? null : primaryForecast(question, history, tools.catalog, queries);
     if (forecast) {
       required = forecast;
@@ -138,7 +156,7 @@ export async function explore(snapshot:any, question:string, history:any[], comp
       }
       queries = [forecast, ...others].slice(0,3);
     }
-    if (data?.outside===true && !required && !queried) return {answer:'可以问我成绩变化、下次预测或目标差距。',evidence:[],next:''};
+    if (data?.outside===true && !required && !queried && !explicitScenario && !simpleGrouped) return {answer:'可以问我成绩变化、下次预测或目标差距。',evidence:[],next:''};
     const answer = shortText(data?.answer, 1000);
     if (answer && queried) {
       let refs = Array.isArray(data.refs) ? [...new Set<number>(data.refs)].slice(0,6) : [];
@@ -186,7 +204,10 @@ export async function explore(snapshot:any, question:string, history:any[], comp
           const historyChart=compound ? tools.chart(data.chart || data.charts?.[0],'') : null;
           const charts=[predictionChart,historyChart].filter((c): c is NonNullable<typeof c>=>Boolean(c));
           const distinct = charts.filter((c,i)=>!charts.slice(0,i).some(prev=>prev.type===c.type && prev.series.map(s=>s.id).join(',')===c.series.map(s=>s.id).join(',')));
-          const compact = each && predictionChart?.type==='table' ? `查到了 ${estimates.length} 科的下次估计。下表是各科的${metric}及参考范围。` : reply;
+          const historicalOnly=estimates.every(f=>f.value.includes('历史粗略参考')||f.source.includes('个人历史'));
+          const compact = each && predictionChart?.type==='table' ? `查到了 ${estimates.length} 科的下次估计（${metric}）。`+
+            ' '+estimates.slice(0,6).map(f=>f.label.split('下次')[0]+' '+f.value.split(' · ')[0]).join('、')+'。'+
+            (historicalOnly?'这些是个人历史成绩的粗略参考，不是已校准的预测区间。':'下表区分预测范围和个人历史参考。') : reply;
           const combined = (extraAnalysis?extraAnalysis+'\n\n':'')+compact+unavailable;
           const paragraphs = combined.split(/\n\s*\n/).length;
           const chartAfter=distinct.map(c=>c===historyChart && extraAnalysis ? Math.max(1,paragraphs-1) : paragraphs);
@@ -292,11 +313,35 @@ export async function explore(snapshot:any, question:string, history:any[], comp
     }));
     results.forEach((result,i)=>{if(result.status==='failed')seenQueries.delete(queryKey(queries[i]));
       if(result.tool==='baseline'&&result.status==='ok')baseline=result;
-      if(result.tool==='scenario'&&result.status==='ok'&&result.facts.some(f=>f.label==='模拟总分')){
-        const q=queries[i];const ids=Array.isArray(q.exams)?q.exams:[];
-        if(!q.category&&!q.from&&!q.to&&!q.name&&ids.length<=1)scenario=tools.simulator(ids[0],q.adjustments);
+      if(result.tool==='scenario'&&result.status==='ok'&&result.facts.some(f=>f.label==='模拟总分')&&'scenarioWidget' in result&&result.scenarioWidget){
+        scenario=result.scenarioWidget;
       }
     });
+    // For requested calculations and grouped dispersion comparisons, return the
+    // actual tool result instead of letting prose contradict the evidence.
+    if(explicitScenario){
+      const computed=results.find(r=>r.tool==='scenario');
+      const total=computed?.facts.find(f=>f.label==='模拟总分');
+      if(total&&scenario){
+        const changes=computed!.facts.filter(f=>f.label.endsWith('模拟成绩'));
+        const answer=changes.map(f=>f.label.replace('模拟成绩','')+'：'+f.value).join('；')+'。**模拟总分 '+total.value.split(' · ')[0]+'**。\n\n'+total.value.split(' · ').slice(1).join('，')+'。其他科目保持不变，不推算排名。';
+        return {answer,evidence:computed!.facts,next:'',chart:null,chartAfter:[],widgets:[{...(scenario as NonNullable<ReturnType<typeof tools.simulator>>),after:1}]};
+      }
+      return {answer:'这次无法按指定分数计算模拟总分。'+(computed?.notes.join('；')||'请核对考试和科目成绩。'),evidence:computed?.facts||[],next:'',chart:null};
+    }
+    if(simpleGrouped){
+      const computed=results.find(r=>r.tool==='aggregate');
+      const aggregate=tools.aggregates().at(-1);
+      const rows=aggregate?.rows||[];
+      if(rows.length){
+        const summary=rows.map((row:any)=>{const t=row.trend;const v=row.values;return `${row.group}：${row.count} 场，平均得分率 ${v.mean}%，${v.std==null?'不足以计算标准差':'标准差 '+v.std+' 个百分点'}。`+(row.count<2?'':t.up===row.count-1?'逐场上升（'+t.first+'% → '+t.last+'%）。':t.down===row.count-1?'逐场下降（'+t.first+'% → '+t.last+'%）。':`上升 ${t.up} 次、下降 ${t.down} 次、持平 ${t.same} 次。`);});
+        const ordered=rows.filter((row:any)=>Number.isFinite(row.values.std)).slice().sort((a:any,b:any)=>a.values.std-b.values.std);
+        const comparison=ordered.length>=2?(ordered[0].values.std===ordered.at(-1).values.std?'各组标准差相同。':ordered[0].group+'的得分率更集中，'+ordered.at(-1).group+'的得分率更分散。'):'';
+        const missing=categoryNames.filter(name=>!rows.some((row:any)=>row.group===name));
+        return {answer:(comparison?comparison+'\n\n':'')+summary.join('\n\n')+'\n\n标准差反映离散程度，不等于成绩反复涨跌。'+(missing.length?missing.join('、')+'暂无可比成绩。':''),evidence:computed?.facts||[],next:'',chart:null,chartAfter:[],widgets:[{...aggregate,after:1}]};
+      }
+      return {answer:'所选阶段没有可比较的得分率记录。',evidence:computed?.facts||[],next:'',chart:null};
+    }
     if (required) {
       const index=queries.findIndex(args=>queryKey(args)===queryKey(required!));
       if (index>=0 && (!primary || results[index].facts.some(f=>f.kind==='estimate'))) primary=results[index];
