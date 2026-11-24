@@ -232,12 +232,57 @@ async function checkSnapshotOwnership() {
   await snapshot.details('reflection',['foreign-exam','visible-3'],[]);
   assert.deepEqual(seen.at(-1).ids,['visible-3']);
 }
+async function checkAgentCompleteness(snapshot) {
+  const rich={...snapshot,exams:snapshot.exams.map((exam,i)=>({...exam,
+    scores:{...exam.scores,物理:{actual:60+3*i,max:100,rank:30-i,participants:200}},
+    total_actual_score:null,total_rank:40-i,total_participants:200
+  }))};
+  const requested=[];
+  const tools=studyTools(rich,async subjects=>{
+    requested.push(subjects[0]);
+    if(subjects[0]==='物理') throw Error('temporary');
+    return {enabled:true,history:[66,77,70],history_dates:['2026-10-10','2026-10-11','2026-10-12'],matches:[{history:[64,74,69],future:[72],match_score:90}]};
+  });
+  const forecasts=await tools.query({tool:'trajectory',scopes:['s:数学','s:物理']});
+  assert.equal(forecasts.facts.filter(f=>f.kind==='estimate').length,2);
+  assert.equal(requested.filter(s=>s==='物理').length,2);
+  const fallback=forecasts.facts.find(f=>f.label==='物理下次得分率估计');
+  assert.match(fallback.source,/个人历史粗略参考.*查询暂时失败/);
+  const table=tools.chart(null,'我各科下次大概能考多少？');
+  assert.equal(table.type,'table');
+  const p=table.series[0].points.find(p=>p.label==='物理');
+  assert.equal(p.value,66);
+  assert.equal(p.low,undefined);
+  assert.equal(p.high,undefined);
+  const relation=await tools.query({tool:'statistics',scopes:['s:数学','s:物理'],metrics:['rate','rate'],range:'all'});
+  assert.match(relation.facts[0].value,/相关系数.*5 场配对/);
+  assert.equal(tools.chart({type:'scatter',series:relation.series.map(s=>s.id)},'这两科有关系吗').type,'scatter');
+  const scenario=await tools.query({tool:'scenario',exams:[5],adjustments:{'s:数学':10}});
+  assert.match(JSON.stringify(scenario.facts),/模拟总分.*变化 \+10 分/);
+  const invalid=await tools.query({tool:'scenario',exams:[5],adjustments:{'s:数学':100}});
+  assert.equal(invalid.facts.length,0);
+  let step=0;
+  const rank=await explore(rich,'下一场大概能排到哪里？',[],async()=>{
+    return step++===0?{tool:'forecast'}:{answer:'前10%比前40%更靠后。',refs:[1]};
+  });
+  assert.match(rank.answer,/下次总分的年级排名大概在前/);
+  assert.match(rank.answer,/与最近一场相比/);
+  assert.doesNotMatch(rank.answer,/更靠后/);
+  let calls=0;
+  const deeper=await explore(rich,'从长期、难度和目标分析我的数学',[],async()=>{
+    return [{tool:'profile',scopes:['s:数学']},{tool:'difficulty',scopes:['s:数学']},{tool:'goals',scopes:['s:数学']},{answer:'先看长期表现，再结合难度与目标。'.repeat(14),refs:[1]}][calls++];
+  });
+  assert.equal(calls,4);
+  assert.ok(deeper.answer.length>180);
+}
+
 async function main() {
   const snapshot={exams,modules:[{id:moduleId,name:'自选组合',subjects:['数学','物理']}]};
   await checkEventStream();
   await roundTrip(snapshot);
   await checkOtherData(snapshot);
   await checkForecastLookup(snapshot);
+  await checkAgentCompleteness(snapshot);
   await checkSnapshotOwnership();
   const tools=studyTools(snapshot);
   const data=await tools.query({tool:'results',exams:[2,1,3,900],scopes:['total','m:custom','s:数学','s:物理','bogus']});
