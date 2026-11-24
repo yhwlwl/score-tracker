@@ -93,6 +93,7 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
   const facts: Evidence[] = [];
   const series: Series[] = [];
   const refs = new Map<string, number>();
+  const aggregates:any[]=[];
   let relations: {type:'relations';title:string;subjects:string[];mode:'level'|'change';metric:'rate'|'rank';pairs:{a:string;b:string;level:number|null;change:number|null;n:number;steps:number;same:number;opposite:number}[]} | null = null;
   const seriesRefs = new Map<string, number>();
   const trajectoryRequests = new Map<string, Promise<any>>();
@@ -149,7 +150,7 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
     const ids = new Set(candidate(args.exams).filter((id): id is number => Number.isInteger(id) && exams[(id as number) - 1] != null));
     if (candidate(args.exams).length && !ids.size) return { facts: [], series: [], notes: ['没有找到指定的考试。'] };
     const requestedScopes = candidate(args.scopes);
-    const keyLimit = ['matrix', 'structure', 'forecast', 'trajectory','statistics'].includes(args.tool) ? 24 : 8;
+    const keyLimit = ['matrix', 'structure', 'forecast', 'trajectory','statistics','aggregate'].includes(args.tool) ? 24 : 8;
     const defaultScopes = ['results', 'forecast', 'trajectory', 'goals', 'benchmarks', 'profile', 'matrix'].includes(args.tool) ? ['total'] : [];
     const keys = (requestedScopes.includes('*') ? [...scopes.keys()].filter(k => k.startsWith('s:')) :
       requestedScopes.length ? [...new Set(requestedScopes.filter((k): k is string => typeof k === 'string' && scopes.has(k)))] :
@@ -175,7 +176,90 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
       return ids.size || maxExams === Infinity ? rows : rows.slice(-maxExams);
     };
     const matching = () => scopeRows('total').filter(row => inCategory(row) && (!ids.size || ids.has(row.id)));
-    if (args.tool === 'statistics') {
+    if (args.tool === 'aggregate') {
+      // Bounded, typed analytical operations over authorized, in-memory exam data.
+      // No model-written code, SQL, network access or dynamic expressions.
+      const allowedMetrics=['rate','rank','score','classRank','cityRank','districtRank','difficulty','lost'] as const;
+      type BaseMetric=typeof allowedMetrics[number];
+      const metric:BaseMetric=allowedMetrics.includes(args.metric)?args.metric:'rate';
+      const ops=['mean','median','min','max','std','range','count','sum','first','last','change','slope'] as const;
+      type Op=typeof ops[number];
+      const requested=Array.isArray(args.ops)?args.ops:[args.op];
+      const operations:Op[]=[...new Set<Op>(requested.filter((v:any)=>ops.includes(v)))].slice(0,6);
+      if(!operations.length)operations.push('median','count');
+      const selected=keys.length?keys:['total'];
+      const groupBy=args.groupBy==='category'?'category':'scope';
+      const metricLabel:Record<BaseMetric,string>={rate:'得分率',rank:'年级位置',score:'分数',classRank:'班级位置',cityRank:'市排名位置',districtRank:'区排名位置',difficulty:'难度参考',lost:'失分'};
+      const opLabel:Record<Op,string>={mean:'平均',median:'中位数',min:'最小值',max:'最大值',std:'标准差',range:'极差',count:'有效场次',sum:'合计',first:'最早',last:'最近',change:'首末变化',slope:'每场线性变化'};
+      const unit=(op:Op)=>op==='count'?' 场':metric==='score'||metric==='lost'?' 分':metric==='difficulty'?' / 100':op==='std'||op==='range'||op==='change'||op==='slope'?' 个百分点':'%';
+      const validRank=['rank','classRank','cityRank','districtRank'].includes(metric);
+      const trimLow=Number.isInteger(args.trimLow)?Math.max(0,Math.min(5,args.trimLow)):0;
+      const trimHigh=Number.isInteger(args.trimHigh)?Math.max(0,Math.min(5,args.trimHigh)):0;
+      const normalize=finite(args.normalizeTo)&&args.normalizeTo>0&&args.normalizeTo<=2000?args.normalizeTo:null;
+      const minSamples=Number.isInteger(args.minSamples)?Math.max(1,Math.min(30,args.minSamples)):1;
+      const get=(row:Row,key:string)=>{
+        const actual=args.basis==='raw'&&['score','rate','lost'].includes(metric)?{...row.actual,...rawMark(row.exam,key,modules)}:row.actual;
+        if(metric==='rank')return position(actual);
+        if(metric==='classRank'||metric==='cityRank'||metric==='districtRank'){
+          const ranks=otherRanks(row.exam,key,modules);
+          return position(ranks[metric==='classRank'?'class':metric==='cityRank'?'city':'district']);
+        }
+        if(metric==='difficulty')return null;
+        if(metric==='rate')return rate(actual);
+        if(metric==='lost')return actual.max>0&&finite(actual.score)?actual.max-actual.score:null;
+        return normalize!==null?(rate(actual)!==null?rate(actual)!*normalize/100:null):actual.score;
+      };
+      if(metric==='difficulty'){
+        notes.push('难度需使用专用 difficulty 工具；暂不支持在 aggregate 中直接聚合难度。');
+      }else{
+        const resultRows:{scope:string;group:string;count:number;values:Partial<Record<Op,number>>;source:string}[]=[];
+        for(const key of selected){
+          // Anchor on the latest selected scope, avoiding mixed subject combinations.
+          const rows=select(key).filter(r=>finite(get(r,key)));
+          const latest=rows.at(-1);
+          if(!latest)continue;
+          const comparable=rows.filter(r=>sameScope(r,latest));
+          const excluded=rows.length-comparable.length;
+          if(excluded)notes.push(scopes.get(key)+'：排除 '+excluded+' 场不同口径考试。');
+          const groups=groupBy==='category'?[...new Set(comparable.map(r=>r.exam.grade_level||'未分类'))]:['全部'];
+          for(const group of groups){
+            let list=comparable.filter(r=>groupBy!=='category'||(r.exam.grade_level||'未分类')===group).map(r=>({r,v:get(r,key)!}));
+            const before=list.length;
+            if(trimLow||trimHigh){
+              const sorted=list.slice().sort((a,b)=>a.v-b.v||a.r.id-b.r.id);
+              const keep=new Set(sorted.slice(trimLow,Math.max(trimLow,sorted.length-trimHigh)).map(x=>x.r.id));
+              list=list.filter(x=>keep.has(x.r.id));
+            }
+            if(list.length<minSamples||!list.length)continue;
+            if((metric==='score'||metric==='lost')&&normalize===null){
+              const maxima=new Set(list.map(({r})=>args.basis==='raw'?rawMark(r.exam,key,modules).max:r.actual.max));
+              if(maxima.size>1){notes.push(scopes.get(key)+' '+group+'：满分不同，改用得分率或指定 normalizeTo。');continue;}
+            }
+            const values=list.map(x=>x.v),n=values.length,mean=values.reduce((a,b)=>a+b,0)/n;
+            const smallest=Math.min(...values),largest=Math.max(...values);
+            const xm=(n-1)/2,den=values.reduce((a,_,i)=>a+(i-xm)**2,0);
+            const calculations:Record<Op,number|null>={mean,median:median(values),min:smallest,max:largest,std:n>=2?Math.sqrt(values.reduce((a,b)=>a+(b-mean)**2,0)/n):null,range:largest-smallest,count:n,sum:validRank||metric==='rate'?null:values.reduce((a,b)=>a+b,0),first:values[0],last:values[n-1],change:n>=2?(values[n-1]-values[0])*(validRank?-1:1):null,slope:n>=3&&den>0?values.reduce((a,b,i)=>a+(i-xm)*(b-mean),0)/den*(validRank?-1:1):null};
+            const label=scopes.get(key)!+(groupBy==='category'?' · '+group:'');
+            const citation='同口径 '+n+' 场 · '+source(list[0].r.exam)+' → '+source(list.at(-1)!.r.exam)+(before!==n?' · 排除数值最低 '+trimLow+' 场、最高 '+trimHigh+' 场':'')+(normalize?' · 换算满分 '+normalize:'')+(args.basis==='raw'?' · 原始分':'');
+            const result:Partial<Record<Op,number>>={};
+            for(const op of operations){
+              const v=calculations[op];
+              if(!finite(v))continue;
+              result[op]=round(v);
+              add(label+metricLabel[metric]+opLabel[op],(validRank&&['mean','median','min','max','first','last'].includes(op)?'前 ':'')+round(v)+unit(op),citation+(validRank&&['change','slope'].includes(op)?' · 正值代表排名进步':''));
+            }
+            resultRows.push({scope:scopes.get(key)!,group,count:n,values:result,source:citation});
+            // Retain exact selected records as a reusable data series for charting.
+            if(args.series===true&&resultRows.length<=8)addSeries(label,metric,list.map(x=>point(x.r.axis,x.v)));
+          }
+        }
+        // Summary widgets are built from computed values and never model-provided numbers.
+        if(resultRows.length){
+          aggregates.push({type:'aggregate',title:'统计对比',metric:metricLabel[metric],columns:operations.map(op=>({key:op,label:opLabel[op],unit:unit(op),rank:validRank&&['mean','median','min','max','first','last'].includes(op),ascending:op==='std'||op==='range'||validRank&&['mean','median','min','max','first','last'].includes(op)})),rows:resultRows.slice(0,32)});
+        }
+        if(!resultRows.length)notes.push('所选范围没有满足条件的可比数据。');
+      }
+    } else if (args.tool === 'statistics') {
       const aMetric = args.metrics?.[0]==='rank' ? 'rank' : 'rate';
       const bMetric = args.metrics?.[1]==='rank' ? 'rank' : args.metrics?.[1]==='rate' ? 'rate' : aMetric;
       const delta = args.mode==='change';
@@ -866,5 +950,5 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
     if(Math.abs(subjects.reduce((sum,s)=>sum+s.actual,0)-row.actual.score)>.01||Math.abs(subjects.reduce((sum,s)=>sum+s.max,0)-row.actual.max)>.01)return null;
     return {type:'scenario' as const,title:'总分情景模拟',exam:row.axis.label,actual:row.actual.score,max:row.actual.max,subjects};
   }
-  return { catalog, query, facts, chart, simulator, relationships:()=>relations };
+  return { catalog, query, facts, chart, simulator, relationships:()=>relations, aggregates:()=>aggregates };
 }
