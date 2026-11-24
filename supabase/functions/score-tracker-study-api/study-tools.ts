@@ -3,7 +3,7 @@ import '../_shared/learning-state-model.js';
 import '../_shared/score-worth-model.js';
 import '../_shared/trajectory-forecast.js';
 import '../_shared/question-type-analysis-model.js';
-import { measure, otherRanks, rawMark, verifiedQuestions } from './study-records.ts';
+import { measure, otherRanks, rawMark, verifiedQuestions, includedSubjects } from './study-records.ts';
 
 const { ScoreExamGoals: goals, PAL2: pal, __stScoreWorthModel: worth, __stTrajectoryForecast: trajectory } = globalThis as any;
 const questionTypes = (globalThis as any).ScoreQuestionTypeAnalysisModel;
@@ -174,7 +174,58 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
       return ids.size || maxExams === Infinity ? rows : rows.slice(-maxExams);
     };
     const matching = () => scopeRows('total').filter(row => inCategory(row) && (!ids.size || ids.has(row.id)));
-    if (args.tool === 'examList') {
+    if (args.tool === 'statistics') {
+      const metrics = ['rate','rank'] as const;
+      const aMetric = metrics.includes(args.metrics?.[0]) ? args.metrics[0] as 'rate'|'rank' : 'rate';
+      const bMetric = metrics.includes(args.metrics?.[1]) ? args.metrics[1] as 'rate'|'rank' : aMetric;
+      const aKey = keys[0], bKey = keys[1] || aKey;
+      const get = (actual:any, metric:'rate'|'rank') => metric==='rank' ? position(actual) : rate(actual);
+      const aRows = aKey ? select(aKey) : [], bRows = bKey ? select(bKey) : [];
+      const aAnchor = aRows.findLast(row=>get(row.actual,aMetric)!==null), bAnchor = bRows.findLast(row=>get(row.actual,bMetric)!==null);
+      const bMap = new Map(bRows.filter(row=>bAnchor && sameScope(row,bAnchor)).map(row=>[row.id,row]));
+      const pairs = aRows.flatMap(row=>{
+        const other = bMap.get(row.id);
+        if (!aAnchor || !sameScope(row,aAnchor) || !other) return [];
+        const a = get(row.actual,aMetric), b = get(other.actual,bMetric);
+        return finite(a) && finite(b) ? [{axis:row.axis,a,b}] : [];
+      });
+      if (!aKey || !bKey || aKey===bKey && aMetric===bMetric) notes.push('请指定两项不同的科目或指标。');
+      else if (pairs.length<4) notes.push('只有 '+pairs.length+' 场同场、同口径有效配对，至少 4 场才计算相关性。');
+      else {
+        const average = (values:number[]) => values.reduce((sum,n)=>sum+n,0)/values.length;
+        const ax = average(pairs.map(p=>p.a)), by = average(pairs.map(p=>p.b));
+        const numerator = pairs.reduce((sum,p)=>sum+(p.a-ax)*(p.b-by),0);
+        const denominator = Math.sqrt(pairs.reduce((sum,p)=>sum+(p.a-ax)**2,0)*pairs.reduce((sum,p)=>sum+(p.b-by)**2,0));
+        const describe = (key:string,metric:'rate'|'rank')=>scopes.get(key)+(metric==='rank'?'年级位置':'得分率');
+        if (denominator>0) add(describe(aKey,aMetric)+'与'+describe(bKey,bMetric)+'的相关性', '相关系数 '+round(numerator/denominator)+' · '+pairs.length+' 场配对', '同场历史记录 · 年级前百分比越小越好 · 相关不代表因果');
+        else notes.push('其中一个指标没有变化，相关系数无法计算。');
+        addSeries(describe(aKey,aMetric),aMetric,pairs.map(p=>point(p.axis,p.a)));
+        addSeries(describe(bKey,bMetric),bMetric,pairs.map(p=>point(p.axis,p.b)));
+      }
+    } else if (args.tool === 'scenario') {
+      const row = matching().filter(row=>finite(row.actual.score) && row.actual.max>0).at(-1);
+      if (!row) notes.push('所选范围没有可用于模拟的实际总分。');
+      else {
+        const members = includedSubjects(row.exam);
+        const adjustments = args.adjustments && typeof args.adjustments==='object' && !Array.isArray(args.adjustments) ? Object.entries(args.adjustments).slice(0,24) : [];
+        let total = row.actual.score;
+        const changes: {label:string;before:number;after:number}[] = [];
+        let valid = adjustments.length>0;
+        for (const [key,delta] of adjustments) {
+          const name = key.startsWith('s:') ? key.slice(2) : '';
+          const subject = measure(row.exam,key,modules);
+          if (!members.includes(name) || !finite(delta) || !finite(subject.score) || !(subject.max>0) || subject.score+delta<0 || subject.score+delta>subject.max) {
+            valid=false; notes.push('无法模拟 '+(name||key)+'：未计入总分、缺少有效成绩或超出满分。'); continue;
+          }
+          total+=delta; changes.push({label:name,before:subject.score,after:subject.score+delta});
+        }
+        if (valid && total>=0 && total<=row.actual.max) {
+          for (const change of changes) add(change.label+'模拟成绩',round(change.before)+' → '+round(change.after)+' 分',source(row.exam));
+          add('模拟总分',fmtMark(total,row.actual.max)+' · 实际 '+fmtMark(row.actual.score,row.actual.max)+' · 变化 '+signed(total-row.actual.score)+' 分',source(row.exam)+' · 其他科目保持不变，不是排名预测');
+          addSeries('总分','score',[point({key:'actual',label:'实际总分'},row.actual.score),point({key:'scenario',label:'模拟总分'},total)],'subjects');
+        } else if (!notes.length) notes.push('请提供有效的科目分数变化量。');
+      }
+    } else if (args.tool === 'examList') {
       const matches = matching();
       add('考试记录', matches.length + ' 场', '所选考试范围');
       add('已录入总分年级排名', totalRankCount(matches.map(row => row.exam)) + ' 场', '所选考试范围 · 含不同科目组合');
@@ -435,10 +486,12 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
         add(label + '记录覆盖', comparable.length + ' 场同口径考试 · ' + scores.length + ' 场有得分率 · ' + progress.length + ' 场有' + (group ? rankNames[group] : '年级') + '位置',
           source(comparable[0].exam) + ' → ' + source(last.exam));
         if (scores.length) {
+          add(label+'通常得分率',round(median(scores.map(x=>x.rate)))+'% · '+scores.length+' 场有效记录','所选范围的同口径历史中位数');
           const best = scores.reduce((best,x)=>x.rate > best.rate ? x : best);
           add(label + '最佳得分率', round(best.rate) + '% · ' + fmtMark(best.row.actual.score,best.row.actual.max),source(best.row.exam));
         }
         if (progress.length) {
+          add(label+'通常年级位置','前 '+round(median(progress.map(x=>x.pct)))+'% · '+progress.length+' 场有效记录', '所选范围的同口径历史中位数');
           const best = progress.reduce((best,x)=>x.pct < best.pct ? x : best);
           const latest = progress.at(-1)!;
           add(label + '最佳位置', '前 ' + round(best.pct) + '% · 最近前 ' + round(latest.pct) + '%',source(best.row.exam) + ' · 最近 ' + source(latest.row.exam));
@@ -538,7 +591,8 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
         const [low, high] = report.nextExam.ci95Percentile.map(round);
         add(label + '下次年级排名估计', '前 ' + value + '%', '参考 ' + eligible.length + ' 场考试 · 截至 ' + source(eligible.at(-1)!.exam), 'estimate');
         add(label + '下次可能的排名范围', '前 ' + low + '% ～ 前 ' + high + '%', '按以往排名的波动估计');
-        const recentPosition = position(eligible.at(-1)!.actual);
+        const recent = eligible.at(-1)!.actual;
+        const recentPosition = 100*recent.rank/recent.people;
         if (recentPosition !== null) add(label+'预测与最近排名对照','最近前 '+round(recentPosition)+'% · 预测前 '+value+'% · '+changeName(round(recentPosition-value)),source(eligible.at(-1)!.exam));
         const points = eligible.slice(-10).map(row => point(row.axis, 100 * row.actual.rank / row.actual.people));
         points.push({ key: 'next:rank', label: '下次估计', detail: '参考 ' + eligible.length + ' 场考试', value, low, high, forecast: true });
