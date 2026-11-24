@@ -3,7 +3,10 @@ import { normalizeBaseUrl } from '../_shared/recognition-config.ts';
 import { asksForEachSubject, nextExamMetric, studyTools, type TrajectoryLoader } from './study-tools.ts';
 import type { ProgressListener } from './study-events.ts';
 
-const cap = 60;
+const modes={low:{cap:60,steps:4,planning:800,analysis:1400},standard:{cap:100,steps:4,planning:800,analysis:2000},high:{cap:200,steps:5,planning:2400,analysis:3600}} as const;
+type ThinkingMode=keyof typeof modes;
+const thinkingMode=(value:unknown):ThinkingMode=>typeof value==='string'&&Object.hasOwn(modes,value)?value as ThinkingMode:'standard';
+const cap=modes.standard.cap;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export async function studySettings(db: any) {
   const configured = await db
@@ -19,7 +22,7 @@ export async function studySettings(db: any) {
   const url = base && normalizeBaseUrl(base);
   const model = String(row.model || Deno.env.get('STUDY_ANALYSIS_MODEL') || '').trim();
   const key = String(row.openrouter_api_key || Deno.env.get('STUDY_ANALYSIS_API_KEY') || '').trim();
-  return {url, model, key, public:{ enabled:Boolean(url && model && key), cap }};
+  return {url, model, key, public:{ enabled:Boolean(url && model && key), cap, thinkingModes:{low:modes.low.cap,standard:modes.standard.cap,high:modes.high.cap}, defaultThinking:'standard' }};
 }
 const instructions = `你是 Score Tracker 的个人学情分析助手。用自然、直接、通俗的中文，帮助学生自由探索自己的成绩，发现值得关注的变化。用本轮查到的数据回答，历史回答只用来接续话题。不要用成绩定义学生的能力或价值。
 
@@ -75,7 +78,7 @@ function primaryForecast(question: string, history: any[], catalog: Catalog, que
   return { ...(restricted ? planned : {}), tool, scopes, category, ...(tool === 'trajectory' ? { metric: 'score' } : {}) };
 }
 
-export async function explore(snapshot:any, question:string, history:any[], complete:(messages:any[])=>Promise<any>, loadTrajectory?:TrajectoryLoader, progress?:ProgressListener) {
+export async function explore(snapshot:any, question:string, history:any[], complete:(messages:any[],finalOnly?:boolean)=>Promise<any>, loadTrajectory?:TrajectoryLoader, progress?:ProgressListener, budget?:{maxSteps:number;shouldFinalize:()=>boolean}) {
   const tools = studyTools(snapshot, loadTrajectory);
   const messages:any[] = [{role:'system',content:instructions},
     {role:'user',content:JSON.stringify({history,question,catalog:tools.catalog})}];
@@ -92,11 +95,28 @@ export async function explore(snapshot:any, question:string, history:any[], comp
   const normalQuestion=/(?:各科|每科|每一科|所有科目).{0,24}(?:平时|常态|正常|通常).{0,18}(?:总分|总成绩)|(?:各科|每科).{0,20}(?:正常|平时).{0,10}发挥/.test(question);
   const namedSubjects=tools.catalog.latestSubjects.filter(key=>question.includes(tools.catalog.scopes[key]));
   const restricted=/(?:仅|只)(?:看|用|算)|\d{4}-\d{2}|\d+月|高[一二三](?:上|下|以来|开始)|指定|这[两三四五六七八九]场/.test(question);
-  const maxSteps = 4;
+  const maxSteps = budget?.maxSteps ?? 4;
   const queryKey = (query: Query) => JSON.stringify(Object.entries(query).sort(([a],[b])=>a.localeCompare(b)));
   for (let step=0; step<maxSteps; step++) {
     if (!queried) progress?.({stage:'planning'});
-    const data = await complete(messages);
+    // Stop exploring while there is still budget for a final synthesis. The
+    // database remains the authority on per-task and site-wide limits.
+    const finalOnly=queried&&(step===maxSteps-1||Boolean(budget?.shouldFinalize()));
+    const limitedReply=()=>{
+      const evidence=primary?.facts.length?primary.facts.slice(0,6):tools.facts.slice(0,6);
+      const chart=tools.chart(null,question);
+      const lines=evidence.map(f=>'**'+f.label+'**：'+f.value);
+      const widgets=[...(scenario?[{...scenario,after:1}]:[]),...(tools.relationships()?[{...tools.relationships(),after:1}]:[]),...tools.aggregates().slice(0,1).map(w=>({...w,after:1}))].slice(0,3);
+      return {answer:'这次先整理已查到的结果，部分分析尚未完成。'+(lines.length?'\n\n'+lines.join('\n\n'):''),evidence,next:'',chart,chartAfter:chart?[1]:[],...(widgets.length?{widgets}:{})};
+    };
+    let data:any;
+    try {
+      data=await complete(finalOnly?[...messages,{role:'user',content:'请根据已经查到的事实完成最终回答，不再发起查询；无法确定的部分如实说明。'}]:messages,finalOnly);
+    }catch(e){
+      if(queried&&tools.facts.length&&e instanceof AiBudgetError&&e.code==='task_credit_cap')return limitedReply();
+      throw e;
+    }
+    if(finalOnly&&!(typeof data?.answer==='string'&&data.answer.trim())&&tools.facts.length)return limitedReply();
     let queries: Query[] = (Array.isArray(data?.queries) ? data.queries : [data]).slice(0,3)
       .filter((args: any) => toolNames.has(args?.tool));
     if(!queried && syncQuestion && !restricted && namedSubjects.length!==1){
@@ -115,7 +135,7 @@ export async function explore(snapshot:any, question:string, history:any[], comp
       }
       queries = [forecast, ...others].slice(0,3);
     }
-    if (data?.outside===true && !required) return {answer:'可以问我成绩变化、下次预测或目标差距。',evidence:[],next:''};
+    if (data?.outside===true && !required && !queried) return {answer:'可以问我成绩变化、下次预测或目标差距。',evidence:[],next:''};
     const answer = shortText(data?.answer, 1000);
     if (answer && queried) {
       let refs = Array.isArray(data.refs) ? [...new Set<number>(data.refs)].slice(0,6) : [];
@@ -249,7 +269,7 @@ export async function explore(snapshot:any, question:string, history:any[], comp
         evidence: refs.map(id => tools.facts[id - 1]), next: shortText(data.next, 100),
         chart: charts[0] || null, ...(charts.length>1?{charts}:{}),chartAfter,...(widgets.length?{widgets}:{}) };
     }
-    if (step === maxSteps-1) throw Error('invalid_response');
+    if (step === maxSteps-1 || finalOnly) {if(queried&&tools.facts.length)return limitedReply();throw Error('invalid_response');}
     queries = queries.filter(args=>!seenQueries.has(queryKey(args)));
     if (!queries.length) {
       messages.push({role:'user',content:queried ? '这些查询已执行过。请使用现有结果回答，或换一个能补齐问题的查询。' : '请用目录查询与问题有关的记录。'});
@@ -303,10 +323,11 @@ export async function studyQuestion(db:any, user:string, body:any, load:()=>Prom
     if (saved.error) throw saved.error;
     return {...r.data,study_turn:saved.data.turn};
   };
+  const mode=thinkingMode(body.thinking), settings=modes[mode];
   let started=false;
   try {
     const saved = await turn(id);
-    if (saved?.status==='succeeded' && saved.study_turn?.question===question && saved.study_turn.previous===parent)
+    if (saved?.status==='succeeded' && saved.study_turn?.question===question && saved.study_turn.previous===parent && thinkingMode(saved.study_turn.thinking)===mode)
       return {status:200,data:{...saved.study_turn.result,charged:saved.charged_credits,id}};
     if (saved) return saved.status==='active' ? fail(409,'正在整理这条回答','pending') : fail(409,'再试一次','retry');
     const history:any[] = [];
@@ -321,23 +342,25 @@ export async function studyQuestion(db:any, user:string, body:any, load:()=>Prom
     progress?.({stage:'records'});
     const snapshot = await load();
     if (!snapshot.exams.length && !snapshot.plans?.length && !snapshot.longGoal) return fail(422,'先录入一场考试，再来看看');
-    const task = await startAiTask(db,user,id,'study_question',1,cap);
+    const task = await startAiTask(db,user,id,'study_question',1,settings.cap);
     if (task.duplicate) return fail(409,'正在整理这条回答','pending');
     started=true;
-    let calls=0;
+    let calls=0,spent=0;
+    const approved=task.approved!=null&&Number.isFinite(Number(task.approved))?Math.min(settings.cap,Math.max(0,Number(task.approved))):settings.cap;
+    const shouldFinalize=()=>spent>=approved*0.8;
     const signal=AbortSignal.timeout(80000);
     const deepseek = /(?:^|\/)deepseek-(?:flash|v4(?:[.-][a-z0-9]+)*|chat|reasoner)$/i.test(cfg.model);
-    const result = await explore(snapshot,question,history,async messages=>{
+    const result = await explore(snapshot,question,history,async (messages,finalOnly)=>{
       const planning = messages.length===2;
       for (let attempt=0; attempt<2; attempt++) {
-        const quick = planning || attempt>0;
-        const maxTokens = quick ? (planning && !attempt ? 800 : 1400) : 2000;
+        const quick=attempt>0||mode==='low'||mode==='standard'&&planning;
+        const maxTokens=attempt>0?1400:planning?settings.planning:settings.analysis;
         const response = await meteredModelFetch(db,user,id,id+':study:'+ ++calls,cfg.url+'/chat/completions',{
           method:'POST',signal,headers:{'Content-Type':'application/json',Authorization:'Bearer '+cfg.key},
           body:JSON.stringify({model:cfg.model,messages:attempt ? [...messages,{role:'user',content:'上次未生成完整 JSON。请直接返回完整、简洁的 JSON 对象；不要输出推理过程。'}] : messages,
             max_tokens:maxTokens,response_format:{type:'json_object'},stream:false,
             ...(deepseek ? {thinking:{type:quick?'disabled':'enabled'}} : {})})
-        });
+        },fetch,credits=>{spent+=credits;});
         if (!response.ok) throw Error('provider_unavailable');
         try {
           const payload = await response.json();
@@ -355,9 +378,9 @@ export async function studyQuestion(db:any, user:string, body:any, load:()=>Prom
         }
       }
       throw Error('model_output_incomplete');
-    }, loadTrajectory, progress);
-    const settled=await creditRpc(db,'score_tracker_study_finish',{p_user:user,p_task:id,p_turn:{question,previous:parent,result}});
-    return {status:200,data:{...result,charged:settled.charged,id}};
+    }, loadTrajectory, progress,{maxSteps:settings.steps,shouldFinalize});
+    const settled=await creditRpc(db,'score_tracker_study_finish',{p_user:user,p_task:id,p_turn:{question,previous:parent,thinking:mode,result:{...result,thinking:mode}}});
+    return {status:200,data:{...result,thinking:mode,charged:settled.charged,id}};
   } catch (e) {
     if (started) await finishAiTask(db,user,id,false).catch(()=>{});
     if (e instanceof AiBudgetError) {
