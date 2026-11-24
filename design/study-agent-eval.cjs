@@ -51,6 +51,7 @@ const repeat=Number(option('repeat','1'));
 const maxCredits=Number(option('max-credits','0'));
 const maxCalls=Number(option('max-calls','0'));
 const out=option('out','');
+const baselinePath=option('baseline','');
 const modes=selectedMode==='all'?['low','standard','high']:[selectedMode];
 if(modes.some(m=>!['low','standard','high'].includes(m))||!Number.isInteger(repeat)||repeat<1||repeat>5)throw Error('invalid mode or repeat');
 if(live&&(!process.env.STUDY_EVAL_API_KEY||!(maxCredits>0&&maxCredits<=10000)||!Number.isInteger(maxCalls)||maxCalls<1||maxCalls>150))throw Error('Live evaluation requires a dedicated STUDY_EVAL_API_KEY, --max-credits and --max-calls. No production account or data is used.');
@@ -116,7 +117,8 @@ async function main(){
   if(!chosen.length)throw Error('unknown case selection');
   const rows=[];
   try{
-    for(const mode of modes)for(let trial=1;trial<=repeat;trial++)for(const c of chosen){
+    run: for(const mode of modes)for(let trial=1;trial<=repeat;trial++)for(const c of chosen){
+      if(live&&(budget.unknown||budget.calls>=maxCalls||budget.spent>=maxCredits))break run;
       const f=fakeDb(c,mode);global.fetch=f.fetch;global.Deno={env:{get:()=>undefined}};
       const start=performance.now();
       const response=await studyQuestion(f.db,'eval-owner',{requestId:crypto.randomUUID(),question:c.q,thinking:mode,previous:c.previous?f.priorId:undefined},async()=> (c.snapshot||snapshot)());
@@ -127,12 +129,26 @@ async function main(){
       const passed=checks.every(Boolean);
       rows.push({id:c.id,group:c.group,question:c.q,mode,trial,passed,status:response.status,checks,ms:Math.round(performance.now()-start),calls:stats.calls,usage:stats.usage,estimatedCredits:Math.round(stats.spent*1000)/1000,charged:r.charged??0,trace:stats.trace,answer:r.answer||'',evidence:r.evidence||[]});
       console.log((passed?'PASS':'FAIL')+' '+mode+' '+c.id+' '+checks.filter(Boolean).length+'/'+checks.length+' checks, '+stats.calls+' model '+(live?'calls':'replays'));
-      if(live&&(budget.unknown||budget.calls>=maxCalls||budget.spent>=maxCredits))break;
+      if(live&&(budget.unknown||budget.calls>=maxCalls||budget.spent>=maxCredits))break run;
     }
   }finally{global.fetch=providerFetch;delete global.Deno;}
   const report={schema:1,kind:live?'live-model':'deterministic-replay',commit:process.env.GITHUB_SHA||null,planned:chosen.length*modes.length*repeat,executed:rows.length,passed:rows.filter(r=>r.passed).length,results:rows,manualReview:live?['关键结论是否有依据且正确','是否完整回答所有子问题','是否有超越数据复述的分析价值','语言是否自然清楚','组件是否有助于理解']:[]};
+  const average=(arr,key)=>arr.length?Math.round(arr.reduce((sum,r)=>sum+r[key],0)/arr.length*100)/100:null;
+  report.summary=modes.map(mode=>{const rs=rows.filter(r=>r.mode===mode);return {mode,cases:rs.length,passed:rs.filter(r=>r.passed).length,avgMs:average(rs,'ms'),avgCalls:average(rs,'calls'),avgCredits:average(rs,'estimatedCredits')};});
+  if(baselinePath){
+    const prev=JSON.parse(fs.readFileSync(baselinePath,'utf8'));
+    if(prev.schema!==report.schema||prev.kind!==report.kind)throw Error('baseline must use the same report schema and evaluation kind');
+    const old=new Map(prev.results.map(r=>[r.mode+':'+r.trial+':'+r.id,r]));
+    report.comparison=rows.flatMap(r=>{
+      const p=old.get(r.mode+':'+r.trial+':'+r.id);
+      if(!p)return [];
+      return [{id:r.id,mode:r.mode,trial:r.trial,regression:p.passed&&!r.passed,improvement:!p.passed&&r.passed,creditsDelta:live?Math.round((r.estimatedCredits-p.estimatedCredits)*1000)/1000:null,msDelta:live?r.ms-p.ms:null}];
+    });
+  }
   if(out)fs.writeFileSync(out,JSON.stringify(report,null,2));
   console.log('Summary: '+report.passed+'/'+report.executed+' passed; '+report.kind+'; planned '+report.planned);
+  console.log(JSON.stringify(report.summary));
+  if(report.comparison)console.log('Regressions: '+report.comparison.filter(r=>r.regression).length);
   if(report.passed!==report.executed||report.executed!==report.planned)process.exitCode=1;
 }
 main().catch(e=>{console.error(e.message);process.exitCode=1;});
