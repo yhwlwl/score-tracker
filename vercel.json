@@ -114,6 +114,15 @@
       ]
     },
     {
+      "source": "/api/score-tracker-study-api",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "private, no-store, max-age=0, no-transform"
+        }
+      ]
+    },
+    {
       "source": "/sw.js",
       "headers": [
         {

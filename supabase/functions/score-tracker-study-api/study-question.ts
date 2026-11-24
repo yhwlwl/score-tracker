@@ -1,6 +1,7 @@
 import { AiBudgetError, creditRpc, finishAiTask, meteredModelFetch, startAiTask } from '../_shared/ai-credits.ts';
 import { normalizeBaseUrl } from '../_shared/recognition-config.ts';
 import { studyTools, type TrajectoryLoader } from './study-tools.ts';
+import type { ProgressListener } from './study-events.ts';
 
 const cap = 60;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -25,23 +26,24 @@ const instructions = `你在 Score Tracker 和学生一起看自己的成绩。�
 每次只返回 JSON。第一轮按目录并行选最多 3 个查询。例如 {"queries":[{"tool":"results","scopes":["s:物理"],"limit":6},{"tool":"difficulty","scopes":["s:物理"],"limit":2}]}。可再补查一次。scopes 选目录键，["*"] 选全部学科。指定考试用 exams 数字编号，目录未列出的旧考试用 name 或日期 from/to 查询；「每次」「逐场」「完整走势」用 range:"all"。用 category 限定考试分类，用 limit 限定最近次数。
 按问题选择资料：
 - results：历次实际成绩、得分率、年级位置、变化同向次数、前几场常态和分差。原始分用 basis:"raw"；其他名次用 ranks:["class","city","district"]，对应班级、市、区。对比组合时可并查影响最大的成员科目。
-- examList：查考试清单、区间或旧考试编号。matrix：看全量考试矩阵，metric 选 rank/class/rate/score/difficulty，配合 chart.table 展示多科。structure：同场学科对照、强弱与雷达图，通常指定 1～5 场。profile：个人最佳、近期速度、稳定性、数据覆盖，mode:"distribution" 查排名区间分布。
+- examList：查考试清单、区间或旧考试编号。matrix：看全量考试矩阵，metric 选 rank/class/rate/score/difficulty；跨多科对比用 heatmap，原始分或逐项数字用 table。structure：同场学科对照、强弱与雷达图，通常指定 1～5 场。profile：个人最佳、近期速度、稳定性、数据覆盖，mode:"distribution" 查排名区间分布。
 - difficulty：分析页的难度参考（50 左右是历史中等水平，较高代表相对偏难），worth:true 查含金量参考分，可传 reference 作为对照考试编号。forecast：学习状态预测的下一场位置与波动范围。trajectory：相似轨迹的得分率或位置预测，metric:"score" 或 "year"。
 - goals 查单场目标差距，calibrate:true 查目标校准和连续达标；longGoal 查长期总分/学科/名次目标与差距、学校和日期；plan 查尚未出成绩的考试预设目标。benchmarks 查已录入的班级或年级均分和最高分。
 - types 查已录入的题型得分、失分占比、表现变化与已标记错因，可选 typeName；paper 查已核对的逐题分数；reflection 读本人已保存的考试反思。按问题需要查询，不把题型失分、AI推测和本人复盘混为一谈。
 「某科咋样」这类综合问题通常先看最近几场和历史常态，再查最近试卷的难度。问预计考多少时查 trajectory 的得分率，问年级位置查 forecast。预测中心、参考范围与真实成绩分开表达，不能把难度参考当成集体统计或退步原因，也别编造错题和学习习惯。说得清的判断直接说，口径只在影响结论时用一句点到。组合用对应范围键，换满分时比较得分率。
-最后返回 {"answer":"最重要的判断，通常 1–2 句，160 字以内","takeaway":"具体可做的事或值得复盘的对比，可留空，70 字以内","refs":[1,2],"chart":{"type":"line","series":[1,2],"title":"物理得分率与年级位置"},"next":"学生可以直接发送的下一问，可留空"}。refs 是本轮最相关的 1–6 条 facts 编号；没查到资料就简短说缺什么，refs 留空。chart 可省；完整走势、对照、预测范围优先用图表。series 写工具的序列编号，别填数值。line 看走势和预测，bar 看并列数据，radar 看学科结构，table 看逐场对照或多科矩阵。对比分数升降与位置进退，用 scoreChange（混合满分用 rateChange）和 rankChange 两组对应序列。
+最后返回 {"answer":"最重要的判断，通常 1–2 句，160 字以内","takeaway":"具体可做的事或值得复盘的对比，可留空，70 字以内","refs":[1,2],"chart":{"type":"line","series":[1,2],"title":"物理得分率与年级位置"},"next":"学生可以直接发送的下一问，可留空"}。refs 是本轮最相关的 1–6 条 facts 编号；没查到资料就简短说缺什么，refs 留空。chart 可省；完整走势、对照、预测范围优先用图表。series 写工具的序列编号，别填数值。line 看走势和预测，bar 看并列数据，radar 看学科结构，table 看逐场对照；scatter 看两项指标在同一场考试的关系，至少 3 个有效配对，横轴序列先写，纵轴后写。对比分数升降与位置进退，用 scoreChange（混合满分用 rateChange）和 rankChange 两组对应序列。
 与成绩无关时返回 {"outside":true}。不输出 Markdown、例行提醒或长段文字。`;
 
 const toolNames = new Set(['results','examList','matrix','structure','profile','difficulty','forecast','trajectory','goals','longGoal','plan','benchmarks','types','paper','reflection']);
 const shortText = (value: unknown, max: number) => typeof value === 'string' && value.length <= max ? value.trim() : '';
 
-export async function explore(snapshot:any, question:string, history:any[], complete:(messages:any[])=>Promise<any>, loadTrajectory?:TrajectoryLoader) {
+export async function explore(snapshot:any, question:string, history:any[], complete:(messages:any[])=>Promise<any>, loadTrajectory?:TrajectoryLoader, progress?:ProgressListener) {
   const tools = studyTools(snapshot, loadTrajectory);
   const messages:any[] = [{role:'system',content:instructions},
     {role:'user',content:JSON.stringify({history,question,catalog:tools.catalog})}];
   let queried = false;
   for (let step=0; step<3; step++) {
+    if (!queried) progress?.({stage:'planning'});
     const data = await complete(messages);
     if (data?.outside===true) return {answer:'可以问我成绩变化、下次预测或目标差距。',evidence:[],next:''};
     const answer = shortText(data?.answer, 180);
@@ -60,14 +62,16 @@ export async function explore(snapshot:any, question:string, history:any[], comp
       messages.push({role:'user',content:'请用目录查询与问题有关的记录。'});
       continue;
     }
+    progress?.({stage:'tools',tools:[...new Set<string>(queries.map((args: any) => args.tool))]});
     const results = await Promise.all(queries.map(async (args: any) => ({tool: args.tool, ...await tools.query(args)})));
+    progress?.({stage:'analysis'});
     queried = true;
     messages.push({role:'assistant',content:JSON.stringify({queries})}, {role:'user',content:JSON.stringify({results,remainingQueries:1-step})});
   }
   throw Error('invalid_response');
 }
 
-export async function studyQuestion(db:any, user:string, body:any, load:()=>Promise<any>, loadTrajectory?:TrajectoryLoader) {
+export async function studyQuestion(db:any, user:string, body:any, load:()=>Promise<any>, loadTrajectory?:TrajectoryLoader, progress?:ProgressListener) {
   const fail = (status:number,error:string,code='') => ({status,data:{error,code}});
   const cfg = await studySettings(db);
   if (!cfg.public.enabled) return fail(503,'学情问答还未开放');
@@ -97,6 +101,7 @@ export async function studyQuestion(db:any, user:string, body:any, load:()=>Prom
       history.unshift({ question:prior.study_turn.question, answer, takeaway, next });
       cursor = prior.study_turn.previous;
     }
+    progress?.({stage:'records'});
     const snapshot = await load();
     if (!snapshot.exams.length && !snapshot.plans?.length && !snapshot.longGoal) return fail(422,'先录入一场考试，再来看看');
     const task = await startAiTask(db,user,id,'study_question',1,cap);
@@ -111,7 +116,7 @@ export async function studyQuestion(db:any, user:string, body:any, load:()=>Prom
       });
       if (!response.ok) throw Error('provider_unavailable');
       return JSON.parse((await response.json()).choices[0].message.content);
-    }, loadTrajectory);
+    }, loadTrajectory, progress);
     const settled=await creditRpc(db,'score_tracker_study_finish',{p_user:user,p_task:id,p_turn:{question,previous:parent,result}});
     return {status:200,data:{...result,charged:settled.charged,id}};
   } catch (e) {

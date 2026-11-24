@@ -29,7 +29,7 @@ type Axis = { key: string; label: string; detail?: string };
 type Row = { id: number; exam: any; actual: any; axis: Axis };
 type Point = Axis & { value: number | null; low?: number; high?: number; forecast?: true };
 type Series = { id: number; label: string; metric: Metric; points: Point[]; dimension: Dimension };
-type Chart = { type: 'line' | 'bar' | 'table' | 'radar'; title: string; series: Series[] };
+type Chart = { type: 'line' | 'bar' | 'table' | 'radar' | 'scatter' | 'heatmap'; title: string; series: Series[] };
 type Snapshot = {
   exams: any[]; modules: any[]; plans?: any[];
   details?: (kind: 'reflection' | 'types' | 'paper', ids: string[], subjects: string[]) => Promise<any[]>;
@@ -536,17 +536,19 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
   function chart(spec: any, question: string): Chart | null {
     const title = typeof spec?.title === 'string' ? spec.title.trim().slice(0, 44) : '';
     const requestedMatrix = /矩阵/.test(question);
-    const requestedChart = /画(?:个|一张|成)?图|走势|趋势图|折线|柱状|图表|雷达/.test(question);
-    const requestedTable = requestedMatrix || /对照表|列成(?:一张)?表|表格/.test(question) ||
+    const scatter = /散点/.test(question) || spec?.type === 'scatter';
+    const heatmap = /热力图/.test(question) || spec?.type === 'heatmap';
+    const requestedChart = /画(?:个|一张|成)?图|走势|趋势图|折线|柱状|图表|雷达|散点|热力图/.test(question);
+    const requestedTable = /对照表|列成(?:一张)?表|表格/.test(question) ||
       !requestedChart && /对照|逐场|每次.{0,6}(?:升降|变化)/.test(question);
     const comparison = requestedTable && /升降|变化/.test(question);
     const isRadar = /雷达/.test(question) || spec?.type === 'radar';
-    let type: Chart['type'] = requestedTable ? 'table' : isRadar ? 'radar' :
+    let type: Chart['type'] = requestedTable ? 'table' : scatter ? 'scatter' : heatmap || requestedMatrix ? 'heatmap' : isRadar ? 'radar' :
       spec?.type === 'bar' ? 'bar' : spec?.type === 'table' ? 'table' : 'line';
     const selected = [...new Set(candidate(spec?.series).filter((id): id is number => Number.isInteger(id)))]
-      .map(id => series[id - 1]).filter(Boolean).slice(0, type === 'table' ? 24 : type === 'radar' ? 10 : 4);
+      .map(id => series[id - 1]).filter(Boolean).slice(0, type === 'table' || type === 'heatmap' ? 24 : 8);
     let input = selected;
-    if (!input.length && requestedMatrix) input = series.filter(s => s.dimension === 'exams').slice(0,24);
+    if (!input.length && (requestedMatrix || heatmap)) input = series.filter(s => s.dimension === 'exams').slice(0,24);
     if (!input.length && isRadar) input = series.filter(s => s.dimension === 'subjects').slice(0,10);
     if (!input.length && (requestedTable || requestedChart)) {
       const options = comparison ? ['scoreChange', 'rankChange', 'rateChange'] : ['rate', 'rank', 'classRank', 'cityRank', 'districtRank', 'difficulty', 'score', 'averageGap', 'lost', 'count'];
@@ -558,11 +560,25 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
     input = input.filter(s => s === anchor || s.dimension === anchor.dimension &&
       s.points.some(p => keys.has(p.key)) && axisKind(s.points[0]) === axisKind(anchor.points[0]));
     if (type === 'radar' && (anchor.dimension !== 'subjects' || keys.size < 3)) type = 'bar';
+    if (type === 'heatmap') {
+      const compatible = ['rate','rank','classRank','cityRank','districtRank','difficulty'];
+      const enough = input.some(s => compatible.includes(s.metric) && input.filter(t => t.metric === s.metric).length > 1);
+      if (!enough || anchor.dimension !== 'exams') type = 'table';
+    }
+    if (type === 'scatter') {
+      const valid = input.length > 1 && anchor.dimension === 'exams' && input.some((s, i) => {
+        const measured = new Set(s.points.filter(p => finite(p.value) && !p.forecast).map(p => p.key));
+        return input.slice(i + 1).some(other => other.points.filter(p => measured.has(p.key) && finite(p.value) && !p.forecast).length >= 3);
+      });
+      if (!valid) type = 'line';
+    }
     if (type === 'line' && anchor.dimension !== 'exams') type = 'bar';
     if (type === 'bar' && input.some(s => s.points.some(p => p.forecast))) type = 'line';
     if (!requestedTable && !requestedChart && !input.some(s => s.points.some(p => p.forecast)) &&
         new Set(input.flatMap(s => s.points.filter(p => p.value !== null).map(p => p.key))).size < 2) return null;
-    return { type, title: title || (requestedMatrix ? '考试矩阵' : requestedTable ? '逐场对照' : isRadar ? '学科对照' : '成绩走势'), series: input };
+    const fallback = requestedMatrix || type === 'heatmap' ? '考试矩阵' : requestedTable ? '逐场对照' :
+      type === 'scatter' ? '逐场关系' : isRadar ? '学科对照' : '成绩走势';
+    return { type, title: title || fallback, series: input };
   }
 
   return { catalog, query, facts, chart };

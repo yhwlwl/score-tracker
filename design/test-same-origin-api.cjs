@@ -112,6 +112,31 @@ async function run() {
       start(controller) { init.signal.addEventListener('abort', () => controller.error(new Error('aborted')), { once: true }); },
     })) });
     assert.equal(response.status, 504, 'timeout covers response body reads');
+    let lastEvent;
+    const streamRequest=()=>post('score-tracker-study-api','{"action":"study_question","stream":true}',{
+      headers:{'content-type':'application/json',accept:'text/event-stream, application/json'},
+    });
+    const streamed=await proxyApi(streamRequest(),{timeoutMs:500,fetch:async(url,init)=>{
+      assert.match(init.headers.get('accept'),/text\/event-stream/);
+      const encoder=new TextEncoder();
+      return new Response(new ReadableStream({start(flow){
+        flow.enqueue(encoder.encode('event: progress\n\ndata'));
+        lastEvent=()=>{flow.enqueue(encoder.encode('event: result\n\n'));flow.close();};
+      }}),{headers:{'content-type':'text/event-stream; charset=utf-8'}});
+    }});
+    const streamReader=streamed.body.getReader();
+    assert.match(streamed.headers.get('cache-control'),/no-transform/);
+    assert.match(new TextDecoder().decode((await streamReader.read()).value),/event: progress/);
+    lastEvent();
+    assert.match(new TextDecoder().decode((await streamReader.read()).value),/event: result/);
+    assert.equal((await streamReader.read()).done,true);
+    const stalled=await proxyApi(streamRequest(),{timeoutMs:10,fetch:async()=>new Response(new ReadableStream({
+      start(flow){flow.enqueue(new TextEncoder().encode('event: progress\n\n'));},
+    }),{headers:{'content-type':'text/event-stream'}})});
+    const stalledReader=stalled.body.getReader();
+    await stalledReader.read();
+    await assert.rejects(stalledReader.read(),{name:'AbortError'});
+    console.log('PASS: study progress reaches the client before the answer and keeps its deadline');
     const controller = new AbortController();
     const pending = proxyApi(post('score-tracker-api', privateBody, { signal: controller.signal }), { fetch: abortingFetch });
     controller.abort();

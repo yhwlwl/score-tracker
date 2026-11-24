@@ -3,9 +3,18 @@
   'use strict';
   const api = '/api/score-tracker-study-api';
   const starters = ['最近两场，哪科变化最大？', '画出我的得分率和排名走势', '下一场大概能排到哪里？'];
+  const stages = {
+    records:'正在查看考试记录…', planning:'正在找相关数据…', analysis:'正在整理分析…',
+  };
+  const toolLabels = {
+    results:'成绩变化', examList:'考试记录', matrix:'考试矩阵', structure:'学科对比', profile:'历史表现',
+    difficulty:'难度参考', forecast:'成绩预测', trajectory:'相似轨迹', goals:'考试目标', longGoal:'长期目标',
+    plan:'预设目标', benchmarks:'均分和最高分', types:'题型表现', paper:'逐题得分', reflection:'考试反思',
+  };
   let session, launcher, dialog;
   function current() { return typeof state !== 'undefined' && state.user && state.token; }
   function reset() {
+    session?.pending?.controller?.abort();
     session?.charts.forEach(dispose=>dispose());
     if (dialog?.open) dialog.close();
     dialog?.remove();
@@ -27,21 +36,56 @@
     return el;
   }
   function track(event) {
-    if (typeof window.__stTrack === 'function') window.__stTrack(event,{surface:'stats'});
+    try { window.__stTrack?.(event,{surface:'stats'}); } catch (_) {}
   }
-  async function request(s, data) {
-    const response = await fetch(api,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({...data,token:s.token})});
-    const value = await response.json().catch(()=>null);
-    if (!response.ok || !value) throw Object.assign(Error(value?.error || '暂时没加载出来'),{code:value?.code});
+  function apiResult(ok, value) {
+    if (!ok || !value) {
+      throw Object.assign(Error(value?.error || '暂时没加载出来，再试一次'),{code:value?.code,shown:true});
+    }
     return value;
+  }
+  async function readEvents(body, progress) {
+    if (!body) throw Error('missing_stream');
+    const reader=body.getReader(), decoder=new TextDecoder();
+    let buffer='';
+    try {
+      while (true) {
+        const {done,value}=await reader.read();
+        buffer+=decoder.decode(value,{stream:!done});
+        let boundary;
+        while ((boundary=/\r?\n\r?\n/.exec(buffer))) {
+          const frame=buffer.slice(0,boundary.index);
+          buffer=buffer.slice(boundary.index+boundary[0].length);
+          const lines=frame.split(/\r?\n/);
+          const event=lines.find(line=>line.startsWith('event:'))?.slice(6).trim();
+          if (event!=='progress' && event!=='result') continue;
+          const payload=JSON.parse(lines.filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trimStart()).join('\n'));
+          if (event==='progress') progress(payload);
+          else return apiResult(payload.status>=200 && payload.status<300,payload.data);
+        }
+        if (done) throw Error('incomplete_stream');
+      }
+    } finally {
+      await reader.cancel().catch(()=>{});
+      reader.releaseLock();
+    }
+  }
+  async function request(s, data, progress, signal) {
+    const response = await fetch(api,{method:'POST',
+      headers:{'Content-Type':'application/json',Accept:progress?'text/event-stream, application/json':'application/json'},
+      signal, body:JSON.stringify({...data,token:s.token,...(progress?{stream:true}:{})})});
+    if (progress && response.ok && response.headers.get('Content-Type')?.startsWith('text/event-stream')) {
+      return readEvents(response.body,progress);
+    }
+    const value = await response.json().catch(()=>null);
+    return apiResult(response.ok,value);
   }
   function attach(page, anchor) {
     const token = current();
     if (session && token !== session.token) reset();
     if (!page || !anchor || !token) return;
     if (!session) {
-      const s = session = {token,turns:[],charts:[],busy:false,cap:null,lastAttempt:null};
+      const s = session = {token,charts:[],pending:null,lastAnswer:null,cap:null};
       request(s,{action:'study_status'}).then(value=>{
         if (s!==session || token!==current() || !value.enabled) return;
         s.cap=value.cap;
@@ -70,15 +114,11 @@
   }
   function controls() {
     const input=dialog.querySelector('textarea');
-    dialog.querySelector('[type=submit]').disabled=session.busy || !input.value.trim();
-    input.readOnly=session.busy;
-    dialog.querySelectorAll('.sq-choice').forEach(b=>b.disabled=session.busy);
+    dialog.querySelector('[type=submit]').disabled=!!session.pending?.running || !input.value.trim();
   }
-  function addTurn(list, turn) {
-    list.querySelector('.sq-welcome')?.remove();
-    list.querySelector('.sq-next')?.remove();
-    const article=element('article','sq-turn');
-    article.append(element('p','sq-question',turn.question),element('p','sq-answer',turn.answer));
+  function showAnswer(article, turn) {
+    article.querySelector('.sq-feedback').remove();
+    article.append(element('p','sq-answer',turn.answer));
     const chart=window.ScoreStudyChart?.render(turn.chart);
     if (chart) {
       article.append(chart.figure);
@@ -102,46 +142,83 @@
     if (turn.charged != null) meta.append(element('small','sq-charge',Number(turn.charged)+' 积分'));
     article.append(meta);
     if (turn.next) article.append(button(turn.next,'sq-choice sq-next',()=>pick(turn.next)));
-    list.append(article);
-    article.scrollIntoView?.({block:'start',behavior:'instant'});
   }
-  async function ask(event) {
-    event.preventDefault();
-    const s=session, box=dialog;
-    if (!s || s.busy || current()!==s.token) return;
-    const input=box.querySelector('textarea'), question=input.value.trim();
-    if (!question) return;
-    const status=box.querySelector('[role=status]');
-    const previous=s.turns.at(-1)?.id || null;
-    if (s.lastAttempt?.question!==question || s.lastAttempt?.previous!==previous) {
-      s.lastAttempt={question,previous,requestId:crypto.randomUUID()};
+  function progressMessage(progress) {
+    if (progress.stage==='tools') {
+      const labels=(progress.tools || []).map(tool=>Object.hasOwn(toolLabels,tool)?toolLabels[tool]:'').filter(Boolean).slice(0,2);
+      return labels.length ? '正在查看'+labels.join('和')+'…' : '正在查看相关分析…';
     }
-    s.busy=true; status.textContent='正在看你的成绩…'; controls();
+    return Object.hasOwn(stages,progress.stage)?stages[progress.stage]:'';
+  }
+  async function send(s, pending) {
+    if (s!==session || pending!==s.pending || pending.running || current()!==s.token) return;
+    const {article,feedback,status}=pending;
+    const list=article.parentElement;
+    pending.running=true;
+    pending.controller=new AbortController();
+    feedback.classList.add('is-working');
+    feedback.querySelector('.sq-retry')?.remove();
+    status.textContent='正在发送…';
+    controls();
+    const active=()=>s===session && pending===s.pending && current()===s.token;
     try {
-      const reply=await request(s,{action:'study_question',...s.lastAttempt});
-      if (s!==session || s.token!==current() || box!==dialog) return;
-      const turn={...reply,question};
-      s.turns.push(turn);
-      s.lastAttempt=null;
-      input.value=''; input.placeholder='继续问…';
-      status.textContent='';
+      const reply=await request(s,{action:'study_question',...pending.payload},progress=>{
+        if (!active()) return;
+        const label=progressMessage(progress);
+        if (label && label!==status.textContent) status.textContent=label;
+      },pending.controller.signal);
+      if (!active()) return;
+      const following=list.scrollHeight-list.scrollTop-list.clientHeight<48;
+      showAnswer(article,reply);
+      s.lastAnswer=reply.id;
+      s.pending=null;
+      if (following) article.scrollIntoView?.({block:'start',behavior:'instant'});
       track('study_question_answered');
-      addTurn(box.querySelector('.sq-thread'),turn);
     } catch (error) {
-      if (s!==session || s.token!==current()) return;
-      if (error.code==='retry' || error.code==='study_failed') s.lastAttempt=null;
-      status.textContent=error.message || '暂时没加载出来，再试一次';
+      if (!active()) return;
+      if (error.code==='retry' || error.code==='study_failed') pending.payload.requestId=crypto.randomUUID();
+      feedback.classList.remove('is-working');
+      status.textContent=error.shown?error.message:'连接断开了，可以重试';
+      if (error.code!=='UNAUTHORIZED') feedback.append(button('重试','sq-retry',()=>send(s,pending)));
     } finally {
-      s.busy=false;
-      if (s===session && box===dialog) controls();
+      pending.running=false;
+      pending.controller=null;
+      if (s===session) controls();
     }
+  }
+  function ask(event) {
+    event.preventDefault();
+    const s=session;
+    if (!s || s.pending?.running || current()!==s.token) return;
+    const input=dialog.querySelector('textarea'), question=input.value.trim();
+    if (!question) return;
+    input.value='';
+    input.placeholder='继续问…';
+    if (s.pending?.payload.question===question) {
+      send(s,s.pending);
+      return;
+    }
+    s.pending?.feedback.querySelector('.sq-retry')?.remove();
+    const list=dialog.querySelector('.sq-thread');
+    list.querySelector('.sq-welcome')?.remove();
+    list.querySelector('.sq-next')?.remove();
+    const article=element('article','sq-turn');
+    const feedback=element('div','sq-feedback');
+    const status=element('span');
+    status.setAttribute('role','status');
+    feedback.append(status);
+    article.append(element('p','sq-question',question),feedback);
+    list.append(article);
+    const pending=s.pending={article,feedback,status,payload:{question,previous:s.lastAnswer,requestId:crypto.randomUUID()}};
+    send(s,pending);
+    article.scrollIntoView?.({block:'nearest',behavior:'instant'});
   }
   function open() {
     if (!session || current()!==session.token) return;
     if (!dialog) {
       dialog=element('dialog','sq-dialog');
       dialog.setAttribute('aria-labelledby','sq-title');
-      dialog.innerHTML='<header class="sq-header"><div><span class="sq-spark" aria-hidden="true">✦</span><h2 id="sq-title">问成绩</h2></div><button type="button" aria-label="关闭">×</button></header><div class="sq-thread"></div><form class="sq-composer"><label class="sq-sr-only" for="sq-input">你的问题</label><div class="sq-input-row"><textarea id="sq-input" rows="2" maxlength="300" placeholder="想问问哪科成绩？"></textarea><button type="submit">提问</button></div><footer><small></small><span role="status"></span></footer></form>';
+      dialog.innerHTML='<header class="sq-header"><div><span class="sq-spark" aria-hidden="true">✦</span><h2 id="sq-title">问成绩</h2></div><button type="button" aria-label="关闭">×</button></header><div class="sq-thread"></div><form class="sq-composer"><label class="sq-sr-only" for="sq-input">你的问题</label><div class="sq-input-row"><textarea id="sq-input" rows="2" maxlength="300" placeholder="想问问哪科成绩？"></textarea><button type="submit">提问</button></div><footer><small></small></footer></form>';
       dialog.querySelector('header button').onclick=()=>dialog.close();
       dialog.querySelector('footer small').textContent='每问最多 '+session.cap+' 积分';
       dialog.querySelector('textarea').addEventListener('input',controls);

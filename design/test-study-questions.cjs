@@ -6,6 +6,7 @@ const root = path.resolve(__dirname,'..');
 global.ScoreExamGoals = require('../supabase/functions/_shared/exam-goals.js');
 const {studyTools} = require('../supabase/functions/score-tracker-study-api/study-tools.ts');
 const {explore,studyQuestion} = require('../supabase/functions/score-tracker-study-api/study-question.ts');
+const {studyEventResponse} = require('../supabase/functions/score-tracker-study-api/study-events.ts');
 const {loadSnapshot} = require('../supabase/functions/score-tracker-study-api/snapshot.ts');
 const moduleId='custom';
 const exams=[0,1,2,3,4].map((i)=>({
@@ -16,6 +17,38 @@ const exams=[0,1,2,3,4].map((i)=>({
   moduleIds:[moduleId],moduleRanks:{custom:{yearRank:35,yearParticipants:100}},
   exam_goals:{items:{'s:数学':{rankType:'number',rank:8}}}
 }));
+async function checkEventStream() {
+  let finish, task;
+  const response=studyEventResponse(async report=>{
+    report({stage:'records'});
+    await new Promise(resolve=>{finish=resolve});
+    report({stage:'analysis'});
+    return {status:200,data:{answer:'期中表现平稳'}};
+  },{},done=>{task=done});
+  assert.match(response.headers.get('content-type'),/^text\/event-stream/);
+  const reader=response.body.getReader();
+  const first=await reader.read();
+  assert.match(new TextDecoder().decode(first.value),/event: progress\ndata: \{"stage":"records"\}/);
+  finish();
+  assert.match(new TextDecoder().decode((await reader.read()).value),/"stage":"analysis"/);
+  assert.match(new TextDecoder().decode((await reader.read()).value),/event: result.*期中表现平稳/s);
+  assert.equal((await reader.read()).done,true);
+  await task;
+
+  let resume, background, settled=false;
+  const disconnected=studyEventResponse(async report=>{
+    report({stage:'records'});
+    await new Promise(resolve=>{resume=resolve});
+    settled=true;
+    return {status:200,data:{}};
+  },{},done=>{background=done});
+  const opened=disconnected.body.getReader();
+  await opened.read();
+  await opened.cancel();
+  resume();
+  await background;
+  assert.equal(settled,true,'allow the original metered turn to settle after disconnect');
+}
 async function roundTrip(snapshot) {
   const tasks=new Map(), turns=new Map(), requests=[];
   let modelCalls=0, settledCalls=0, saved=0, failed=0;
@@ -59,8 +92,10 @@ async function roundTrip(snapshot) {
       return Response.json({choices:[{message:{content:JSON.stringify(reply)}}],usage:{prompt_tokens:128,completion_tokens:20}});
     };
     const first={requestId:crypto.randomUUID(),question:'这次进步了吗？',user_id:'someone-else'};
-    const run=(owner,body)=>studyQuestion(db,owner,body,async()=>snapshot);
-    assert.equal((await run('owner',first)).status,200);
+    const run=(owner,body,progress)=>studyQuestion(db,owner,body,async()=>snapshot,undefined,progress);
+    const progress=[];
+    assert.equal((await run('owner',first,stage=>progress.push(stage))).status,200);
+    assert.deepEqual(progress,[{stage:'records'},{stage:'planning'},{stage:'tools',tools:['results']},{stage:'analysis'}]);
     assert.equal((await run('owner',first)).data.charged,2);
     assert.equal(modelCalls,2);assert.equal(saved,1);
     const follow={requestId:crypto.randomUUID(),question:'那上一次呢？',previous:first.requestId};
@@ -147,6 +182,7 @@ async function checkSnapshotOwnership() {
 }
 async function main() {
   const snapshot={exams,modules:[{id:moduleId,name:'自选组合',subjects:['数学','物理']}]};
+  await checkEventStream();
   await roundTrip(snapshot);
   await checkOtherData(snapshot);
   await checkSnapshotOwnership();
@@ -200,19 +236,34 @@ async function main() {
   assert.equal(table.type,'table');
   assert.deepEqual(table.series[0].points.map(p=>p.key),['1:2','2:3','3:4','4:5']);
   assert.deepEqual(table.series[1].points.map(p=>p.value),[.5,-4.5,2,-5]);
+  assert.equal(pairs.chart({type:'scatter',series:deltaIds},'画散点图').type,'scatter');
+  assert.equal(pairs.chart({type:'scatter',series:[deltaIds[0]]},'画散点图').type,'line');
+  const cross=await pairs.query({tool:'matrix',scopes:['s:数学','s:物理'],metric:'rate',range:'all'});
+  assert.equal(pairs.chart({type:'heatmap',series:cross.series.map(s=>s.id)},'考试热力图').type,'heatmap');
   assert.equal(pairs.chart({type:'line',series:[999]},'数学怎么样'),null);
   let calls=0;
   await assert.rejects(explore(snapshot,'看看数学',[],async()=>calls++?{answer:'答',refs:[999]}:{tool:'results',scopes:['s:数学'],exams:[1]}),/invalid_reference/);
   const dom=new JSDOM('<div id="content"><div class="an-layout"><nav class="an-navigation"></nav></div></div>',{runScripts:'outside-only',url:'https://example.test'});
   const w=dom.window, requests=[];
   w.state={user:{id:'a'},token:'fixture'};
+  w.TextDecoder=TextDecoder;
   w.HTMLDialogElement.prototype.showModal=function(){this.open=true};
   w.HTMLDialogElement.prototype.close=function(){this.open=false};
-  let resolve;
+  let respond, sendEvent, disconnect;
   w.fetch=async(url,init)=>{
     const b=JSON.parse(init.body);requests.push(b);
     if(b.action==='study_status')return Response.json({enabled:true,cap:60});
-    return new Promise(r=>{resolve=()=>r(Response.json({...result,id:b.requestId,charged:3}));});
+    assert.equal(b.stream,true);
+    return new Response(new ReadableStream({start(controller){
+      sendEvent=(event,data)=>{
+        const bytes=new TextEncoder().encode('event: '+event+'\r\ndata: '+JSON.stringify(data)+'\r\n\r\n');
+        const cutoff=bytes.findIndex(b=>b>127)+1 || 12;
+        controller.enqueue(bytes.slice(0,cutoff));
+        controller.enqueue(bytes.slice(cutoff));
+      };
+      disconnect=()=>controller.close();
+      respond=()=>{sendEvent('result',{status:200,data:{...result,id:b.requestId,charged:3}});disconnect();};
+    }}),{headers:{'content-type':'text/event-stream'}});
   };
   for (const name of ['study-question-chart.js','study-questions.js']) w.eval(fs.readFileSync(path.join(root,name),'utf8'));
   const $=s=>w.document.querySelector(s),tick=()=>new Promise(r=>setTimeout(r,5));
@@ -220,12 +271,22 @@ async function main() {
   attach();await tick();$('.an-study-open').click();
   assert.equal(requests.length,1);
   $('.sq-choice').click();$('button[type=submit]').click();
-  assert.equal($('button[type=submit]').disabled,true);resolve();await tick();
+  assert.equal($('button[type=submit]').disabled,true);
+  assert.equal($('.sq-question').textContent,'最近两场，哪科变化最大？');
+  assert.equal($('textarea').value,'');
+  assert.equal($('[role=status]').textContent,'正在发送…');
+  sendEvent('progress',{stage:'tools',tools:['results','difficulty']});await tick();
+  assert.equal($('[role=status]').textContent,'正在查看成绩变化和难度参考…');
+  respond();await tick();
   assert.equal($('.sq-answer').textContent,result.answer);assert.equal($('details').open,false);
   $('.sq-turn .sq-choice').click();$('button[type=submit]').click();assert.equal(requests.at(-1).previous,requests[1].requestId);
-  w.state={user:{id:'b'},token:'different'};attach();resolve();await tick();
+  const followId=requests.at(-1).requestId;
+  disconnect();await tick();$('.sq-retry').click();
+  assert.equal(requests.at(-1).requestId,followId);
+  assert.equal(w.document.querySelectorAll('.sq-question').length,2);
+  w.state={user:{id:'b'},token:'different'};attach();respond();await tick();
   assert.equal($('dialog'),null);$('.an-study-open').click();assert.equal($('.sq-turn'),null);
   dom.window.close();
-  console.log('Study question tools, evidence, follow-up, duplicate click and account switch: OK');
+  console.log('Study question data, streaming progress, retry, evidence, follow-up and account switch: OK');
 }
 main().catch(e=>{console.error(e);process.exitCode=1});

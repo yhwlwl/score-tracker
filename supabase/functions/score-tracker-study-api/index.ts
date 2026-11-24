@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { studyQuestion, studySettings } from './study-question.ts';
 import { loadSnapshot, loadTrajectory } from './snapshot.ts';
+import { studyEventResponse, type ProgressListener } from './study-events.ts';
 
 const db = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '', {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -35,7 +36,15 @@ Deno.serve(async request => {
     if (!userId) return out({ error: '登录已失效，请重新登录', code: 'UNAUTHORIZED' }, 401);
     if (body.action === 'study_status') return out((await studySettings(db)).public);
     if (body.action === 'study_question') {
-      const result = await studyQuestion(db, userId, body, () => loadSnapshot(db, userId), loadTrajectory(db, userId));
+      const run = (progress?: ProgressListener) =>
+        studyQuestion(db, userId, body, () => loadSnapshot(db, userId), loadTrajectory(db, userId), progress);
+      if (body.stream === true) {
+        const runtime = (globalThis as typeof globalThis & {
+          EdgeRuntime?: { waitUntil(task: Promise<void>): void };
+        }).EdgeRuntime;
+        return studyEventResponse(run, headers, task => runtime?.waitUntil(task));
+      }
+      const result = await run();
       return out(result.data, result.status);
     }
     return out({ error: '请求内容不正确' }, 400);
