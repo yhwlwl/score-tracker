@@ -14,7 +14,7 @@ export async function startAiTask(db:any,user:string,task:string,feature:string,
  if(!r?.allowed)throw new AiBudgetError(r?.reason||'billing_unavailable');return r;
 }
 export async function finishAiTask(db:any,user:string,task:string,success:boolean){return creditRpc(db,'score_tracker_ai_task_finish',{p_user:user,p_task:task,p_success:success});}
-export async function meteredModelFetch(db:any,user:string,task:string,call:string,url:string,init:any,send:any=fetch){
+export async function meteredModelFetch(db:any,user:string,task:string,call:string,url:string,init:any,send:any=fetch,onSettled?:(credits:number)=>void){
  const body=JSON.parse(String(init.body||'{}'));
  const reserved=await creditRpc(db,'score_tracker_ai_call_reserve',{p_user:user,p_task:task,p_call:call,p_model:body.model,p_max_output:body.max_tokens});
  if(!reserved?.allowed)throw new AiBudgetError(reserved?.reason||'billing_unavailable');
@@ -25,6 +25,7 @@ export async function meteredModelFetch(db:any,user:string,task:string,call:stri
  }
  let payload:any;try{payload=await response.clone().json();}catch(_){payload=null;}
  const requestId=response.headers.get('x-request-id')||response.headers.get('request-id')||payload?.id||null;
- await creditRpc(db,'score_tracker_ai_call_settle',{p_user:user,p_call:call,p_usage:payload?.usage||null,p_provider:requestId,p_status:response.status});
+ const settled=await creditRpc(db,'score_tracker_ai_call_settle',{p_user:user,p_call:call,p_usage:payload?.usage||null,p_provider:requestId,p_status:response.status});
+ if(settled?.known&&settled.credits!=null&&Number.isFinite(Number(settled.credits)))onSettled?.(Number(settled.credits));
  return response;
 }
