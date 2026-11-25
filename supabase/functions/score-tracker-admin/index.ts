@@ -253,7 +253,7 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
   if(action==='feature_round_decision'&&req.method==='POST'){
     const b=await req.json(),status=String(b.status||''),note=String(b.note||'').trim();
     if(!['pending','accepted','deferred','declined','developing','released'].includes(status)||note.length>500)return json({error:'决策状态或说明不正确'},400);
-    const r=await db.from('score_tracker_feature_vote_options').update({development_status:status,development_note:note,updated_at:new Date().toISOString()}).eq('id',b.id).is('completed_at',null).select('id').maybeSingle();
+    const r=await db.from('score_tracker_feature_vote_options').update({development_status:status,development_note:note,updated_at:new Date().toISOString(),...(status==='released'?{completed_at:new Date().toISOString(),is_active:false}:{})}).eq('id',b.id).is('completed_at',null).select('id').maybeSingle();
     if(r.error)throw r.error;if(!r.data)return json({error:'该功能已完成或不存在'},409);return json({ok:true});
   }
   if(action==='feature_votes'){
