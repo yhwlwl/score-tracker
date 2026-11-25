@@ -3,11 +3,12 @@
  if(!window.ScoreAchievementUI||!window.ScoreAchievements||typeof bindPage!=='function')return;
  const UI=window.ScoreAchievementUI,C=window.ScoreAchievements;
  let session='',cache=null,enabled=null,inFlight=null,refreshTimer=null,revealTimer=null,dirty=false,checked=false,entry=null,generation=0;
+ const presented=new Set();
  const tierOrder=['common','rare','epic','legendary','limited','mythic'];
  const key=()=>{try{return state?.user&&state?.token?String(state.user.id||state.user.username)+':'+state.token:''}catch(_){return ''}};
  function sync(){
   const current=key();if(current!==session){
-   generation++;session=current;cache=null;enabled=null;dirty=false;checked=false;inFlight=null;clearTimeout(refreshTimer);clearTimeout(revealTimer);refreshTimer=null;revealTimer=null;
+   generation++;presented.clear();session=current;cache=null;enabled=null;dirty=false;checked=false;inFlight=null;clearTimeout(refreshTimer);clearTimeout(revealTimer);refreshTimer=null;revealTimer=null;
    UI.close();entry?.remove();entry=null;
   }
   return current;
@@ -19,7 +20,7 @@
   const data=await r.json();if(!r.ok)throw Error('achievement unavailable');return data;
  }
  function blocked(){
-  try{return !!state.modal||Array.from(document.querySelectorAll('dialog[open],.modal-backdrop,.fv36-back,.first-run-setup-overlay')).some(x=>x.getClientRects().length)}catch(_){return true}
+  try{return !!(state.modal&&state.modal.isConnected!==false)||Array.from(document.querySelectorAll('dialog[open],.modal-backdrop,.fv36-back,.first-run-setup-overlay')).some(x=>x.getClientRects().length)}catch(_){return true}
  }
  function mount(){
   if(!sync()||enabled!==true)return;
@@ -33,11 +34,11 @@
  }
  function reveal(){
   clearTimeout(revealTimer);revealTimer=null;if(!sync()||enabled!==true||document.hidden)return;
-  const fresh=(cache||[]).filter(a=>!a.seen_at&&C.badges.some(b=>b.id===a.badge_id));if(!fresh.length)return;
+  const fresh=(cache||[]).filter(a=>!a.seen_at&&!presented.has(a.badge_id)&&C.badges.some(b=>b.id===a.badge_id));if(!fresh.length)return;
   if(blocked()){revealTimer=setTimeout(reveal,1800);return}
   const owner=session,badges=new Map(C.badges.map(b=>[b.id,b]));
   const ordered=[...fresh].sort((a,b)=>tierOrder.indexOf(badges.get(b.badge_id).tier)-tierOrder.indexOf(badges.get(a.badge_id).tier));
-  const first=ordered[0];UI.show(badges.get(first.badge_id),first,{play:true,batch:fresh.length,ack:()=>acknowledge(fresh.map(x=>x.badge_id),owner),onGallery:()=>{if(key()===owner)UI.openGallery(cache||[])}});
+  const first=ordered[0];fresh.forEach(a=>presented.add(a.badge_id));UI.show(badges.get(first.badge_id),first,{play:true,batch:fresh.length,ack:()=>acknowledge(fresh.map(x=>x.badge_id),owner),onGallery:()=>{if(key()===owner)UI.openGallery(cache||[])}});
  }
  function queue(delay=700){if(!sync()||enabled===false)return;dirty=true;clearTimeout(refreshTimer);refreshTimer=setTimeout(refresh,delay)}
  async function refresh(){
