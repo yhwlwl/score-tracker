@@ -437,13 +437,51 @@ export const MG_HTML = String.raw`<!doctype html>
     if(!S.aiConfigDirty)S.aiConfigDraft=null;
     return draft;
   }
+  var roundAdminStatuses={pending:'待评估',accepted:'已采纳',deferred:'暂缓',declined:'暂不采纳',developing:'开发中',released:'已上线'};
+  function roundAdminLocal(t){var d=new Date(t);if(!Number.isFinite(+d))return '';return new Date(+d+8*3600000).toISOString().slice(0,16);}
+  async function mountRoundAdmin(){
+    var root=document.getElementById('roundAdminMount');if(!root)return;
+    var token=TOKEN;root.innerHTML='<div class="muted">正在读取轮次配置…</div>';
+    try{
+      var d=await api('feature_round_admin');if(!root.isConnected||TOKEN!==token)return;
+      var rounds=d.rounds||[],pool=d.pool||[],draft=null;
+      var nextStart=Math.max(Date.now(),...rounds.filter(function(r){return r.state==='open'||r.state==='scheduled';}).map(function(r){return +new Date(r.endsAt);}));
+      function draw(){
+        var chosen=new Set(draft?draft.options.map(function(o){return o.id;}):[]);
+        var start=draft?draft.startsAt:new Date(Math.ceil(nextStart/60000)*60000).toISOString(),end=draft?draft.endsAt:new Date(+new Date(start)+21*86400000).toISOString();
+        root.innerHTML='<div class="panel-subtitle">默认21天，可提前准备下一轮。已发布的轮次按起止时间自动生效和结束；票数不决定采纳结果。</div>'
+        +'<div class="toolbar" style="padding:12px 0;flex-wrap:wrap"><button class="btn" id="rvNew">新建轮次草稿</button><button class="btn" id="rvReload">刷新轮次</button></div>'
+        +'<div class="table-wrap"><table class="table"><thead><tr><th>轮次</th><th>时间（北京）</th><th>状态</th><th>参与人数 / 票数</th><th>操作</th></tr></thead><tbody>'
+        +(rounds.length?rounds.map(function(r){var status={draft:'草稿',scheduled:'已排期',open:'投票中',closed:'已结束'}[r.state];return '<tr><td><b>第'+esc(r.number)+'轮 · '+esc(r.title)+'</b></td><td>'+esc(roundAdminLocal(r.startsAt).replace('T',' '))+' — '+esc(roundAdminLocal(r.endsAt).replace('T',' '))+'</td><td>'+esc(status)+'</td><td>'+fmt(r.participants)+' / '+fmt(r.totalVotes)+'</td><td><button class="btn" data-rv-show="'+esc(r.id)+'">'+(r.state==='draft'?'编辑草稿':'查看结果')+'</button></td></tr>';}).join(''):'<tr><td colspan="5">暂无轮次，旧票数仍保留。</td></tr>')+'</tbody></table></div>'
+        +'<div id="rvDetails" style="margin-top:14px"></div>'
+        +'<div class="panel-body" style="padding:14px 0"><b>'+(draft?'编辑第'+esc(draft.number)+'轮草稿':'创建新轮次')+'</b><div class="toolbar" style="padding:10px 0;flex-wrap:wrap"><label>标题 <input class="input" id="rvTitle" maxlength="120" value="'+esc(draft?draft.title:'你希望接下来增加什么？')+'"></label><label>开始（北京） <input class="input" type="datetime-local" id="rvStart" value="'+esc(roundAdminLocal(start))+'"></label><label>截止（北京） <input class="input" type="datetime-local" id="rvEnd" value="'+esc(roundAdminLocal(end))+'"></label><label>每人最多选择 <input class="input" type="number" id="rvMax" min="1" max="50" value="'+esc(draft?draft.maxChoices:3)+'"></label></div>'
+        +'<div class="panel-subtitle">选择候选功能；已采纳、开发中、暂不采纳和已上线功能不进入新轮次。暂缓功能可以再次参选。</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;padding:12px 0">'+pool.filter(function(o){return chosen.has(o.id)||(!o.completed_at&&['pending','deferred'].includes(o.development_status));}).map(function(o){return '<label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" data-rv-choice="'+esc(o.id)+'" '+(chosen.has(o.id)?'checked':'')+'><span>'+esc(o.label)+'</span></label>';}).join('')+'</div><div class="toolbar" style="padding:0"><button class="btn" id="rvDraft">保存草稿</button><button class="btn primary" id="rvPublish">发布 / 排期</button></div></div>'
+        +'<div class="panel-subtitle">候选池与开发决策（独立于票数）</div><div class="table-wrap"><table class="table"><thead><tr><th>功能</th><th>开发状态</th><th>决策说明（选填）</th><th>操作</th></tr></thead><tbody>'+pool.map(function(o){return '<tr data-rv-decision="'+esc(o.id)+'"><td style="white-space:normal">'+esc(o.label)+'</td><td>'+(o.completed_at?'已上线':'<select class="select">'+Object.keys(roundAdminStatuses).map(function(k){return '<option value="'+k+'" '+(k===o.development_status?'selected':'')+'>'+roundAdminStatuses[k]+'</option>';}).join('')+'</select>')+'</td><td><input class="input" maxlength="500" value="'+esc(o.development_note||'')+'" '+(o.completed_at?'disabled':'')+'></td><td>'+(o.completed_at?'—':'<button class="btn" data-rv-save-decision>保存</button>')+'</td></tr>';}).join('')+'</tbody></table></div>';
+        root.querySelector('#rvNew').onclick=function(){draft=null;draw();};
+        root.querySelector('#rvReload').onclick=mountRoundAdmin;
+        root.querySelector('#rvStart').onchange=function(){var v=this.value;if(v&&!draft){var dt=new Date(v+':00+08:00');if(Number.isFinite(+dt))root.querySelector('#rvEnd').value=roundAdminLocal(+dt+21*86400000);}};
+        root.querySelectorAll('[data-rv-show]').forEach(function(btn){btn.onclick=function(){var r=rounds.find(function(x){return x.id===btn.dataset.rvShow;});if(r.state==='draft'){draft=r;draw();return;}root.querySelector('#rvDetails').innerHTML='<b>第'+esc(r.number)+'轮结果 · '+fmt(r.participants)+'人</b><div class="table-wrap"><table class="table"><thead><tr><th>功能</th><th>票数</th><th>支持率</th><th>开发状态</th></tr></thead><tbody>'+r.options.slice().sort(function(a,b){return b.votes-a.votes;}).map(function(o){return '<tr><td>'+esc(o.label)+'</td><td>'+fmt(o.votes)+'</td><td>'+(r.participants?(100*o.votes/r.participants).toFixed(1):'0.0')+'%</td><td>'+esc(roundAdminStatuses[o.status])+'</td></tr>';}).join('')+'</tbody></table></div>';};});
+        async function save(publish,btn){
+          var start=root.querySelector('#rvStart').value,end=root.querySelector('#rvEnd').value,options=Array.from(root.querySelectorAll('[data-rv-choice]:checked')).map(function(x){return x.dataset.rvChoice;}),title=root.querySelector('#rvTitle').value.trim(),max=Number(root.querySelector('#rvMax').value);
+          if(!title||!start||!end||options.length<2||max<1||max>options.length||!Number.isInteger(max))return toast('请填写标题、时间并选择足够的候选功能',true);
+          if(publish&&!confirm('发布后候选项及时间不可修改，确认发布？'))return;
+          btn.disabled=true;
+          try{await api('feature_round_save',{},'POST',{id:draft?draft.id:null,title:title,startsAt:new Date(start+':00+08:00').toISOString(),endsAt:new Date(end+':00+08:00').toISOString(),maxChoices:max,options:options,publish:publish});toast(publish?'轮次已发布':'草稿已保存');await mountRoundAdmin();}
+          catch(e){toast(e.message,true);btn.disabled=false;}
+        }
+        root.querySelector('#rvDraft').onclick=function(){save(false,this);};root.querySelector('#rvPublish').onclick=function(){save(true,this);};
+        root.querySelectorAll('[data-rv-save-decision]').forEach(function(btn){btn.onclick=async function(){var row=btn.closest('[data-rv-decision]');btn.disabled=true;try{await api('feature_round_decision',{},'POST',{id:row.dataset.rvDecision,status:row.querySelector('select').value,note:row.querySelector('input').value});toast('开发决策已保存');}catch(e){toast(e.message,true);}finally{btn.disabled=false;}};});
+      }
+      draw();
+    }catch(e){if(root.isConnected&&TOKEN===token){root.textContent='轮次配置暂时无法读取：'+e.message;var retry=document.createElement('button');retry.className='btn';retry.textContent='重试';retry.onclick=mountRoundAdmin;root.appendChild(retry);}}
+  }
   function featureVotesView(){
     if(!S.featureVotes)return head()+loading();
     var d=S.featureVotes||{},options=d.options||[],users=d.users||[],suggestions=d.suggestions||[],pending=suggestions.filter(function(x){return x.status==='new'}),ai=null;
     var query=S.search.toLowerCase();if(query)users=users.filter(function(x){return String(x.username||x.user_id||'').toLowerCase().includes(query)||(x.votes||[]).some(function(v){return String(v.label||'').toLowerCase().includes(query)})});
     S.page.featurevotes=Math.min(Math.max(1,S.page.featurevotes),Math.max(1,Math.ceil(users.length/100)));
     var visibleUsers=users.slice((S.page.featurevotes-1)*100,S.page.featurevotes*100);
-    return head('<button class="btn" id="refreshFeatureVotes">刷新投票</button>')
+    return head('<button class="btn" id="refreshFeatureVotes">刷新投票</button>')+'<section class="panel section-gap"><div class="panel-head"><div class="panel-title">功能共创 · 轮次管理</div></div><div class="panel-body" id="roundAdminMount"></div></section>'
       +'<section class="metric-strip">'
       +metric('参与账号',d.total_voters||0,'至少投过 1 个选项')
       +metric('累计票数',d.total_votes||0,'每账号每选项最多 1 票')
@@ -451,14 +489,14 @@ export const MG_HTML = String.raw`<!doctype html>
       +metric('待处理需求',pending.length,'加入投票或转到反馈')
       +'</section>'
 
-      +'<section class="panel section-gap"><div class="panel-head"><div><div class="panel-title">新增投票选项</div><div class="panel-subtitle">新增后，之前已经投过票的用户也可以继续给新选项投票。</div></div></div><div class="panel-body"><div class="toolbar" style="padding:0;border:0;background:transparent"><input class="input" id="fvNewOption" maxlength="160" placeholder="输入功能需求" style="flex:1;min-width:220px"><button class="btn primary" id="fvAddOption">新增选项</button></div></div></section>'
+      +'<section class="panel section-gap"><div class="panel-head"><div><div class="panel-title">新增投票选项</div><div class="panel-subtitle">新系统启用后，新选项先进入候选池，由管理员安排下一轮。</div></div></div><div class="panel-body"><div class="toolbar" style="padding:0;border:0;background:transparent"><input class="input" id="fvNewOption" maxlength="160" placeholder="输入功能需求" style="flex:1;min-width:220px"><button class="btn primary" id="fvAddOption">新增选项</button></div></div></section>'
       +'<section class="panel flush section-gap"><div class="panel-head"><div><div class="panel-title">选项与票数</div><div class="panel-subtitle">完成的功能可以标记为“已完成”。下架可随时恢复，历史票数都会保留。</div></div></div><div class="table-wrap"><table class="table"><thead><tr><th>选项</th><th>状态</th><th>票数</th><th>来源</th><th>创建时间</th><th>操作</th></tr></thead><tbody>'
       +(options.length?options.map(function(x){return'<tr><td style="max-width:420px;white-space:normal"><b>'+esc(x.label)+'</b></td><td><span class="pill '+(x.completed_at||x.is_active?'green':'')+'">'+(x.completed_at?'已完成':x.is_active?'投票中':'已下架')+'</span></td><td>'+fmt(x.votes)+'</td><td>'+esc(x.source||'—')+'</td><td>'+esc(time(x.created_at))+'</td><td>'+(x.completed_at?'<span class="muted">完成于 '+esc(time(x.completed_at))+'</span>':'<div style="display:flex;gap:6px"><button class="btn" data-fv-complete="'+esc(x.id)+'">标记完成</button><button class="btn '+(x.is_active?'danger':'')+'" data-fv-active="'+esc(x.id)+'" data-active="'+(x.is_active?'0':'1')+'">'+(x.is_active?'下架':'恢复')+'</button></div>')+'</td></tr>'}).join(''):'<tr><td colspan="6">'+empty('暂无投票选项')+'</td></tr>')
       +'</tbody></table></div></section>'
-      +'<section class="panel flush section-gap"><div class="panel-head"><div><div class="panel-title">用户新增需求</div><div class="panel-subtitle">想增加的功能可以加入投票；使用问题可以转到反馈里回复。</div></div></div><div class="table-wrap"><table class="table"><thead><tr><th>时间</th><th>用户</th><th>需求</th><th>状态</th><th>操作</th></tr></thead><tbody>'
+      +'<section class="panel flush section-gap"><div class="panel-head"><div><div class="panel-title">用户新增需求</div><div class="panel-subtitle">想增加的功能可以加入候选池；使用问题可以转到反馈里回复。</div></div></div><div class="table-wrap"><table class="table"><thead><tr><th>时间</th><th>用户</th><th>需求</th><th>状态</th><th>操作</th></tr></thead><tbody>'
       +(suggestions.length?suggestions.map(function(x){var status=x.status==='promoted'?'已加入投票':x.status==='converted'?'已转为反馈':x.status==='dismissed'?'已处理':'待处理';return'<tr><td>'+esc(time(x.created_at))+'</td><td>'+esc(x.username||x.user_id||'未知用户')+'</td><td style="white-space:normal;max-width:620px">'+esc(x.content)+'</td><td><span class="pill '+(x.status==='promoted'?'green':x.status==='new'?'amber':'')+'">'+status+'</span></td><td>'+(x.status==='new'?'<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn primary" data-fv-promote="'+esc(x.id)+'">加入投票</button><button class="btn" data-fv-convert="'+esc(x.id)+'">转为反馈</button><button class="btn" data-fv-dismiss="'+esc(x.id)+'">忽略</button></div>':(x.feedback_id?'<button class="btn" data-fv-feedback="'+esc(x.feedback_id)+'">查看反馈</button>':'—'))+'</td></tr>'}).join(''):'<tr><td colspan="5">'+empty('暂无用户新增需求')+'</td></tr>')
       +'</tbody></table></div></section>'
-      +'<section class="panel flush section-gap" id="featureVoteUsers"><div class="panel-head"><div><div class="panel-title">用户投票情况</div><div class="panel-subtitle">按最近投票时间排序，保留已下架选项的历史。</div></div></div><div class="table-wrap"><table class="table"><thead><tr><th>用户</th><th>已投选项</th><th>最近投票</th></tr></thead><tbody>'
+      +'<section class="panel flush section-gap" id="featureVoteUsers"><div class="panel-head"><div><div class="panel-title">用户投票情况</div><div class="panel-subtitle">早期长期投票的用户记录，按最近投票时间排序。</div></div></div><div class="table-wrap"><table class="table"><thead><tr><th>用户</th><th>已投选项</th><th>最近投票</th></tr></thead><tbody>'
       +(visibleUsers.length?visibleUsers.map(function(x){return'<tr><td>'+esc(x.username||x.user_id||'未知用户')+'</td><td style="white-space:normal;max-width:720px">'+((x.votes||[]).map(function(v){return'<span class="pill '+(v.is_active?'green':'')+'" style="margin:2px">'+esc(v.label)+'</span>'}).join(' ')||'—')+'</td><td>'+esc(time(x.last_voted_at))+'</td></tr>'}).join(''):'<tr><td colspan="3">'+empty(query?'没有匹配的投票用户':'还没有用户投票')+'</td></tr>')
       +'</tbody></table></div>'+pager(users.length,'featurevotes')+'</section>';
   }
@@ -656,7 +694,7 @@ export const MG_HTML = String.raw`<!doctype html>
     var fbt=document.getElementById('toggleFeedbackFilters');if(fbt)fbt.onclick=function(){feedbackFiltersOpen=!feedbackFiltersOpen;renderView()};
     var fbb=document.getElementById('backFeedback');if(fbb)fbb.onclick=function(){S.selectedFeedback=null;S.selectedFeedbackDetail=null;REPLY_FILES=[];renderView();window.scrollTo(0,feedbackListScroll)};
     var fbr=document.getElementById('retryFeedbackDetail');if(fbr)fbr.onclick=function(){openFeedback(S.selectedFeedback)};
-    var rfv=document.getElementById('refreshFeatureVotes');if(rfv)rfv.onclick=function(){loadView(true)};
+    var rfv=document.getElementById('refreshFeatureVotes');if(rfv){rfv.onclick=function(){loadView(true)};mountRoundAdmin();}
     var fva=document.getElementById('fvAddOption');if(fva)fva.onclick=async function(){var input=document.getElementById('fvNewOption'),label=input&&input.value.trim();if(!label)return toast('请输入选项名称');this.disabled=true;try{if(!await saveFeatureVote('feature_option_add',{label:label}))return;var input=document.getElementById('fvNewOption');if(input&&input.value.trim()===label)input.value='';toast('投票选项已新增')}catch(e){toast(e.message,true)}finally{if(this.isConnected)this.disabled=false}};
 
     ['aiVisionKey','aiVisionBaseUrl','aiVisionModel','aiVisionEnabled','aiVisionBetaOnly','aiVisionDailyLimit','aiVisionGlobalDailyLimit','aiVisionCooldownSeconds','aiVisionTierEnabled'].forEach(function(id){var input=document.getElementById(id);if(!input)return;input.oninput=syncAiConfigDraftFromForm;input.onchange=syncAiConfigDraftFromForm});
