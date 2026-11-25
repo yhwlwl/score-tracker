@@ -483,9 +483,9 @@ export const MG_HTML = String.raw`<!doctype html>
     var visibleUsers=users.slice((S.page.featurevotes-1)*100,S.page.featurevotes*100);
     return head('<button class="btn" id="refreshFeatureVotes">刷新投票</button>')+'<section class="panel section-gap"><div class="panel-head"><div class="panel-title">功能共创 · 轮次管理</div></div><div class="panel-body" id="roundAdminMount"></div></section>'
       +'<section class="metric-strip">'
-      +metric('参与账号',d.total_voters||0,'至少投过 1 个选项')
-      +metric('累计票数',d.total_votes||0,'每账号每选项最多 1 票')
-      +metric('当前选项',options.filter(function(x){return x.is_active}).length,'用户当前可见')
+      +metric('早期参与账号',d.total_voters||0,'长期投票历史')
+      +metric('早期累计票数',d.total_votes||0,'不计入新轮次')
+      +metric('候选选项',options.length,'按轮次配置用户可见项')
       +metric('待处理需求',pending.length,'加入投票或转到反馈')
       +'</section>'
 
