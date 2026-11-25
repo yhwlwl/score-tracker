@@ -96,7 +96,7 @@
     var performance=rank===null?null:(typeof rankPerformanceV7==='function'?rankPerformanceV7(rank,participants):null);
     return{rank:rank,participants:participants,performance:performance};
   }
-  function scopeLabelV25(){return(state.rankScopeV16==='class')?'班排':'年排';}
+  function scopeLabelV25(){return rankScopeLabelV16(cityTrendActiveV16()?'city':state.rankScopeV16);}
 
   // A) 年级/班级总人数的本机记忆与自动填充
   function peopleKeyV25(){return 'st_people_v25_'+(state.user&&state.user.username||'anon');}
@@ -427,6 +427,7 @@
     var comboRow=(combos.length?'<span class="label">组合：</span>':'')+chip('总览')+chip('总分')+combos.map(function(c){return chip(c.name);}).join('');
     var subjectRow='<span class="label">科目：</span>'+(SUBJECTS||[]).map(function(s){return chip(s);}).join('');
     html=html.replace(/<div class="chips">([\s\S]*?)<\/div>/,function(m,inner){
+      if(cityTrendActiveV16())return '';
       return '<div class="combo-chips-v25">'+comboRow+'</div><div class="combo-chips-v25">'+subjectRow+'</div>';
     });
     // 侧栏「这一年的记录」：只留最有信息量的指标（次数/最高分/平均分/最近目标；删「次已出分」和与 Hero 重复的「最近变化」）
@@ -596,7 +597,8 @@
   }
   function fullTrendSvgV25(){
     var exams=state.exams||[];
-    var subject=state.subject||'总分';
+    var city=cityTrendActiveV16();
+    var subject=city?'总分':(state.subject||'总分');
     var metric=state.trendMetric||'score';
     var basis=state.scoreBasis||'final';
     var scope=state.rankScopeV16||'year';
@@ -611,7 +613,7 @@
     if(isRawRank||isPercent){
       var rankSubjects=subject==='总览'?['总分'].concat(SUBJECTS):[subject];
       series=rankSubjects.map(function(s,i){
-        return{label:s,color:customTrendColorV25(s,colors[i%colors.length]),value:function(e){return isRawRank?rawRankValueV11(e,s):rankInfoV7(e,s).performance;}};
+        return{label:s,color:customTrendColorV25(s,colors[i%colors.length]),value:function(e){if(city){var info=cityRankInfoV16(e,s);return isRawRank?info.rank:info.performance;}return isRawRank?rawRankValueV11(e,s):rankInfoV7(e,s).performance;}};
       });
     }else if(basis==='raw'){
       if(subject==='总览'){
@@ -635,7 +637,7 @@
         ];
       }
     }
-    if(window.ScoreAverages)series=series.concat(window.ScoreAverages.series().map(function(s){return Object.assign({},s,{color:customTrendColorV25(s.label,s.color)});}));
+    if(!city&&window.ScoreAverages)series=series.concat(window.ScoreAverages.series().map(function(s){return Object.assign({},s,{color:customTrendColorV25(s.label,s.color)});}));
     var visible=series.filter(function(s){return !hiddenTrendLineV25(s.label)&&exams.some(function(e){return s.value(e)!==null;});});
     if(!visible.length)return '<div class="empty-chart"><div><div class="empty-icon">⌁</div>当前还没有可用于完整趋势的数据</div></div>';
     var points=exams.map(function(e){return{exam:e,values:visible.map(function(s){return s.value(e);})};});
@@ -689,7 +691,7 @@
   function openFullTrendV25(){
     var exams=state.exams||[];
     if(!exams.length)return toast('还没有考试记录');
-    var subject=state.subject||'总分';
+    var subject=cityTrendActiveV16()?'总分市排':(state.subject||'总分');
     var svgText=fullTrendSvgV25();
     var modal=document.createElement('div');
     modal.className='modal-backdrop full-trend-modal-v25';
@@ -1031,7 +1033,7 @@
     if(save)save.onclick=function(){
       var svgText=extractChartSvgV25();
       if(!svgText)return toast('当前还没有图表可保存');
-      downloadSvgAsPngV25(svgText,trendFileNameV25(state.subject||'趋势'));
+      downloadSvgAsPngV25(svgText,trendFileNameV25(cityTrendActiveV16()?'总分市排':(state.subject||'趋势')));
     };
     // 考试记录排序
     applyStoredOrderV25();
