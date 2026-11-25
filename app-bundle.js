@@ -3154,6 +3154,8 @@ state.rankScopeV16 = state.rankScopeV16 || 'year';
     .subject-rank-row-v16 input{width:100%;min-width:0;border:1px solid var(--line);border-radius:10px;padding:8px 7px;background:#fff;outline:none;font-size:12px}
     .rank-compat-v16{font-size:11px;line-height:1.6;color:var(--muted);margin-top:9px}
     .record-ranks-v16{display:inline-flex;gap:6px;flex-wrap:wrap}
+    .rank-scope-v16 select.region-select-v16{font-family:inherit;cursor:pointer;appearance:auto;min-width:0;text-align:center}
+    #content .chart-card .trend-top-v36 select.region-select-v16{padding:6px 1px 6px 3px;min-width:0;flex:1 1 0;max-width:100%;text-overflow:clip}
     @media(max-width:620px){
       .rank-scope-v16{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%}
       .rank-scope-v16.has-city-v16{grid-template-columns:repeat(4,minmax(0,1fr))}.rank-scope-v16 .label{grid-column:1/-1}.rank-scope-v16 .metric-btn-v7{width:100%}
@@ -3166,32 +3168,54 @@ state.rankScopeV16 = state.rankScopeV16 || 'year';
   document.head.appendChild(style);
 })();
 
-// City ranks are total-only. Keep the city trend selection separate from the
+// City/district ranks are total-only. Keep the city trend selection separate from the
 // shared year/class scope used by radar, record cards and other analysis.
-function cityRankInfoV16(exam, subject){
+function isRegionScopeV16(scope){return scope==='city'||scope==='district';}
+function regionRankInfoV16(exam,subject,scope){
   var empty={rank:null,participants:null,performance:null,positionPercent:null,directPercent:false};
-  if(!exam||subject!=='总分')return empty;
-  var row=typeof window.ScoreRecordCityRanksV33==='function'?window.ScoreRecordCityRanksV33(exam):{cityRank:exam.cityRank??exam.city_rank,cityParticipants:exam.cityParticipants??exam.city_participants};
+  if(!exam||subject!=='总分'||!isRegionScopeV16(scope))return empty;
+  var row=typeof window.ScoreRecordCityRanksV33==='function'?window.ScoreRecordCityRanksV33(exam):{cityRank:exam.cityRank??exam.city_rank,cityParticipants:exam.cityParticipants??exam.city_participants,districtRank:exam.districtRank??exam.district_rank,districtParticipants:exam.districtParticipants??exam.district_participants};
   function positive(v){var n=num(v);return Number.isInteger(n)&&n>0?n:null;}
-  var rank=positive(row.cityRank),participants=positive(row.cityParticipants);
+  var rank=positive(row[scope+'Rank']),participants=positive(row[scope+'Participants']);
   return {...empty,rank:rank,participants:participants,performance:rankPerformanceV7(rank,participants)};
 }
-function hasCityTrendV16(){
-  var exams=state.allExams||state.exams||[];
-  return exams.concat(state.exams||[]).some(function(e){return !e.is_hidden&&cityRankInfoV16(e,'总分').rank!==null;});
+function availableRegionsV16(){
+  var exams=(state.allExams||[]).concat(state.exams||[]);
+  return ['city','district'].filter(function(scope){return exams.some(function(e){return !e.is_hidden&&regionRankInfoV16(e,'总分',scope).rank!==null;});});
 }
-function cityTrendActiveV16(){return !!state.cityTrendV16&&(state.trendMetric==='rank'||state.trendMetric==='rank_raw');}
-function withCityTrendV16(fn){
-  if(!cityTrendActiveV16())return fn();
+function regionPreferenceKeyV16(){return 'st_trend_region_v16_'+(state.user&&(state.user.id||state.user.username)||'anon');}
+function preferredRegionV16(available){
+  var saved;try{saved=localStorage.getItem(regionPreferenceKeyV16());}catch(e){}
+  return available.includes(state.regionTrendV16)?state.regionTrendV16:available.includes(saved)?saved:available[0];
+}
+function selectRegionV16(scope){
+  if(!availableRegionsV16().includes(scope))return;
+  if(!regionTrendActiveV16())state.trendMetric='rank_raw';
+  state.regionTrendV16=scope;
+  try{localStorage.setItem(regionPreferenceKeyV16(),scope);}catch(e){}
+}
+function regionTrendActiveV16(){return isRegionScopeV16(state.regionTrendV16)&&(state.trendMetric==='rank'||state.trendMetric==='rank_raw');}
+function withRegionTrendV16(fn){
+  if(!regionTrendActiveV16())return fn();
   var scope=state.rankScopeV16,subject=state.subject;
-  state.rankScopeV16='city';state.subject='总分';
+  state.rankScopeV16=state.regionTrendV16;state.subject='总分';
   try{return fn();}finally{state.rankScopeV16=scope;state.subject=subject;}
 }
-function rankScopeLabelV16(scope){ return scope === 'city' ? '市排' : scope === 'class' ? '班排' : '年排'; }
-function rankScopeLongLabelV16(scope){ return scope === 'city' ? '市级排名' : scope === 'class' ? '班级排名' : '年级排名'; }
+function rankScopeLabelV16(scope){return scope==='district'?'区排':scope==='city'?'市排':scope==='class'?'班排':'年排';}
+function rankScopeLongLabelV16(scope){return scope==='district'?'区级排名':scope==='city'?'市级排名':scope==='class'?'班级排名':'年级排名';}
+function regionControlV16(available,isRank,scope){
+  if(!available.length)return '';
+  var chosen=preferredRegionV16(available),label=rankScopeLabelV16(chosen),active=isRank&&isRegionScopeV16(scope);
+  if(available.length===1)return '<button type="button" class="metric-btn-v7 '+(active?'active':'')+'" data-trend-scope-v16="'+chosen+'">'+label+'</button>';
+  // Native select keeps a single slot; an inactive placeholder allows choosing
+  // the remembered region even when the other trend type is currently active.
+  return '<select class="metric-btn-v7 region-select-v16 '+(active?'active':'')+'" aria-label="市排或区排" data-trend-region-v16>'+
+    (active?'':'<option value="" selected disabled>'+label+'</option>')+
+    available.map(function(v){return '<option value="'+v+'"'+(active&&scope===v?' selected':'')+'>'+rankScopeLabelV16(v)+'</option>';}).join('')+'</select>';
+}
 function rankInfoByScopeV16(exam, subject, scope){
   if (!exam) return { rank:null, participants:null, performance:null };
-  if(scope==='city')return cityRankInfoV16(exam,subject);
+  if(isRegionScopeV16(scope))return regionRankInfoV16(exam,subject,scope);
   var isClass = scope === 'class';
   if (subject === '总分') {
     var rank = num(isClass ? exam.total_class_rank : exam.total_rank);
@@ -3210,9 +3234,9 @@ rawRankValueV11 = function rawRankValueV16(exam,subject){ return rankInfoByScope
 
 var rawRankChartBeforeV16 = rawRankChartHtmlV11;
 rawRankChartHtmlV11 = function rawRankChartHtmlV16(){
-  var html=withCityTrendV16(rawRankChartBeforeV16);
-  var label=rankScopeLongLabelV16(cityTrendActiveV16()?'city':state.rankScopeV16);
-  if(cityTrendActiveV16())html=html.replace('总览叠加时，最好保证各科使用相同的排名口径和相近的参考人数。','');
+  var html=withRegionTrendV16(rawRankChartBeforeV16);
+  var label=rankScopeLongLabelV16(regionTrendActiveV16()?state.regionTrendV16:state.rankScopeV16);
+  if(regionTrendActiveV16())html=html.replace('总览叠加时，最好保证各科使用相同的排名口径和相近的参考人数。','');
   return html
     .replace(/原始名次模式/g, label+'模式')
     .replace(/原始名次/g, label)
@@ -3222,8 +3246,8 @@ rawRankChartHtmlV11 = function rawRankChartHtmlV16(){
 
 var rankChartBeforeV16 = rankChartHtmlV7;
 rankChartHtmlV7 = function rankChartHtmlV16(){
-  var html=withCityTrendV16(rankChartBeforeV16);
-  var label=rankScopeLongLabelV16(cityTrendActiveV16()?'city':state.rankScopeV16);
+  var html=withRegionTrendV16(rankChartBeforeV16);
+  var label=rankScopeLongLabelV16(regionTrendActiveV16()?state.regionTrendV16:state.rankScopeV16);
   return html
     .replace(/排名趋势分析/g, label+'百分位趋势分析')
     .replace(/这个科目还没有排名数据/g, '这个科目还没有'+label+'数据')
@@ -3232,12 +3256,16 @@ rankChartHtmlV7 = function rankChartHtmlV16(){
 
 var homeHtmlBeforeV16 = homeHtml;
 homeHtml = function homeHtmlV16(){
-  if(state.cityTrendV16&&!hasCityTrendV16()){state.cityTrendV16=false;state.trendMetric='score';}
+  var available=availableRegionsV16();
+  if(regionTrendActiveV16()&&!available.includes(state.regionTrendV16)){
+    state.regionTrendV16=preferredRegionV16(available)||null;
+    if(!state.regionTrendV16)state.trendMetric='score';
+  }
   var html=homeHtmlBeforeV16();
   var isRank=state.trendMetric==='rank_raw'||state.trendMetric==='rank';
-  var scope=cityTrendActiveV16()?'city':state.rankScopeV16;
+  var scope=regionTrendActiveV16()?state.regionTrendV16:state.rankScopeV16;
   var scopeLabel=rankScopeLabelV16(scope);
-  var toggle=`<div class="trend-metric-toggle-v7 rank-scope-v16${hasCityTrendV16()?' has-city-v16':''}"><span class="label">趋势类型</span><button class="metric-btn-v7 ${!isRank&&state.trendMetric==='score'?'active':''}" data-trend-scope-v16="score">成绩</button><button class="metric-btn-v7 ${isRank&&scope==='year'?'active':''}" data-trend-scope-v16="year">年排</button><button class="metric-btn-v7 ${isRank&&scope==='class'?'active':''}" data-trend-scope-v16="class">班排</button>${hasCityTrendV16()||cityTrendActiveV16()?`<button class="metric-btn-v7 ${isRank&&scope==='city'?'active':''}" data-trend-scope-v16="city">市排</button>`:''}</div>${isRank?`<div class="rank-view-v16"><span class="label">查看</span><button class="metric-btn-v7 ${state.trendMetric==='rank_raw'?'active':''}" data-trend-metric="rank_raw">名次</button><button class="metric-btn-v7 ${state.trendMetric==='rank'?'active':''}" data-trend-metric="rank">百分位</button></div>`:''}`;
+  var toggle=`<div class="trend-metric-toggle-v7 rank-scope-v16${available.length?' has-city-v16':''}"><span class="label">趋势类型</span><button class="metric-btn-v7 ${!isRank&&state.trendMetric==='score'?'active':''}" data-trend-scope-v16="score">成绩</button><button class="metric-btn-v7 ${isRank&&scope==='year'?'active':''}" data-trend-scope-v16="year">年排</button><button class="metric-btn-v7 ${isRank&&scope==='class'?'active':''}" data-trend-scope-v16="class">班排</button>${regionControlV16(available,isRank,scope)}</div>${isRank?`<div class="rank-view-v16"><span class="label">查看</span><button class="metric-btn-v7 ${state.trendMetric==='rank_raw'?'active':''}" data-trend-metric="rank_raw">名次</button><button class="metric-btn-v7 ${state.trendMetric==='rank'?'active':''}" data-trend-metric="rank">百分位</button></div>`:''}`;
   html=html.replace(/<div class="trend-metric-toggle-v7">[\s\S]*?<\/div>/,toggle);
   if(isRank){
     var title=state.trendMetric==='rank_raw'?scopeLabel+'趋势':scopeLabel+'百分位趋势';
@@ -3250,8 +3278,8 @@ homeHtml = function homeHtmlV16(){
       html=html.replace('总分与各科排名统一换算为排名表现；参考人数不同也能放在一起比较',`总分与各科${scopeLabel}统一换算成百分位；参考人数变化时也更可比`);
     }
   }
-  if(cityTrendActiveV16()){
-    html=html.replace(/<h3 class="card-title">市排(?:百分位)?趋势<\/h3>[\s\S]*?<p class="card-sub">[\s\S]*?<\/p>/,function(s){return s.replace(/<p class="card-sub">[\s\S]*?<\/p>/,'<p class="card-sub">总分市排 · 越靠上排名越好</p>');});
+  if(regionTrendActiveV16()){
+    html=html.replace(/<h3 class="card-title">(?:市排|区排)(?:百分位)?趋势<\/h3>[\s\S]*?<p class="card-sub">[\s\S]*?<\/p>/,function(s){return s.replace(/<p class="card-sub">[\s\S]*?<\/p>/,'<p class="card-sub">总分'+scopeLabel+' · 越靠上排名越好</p>');});
   }
   return html;
 };
@@ -3470,7 +3498,7 @@ state.rankEntryModeV17 = state.rankEntryModeV17 || 'rank';
 
 function positionPerformanceV17(positionPercent){var p=num(positionPercent);if(p===null||p<0||p>100)return null;return Math.max(0,Math.min(100,100-p));}
 var rankInfoByScopeBeforeV17=rankInfoByScopeV16;
-rankInfoByScopeV16=function rankInfoByScopeV17(exam,subject,scope){if(scope==='city')return cityRankInfoV16(exam,subject);if(!exam)return{rank:null,participants:null,performance:null,positionPercent:null,directPercent:false};var isClass=scope==='class';var direct=subject==='总分'?num(isClass?exam.total_class_position_percent:exam.total_year_position_percent):num(exam.scores?.[subject]?.[isClass?'classPositionPercent':'yearPositionPercent']);var base=rankInfoByScopeBeforeV17(exam,subject,scope);if(direct!==null&&direct>=0&&direct<=100)return{...base,performance:positionPerformanceV17(direct),positionPercent:direct,directPercent:true};return{...base,positionPercent:null,directPercent:false};};
+rankInfoByScopeV16=function rankInfoByScopeV17(exam,subject,scope){if(isRegionScopeV16(scope))return regionRankInfoV16(exam,subject,scope);if(!exam)return{rank:null,participants:null,performance:null,positionPercent:null,directPercent:false};var isClass=scope==='class';var direct=subject==='总分'?num(isClass?exam.total_class_position_percent:exam.total_year_position_percent):num(exam.scores?.[subject]?.[isClass?'classPositionPercent':'yearPositionPercent']);var base=rankInfoByScopeBeforeV17(exam,subject,scope);if(direct!==null&&direct>=0&&direct<=100)return{...base,performance:positionPerformanceV17(direct),positionPercent:direct,directPercent:true};return{...base,positionPercent:null,directPercent:false};};
 rankInfoV7=function rankInfoV17(exam,subject){return rankInfoByScopeV16(exam,subject,state.rankScopeV16);};
 rawRankValueV11=function rawRankValueV17(exam,subject){return rankInfoByScopeV16(exam,subject,state.rankScopeV16).rank;};
 
@@ -3509,7 +3537,7 @@ recordHtml=function recordHtmlV17(exam){var subjects=Object.keys(exam.scores||{}
 recordsHtml=function recordsHtmlV17(){var exams=state.allExams||[],hidden=exams.filter(function(e){return e.is_hidden;}).length,order=categoryOptionsV14();function byDateDesc(a,b){var d=String(b.exam_date||'').localeCompare(String(a.exam_date||''));if(d)return d;return String(b.created_at||'').localeCompare(String(a.created_at||''))||String(b.id||'').localeCompare(String(a.id||''));}var groups=[...order.map(function(v){return{name:v,exams:exams.filter(function(e){return e.grade_level===v;}).sort(byDateDesc)};}),{name:'未分类',exams:exams.filter(function(e){return !e.grade_level;}).sort(byDateDesc)}].filter(function(g){return g.exams.length;}).sort(function(a,b){return byDateDesc(a.exams[0],b.exams[0]);});return `<div class="page-head"><div><h2>考试记录</h2><p>最近的考试排在前面。${hidden?` ${hidden} 次已隐藏。`:''}</p></div><button class="primary" id="addExam">＋ 新建</button></div>${groups.length?groups.map(function(g){return `<section class="grade-section-v13"><div class="grade-section-head-v13"><h3>${escapeHtml(g.name)}</h3><span>${g.exams.length} 次</span></div><div class="card records-card">${g.exams.map(recordHtml).join('')}</div></section>`;}).join(''):`<div class="card records-card"><div class="empty-chart" style="height:260px"><div>还没有考试记录<br><button class="secondary" id="emptyAdd" style="margin-top:14px">记录第一场考试</button></div></div></div>`}`;};
 
 var bindPageBeforeV17=bindPage;
-bindPage=function bindPageV17(){bindPageBeforeV17();document.querySelectorAll('[data-trend-scope-v16]').forEach(function(button){button.onclick=function(){var scope=button.dataset.trendScopeV16;state.cityTrendV16=scope==='city';if(scope==='city'){state.trendMetric='rank_raw';}else if(scope==='score'){state.trendMetric='score';}else{state.rankScopeV16=scope;if(hasDirectPercentV17(scope)&&!hasRawRankV17(scope))state.trendMetric='rank';else if(state.trendMetric!=='rank_raw'&&state.trendMetric!=='rank')state.trendMetric='rank_raw';}render();};});document.querySelectorAll('[data-radar-scope-v16]').forEach(function(button){button.onclick=function(){var scope=button.dataset.radarScopeV16;state.rankScopeV16=scope;if(hasDirectPercentV17(scope)&&!hasRawRankV17(scope))state.radarMode='rank';else if(state.radarMode!=='rank_raw'&&state.radarMode!=='rank')state.radarMode='rank_raw';ensureRadarSelection();render();};});};
+bindPage=function bindPageV17(){bindPageBeforeV17();document.querySelectorAll('[data-trend-scope-v16]').forEach(function(button){button.onclick=function(){var scope=button.dataset.trendScopeV16;if(isRegionScopeV16(scope)){selectRegionV16(scope);}else{state.regionTrendV16=null;if(scope==='score'){state.trendMetric='score';}else{state.rankScopeV16=scope;if(hasDirectPercentV17(scope)&&!hasRawRankV17(scope))state.trendMetric='rank';else if(state.trendMetric!=='rank_raw'&&state.trendMetric!=='rank')state.trendMetric='rank_raw';}}render();};});document.querySelectorAll('[data-trend-region-v16]').forEach(function(select){select.onchange=function(){if(!isRegionScopeV16(select.value))return;selectRegionV16(select.value);render();};});document.querySelectorAll('[data-radar-scope-v16]').forEach(function(button){button.onclick=function(){var scope=button.dataset.radarScopeV16;state.rankScopeV16=scope;if(hasDirectPercentV17(scope)&&!hasRawRankV17(scope))state.radarMode='rank';else if(state.radarMode!=='rank_raw'&&state.radarMode!=='rank')state.radarMode='rank_raw';ensureRadarSelection();render();};});};
 
 
 
@@ -4697,7 +4725,7 @@ saveExam=async function saveExamV21(id,modal){
     var performance=rank===null?null:(typeof rankPerformanceV7==='function'?rankPerformanceV7(rank,participants):null);
     return{rank:rank,participants:participants,performance:performance};
   }
-  function scopeLabelV25(){return rankScopeLabelV16(cityTrendActiveV16()?'city':state.rankScopeV16);}
+  function scopeLabelV25(){return rankScopeLabelV16(regionTrendActiveV16()?state.regionTrendV16:state.rankScopeV16);}
 
   // A) 年级/班级总人数的本机记忆与自动填充
   function peopleKeyV25(){return 'st_people_v25_'+(state.user&&state.user.username||'anon');}
@@ -5028,7 +5056,7 @@ saveExam=async function saveExamV21(id,modal){
     var comboRow=(combos.length?'<span class="label">组合：</span>':'')+chip('总览')+chip('总分')+combos.map(function(c){return chip(c.name);}).join('');
     var subjectRow='<span class="label">科目：</span>'+(SUBJECTS||[]).map(function(s){return chip(s);}).join('');
     html=html.replace(/<div class="chips">([\s\S]*?)<\/div>/,function(m,inner){
-      if(cityTrendActiveV16())return '';
+      if(regionTrendActiveV16())return '';
       return '<div class="combo-chips-v25">'+comboRow+'</div><div class="combo-chips-v25">'+subjectRow+'</div>';
     });
     // 侧栏「这一年的记录」：只留最有信息量的指标（次数/最高分/平均分/最近目标；删「次已出分」和与 Hero 重复的「最近变化」）
@@ -5198,8 +5226,8 @@ saveExam=async function saveExamV21(id,modal){
   }
   function fullTrendSvgV25(){
     var exams=state.exams||[];
-    var city=cityTrendActiveV16();
-    var subject=city?'总分':(state.subject||'总分');
+    var region=regionTrendActiveV16();
+    var subject=region?'总分':(state.subject||'总分');
     var metric=state.trendMetric||'score';
     var basis=state.scoreBasis||'final';
     var scope=state.rankScopeV16||'year';
@@ -5214,7 +5242,7 @@ saveExam=async function saveExamV21(id,modal){
     if(isRawRank||isPercent){
       var rankSubjects=subject==='总览'?['总分'].concat(SUBJECTS):[subject];
       series=rankSubjects.map(function(s,i){
-        return{label:s,color:customTrendColorV25(s,colors[i%colors.length]),value:function(e){if(city){var info=cityRankInfoV16(e,s);return isRawRank?info.rank:info.performance;}return isRawRank?rawRankValueV11(e,s):rankInfoV7(e,s).performance;}};
+        return{label:s,color:customTrendColorV25(s,colors[i%colors.length]),value:function(e){if(region){var info=regionRankInfoV16(e,s,state.regionTrendV16);return isRawRank?info.rank:info.performance;}return isRawRank?rawRankValueV11(e,s):rankInfoV7(e,s).performance;}};
       });
     }else if(basis==='raw'){
       if(subject==='总览'){
@@ -5238,7 +5266,7 @@ saveExam=async function saveExamV21(id,modal){
         ];
       }
     }
-    if(!city&&window.ScoreAverages)series=series.concat(window.ScoreAverages.series().map(function(s){return Object.assign({},s,{color:customTrendColorV25(s.label,s.color)});}));
+    if(!region&&window.ScoreAverages)series=series.concat(window.ScoreAverages.series().map(function(s){return Object.assign({},s,{color:customTrendColorV25(s.label,s.color)});}));
     var visible=series.filter(function(s){return !hiddenTrendLineV25(s.label)&&exams.some(function(e){return s.value(e)!==null;});});
     if(!visible.length)return '<div class="empty-chart"><div><div class="empty-icon">⌁</div>当前还没有可用于完整趋势的数据</div></div>';
     var points=exams.map(function(e){return{exam:e,values:visible.map(function(s){return s.value(e);})};});
@@ -5292,7 +5320,7 @@ saveExam=async function saveExamV21(id,modal){
   function openFullTrendV25(){
     var exams=state.exams||[];
     if(!exams.length)return toast('还没有考试记录');
-    var subject=cityTrendActiveV16()?'总分市排':(state.subject||'总分');
+    var subject=regionTrendActiveV16()?'总分'+rankScopeLabelV16(state.regionTrendV16):(state.subject||'总分');
     var svgText=fullTrendSvgV25();
     var modal=document.createElement('div');
     modal.className='modal-backdrop full-trend-modal-v25';
@@ -5634,7 +5662,7 @@ saveExam=async function saveExamV21(id,modal){
     if(save)save.onclick=function(){
       var svgText=extractChartSvgV25();
       if(!svgText)return toast('当前还没有图表可保存');
-      downloadSvgAsPngV25(svgText,trendFileNameV25(cityTrendActiveV16()?'总分市排':(state.subject||'趋势')));
+      downloadSvgAsPngV25(svgText,trendFileNameV25(regionTrendActiveV16()?'总分'+rankScopeLabelV16(state.regionTrendV16):(state.subject||'趋势')));
     };
     // 考试记录排序
     applyStoredOrderV25();

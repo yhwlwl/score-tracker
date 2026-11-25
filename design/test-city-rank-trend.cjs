@@ -19,14 +19,14 @@ async function run(){
  function home(){d.getElementById('app').innerHTML=w.homeHtml();w.bindPage();}
  const button=scope=>d.querySelector('[data-trend-scope-v16="'+scope+'"]');
  const tips=()=>Array.from(d.querySelectorAll('#chart circle[data-tip]'),n=>n.getAttribute('data-tip'));
- const data=()=>w.cityRankInfoV16(fixtures[0],'总分');
+ const data=()=>w.regionRankInfoV16(fixtures[0],'总分','city');
  assert.equal(data().rank,4000);assert.equal(data().participants,20000);
- assert.equal(w.cityRankInfoV16(fixtures[2],'总分').performance,null);
- assert.equal(w.cityRankInfoV16(fixtures[0],'数学').rank,null);
- assert.equal(w.cityRankInfoV16({cityRank:0,cityParticipants:100},'总分').rank,null);
- assert.equal(w.cityRankInfoV16({cityRank:101,cityParticipants:100},'总分').performance,null);
+ assert.equal(w.regionRankInfoV16(fixtures[2],'总分','city').performance,null);
+ assert.equal(w.regionRankInfoV16(fixtures[0],'数学','city').rank,null);
+ assert.equal(w.regionRankInfoV16({cityRank:0,cityParticipants:100},'总分','city').rank,null);
+ assert.equal(w.regionRankInfoV16({cityRank:101,cityParticipants:100},'总分','city').performance,null);
  home();assert(button('city'));button('city').click();home();
- assert.equal(s.cityTrendV16,true);assert.equal(s.rankScopeV16,'class');assert.equal(s.subject,'数学');
+ assert.equal(s.regionTrendV16,'city');assert.equal(s.rankScopeV16,'class');assert.equal(s.subject,'数学');
  assert(button('city').classList.contains('active'));assert(!button('class').classList.contains('active'));
  assert.equal(d.querySelector('.chart-card .card-title').textContent,'市排趋势');
  assert.equal(d.querySelectorAll('.chart-card [data-subject]').length,0);
@@ -40,9 +40,27 @@ async function run(){
  assert.equal(full.querySelectorAll('circle[data-tip]').length,2);
  full.querySelector('.close-btn').click();
  button('class').click();home();
- assert.equal(s.cityTrendV16,false);assert.equal(s.rankScopeV16,'class');assert.equal(s.subject,'数学');assert(d.querySelector('.chart-card [data-subject="数学"]'));
+ assert.equal(s.regionTrendV16,null);assert.equal(s.rankScopeV16,'class');assert.equal(s.subject,'数学');assert(d.querySelector('.chart-card [data-subject="数学"]'));
  s.exams=[fixtures[1]];s.allExams=[fixtures[1],fixtures[4]];home();assert(!button('city'));
- console.log('PASS: city rank opt-in, rank/percentile, missing data, full trend, scope isolation, subject restoration, hidden records');
+ // Both regions use one slot and retain independent data, including missing counts.
+ const district=[exam(1,{city_rank:4000,city_participants:20000,district_rank:300,district_participants:3000}),exam(2,{districtRank:250}),exam(3,{cityRank:2000,districtRank:100,districtParticipants:2000}),exam(4,{cityRank:1000,cityParticipants:10000}),exam(5,{districtRank:1,is_hidden:true})];
+ s.allExams=district;s.exams=district.slice(0,4);s.trendMetric='score';home();
+ const select=()=>d.querySelector('[data-trend-region-v16]');
+ function choose(v){const n=select();n.value=v;n.dispatchEvent(new w.Event('change',{bubbles:true}));home();}
+ assert(select());assert.equal(d.querySelectorAll('.rank-scope-v16 > .metric-btn-v7').length,4);
+ assert.equal(select().selectedOptions[0].textContent,'市排');
+ choose('district');assert.equal(s.regionTrendV16,'district');assert.equal(s.rankScopeV16,'class');assert.equal(s.subject,'数学');
+ assert.equal(d.querySelector('.chart-card .card-title').textContent,'区排趋势');
+ assert.equal(tips().length,3);assert(tips().some(t=>t.includes('第300名')));assert(!tips().some(t=>t.includes('第4000名')));
+ d.querySelector('[data-trend-metric="rank"]').click();home();
+ assert.equal(d.querySelector('.chart-card .card-title').textContent,'区排百分位趋势');assert.equal(tips().length,2);assert(tips().every(t=>t.includes('区级排名百分位')));
+ d.getElementById('trendFullV25').click();const districtFull=d.querySelector('.full-trend-modal-v25');assert(districtFull.querySelector('h3').textContent.includes('总分区排'));assert.equal(districtFull.querySelectorAll('circle[data-tip]').length,2);districtFull.querySelector('.close-btn').click();
+ choose('city');assert.equal(s.trendMetric,'rank');assert.equal(d.querySelector('.chart-card .card-title').textContent,'市排百分位趋势');
+ choose('district');button('class').click();home();assert.equal(select().selectedOptions[0].textContent,'区排');
+ choose('district');s.allExams=[district[3]];s.exams=[district[3]];home();assert(button('city'));assert.equal(s.regionTrendV16,'city');
+ s.allExams=[district[1],district[4]];s.exams=[district[1]];home();assert(button('district'));assert(!select());assert.equal(s.regionTrendV16,'district');
+ s.allExams=[fixtures[1],district[4]];s.exams=[fixtures[1]];home();assert(!select());assert(!button('district'));assert(!button('city'));assert.equal(s.trendMetric,'score');
+ console.log('PASS: city/district single slot, rank/percentile, missing data, full trend, scope isolation, preference, hidden records');
  }finally{dom.window.close();}
 }
 run().catch(e=>{console.error(e);process.exitCode=1});
