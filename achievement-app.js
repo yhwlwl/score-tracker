@@ -2,7 +2,7 @@
 (function(){'use strict';
  if(!window.ScoreAchievementUI||!window.ScoreAchievements||typeof bindPage!=='function')return;
  const UI=window.ScoreAchievementUI,C=window.ScoreAchievements;
- let session='',cache=null,enabled=null,inFlight=null,refreshTimer=null,revealTimer=null,dirty=false,checked=false,entry=null,generation=0;
+ let session='',cache=null,enabled=null,inFlight=null,refreshTimer=null,revealTimer=null,dirty=false,checked=false,entry=null,generation=0,cooldownRetry=false;
  const presented=new Set();let favorites=null,stats=null;
  function galleryOptions(){const owner=session;return {favorites,stats,onFavorites:async ids=>{if(key()!==owner)throw Error('account changed');const r=await call('achievement_favorites',{badgeIds:ids});if(key()!==owner||!r.ok)throw Error('save failed');favorites=r.favorites;mount()}}}
  function openCollection(){UI.openGallery(cache||[],galleryOptions())}
@@ -10,7 +10,7 @@
  const key=()=>{try{return state?.user&&state?.token?String(state.user.id||state.user.username)+':'+state.token:''}catch(_){return ''}};
  function sync(){
   const current=key();if(current!==session){
-   generation++;presented.clear();favorites=null;stats=null;session=current;cache=null;enabled=null;dirty=false;checked=false;inFlight=null;clearTimeout(refreshTimer);clearTimeout(revealTimer);refreshTimer=null;revealTimer=null;
+   generation++;cooldownRetry=false;presented.clear();favorites=null;stats=null;session=current;cache=null;enabled=null;dirty=false;checked=false;inFlight=null;clearTimeout(refreshTimer);clearTimeout(revealTimer);refreshTimer=null;revealTimer=null;
    UI.close();entry?.remove();entry=null;
   }
   return current;
@@ -42,7 +42,7 @@
   const ordered=[...fresh].sort((a,b)=>tierOrder.indexOf(badges.get(b.badge_id).tier)-tierOrder.indexOf(badges.get(a.badge_id).tier));
   const first=ordered[0];fresh.forEach(a=>presented.add(a.badge_id));UI.show(badges.get(first.badge_id),first,{stats,play:true,batch:fresh.length,ack:()=>acknowledge(fresh.map(x=>x.badge_id),owner),onGallery:()=>{if(key()===owner)openCollection()}});
  }
- function queue(delay=700){if(!sync()||enabled===false)return;dirty=true;clearTimeout(refreshTimer);refreshTimer=setTimeout(refresh,delay)}
+ function queue(delay=700){if(!sync()||enabled===false)return;cooldownRetry=false;dirty=true;clearTimeout(refreshTimer);refreshTimer=setTimeout(refresh,delay)}
  async function refresh(){
   clearTimeout(refreshTimer);refreshTimer=null;const owner=sync();if(!owner||enabled===false)return;
   if(inFlight){dirty=true;return}dirty=false;const gen=generation;
@@ -50,7 +50,7 @@
   try{
    const r=await promise;if(gen!==generation||owner!==key())return;checked=true;enabled=r.enabled===true;if(!enabled)return;
    cache=Array.isArray(r.awards)?r.awards:[];favorites=r.favorites??null;stats=r.stats??null;mount();reveal();
-   if(r.retryAfter){dirty=true;refreshTimer=setTimeout(refresh,Math.max(15,Math.min(120,Number(r.retryAfter)||60))*1000)}
+   if(r.retryAfter&&!cooldownRetry){cooldownRetry=true;dirty=true;refreshTimer=setTimeout(refresh,Math.max(15,Math.min(120,Number(r.retryAfter)||60))*1000)}
   }catch(_){if(gen===generation)checked=true}
   finally{if(gen===generation&&inFlight===promise){inFlight=null;if(dirty&&!refreshTimer)refreshTimer=setTimeout(refresh,1000)}}
  }
