@@ -73,7 +73,7 @@ begin
   select * into r from public.score_tracker_achievement_stats where singleton;
   if r.snapshot_day is distinct from d then
    with eligible as (select id from public.score_tracker_users where not coalesce(is_admin,false) and lower(username) not in ('showcase','admin','admin1')),
-   by_badge as (select a.badge_id,count(*) n from public.score_tracker_achievement_awards a join eligible e on e.id=a.user_id group by a.badge_id)
+   by_badge as (select case when a.badge_id='contributor' then 'creator' else a.badge_id end badge_id,count(distinct a.user_id) n from public.score_tracker_achievement_awards a join eligible e on e.id=a.user_id group by 1)
    insert into public.score_tracker_achievement_stats(singleton,snapshot_day,total,counts)
    values(true,d,(select count(*) from eligible),coalesce((select jsonb_object_agg(badge_id,n) from by_badge),'{}'::jsonb))
    on conflict(singleton) do update set snapshot_day=excluded.snapshot_day,total=excluded.total,counts=excluded.counts returning * into r;

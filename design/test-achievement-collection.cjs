@@ -3,8 +3,9 @@ const C=require('../supabase/functions/_shared/achievement-catalog.js');
 require('../supabase/functions/_shared/achievement-models.js');
 const E=require('../supabase/functions/_shared/achievement-engine.js');
 const ids=new Set(C.badges.map(x=>x.id));
-assert.equal(C.badges.length,52);assert.equal(ids.size,52);assert.equal(new Set(C.badges.map(x=>x.motif)).size,52);
-assert.deepEqual(Object.fromEntries(Object.keys(C.tiers).map(t=>[t,C.badges.filter(b=>b.tier===t).length])),{common:6,rare:8,epic:11,legendary:13,mythic:7,limited:7});
+assert.equal(C.badges.length,51);assert.equal(ids.size,51);assert.equal(new Set(C.badges.map(x=>x.motif)).size,51);
+assert.deepEqual(Object.fromEntries(Object.keys(C.tiers).map(t=>[t,C.badges.filter(b=>b.tier===t).length])),{common:6,rare:8,epic:11,legendary:13,mythic:7,limited:6});
+assert(!ids.has('contributor'));assert.equal(C.badges.find(b=>b.id==='creator').count,null);assert.equal(C.badges.find(b=>b.id==='creator').mode,'manual');
 const exam=(i,r,actual=60,overrides={})=>({id:'exam'+i,exam_date:'2026-10-'+String(i+1).padStart(2,'0'),created_at:'2026-10-'+String(i+1).padStart(2,'0')+'T00:00:00Z',grade_level:'a',total_rank:r,total_participants:100,scores:{数学:{actual,max:100,rank:r,participants:100}},...overrides});
 const get=(exams,extra={})=>E.evaluate({exams,today:'2026-11-25',models:null,...extra});
 const found=(exams,extra={})=>new Set(get(exams,extra).map(x=>x.badge_id));
@@ -28,7 +29,7 @@ assert(kernel.includes(prod.slice(prod.indexOf('/* ---- PAL2 kernel:'),prod.inde
 const uiSource=fs.readFileSync('achievement-ui.js','utf8'),w={ScoreAchievements:C};
 new Function('window',uiSource)(w);
 const shapes=C.badges.map(b=>w.ScoreAchievementUI.emblem(b).replace(/stbadge\d+/g,'ID'));
-assert.equal(new Set(shapes).size,52);assert(shapes.every(s=>s.includes('<svg')&&!s.includes('undefined')));
+assert.equal(new Set(shapes).size,51);assert(shapes.every(s=>s.includes('<svg')&&!s.includes('undefined')));
 assert(C.badges.every(b=>w.ScoreAchievementUI.demoEvidence(b).source==='demo'));
 for(const b of C.badges){assert(w.ScoreAchievementUI.summaries[b.id]);assert(w.ScoreAchievementUI.conditionRows(b,w.ScoreAchievementUI.demoEvidence(b)).every(r=>r.ok===true));assert(w.ScoreAchievementUI.conditionRows(b,null).every(r=>r.ok===null));}
 for(const a of hits){const b=C.badges.find(b=>b.id===a.badge_id);assert(w.ScoreAchievementUI.conditionRows(b,a.evidence).every(r=>r.ok!==false),b.id);}
@@ -40,7 +41,7 @@ win.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open',''
 win.HTMLDialogElement.prototype.close=function(){this.removeAttribute('open');this.dispatchEvent(new win.Event('close'))};
 win.eval(fs.readFileSync('supabase/functions/_shared/achievement-catalog.js','utf8'));win.eval(uiSource);
 const root=win.document.getElementById('gallery');win.ScoreAchievementUI.gallery(root,[],true);
-assert.equal(root.querySelectorAll('[data-id]').length,52);
+assert.equal(root.querySelectorAll('[data-id]').length,51);
 for(const b of C.badges){
  root.querySelector('[data-id="'+b.id+'"]').click();
  assert(win.document.querySelector('.st-ach-front h2').textContent===b.name);
@@ -67,4 +68,4 @@ assert.equal(root.querySelectorAll('.st-ach-favorite-selected').length,1);
 assert.equal(win.ScoreAchievementUI.rateInfo(C.badges[0],{stats:{total:100,counts:{'first-step':50}}}).value,'50.00%');
 assert.equal(win.ScoreAchievementUI.evidenceDay(actual.find(a=>a.badge_id==='three-days')),'2026-10-03');
 dom.window.close();
-console.log('PASS: 52 unique medals, evaluator boundaries, cumulative prediction, immutable receipts contract, frozen kernel, hidden badge and front/back DOM preview.');
+console.log('PASS: 51 unique medals, evaluator boundaries, cumulative prediction, immutable receipts contract, frozen kernel, hidden badge and front/back DOM preview.');

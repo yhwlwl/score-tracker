@@ -5,6 +5,22 @@ const catalogue=(globalThis as any).ScoreAchievements;
 const engine=(globalThis as any).ScoreAchievementEngine;
 const fields="badge_id,rule_version,awarded_at,seen_at,evidence";
 const ids=new Set(catalogue.badges.map((b:any)=>b.id));
+const canonicalId=(id:string)=>id==='contributor'?'creator':id;
+// Preserve original award rows and evidence; expose one canonical achievement.
+function canonicalAwards(list:any[]){
+ const byId=new Map<string,any>();
+ for(const a of list){
+  const id=canonicalId(a.badge_id);
+  if(!ids.has(id))continue;
+  const prev=byId.get(id);
+  const row={...a,badge_id:id};
+  if(!prev){byId.set(id,row);continue}
+  const first=Date.parse(row.awarded_at)<Date.parse(prev.awarded_at)?row:prev;
+  const seen=prev.seen_at||row.seen_at||null;
+  byId.set(id,{...first,seen_at:seen});
+ }
+ return [...byId.values()];
+}
 async function rows(db:any,table:string,uid:string,columns:string) {
  const result:any[]=[];
  for(let start=0;;start+=500){
@@ -18,25 +34,26 @@ async function rows(db:any,table:string,uid:string,columns:string) {
 async function awards(db:any,uid:string) {
  const r=await db.from('score_tracker_achievement_awards').select(fields).eq('user_id',uid).order('awarded_at');
  if(r.error)throw r.error;
- return r.data||[];
+ return canonicalAwards(r.data||[]);
 }
 async function collection(db:any,uid:string,list:any[]) {
  const [pref,stats]=await Promise.all([db.from('score_tracker_achievement_preferences').select('favorites').eq('user_id',uid).maybeSingle(),db.rpc('score_tracker_achievement_stats_daily')]);
  if(pref.error||stats.error)console.warn('achievement_collection_metadata_unavailable');
- return {enabled:true,awards:list,favorites:pref.error?null:pref.data?.favorites??null,stats:stats.error?null:stats.data};
+ return {enabled:true,awards:list,favorites:pref.error||!Array.isArray(pref.data?.favorites)?null:[...new Set<string>(pref.data.favorites.map(canonicalId))].filter(x=>ids.has(x)).slice(0,3),stats:stats.error?null:stats.data};
 }
 export async function achievements(db:any,uid:string,body:any) {
  if(Deno.env.get('SCORE_TRACKER_ACHIEVEMENTS_ENABLED')!=='true')return {enabled:false};
  if(body.action==='achievement_favorites'){
-  if(!Array.isArray(body.badgeIds)||body.badgeIds.length>3||body.badgeIds.some((x:any)=>typeof x!=='string'||!ids.has(x)))throw Error('invalid_favorites');
-  const selected=[...new Set<string>(body.badgeIds)];
+  if(!Array.isArray(body.badgeIds)||body.badgeIds.length>3||body.badgeIds.some((x:any)=>typeof x!=='string'||!ids.has(canonicalId(x))))throw Error('invalid_favorites');
+  const selected=[...new Set<string>(body.badgeIds.map(canonicalId))];
   const own=new Set((await awards(db,uid)).map((a:any)=>a.badge_id));
   if(selected.some(x=>!own.has(x)))throw Error('unowned_favorite');
   const r=await db.from('score_tracker_achievement_preferences').upsert({user_id:uid,favorites:selected,updated_at:new Date().toISOString()},{onConflict:'user_id'});
   if(r.error)throw r.error;return {enabled:true,ok:true,favorites:selected};
  }
  if(body.action==='achievement_ack'){
-  const requested=Array.isArray(body.badgeIds)?[...new Set(body.badgeIds.filter((x:any)=>typeof x==='string'&&ids.has(x)))].slice(0,52):[];
+  const requested=Array.isArray(body.badgeIds)?[...new Set<string>(body.badgeIds.filter((x:any)=>typeof x==='string').map(canonicalId).filter((x:string)=>ids.has(x)))].slice(0,ids.size):[];
+  if(requested.includes('creator'))requested.push('contributor');
   if(requested.length){
    const r=await db.from('score_tracker_achievement_awards').update({seen_at:new Date().toISOString()}).eq('user_id',uid).in('badge_id',requested).is('seen_at',null);
    if(r.error)throw r.error;
