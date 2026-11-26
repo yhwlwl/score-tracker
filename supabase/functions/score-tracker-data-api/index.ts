@@ -2,7 +2,6 @@ import { aiReleaseCapabilities } from '../_shared/ai-release.ts';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { examReflection } from "./reflection.ts";
-import { achievements } from "./achievements.ts";
 import "../_shared/exam-goals.js";
 const examGoals = (globalThis as any).ScoreExamGoals;
 
@@ -852,10 +851,6 @@ Deno.serve(async (req: Request) => {
     const user = await auth(String(body.token ?? ""));
     if (!user) return out({ error: "登录已失效，请重新登录", code: "UNAUTHORIZED" }, 401);
     const action = String(body.action ?? "");
-    if(['achievement_overview','achievement_refresh','achievement_ack','achievement_favorites'].includes(action)){
-      try{return out(await achievements(db,user.id,body));}
-      catch(e){console.error('achievement_service_failed', (e as any)?.code||'internal');return out({error:'成就服务暂不可用',code:'achievement_unavailable'},503);}
-    }
     if(action==='account_status'){
       const r=await db.rpc('score_tracker_ai_account',{p_user:user.id});if(r.error)return out({error:'成长与AI额度服务暂不可用',code:'account_benefits_unavailable'},503);return out({account:r.data});
     }
