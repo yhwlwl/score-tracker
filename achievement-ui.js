@@ -273,9 +273,10 @@ function demoEvidence(b){
  }
  return {kind:b.evidence,source:'demo',date:b.id==='early'?'2026-08-21':'2026-10-21',label:b.condition,verified:true,...(b.id==='rank-aware'?{position:24,participants:650}:{}),...(b.id==='full-picture'?{subjects:['语文','数学','英语','物理','化学','地理']}: {})};
 }
-let collectionDialog,dialog,deck,controls,shown,returnFocus,mode='front',tour=null,timer=null,ack=null,ackSent=false;
+let collectionDialog,dialog,deck,controls,shown,returnFocus,mode='front',tour=null,timer=null,flipTimer=null,ack=null,ackSent=false;
 const reduced=()=>g.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-function stopTour(){clearTimeout(timer);timer=null;tour=null}
+function stopFlip(){clearTimeout(flipTimer);flipTimer=null}
+function stopTour(){clearTimeout(timer);timer=null;tour=null;stopFlip()}
 function ensureDialog(){
  if(dialog)return;dialog=document.createElement('dialog');dialog.className='st-ach-dialog';dialog.setAttribute('aria-label','成就详情');
  dialog.innerHTML='<div class="st-ach-dialog-inner"><button type="button" class="st-ach-close" aria-label="关闭">×</button><div class="st-ach-batch"></div><div class="st-ach-perspective"><div class="st-ach-deck"></div></div><div class="st-ach-controls"></div></div>';
@@ -283,21 +284,25 @@ function ensureDialog(){
  dialog.querySelector('.st-ach-close').onclick=()=>dialog.close();
  dialog.addEventListener('cancel',()=>stopTour());dialog.addEventListener('close',()=>{stopTour();if(!ackSent&&ack){ackSent=true;ack()}ack=null;shown=null;returnFocus?.focus?.();returnFocus=null});
  dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close()});
+ document.addEventListener('visibilitychange',()=>{if(document.hidden)stopFlip()});
 }
-function setFace(f){mode=f;deck.classList.toggle('st-ach-flipped',f==='back');const front=deck.querySelector('.st-ach-front'),back=deck.querySelector('.st-ach-back');front.inert=f!=='front';back.inert=f!=='back';front.setAttribute('aria-hidden',String(f!=='front'));back.setAttribute('aria-hidden',String(f!=='back'));const btn=controls.querySelector('[data-flip]');if(btn)btn.textContent=f==='front'?'翻面 · 查看成就见证':'翻回徽章正面'}
+function setFace(f){stopFlip();mode=f;deck.classList.toggle('st-ach-flipped',f==='back');const front=deck.querySelector('.st-ach-front'),back=deck.querySelector('.st-ach-back');front.inert=f!=='front';back.inert=f!=='back';front.setAttribute('aria-hidden',String(f!=='front'));back.setAttribute('aria-hidden',String(f!=='back'));const btn=controls.querySelector('[data-flip]');if(btn)btn.textContent=f==='front'?'查看成就见证':'返回徽章正面'}
 function renderCard(b,a,opt={}){
- shown=b;const earned=!!a,preview=!!opt.demo,locked=!earned&&b.hidden&&!opt.reveal,source=a?.evidence?.source;
+ stopFlip();shown=b;const earned=!!a,preview=!!opt.demo,locked=!earned&&b.hidden&&!opt.reveal,source=a?.evidence?.source;
  const label=preview?'模拟解锁':opt.realPreview?(earned?'真实数据 · 符合条件':'真实数据 · 条件详情'):earned?'成就已解锁':'成就详情';
  dialog.dataset.tier=b.tier;dialog.querySelector('.st-ach-batch').textContent=opt.batch>1?(opt.realPreview?'真实记录符合 '+opt.batch+' 项成就 · 预览而非发放':'已解锁 '+opt.batch+' 项成就 · 优先展示代表徽章'):opt.tour?'巡展 '+opt.tour:'';
  deck.className='st-ach-deck';
  deck.innerHTML='<section class="st-ach-face st-ach-front '+(opt.play?'st-ach-reveal':'')+'"><div class="st-ach-halo"></div><div class="st-ach-kicker">SCORE TRACKER · '+label+'</div><div class="st-ach-rarity">'+esc(C.tiers[b.tier])+(b.hidden&&(!locked)?' · 隐藏':'')+'</div><div class="st-ach-hero">'+emblem(b,locked)+'</div><h2>'+esc(locked?'尚未发现':b.name)+'</h2><p class="st-ach-quote">'+esc(locked?'等待属于你的发现。':b.quote)+'</p><div class="st-ach-rate">'+(locked?'—':esc(rateInfo(b,opt).value))+'</div><small>'+ (locked?'解锁后揭晓':esc(rateInfo(b,opt).label))+'</small>'+(!locked&&earned&&!preview?cap(dateLabel(a)):'')+'<div class="st-ach-brand">SCORE TRACKER  /  ACHIEVEMENTS</div></section><section class="st-ach-face st-ach-back"><div class="st-ach-kicker">ACHIEVEMENT RECORD</div><h2>'+esc(locked?'尚未发现':b.name)+'</h2>'+renderConditions(b,a?.evidence,locked,opt)+'<h3>成就见证</h3>'+(locked?cap('尚未解锁'):evidence(b,a?.evidence))+(a?cap(preview?'示例数据 · 仅供交互预览':opt.realPreview&&source==='historical_replay'?'真实账号历史记录计算 · 预览，不正式发放；预测类为历史滚动回放':source==='historical_replay'?'历史滚动回放 · 非真实考前冻结预测':source==='demo'?'示例数据':source==='manual'?'经核验的纪念记录':'成就证据快照'):'')+(!earned&&!locked&&(b.mode!=='auto'||opt.pending)?cap(opt.pending||'待快照接入或活动核验，不会自动发放。'):'')+'</section>';
- controls.innerHTML='<button type="button" data-flip>翻面 · 查看成就见证</button>'+(opt.demo||(opt.realPreview&&earned)?'<button type="button" data-replay>重播</button>':'')+(tour?'<button type="button" data-tour-stop>停止巡展</button>':'')+(opt.onGallery?'<button type="button" data-gallery>查看收藏馆</button>':'')+'<button type="button" data-dismiss>关闭</button>';
+ controls.innerHTML='<button type="button" data-flip>查看成就见证</button>'+(opt.demo&&!tour?'<button type="button" data-replay>重播</button>':'')+(tour?'<button type="button" data-tour-stop>停止巡展</button>':'')+(opt.onGallery?'<button type="button" data-gallery>查看收藏馆</button>':'');
  controls.querySelector('[data-flip]').onclick=()=>{if(tour){stopTour();controls.querySelector('[data-tour-stop]')?.remove()}setFace(mode==='front'?'back':'front')};
- controls.querySelector('[data-dismiss]').onclick=()=>dialog.close();
  const replay=controls.querySelector('[data-replay]');if(replay)replay.onclick=()=>{stopTour();renderCard(b,a,{...opt,tour:null,play:true})};
  const stop=controls.querySelector('[data-tour-stop]');if(stop)stop.onclick=()=>{stopTour();stop.remove()};
  const gallery=controls.querySelector('[data-gallery]');if(gallery)gallery.onclick=()=>{stopTour();if(!ackSent&&ack){ackSent=true;ack()}ack=null;if(dialog.open)dialog.close();opt.onGallery()};
  setFace('front');
+ // A single, cancellable flip for an actual reveal; ordinary detail browsing never auto-flips.
+ if(opt.autoFlip&&opt.play&&earned&&!opt.demo&&!tour&&!reduced()&&!document.hidden){
+  flipTimer=setTimeout(()=>{flipTimer=null;if(dialog?.open&&shown===b&&mode==='front'&&!document.hidden)setFace('back')},5000);
+ }
 }
 function show(b,a,opt={}){
  ensureDialog();stopTour();if(!dialog.open){returnFocus=document.activeElement;dialog.showModal()}ack=opt.ack||null;ackSent=false;renderCard(b,a,opt);
@@ -318,11 +323,15 @@ function rateInfo(b,opt={}){
  if(opt.demo||opt.realPreview)return {value:rate(b),label:'历史达成率参考',number:b.count==null?Infinity:b.count/C.denominator};
  return {value:'待统计',label:'全站获得率',number:Infinity}
 }
-function favoriteIds(awards,preferred){const ids=new Set(awards.map(a=>a.badge_id));if(Array.isArray(preferred))return [...new Set(preferred)].filter(x=>ids.has(x)&&B.has(x)).slice(0,3);return [...awards].filter(a=>B.has(a.badge_id)).sort((a,b)=>awardDay(b).localeCompare(awardDay(a))).slice(0,3).map(a=>a.badge_id)}
-function entryHTML(awards=[],opt={}){const fav=favoriteIds(awards,opt.favorites),extras=awards.filter(a=>!fav.includes(a.badge_id)&&B.has(a.badge_id)).sort((a,b)=>awardDay(b).localeCompare(awardDay(a))).map(a=>a.badge_id),ids=[...fav,...extras].slice(0,5);return '<span class="st-ach-entry-top"><strong>我的成就</strong><span>'+esc(opt.realPreview?'符合 ':'已收藏 ')+awards.length+' 枚　›</span></span>'+(ids.length?'<span class="st-ach-entry-medals">'+ids.map(id=>emblem(B.get(id))).join('')+'</span>':'')+'<span class="st-ach-entry-sub">打开我的成长收藏册</span>'}
+function rarestAwards(awards,opt={}){
+ const rank=a=>{const b=B.get(a.badge_id);const n=rateInfo(b,opt).number;return Number.isFinite(n)?n:b.count==null?Infinity:b.count/C.denominator};
+ return [...awards].filter(a=>B.has(a.badge_id)).sort((a,b)=>{const x=rank(a),y=rank(b);if(x!==y)return x<y?-1:1;const tier=levels.indexOf(B.get(b.badge_id).tier)-levels.indexOf(B.get(a.badge_id).tier);return tier||awardDay(b).localeCompare(awardDay(a))||a.badge_id.localeCompare(b.badge_id)});
+}
+function favoriteIds(awards,preferred,opt={}){const ids=new Set(awards.map(a=>a.badge_id));if(Array.isArray(preferred))return [...new Set(preferred)].filter(x=>ids.has(x)&&B.has(x)).slice(0,3);return rarestAwards(awards,opt).slice(0,3).map(a=>a.badge_id)}
+function entryHTML(awards=[],opt={}){const fav=favoriteIds(awards,opt.favorites,opt),extras=rarestAwards(awards,opt).filter(a=>!fav.includes(a.badge_id)).map(a=>a.badge_id),ids=[...fav,...extras].slice(0,5);return '<span class="st-ach-entry-top"><strong>我的成就</strong><span>'+esc(opt.realPreview?'符合 ':'已收藏 ')+awards.length+' 枚　›</span></span>'+(ids.length?'<span class="st-ach-entry-medals">'+ids.map(id=>emblem(B.get(id))).join('')+'</span>':'')+'<span class="st-ach-entry-sub">打开我的成长收藏册</span>'}
 function gallery(root,awards=[],demo=false,options={}){
  const earned=new Map(awards.filter(a=>B.has(a.badge_id)).map(a=>[a.badge_id,a])),own=[...earned.values()],opt={...options,demo},filter={tier:'all',query:'',tab:demo?'all':'owned',sort:demo?'catalog':'rarity',reveal:demo};
- let favorites=favoriteIds(own,options.favorites),editing=false,busy=false,editMessage='';
+ let favorites=favoriteIds(own,options.favorites,opt),editing=false,busy=false,editMessage='';
  root.classList.add('st-ach-gallery');
  const secret=b=>b.hidden&&!earned.has(b.id)&&!filter.reveal;
  const name=b=>secret(b)?'尚未发现':b.name;

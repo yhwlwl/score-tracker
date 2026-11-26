@@ -29,7 +29,7 @@
   if(state.page!=='account'){entry?.remove();entry=null;return}
   const card=document.querySelector('#content .account-grid .account-card');if(!card)return;
   if(!entry||!entry.isConnected){entry=document.createElement('button');entry.type='button';entry.className='st-ach-entry';entry.onclick=openCollection;const before=card.querySelector('.account-secure-v39,#logoutBtn');if(before&&before.parentElement===card)card.insertBefore(entry,before);else card.append(entry)}
-  entry.innerHTML=UI.entryHTML(cache||[],{favorites});
+  entry.innerHTML=UI.entryHTML(cache||[],{favorites,stats});
  }
  function acknowledge(ids,owner){
   if(key()!==owner)return;call('achievement_ack',{badgeIds:ids}).then(()=>{if(key()!==owner)return;const set=new Set(ids);cache=(cache||[]).map(a=>set.has(a.badge_id)?{...a,seen_at:new Date().toISOString()}:a);mount()}).catch(()=>{});
@@ -40,7 +40,7 @@
   if(blocked()){revealTimer=setTimeout(reveal,1800);return}
   const owner=session,badges=new Map(C.badges.map(b=>[b.id,b]));
   const ordered=[...fresh].sort((a,b)=>tierOrder.indexOf(badges.get(b.badge_id).tier)-tierOrder.indexOf(badges.get(a.badge_id).tier));
-  const first=ordered[0];fresh.forEach(a=>presented.add(a.badge_id));UI.show(badges.get(first.badge_id),first,{stats,play:true,batch:fresh.length,ack:()=>acknowledge(fresh.map(x=>x.badge_id),owner),onGallery:()=>{if(key()===owner)openCollection()}});
+  const first=ordered[0];fresh.forEach(a=>presented.add(a.badge_id));UI.show(badges.get(first.badge_id),first,{stats,play:true,autoFlip:true,batch:fresh.length,ack:()=>acknowledge(fresh.map(x=>x.badge_id),owner),onGallery:()=>{if(key()===owner)openCollection()}});
  }
  function queue(delay=700){if(!sync()||enabled===false)return;cooldownRetry=false;dirty=true;clearTimeout(refreshTimer);refreshTimer=setTimeout(refresh,delay)}
  async function refresh(){

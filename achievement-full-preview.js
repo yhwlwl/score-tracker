@@ -21,7 +21,7 @@ function mount(){if(!sync())return;if(state.page!=='account'){entry?.remove();en
 }
 function blocked(){try{return !!(state.modal&&state.modal.isConnected!==false)||Array.from(document.querySelectorAll('dialog[open],.modal-backdrop,.fv36-back,.first-run-setup-overlay')).some(x=>x.getClientRects().length)}catch(_){return true}}
 function reveal(){clearTimeout(revealTimer);revealTimer=null;if(!sync()||!ready||document.hidden)return;const fresh=awards.filter(a=>!seen.has(a.badge_id)&&!presented.has(a.badge_id));if(!fresh.length)return;if(blocked()){revealTimer=setTimeout(reveal,1800);return}
- const session=owner,first=[...fresh].sort((a,b)=>tiers.indexOf(definitions.get(b.badge_id).tier)-tiers.indexOf(definitions.get(a.badge_id).tier))[0];fresh.forEach(a=>presented.add(a.badge_id));UI.show(definitions.get(first.badge_id),first,{...opts(),play:true,batch:fresh.length,ack:()=>{if(key()===session)fresh.forEach(a=>seen.add(a.badge_id))},onGallery:()=>{if(key()===session)openCollection()}});
+ const session=owner,first=[...fresh].sort((a,b)=>tiers.indexOf(definitions.get(b.badge_id).tier)-tiers.indexOf(definitions.get(a.badge_id).tier))[0];fresh.forEach(a=>presented.add(a.badge_id));UI.show(definitions.get(first.badge_id),first,{...opts(),play:true,autoFlip:true,batch:fresh.length,ack:()=>{if(key()===session)fresh.forEach(a=>seen.add(a.badge_id))},onGallery:()=>{if(key()===session)openCollection()}});
 }
 function queue(delay=650){if(!sync())return;dirty=true;clearTimeout(timer);timer=setTimeout(refresh,delay)}
 async function refresh(){clearTimeout(timer);timer=null;const k=sync();if(!k)return;if(flight){dirty=true;return}dirty=false;failed=false;const gen=generation,token=state.token,expected=state.user.id,ac=new AbortController();controller=ac;

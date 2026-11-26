@@ -51,14 +51,14 @@ for(const b of C.badges){
  win.document.querySelector('[data-flip]').click();
  assert(win.document.querySelector('.st-ach-deck').classList.contains('st-ach-flipped'));
  assert(win.document.querySelector('.st-ach-back').textContent.includes('示例数据'));
- win.document.querySelector('[data-dismiss]').click();
+ win.document.querySelector('.st-ach-close').click();
 }
 win.ScoreAchievementUI.gallery(root,[],false);
 root.querySelector('[data-tab="all"]').click();
 assert(root.querySelector('[data-id="outside-range"]').textContent.includes('尚未发现'));
 root.querySelector('[data-id="outside-range"]').click();
 assert(!win.document.querySelector('.st-ach-back').textContent.includes('95%预测区间最佳端点'));
-win.document.querySelector('[data-dismiss]').click();
+win.document.querySelector('.st-ach-close').click();
 const sample=actual.filter(a=>a.evidence.date||a.evidence.points?.length||a.evidence.achievedDate);
 win.ScoreAchievementUI.gallery(root,sample,false,{realPreview:true,favorites:[]});
 assert.equal(root.querySelectorAll('[data-id]').length,sample.length);
@@ -67,6 +67,25 @@ root.querySelector('[data-tab="owned"]').click();root.querySelector('[data-edit]
 assert.equal(root.querySelectorAll('.st-ach-favorite-selected').length,1);
 assert.equal(win.ScoreAchievementUI.rateInfo(C.badges[0],{stats:{total:100,counts:{'first-step':50}}}).value,'50.00%');
 assert.equal(win.ScoreAchievementUI.evidenceDay(actual.find(a=>a.badge_id==='three-days')),'2026-10-03');
+// Default display uses the lowest known rate, not the most recent date.
+const favSample=[{badge_id:'first-step',awarded_at:'2026-11-26'},{badge_id:'chronicle',awarded_at:'2026-09-01'},{badge_id:'rewrite',awarded_at:'2026-10-01'},{badge_id:'unexpected',awarded_at:'2026-11-25'}];
+assert.deepEqual(Array.from(win.ScoreAchievementUI.favoriteIds(favSample,null,{realPreview:true})),['chronicle','rewrite','unexpected']);
+assert.deepEqual(Array.from(win.ScoreAchievementUI.favoriteIds(favSample,['first-step'],{realPreview:true})),['first-step']);
+const def=C.badges.find(b=>b.id==='first-step'),award={badge_id:def.id,evidence:win.ScoreAchievementUI.demoEvidence(def)};
+const scheduled=new Map();let tid=0;const realSet=win.setTimeout,realClear=win.clearTimeout;
+win.setTimeout=(fn,ms)=>{const id=++tid;scheduled.set(id,{fn,ms});return id};win.clearTimeout=id=>scheduled.delete(id);
+win.ScoreAchievementUI.show(def,award,{realPreview:true,play:false});
+assert(![...scheduled.values()].some(x=>x.ms===5000));
+assert(!win.document.querySelector('[data-replay]'));
+win.document.querySelector('.st-ach-close').click();
+win.ScoreAchievementUI.show(def,award,{realPreview:true,play:true,autoFlip:true,onGallery:()=>{}});
+assert.equal(win.document.querySelectorAll('.st-ach-controls button').length,2);
+let flip=[...scheduled.values()].find(x=>x.ms===5000);assert(flip);
+flip.fn();assert(win.document.querySelector('.st-ach-deck').classList.contains('st-ach-flipped'));
+scheduled.clear();win.document.querySelector('.st-ach-close').click();
+win.ScoreAchievementUI.show(def,award,{realPreview:true,play:true,autoFlip:true});
+win.document.querySelector('[data-flip]').click();assert(![...scheduled.values()].some(x=>x.ms===5000));
+win.document.querySelector('.st-ach-close').click();win.setTimeout=realSet;win.clearTimeout=realClear;
 const fullPreview=fs.readFileSync('achievement-full-preview.js','utf8');
 new Function(fullPreview);
 assert(fullPreview.includes("read('list_exams'")&&fullPreview.includes("read('get_goal'"));

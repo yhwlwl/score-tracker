@@ -81,3 +81,45 @@
 .st-ach-timeline-tile .st-ach-tile-rate{font-size:12px}
 @media(max-width:600px){.st-ach-grid:not(.st-ach-timeline) .st-ach-tile{padding:8px 4px 9px;gap:3px}.st-ach-grid:not(.st-ach-timeline) .st-ach-tile-image{width:min(100%,100px)}.st-ach-grid:not(.st-ach-timeline) .st-ach-tile-rate{font-size:10px}.st-ach-grid:not(.st-ach-timeline) .st-ach-tile-date{padding-top:5px;margin-top:3px}}
 @media(prefers-color-scheme:dark){.st-ach-tile[data-tier=common] .st-ach-tile-text>small{color:#b0becd}.st-ach-tile[data-tier=rare] .st-ach-tile-text>small{color:#a0c9f1}.st-ach-tile[data-tier=epic] .st-ach-tile-text>small{color:#cfb8f2}.st-ach-tile[data-tier=legendary] .st-ach-tile-text>small{color:#e6c386}.st-ach-tile[data-tier=mythic] .st-ach-tile-text>small{color:#dfc9ff}.st-ach-tile[data-tier=limited] .st-ach-tile-text>small{color:#a5e0d2}}
+
+/* A viewport-bounded card, independent back scroll, and always-visible actions.
+   The invisible face never determines the modal's height. */
+.st-ach-dialog{
+ box-sizing:border-box;width:min(540px,calc(100vw - 20px));max-width:none;
+ height:min(650px,calc(100dvh - 20px));max-height:calc(100dvh - 20px);
+ overflow:hidden;margin:auto;padding:0
+}
+.st-ach-dialog-inner{box-sizing:border-box;display:grid;grid-template-rows:auto minmax(0,1fr) auto;height:100%;min-height:0;padding:34px 7px 4px;gap:8px}
+.st-ach-batch{grid-row:1;margin:0;line-height:1.4}.st-ach-perspective{grid-row:2;min-height:0;height:100%;min-width:0}
+.st-ach-deck{height:100%;min-height:0;grid-template-rows:minmax(0,1fr);grid-template-columns:minmax(0,1fr)}
+.st-ach-face{box-sizing:border-box;width:100%;height:100%;min-height:0;max-height:none;min-width:0;padding:clamp(10px,2.6dvh,22px)}
+.st-ach-front{justify-content:center;gap:clamp(3px,.8dvh,8px);overflow:auto}
+.st-ach-front>.st-ach-halo{flex:none}
+.st-ach-kicker,.st-ach-rarity,.st-ach-front h2,.st-ach-quote,.st-ach-rate,.st-ach-front>small,.st-ach-brand{flex-shrink:0}
+.st-ach-rarity{margin:0}.st-ach-hero{width:clamp(76px,23dvh,182px);max-width:62%;min-height:0;margin:0 auto;flex:0 1 auto;aspect-ratio:1}
+.st-ach-front h2{font-size:clamp(20px,4dvh,34px);margin:0;line-height:1.2}
+.st-ach-quote{font-size:clamp(12px,2.05dvh,16px);min-height:0;line-height:1.5;margin:3px 0;max-width:95%;display:block}
+.st-ach-rate{font-size:clamp(21px,3.5dvh,29px);line-height:1.15}
+.st-ach-front>small,.st-ach-front>.st-ach-caption{font-size:clamp(9px,1.55dvh,11px);line-height:1.3;margin:0}
+.st-ach-brand{margin:2px 0 0;padding:0;font-size:clamp(7px,1.3dvh,9px)}
+.st-ach-back{height:100%;min-height:0;max-height:none;overflow-y:auto;overscroll-behavior:contain}
+.st-ach-controls{grid-row:3;display:flex;flex-wrap:nowrap;align-items:stretch;justify-content:center;gap:8px;min-height:0;padding:0;flex-shrink:0}
+.st-ach-controls button{box-sizing:border-box;flex:0 1 auto;max-width:100%;min-width:0;white-space:normal;line-height:1.3;padding:10px 13px;font-size:13px}
+.st-ach-controls button[data-flip]{flex:1;max-width:270px}
+.st-ach-close{top:1px;right:8px}
+@media(max-height:480px){
+ .st-ach-dialog-inner{padding-top:28px;gap:5px}.st-ach-close{width:25px;height:25px;font-size:18px}
+ .st-ach-front{gap:3px;padding:7px 12px}.st-ach-kicker{font-size:8px;letter-spacing:1.4px}
+ .st-ach-rarity{font-size:10px}.st-ach-hero{width:clamp(52px,20dvh,96px)}
+ .st-ach-front h2{font-size:19px}.st-ach-quote{font-size:11px;margin:1px 0}
+ .st-ach-rate{font-size:20px}.st-ach-brand{display:none}.st-ach-controls button{padding:7px 10px;font-size:12px}
+}
+@media(max-width:360px){.st-ach-controls{gap:5px}.st-ach-controls button{padding:8px;font-size:12px}.st-ach-hero{max-width:57%}}
+/* Compress the collection overview so the grid appears earlier on tablets. */
+.st-ach-collection-hero{padding:14px 18px}
+.st-ach-collection-top h2{margin:3px 0}.st-ach-collection-top p{margin:4px 0 0}
+.st-ach-collection-count{font-size:30px}.st-ach-tier-counts{margin-top:10px;padding-top:9px}
+.st-ach-section-title{margin:14px 0 8px}.st-ach-featured{gap:8px}.st-ach-featured button{padding:7px 6px;gap:3px}
+.st-ach-featured svg{width:min(100%,66px)}.st-ach-feature-empty{height:52px}
+.st-ach-tabs{margin:12px 0 8px}.st-ach-filters{margin:10px 0 8px}
+@media(max-width:600px){.st-ach-collection-hero{padding:12px 14px}.st-ach-featured svg{width:min(100%,58px)}}
