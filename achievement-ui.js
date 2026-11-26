@@ -152,9 +152,9 @@ function conditionRows(b,e){
  const timeRules={'three-days':[3,0,0],'five-days':[5,0,0],'ten-days':[10,0,0],'twenty-days':[20,0,0],chronicle:[40,0,0],'half-year':[6,0,6],'year-trace':[12,365,6],'four-seasons':[12,0,12],rings:[20,365,9],'time-witness':[3,30,0],'long-road':[4,60,0],'time-kept':[6,0,3]};
  const tr=timeRules[b.id];if(tr){const upload=['time-witness','long-road','time-kept'].includes(b.id);count(upload?'不同实际录入日':'不同有效考试日',tr[0],e?.count,'天');if(tr[1])count('首末日期跨度',tr[1],e?.span,'天');if(tr[2])count('覆盖自然月',tr[2],e?.months,'个月');return rows}
  const forecastRules={unexpected:[1,2],'beyond-expectation':[3,2],rewrite:[5,2],undefined:[10,5],'unique-path':[3,5]};
- const fr=forecastRules[b.id];if(fr){count('累计符合条件的考试日',fr[0],e?(e.count??new Set(p.map(x=>x.date)).size):null,'天');ppge('每次至少超越预测点',fr[1],minOf(p.map(x=>x.delta)));return rows}
+ const fr=forecastRules[b.id];if(fr){count('累计符合条件的考试日',fr[0],e?(e.totalCount??e.count??new Set(p.map(x=>x.date)).size):null,'天');ppge('每次至少超越预测点',fr[1],e?.minDelta??minOf(p.map(x=>x.delta)));return rows}
  switch(b.id){
- case 'first-step':count('有效考试日',1,e?.date?1:null,'天');if(e?.date)add('首次记录日期','有效考试日',e.date,true);break;
+ case 'first-step':count('有效考试日',1,e?.count??(e?.date?1:null),'天');if(e?.date)add('首次记录日期','有效考试日',e.date,true);break;
  case 'full-picture':count('已记录有效学科',3,e?.subjects?.length,'门');break;
  case 'rank-aware':yes('有效单科排名','排名在参考人数范围内',e&&finite(e.position)&&finite(e.participants)?true:null,e&&finite(e.position)?'前 '+percent(e.position):'已满足');count('参考人数',30,e?.participants,'人');break;
  case 'goal-set':yes('长期学习目标','已经建立',e?.label?true:null);break;
@@ -164,9 +164,9 @@ function conditionRows(b,e){
  case 'step-up':count('相邻可比考试',2,p.length||null);ppge('位比改善',5,diff(pos[0],pos.at(-1)));break;
  case 'getting-better':count('同一序列连续考试',3,p.length||null);yes('位比连续改善','每场均比上一场靠前',pos.length===3&&pos.every(finite)?pos[0]>pos[1]&&pos[1]>pos[2]:null,'连续改善');ppge('累计位比改善',5,diff(pos[0],pos.at(-1)));break;
  case 'beyond-score':case 'more-than-score':case 'double-proof':{
- const dual=b.id==='double-proof',n=b.id==='beyond-score'?1:3;count('符合条件的不同考试日',n,e?new Set(ev.map(x=>x.points?.at(-1)?.date).filter(Boolean)).size:null,'天');
- if(dual)ppge('每次得分率改善',3,minOf(ev.map(x=>x.scoreChange)));else pple('每次得分率变化',-3,maxOf(ev.map(x=>x.scoreChange)));
- ppge('每次位比改善',5,minOf(ev.map(x=>x.positionChange)));break}
+ const dual=b.id==='double-proof',n=b.id==='beyond-score'?1:3;count('符合条件的不同考试日',n,e?(e.totalCount??new Set(ev.map(x=>x.points?.at(-1)?.date).filter(Boolean)).size):null,'天');
+ if(dual)ppge('每次得分率改善',3,e?.minScoreChange??minOf(ev.map(x=>x.scoreChange)));else pple('每次得分率变化',-3,e?.maxScoreChange??maxOf(ev.map(x=>x.scoreChange)));
+ ppge('每次位比改善',5,e?.minPositionChange??minOf(ev.map(x=>x.positionChange)));break}
  case 'steady':case 'plateau':case 'another-height':case 'new-horizon':{
  const old=mean(pos.slice(0,2)),fresh=pos.slice(2),steady=b.id==='steady',horizon=b.id==='new-horizon';
  count(horizon?'可比总分考试':b.id==='another-height'?'可比单科考试':'可比考试',4,p.length||null);
@@ -204,7 +204,7 @@ function renderConditions(b,e,locked,opt={}){
 function evidence(b,e){
  if(!e)return cap('尚未获得 · 解锁后显示证据');
  if(e.kind==='forecast'||e.kind==='match'){
- const p=e.points||[];return plot([{label:'系统预测',values:p.map(x=>x.prediction),color:'#8197c4',dash:true},{label:'实际位比',values:p.map(x=>x.actual),color:'#29977f'}])+metrics([['累计超越',String(p.length)+' 次'],['平均超越',pp(p.reduce((s,x)=>s+Number(x.delta),0)/Math.max(1,p.length))]])+'<details><summary>查看关联考试日</summary>'+p.map(x=>'<div class="st-ach-evidence-line">'+esc(x.date)+' · 预测前 '+percent(x.prediction)+' / 实际前 '+percent(x.actual)+'</div>').join('')+'</details>';
+ const p=e.points||[];return plot([{label:'系统预测',values:p.map(x=>x.prediction),color:'#8197c4',dash:true},{label:'实际位比',values:p.map(x=>x.actual),color:'#29977f'}])+metrics([['累计超越',String(e.totalCount??p.length)+' 次'],['所示考试平均超越',pp(p.reduce((s,x)=>s+Number(x.delta),0)/Math.max(1,p.length))]])+'<details><summary>查看解锁证据考试日</summary>'+p.map(x=>'<div class="st-ach-evidence-line">'+esc(x.date)+' · 预测前 '+percent(x.prediction)+' / 实际前 '+percent(x.actual)+'</div>').join('')+'</details>';
  }
  if(e.kind==='interval'){
  const lo=Number(e.low),hi=Number(e.high),a=Number(e.actual),base=Math.max(0,Math.min(lo,a)-5),end=Math.min(100,Math.max(hi,a)+5),y=v=>15+105*(v-base)/Math.max(1,end-base);

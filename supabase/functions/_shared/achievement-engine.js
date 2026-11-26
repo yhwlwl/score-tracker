@@ -20,7 +20,7 @@ function evaluate({exams=[],goal=null,createdAt=null,today=beijing(new Date().to
  const examDays=[...new Set(es.map(e=>e.exam_date))],uploadDays=[...new Set(es.map(e=>beijing(e.created_at)).filter(Boolean))].sort(),months=new Set(examDays.map(d=>d.slice(0,7))),uploadMonths=new Set(uploadDays.map(d=>d.slice(0,7)));
  const span=examDays.length?days(examDays[0],examDays.at(-1)):0,upSpan=uploadDays.length?days(uploadDays[0],uploadDays.at(-1)):0;
  function time(id,dates){add(id,{kind:'time',dates:[dates[0],dates.at(-1)],count:dates.length,span:days(dates[0],dates.at(-1)),months:new Set(dates.map(d=>d.slice(0,7))).size})}
- if(examDays.length)add('first-step',{date:examDays[0]});
+ if(examDays.length)add('first-step',{date:examDays[0],count:examDays.length});
  const subjects=new Set();for(const e of es)for(const [s,v] of Object.entries(e.scores||{}))if(valid(v.actual,v.max)||valid(v.raw,v.rawMax))subjects.add(s);
  if(subjects.size>=3)add('full-picture',{subjects:[...subjects]});
  if(goal)add('goal-set',{kind:'record',label:'长期目标已建立'});
@@ -64,8 +64,8 @@ function evaluate({exams=[],goal=null,createdAt=null,today=beijing(new Date().to
    best=Math.max(best,o.rate);
   }
  }
- if(diverg.size>=3)add('more-than-score',{kind:'dual',events:[...diverg.values()].slice(0,3)});
- if(dual.size>=3)add('double-proof',{kind:'dual',events:[...dual.values()].slice(0,3)});
+ if(diverg.size>=3)add('more-than-score',{kind:'dual',events:[...diverg.values()].slice(0,3),totalCount:diverg.size,minPositionChange:Math.min(...[...diverg.values()].map(x=>x.positionChange)),maxScoreChange:Math.max(...[...diverg.values()].map(x=>x.scoreChange))});
+ if(dual.size>=3)add('double-proof',{kind:'dual',events:[...dual.values()].slice(0,3),totalCount:dual.size,minPositionChange:Math.min(...[...dual.values()].map(x=>x.positionChange)),minScoreChange:Math.min(...[...dual.values()].map(x=>x.scoreChange))});
  for(const a of pairs.values()){const good=a.filter(x=>x.dp>=5).length;if(a.every(x=>x.dp>=-2)){if(good>=3)add('chorus',{kind:'radar',subjects:a});if(good>=5)add('resonance',{kind:'radar',subjects:a})}}
  // Rank sequences; total is separated by subject basket. Split on population change.
  const forecasts2=new Map(),forecasts5=new Map();
@@ -114,7 +114,7 @@ function evaluate({exams=[],goal=null,createdAt=null,today=beijing(new Date().to
    }
   }
  }
- for(const [id,n,m] of [['unexpected',1,forecasts2],['beyond-expectation',3,forecasts2],['rewrite',5,forecasts2],['undefined',10,forecasts5]])if(m.size>=n)add(id,{kind:'forecast',model:'ewma-0.40-v1',points:[...m.values()].sort((a,b)=>a.date.localeCompare(b.date)).slice(0,n),count:n});
+ for(const [id,n,m] of [['unexpected',1,forecasts2],['beyond-expectation',3,forecasts2],['rewrite',5,forecasts2],['undefined',10,forecasts5]])if(m.size>=n)add(id,{kind:'forecast',model:'ewma-0.40-v1',points:[...m.values()].sort((a,b)=>a.date.localeCompare(b.date)).slice(0,n),count:n,totalCount:m.size,minDelta:Math.min(...[...m.values()].map(x=>x.delta))});
  // Four exams with the same ranked subject basket; compare averages before/after.
  const bundles=groups(es.filter(e=>(perExam.get(e.id)||[]).length>=4),e=>JSON.stringify([e.grade_level||'',perExam.get(e.id).map(x=>x.subject).sort()]));
  for(const raw of bundles.values()){

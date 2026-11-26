@@ -30,6 +30,9 @@ new Function('window',uiSource)(w);
 const shapes=C.badges.map(b=>w.ScoreAchievementUI.emblem(b).replace(/stbadge\d+/g,'ID'));
 assert.equal(new Set(shapes).size,52);assert(shapes.every(s=>s.includes('<svg')&&!s.includes('undefined')));
 assert(C.badges.every(b=>w.ScoreAchievementUI.demoEvidence(b).source==='demo'));
+for(const b of C.badges){assert(w.ScoreAchievementUI.summaries[b.id]);assert(w.ScoreAchievementUI.conditionRows(b,w.ScoreAchievementUI.demoEvidence(b)).every(r=>r.ok===true));assert(w.ScoreAchievementUI.conditionRows(b,null).every(r=>r.ok===null));}
+for(const a of hits){const b=C.badges.find(b=>b.id===a.badge_id);assert(w.ScoreAchievementUI.conditionRows(b,a.evidence).every(r=>r.ok!==false),b.id);}
+assert(byId.get('beyond-expectation').evidence.totalCount>=3);
 const {JSDOM}=require('jsdom');
 const dom=new JSDOM('<html><body><div id="gallery"></div></body></html>',{runScripts:'dangerously',pretendToBeVisual:true});
 const win=dom.window;
@@ -41,7 +44,9 @@ assert.equal(root.querySelectorAll('[data-id]').length,52);
 for(const b of C.badges){
  root.querySelector('[data-id="'+b.id+'"]').click();
  assert(win.document.querySelector('.st-ach-front h2').textContent===b.name);
- assert(win.document.querySelector('.st-ach-back').textContent.includes(b.condition));
+ assert(win.document.querySelector('.st-ach-summary').textContent===win.ScoreAchievementUI.summaries[b.id]);
+ assert(win.document.querySelectorAll('.st-ach-rule-row').length===win.ScoreAchievementUI.conditionRows(b,win.ScoreAchievementUI.demoEvidence(b)).length);
+ assert.equal(win.document.querySelectorAll('.st-ach-rule-actual.is-met').length,win.document.querySelectorAll('.st-ach-rule-row').length);
  win.document.querySelector('[data-flip]').click();
  assert(win.document.querySelector('.st-ach-deck').classList.contains('st-ach-flipped'));
  assert(win.document.querySelector('.st-ach-back').textContent.includes('示例数据'));
