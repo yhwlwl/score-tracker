@@ -20,8 +20,21 @@ async function awards(db:any,uid:string) {
  if(r.error)throw r.error;
  return r.data||[];
 }
+async function collection(db:any,uid:string,list:any[]) {
+ const [pref,stats]=await Promise.all([db.from('score_tracker_achievement_preferences').select('favorites').eq('user_id',uid).maybeSingle(),db.rpc('score_tracker_achievement_stats_daily')]);
+ if(pref.error||stats.error)console.warn('achievement_collection_metadata_unavailable');
+ return {enabled:true,awards:list,favorites:pref.error?null:pref.data?.favorites??null,stats:stats.error?null:stats.data};
+}
 export async function achievements(db:any,uid:string,body:any) {
  if(Deno.env.get('SCORE_TRACKER_ACHIEVEMENTS_ENABLED')!=='true')return {enabled:false};
+ if(body.action==='achievement_favorites'){
+  if(!Array.isArray(body.badgeIds)||body.badgeIds.length>3||body.badgeIds.some((x:any)=>typeof x!=='string'||!ids.has(x)))throw Error('invalid_favorites');
+  const selected=[...new Set<string>(body.badgeIds)];
+  const own=new Set((await awards(db,uid)).map((a:any)=>a.badge_id));
+  if(selected.some(x=>!own.has(x)))throw Error('unowned_favorite');
+  const r=await db.from('score_tracker_achievement_preferences').upsert({user_id:uid,favorites:selected,updated_at:new Date().toISOString()},{onConflict:'user_id'});
+  if(r.error)throw r.error;return {enabled:true,ok:true,favorites:selected};
+ }
  if(body.action==='achievement_ack'){
   const requested=Array.isArray(body.badgeIds)?[...new Set(body.badgeIds.filter((x:any)=>typeof x==='string'&&ids.has(x)))].slice(0,52):[];
   if(requested.length){
@@ -30,10 +43,10 @@ export async function achievements(db:any,uid:string,body:any) {
   }
   return {enabled:true,ok:true};
  }
- if(body.action==='achievement_overview')return {enabled:true,awards:await awards(db,uid)};
+ if(body.action==='achievement_overview')return await collection(db,uid,await awards(db,uid));
  const lock=await db.rpc('score_tracker_achievement_claim_scan',{p_user:uid});
  if(lock.error)throw lock.error;
- if(!lock.data)return {enabled:true,awards:await awards(db,uid),retryAfter:60};
+ if(!lock.data)return {...await collection(db,uid,await awards(db,uid)),retryAfter:60};
  const already=await awards(db,uid);
  const [exams,scores,goal,user]=await Promise.all([
   rows(db,'score_tracker_exams',uid,'id,exam_date,created_at,is_hidden,grade_level,total_rank,total_participants,total_actual_score,total_raw_score,reflection'),
@@ -52,5 +65,5 @@ export async function achievements(db:any,uid:string,body:any) {
   const r=await db.from('score_tracker_achievement_awards').upsert(insert,{onConflict:'user_id,badge_id',ignoreDuplicates:true});
   if(r.error)throw r.error;
  }
- return {enabled:true,awards:await awards(db,uid)};
+ return await collection(db,uid,await awards(db,uid));
 }

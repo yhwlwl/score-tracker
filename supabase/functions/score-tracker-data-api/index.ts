@@ -852,7 +852,7 @@ Deno.serve(async (req: Request) => {
     const user = await auth(String(body.token ?? ""));
     if (!user) return out({ error: "登录已失效，请重新登录", code: "UNAUTHORIZED" }, 401);
     const action = String(body.action ?? "");
-    if(['achievement_overview','achievement_refresh','achievement_ack'].includes(action)){
+    if(['achievement_overview','achievement_refresh','achievement_ack','achievement_favorites'].includes(action)){
       try{return out(await achievements(db,user.id,body));}
       catch(e){console.error('achievement_service_failed', (e as any)?.code||'internal');return out({error:'成就服务暂不可用',code:'achievement_unavailable'},503);}
     }

@@ -44,3 +44,43 @@ create table public.score_tracker_achievement_predictions (
 alter table public.score_tracker_achievement_predictions enable row level security;
 revoke all on public.score_tracker_achievement_predictions from public,anon,authenticated;
 grant select,insert,update on public.score_tracker_achievement_predictions to service_role;
+
+-- Collection metadata, private per-user preferences and cached aggregate.
+create table public.score_tracker_achievement_preferences (
+ user_id uuid primary key references public.score_tracker_users(id) on delete cascade,
+ favorites text[] not null default '{}'::text[] check(cardinality(favorites)<=3),
+ updated_at timestamptz not null default now()
+);
+alter table public.score_tracker_achievement_preferences enable row level security;
+revoke all on public.score_tracker_achievement_preferences from public,anon,authenticated;
+grant select,insert,update on public.score_tracker_achievement_preferences to service_role;
+create table public.score_tracker_achievement_stats (
+ singleton boolean primary key default true check(singleton),
+ snapshot_day date not null,
+ total bigint not null,
+ counts jsonb not null
+);
+alter table public.score_tracker_achievement_stats enable row level security;
+revoke all on public.score_tracker_achievement_stats from public,anon,authenticated;
+grant select,insert,update on public.score_tracker_achievement_stats to service_role;
+create function public.score_tracker_achievement_stats_daily()
+returns jsonb language plpgsql volatile security invoker set search_path='' as $$
+declare d date := (now() at time zone 'Asia/Shanghai')::date; r public.score_tracker_achievement_stats%rowtype;
+begin
+ select * into r from public.score_tracker_achievement_stats where singleton;
+ if r.snapshot_day is distinct from d then
+  perform pg_advisory_xact_lock(812426031);
+  select * into r from public.score_tracker_achievement_stats where singleton;
+  if r.snapshot_day is distinct from d then
+   with eligible as (select id from public.score_tracker_users where not coalesce(is_admin,false) and lower(username) not in ('showcase','admin','admin1')),
+   by_badge as (select a.badge_id,count(*) n from public.score_tracker_achievement_awards a join eligible e on e.id=a.user_id group by a.badge_id)
+   insert into public.score_tracker_achievement_stats(singleton,snapshot_day,total,counts)
+   values(true,d,(select count(*) from eligible),coalesce((select jsonb_object_agg(badge_id,n) from by_badge),'{}'::jsonb))
+   on conflict(singleton) do update set snapshot_day=excluded.snapshot_day,total=excluded.total,counts=excluded.counts returning * into r;
+  end if;
+ end if;
+ return jsonb_build_object('day',r.snapshot_day,'total',r.total,'counts',r.counts);
+end;
+$$;
+revoke all on function public.score_tracker_achievement_stats_daily() from public,anon,authenticated;
+grant execute on function public.score_tracker_achievement_stats_daily() to service_role;
