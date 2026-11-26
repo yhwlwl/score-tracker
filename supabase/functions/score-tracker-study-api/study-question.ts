@@ -409,8 +409,9 @@ export async function explore(snapshot:any, question:string, history:any[], comp
 
 // Exact score lookup uses the same authorized facts as the agent, without an LLM round trip.
 export async function directLatestScore(snapshot:any,question:string){
-  const tools=studyTools(snapshot);
   const q=question.normalize('NFKC').replace(/[\s？?。！!]/g,'');
+  if(!q.includes('最近一次')||!/(?:多少分|成绩是多少)$/.test(q))return null;
+  const tools=studyTools(snapshot);
   for(const [key,name] of Object.entries(tools.catalog.scopes)){
     if(!key.startsWith('s:')||!name)continue;
     const forms=['最近一次'+name+'考了多少分','最近一次'+name+'成绩是多少','最近一次'+name+'多少分',name+'最近一次考了多少分',name+'最近一次成绩是多少'];
