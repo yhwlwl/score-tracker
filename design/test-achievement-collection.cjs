@@ -10,6 +10,17 @@ const exam=(i,r,actual=60,overrides={})=>({id:'exam'+i,exam_date:'2026-10-'+Stri
 const get=(exams,extra={})=>E.evaluate({exams,today:'2026-11-25',models:null,...extra});
 const found=(exams,extra={})=>new Set(get(exams,extra).map(x=>x.badge_id));
 assert.equal(get([]).length,0);
+const first=get([],{createdAt:'2026-09-10T08:00:00Z',firstUseAt:'2026-09-10T09:00:00Z'}).find(a=>a.badge_id==='first-step');
+assert.equal(first.evidence.achievedDate,'2026-09-10');
+assert.equal(get([],{createdAt:'2026-09-10T08:00:00Z'}).find(a=>a.badge_id==='first-step').evidence.dateBasis,'registration_fallback');
+const backfill=Array.from({length:12},(_,i)=>exam(i,40,80,{exam_date:new Date(Date.UTC(2025,10+i,10)).toISOString().slice(0,10),created_at:'2026-11-20T08:00:00Z'}));
+const backfillAwards=get(backfill,{createdAt:'2026-11-20T00:00:00Z'});
+assert(backfillAwards.some(a=>a.badge_id==='four-seasons'&&a.evidence.achievedDate==='2026-10-10'));
+assert(!backfillAwards.some(a=>a.badge_id==='year-trace'||a.badge_id==='time-kept'));
+const realYear=Array.from({length:12},(_,i)=>exam(i,40,80,{exam_date:new Date(Date.UTC(2024,10+i*2,10)).toISOString().slice(0,10),created_at:new Date(Date.UTC(2024,10+i*2,10)).toISOString()}));
+assert(found(realYear).has('year-trace'));
+assert(!found(realYear).has('rings'));
+
 assert(!found([exam(1,20,null,{total_actual_score:null})]).has('first-step'));
 assert(!found([exam(1,20,80,{is_hidden:true}),exam(2,20,80,{exam_date:'2027-01-01'})]).has('first-step'));
 assert(!found([exam(1,20,80),exam(2,20,90,{exam_date:'2026-10-02'})]).has('new-best'));
@@ -23,7 +34,7 @@ assert(!found(hist,{owned:['unexpected']}).has('unexpected'));
 assert(!hits.some(a=>!ids.has(a.badge_id)||C.badges.find(b=>b.id===a.badge_id).mode!=='auto'));
 assert(found([],{createdAt:'2026-08-26T15:59:59Z'}).has('early'));assert(!found([],{createdAt:'2026-08-26T16:00:00Z'}).has('early'));
 const actual=E.evaluate({exams:hist,today:'2026-11-25'});assert(actual.length>=hits.length);
-for(const a of actual){assert(a.evidence.source==='historical_replay');assert.equal(a.rule_version,1)}
+for(const a of actual){assert(a.evidence.source==='historical_replay');assert.equal(a.rule_version,['first-step','full-picture','rank-aware','year-trace','rings','time-kept'].includes(a.badge_id)?2:1)}
 const prod=fs.readFileSync('app-v34.js','utf8'),worth=fs.readFileSync('score-worth-model.js','utf8'),kernel=fs.readFileSync('supabase/functions/_shared/achievement-models.js','utf8');
 assert(kernel.includes(prod.slice(prod.indexOf('/* ---- PAL2 kernel:'),prod.indexOf('/* deep-beta-main.js'))));assert(kernel.includes(worth),'frozen kernels must match original files');
 const uiSource=fs.readFileSync('achievement-ui.js','utf8'),w={ScoreAchievements:C};
