@@ -53,7 +53,7 @@ function evaluate({exams=[],goal=null,createdAt=null,today=beijing(new Date().to
  for(const seq of groups(sp,x=>JSON.stringify([x.category,x.subject,x.max])).values()){
   const a=dedup(seq);let best=-Infinity;
   for(let i=0;i<a.length;i++){const o=a[i];if(i&&o.rate>best)add('new-best',{kind:'score',points:[...a.slice(0,i).filter(x=>x.rate===best).slice(-1),o].map(point)});
-   if(i>=3&&i+1<a.length&&o.rate>=best+5&&a[i+1].rate>=best)add('hold-peak',{kind:'score',points:a.slice(Math.max(0,i-3),i+2).map(point),previousBest:round(best)});
+   if(i>=3&&i+1<a.length&&o.rate>=best+5&&a[i+1].rate>=best)add('hold-peak',{kind:'score',points:a.slice(Math.max(0,i-3),i+2).map(point),previousBest:round(best),historyCount:i+2,priorCount:i});
    if(i&&Number.isFinite(o.pos)&&Number.isFinite(a[i-1].pos)&&popOk([a[i-1],o])){
     const p=a[i-1],dp=p.pos-o.pos,ds=o.rate-p.rate;
     const ev={kind:'dual',points:[p,o].map(point),positionChange:round(dp),scoreChange:round(ds)};
@@ -103,14 +103,14 @@ function evaluate({exams=[],goal=null,createdAt=null,today=beijing(new Date().to
     }
    }
    if(models?.pal&&check(6)&&!existing.has('phase-shift')&&!out.has('phase-shift')){
-    const h=seg.slice(0,-1),k=h.length-1;try{const cp=models.pal.pipeline.analyzeSeries(h,PROD).changepoint,old=avg(h.slice(-4,-1).map(x=>x.pos)),fresh=Math.max(h.at(-1).pos,o.pos);if(k>=4&&cp.recentChangeProb[k]>.5&&cp.mapRunLength[k-1]>=3&&old-fresh>=5)add('phase-shift',{kind:'state',model:'app-v34/no-se-v1',points:seg.slice(-6).map(point),probability:round(cp.recentChangeProb[k]*100),improvement:round(old-fresh)})}catch(_){}
+    const h=seg.slice(0,-1),k=h.length-1;try{const cp=models.pal.pipeline.analyzeSeries(h,PROD).changepoint,old=avg(h.slice(-4,-1).map(x=>x.pos)),fresh=Math.max(h.at(-1).pos,o.pos);if(k>=4&&cp.recentChangeProb[k]>.5&&cp.mapRunLength[k-1]>=3&&old-fresh>=5)add('phase-shift',{kind:'state',model:'app-v34/no-se-v1',points:seg.slice(-6).map(point),probability:round(cp.recentChangeProb[k]*100),improvement:round(old-fresh),stableRun:cp.mapRunLength[k-1]})}catch(_){}
    }
   }
   if(!isTotal&&models?.worth&&(!existing.has('harder')&&!out.has('harder')||!existing.has('headwind')&&!out.has('headwind'))){
    const validObs=a.filter(x=>Number.isFinite(x.rate));let seg=[];
    for(const o of validObs){if((existing.has('harder')||out.has('harder'))&&(existing.has('headwind')||out.has('headwind')))break;if(seg.length&&!popOk([seg.at(-1),o]))seg=[];seg.push(o);if(seg.length<4||!popOk(seg))continue;
     const prev=seg.slice(0,-1);const e=seg.map((x,j)=>({id:String(j),exam_date:x.date,grade_level:'same',total_participants:x.N,scores:{s:{actual:x.score,max:x.max,rank:x.rank,participants:x.N}}}));
-    try{const r=models.worth.compare(e,'s',e.length-1,{mode:'period',start:prev[0].date,end:prev.at(-1).date});if(r.kind!=='estimate'||(r.warnings||[]).some(x=>x!=='历史记录还少'))continue;const baseline=avg(prev.slice(-3).map(x=>x.pos)),delta=r.difficulty-r.referenceDifficulty;if(delta>=10&&o.pos<=baseline){const ev={kind:'difficulty',model:'score-worth-v1',date:o.date,subject:o.subject,difficulty:round(r.difficulty),referenceDifficulty:round(r.referenceDifficulty),actual:round(o.pos),baseline:round(baseline)};add('harder',ev);if(seg.length>=5&&baseline-o.pos>=5)add('headwind',ev)}}catch(_){}
+    try{const r=models.worth.compare(e,'s',e.length-1,{mode:'period',start:prev[0].date,end:prev.at(-1).date});if(r.kind!=='estimate'||(r.warnings||[]).some(x=>x!=='历史记录还少'))continue;const baseline=avg(prev.slice(-3).map(x=>x.pos)),delta=r.difficulty-r.referenceDifficulty;if(delta>=10&&o.pos<=baseline){const ev={kind:'difficulty',model:'score-worth-v1',date:o.date,subject:o.subject,difficulty:round(r.difficulty),referenceDifficulty:round(r.referenceDifficulty),actual:round(o.pos),baseline:round(baseline),historyCount:seg.length,qualityPassed:true};add('harder',ev);if(seg.length>=5&&baseline-o.pos>=5)add('headwind',ev)}}catch(_){}
    }
   }
  }
@@ -125,8 +125,8 @@ function evaluate({exams=[],goal=null,createdAt=null,today=beijing(new Date().to
    for(const s of sub){const vals=records.map(r=>r.find(x=>x.subject===s));if(vals.every(Boolean)&&popOk(vals))arr.push({subject:s,before:avg(vals.slice(0,2).map(x=>x.pos)),after:avg(vals.slice(2).map(x=>x.pos))})}
    if(arr.length<4)continue;const b=med(arr.map(x=>x.before)),c=med(arr.map(x=>x.after)),declines=arr.filter(x=>x.after-x.before>2).length;
    const ev={kind:'radar',subjects:arr.map(x=>({subject:x.subject,before:round(x.before),after:round(x.after)})),dates:[frame[0].exam_date,frame[3].exam_date]};
-   if(arr.some(x=>x.before-b>=10&&x.after-c<=5&&x.before-x.after>=10)&&declines<=1)add('puzzle',ev);
-   if(days(frame[0].exam_date,frame[3].exam_date)>=60&&arr.some(x=>x.before-b>=10&&x.after-c<=-5&&x.before-x.after>=15))add('cocoon',ev);
+   const puzzleWitness=arr.find(x=>x.before-b>=10&&x.after-c<=5&&x.before-x.after>=10);if(puzzleWitness&&declines<=1)add('puzzle',{...ev,historyCount:4,witnessSubject:puzzleWitness.subject});
+   const cocoonWitness=arr.find(x=>x.before-b>=10&&x.after-c<=-5&&x.before-x.after>=15);if(days(frame[0].exam_date,frame[3].exam_date)>=60&&cocoonWitness)add('cocoon',{...ev,historyCount:4,witnessSubject:cocoonWitness.subject});
   }
  }
  return [...out.values()];

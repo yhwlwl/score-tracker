@@ -38,3 +38,19 @@
 
 /* v2: collection uses a lighter display case and less repetitive tile outlines. */
 .st-ach-tile{border-color:transparent;background:linear-gradient(160deg,#8197c408,#8197c403);padding-top:12px;border-radius:15px}.st-ach-tile:hover{border-color:var(--ach-line)}.st-ach-tile-image{width:min(100%,116px)}.st-ach-tile svg{filter:drop-shadow(0 3px 3px #17203530)}.st-ach-tile[data-tier=mythic] .st-ach-tile-image{filter:drop-shadow(0 0 6px #b9a7e83b)}.st-ach-tile[data-tier=legendary] .st-ach-tile-image{filter:drop-shadow(0 0 4px #d7b36830)}
+
+/* Card back: readable condition-by-condition evidence comparison. */
+.st-ach-summary{font-size:14px!important;font-weight:650;line-height:1.75!important;margin:12px 0 14px!important;color:var(--ach-ink);padding:0 0 12px;border-bottom:1px solid var(--ach-line)}
+.st-ach-rule-table{border:1px solid var(--ach-line);border-radius:12px;overflow:hidden;margin:8px 0 14px}
+.st-ach-rule-head,.st-ach-rule-row{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:12px;padding:10px 12px;align-items:start}
+.st-ach-rule-head{font-size:11px;font-weight:650;color:var(--ach-muted);background:#8197c411}
+.st-ach-rule-head>span:last-child{text-align:right}
+.st-ach-rule-row{border-top:1px solid var(--ach-line);font-size:12px;line-height:1.55}
+.st-ach-rule-row strong{font-weight:650;display:block;overflow-wrap:anywhere}
+.st-ach-rule-row small{display:block;color:var(--ach-muted);font-size:11px;line-height:1.6;margin-top:3px;overflow-wrap:anywhere}
+.st-ach-rule-actual{text-align:right;font-weight:650;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.st-ach-rule-actual.is-met,.st-ach-rule-actual.is-met small{color:#22846e}
+.st-ach-rule-actual.is-unmet,.st-ach-rule-actual.is-unmet small{color:var(--ach-muted)}
+.st-ach-rule-actual.is-unknown{color:var(--ach-muted);font-weight:400}
+@media(prefers-color-scheme:dark){.st-ach-rule-actual.is-met,.st-ach-rule-actual.is-met small{color:#76d4ba}}
+@media(max-width:360px){.st-ach-rule-head,.st-ach-rule-row{gap:7px;padding:9px 8px}}

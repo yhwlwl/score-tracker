@@ -129,6 +129,78 @@ function plot(series,position=true){
  s+='<text x="170" y="156" font-size="10" fill="currentColor" text-anchor="middle">'+(position?'位比（越靠前越好）':'得分率（越高越好）')+'</text>';
  return svg(s)+'<div class="st-ach-legend">'+series.map(s=>'<span><i style="background:'+s.color+'"></i>'+esc(s.label)+'</span>').join('')+'</div>';
 }
+// Each rule is shown separately; actuals come from the same qualifying evidence window.
+const summaries={
+ 'first-step':'第一次记录，开启自己的成长轨迹。','full-picture':'把零散的成绩拼成完整的记录。','rank-aware':'不只记录分数，也记录自己的位置。','new-best':'刷新同一学科的个人最好成绩。','three-days':'让成长不再只有一个数据点。',reflection:'考后回顾，把经验留下。','goal-set':'为接下来的学习设定方向。','step-up':'在可比考试中，自己的位置向前移动。','five-days':'用五个考试日记录成长。','time-witness':'跨越一个月，仍然留下成绩记录。','half-year':'六个不同月份，都有成长的印记。','getting-better':'连续三场，位比逐步改善。','beyond-score':'分数下降，但排名位比反而向前。',steady:'跨过一段时间，整体表现稳步改善。','double-proof':'多次考试中，得分率与位比同时改善。','hold-peak':'刷新个人纪录后，仍保持此前的最好水平。','ten-days':'十个考试日，汇成一条成长轨迹。',unexpected:'实际表现第一次超过模型预测。','long-road':'在两个月以上的时间里持续留下记录。',comeback:'经历回落后，重新回到此前的水平。',chorus:'同一对考试中，多门学科同步改善。',harder:'难度升高，但排名表现依然稳定或向前。',accumulation:'前期积累之后，后两场表现显著改善。','year-trace':'用跨越一年的考试记录留下成长轨迹。','four-seasons':'十二个不同月份，都有考试记录。',plateau:'打破此前的稳定平台，并保持新的水平。',cocoon:'曾经相对薄弱的学科，成长为自己的优势学科。',puzzle:'补上相对薄弱的学科，同时保持整体稳定。',headwind:'面对更难的试卷，位比依然明显改善。',resonance:'同一对考试中，至少五门学科同步改善。','more-than-score':'多次出现分数下降、位比却改善的表现。','time-kept':'在不同月份留下实际录入的足迹。','beyond-expectation':'不止一次，而是三次超过模型预测。','outside-range':'实际表现超出模型的95%预测区间。','twenty-days':'二十个考试日，二十段成长记录。','unique-path':'实际表现多次超过相似轨迹的预测。',rings:'长时间跨度与丰富的考试记录共同留下年轮。','another-height':'突破稳定平台，并连续保持显著改善。',ascent:'积累之后，连续两场实现大幅改善。',rewrite:'五次超过模型预测，改写原来的预期。','break-limit':'实际表现显著超出预测区间的最佳边界。','phase-shift':'模型检测到新的状态，并由后续考试确认。','new-horizon':'连续两场总分位比显著超越此前水平。',undefined:'十次大幅超过模型预测。',chronicle:'四十个考试日，汇成一部成长长卷。',early:'在平台起步的第一周便已加入。',triple:'见证平台的三个共同里程碑。',creator:'自己的建议成为正式上线的功能。',contributor:'一次有效反馈，推动产品变得更完善。',pioneer:'参与新功能内测并提供有效反馈。','spark-support':'自愿支持产品，留下纪念。',annual:'参与年度回顾，收藏这一年的记录。'
+};
+const finite=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));
+const mean=a=>a.length&&a.every(finite)?a.reduce((s,v)=>s+Number(v),0)/a.length:null;
+const maxOf=a=>a.length&&a.every(finite)?Math.max(...a.map(Number)):null;
+const minOf=a=>a.length&&a.every(finite)?Math.min(...a.map(Number)):null;
+const diff=(a,b)=>finite(a)&&finite(b)?Number(a)-Number(b):null;
+const spread=a=>diff(maxOf(a),minOf(a));
+const median=a=>{if(!a.length||!a.every(finite))return null;const x=[...a].map(Number).sort((a,b)=>a-b);return x.length%2?x[x.length>>1]:(x[x.length/2-1]+x[x.length/2])/2};
+const daySpan=(a,b)=>a&&b&&Number.isFinite(Date.parse(a))&&Number.isFinite(Date.parse(b))?(Date.parse(b)-Date.parse(a))/86400000:null;
+function conditionRows(b,e){
+ const rows=[],p=e?.points||[],pos=p.map(x=>x.position),rate=p.map(x=>x.rate),ev=e?.events||(e?[e]:[]),subjects=e?.subjects||[];
+ const add=(name,condition,actual,ok)=>rows.push({name,condition,actual:actual??null,ok:actual==null?null:ok});
+ const metric=(name,op,n,v,unit)=>{const valid=finite(v);add(name,op+' '+n+(unit?' '+unit:''),valid?number(v)+(unit?' '+unit:''):null,valid?(op==='≥'?v>=n:op==='≤'?v<=n:op==='>'?v>n:v===n):null)};
+ const yes=(name,condition,v,label='已满足')=>add(name,condition,v===true?label:v===false?'未满足':null,v);
+ const count=(name,n,v,unit='场')=>metric(name,'≥',n,v,unit);
+ const ppge=(name,n,v)=>metric(name,'≥',n,v,'个百分点');
+ const pple=(name,n,v)=>metric(name,'≤',n,v,'个百分点');
+ const timeRules={'three-days':[3,0,0],'five-days':[5,0,0],'ten-days':[10,0,0],'twenty-days':[20,0,0],chronicle:[40,0,0],'half-year':[6,0,6],'year-trace':[12,365,6],'four-seasons':[12,0,12],rings:[20,365,9],'time-witness':[3,30,0],'long-road':[4,60,0],'time-kept':[6,0,3]};
+ const tr=timeRules[b.id];if(tr){const upload=['time-witness','long-road','time-kept'].includes(b.id);count(upload?'不同实际录入日':'不同有效考试日',tr[0],e?.count,'天');if(tr[1])count('首末日期跨度',tr[1],e?.span,'天');if(tr[2])count('覆盖自然月',tr[2],e?.months,'个月');return rows}
+ const forecastRules={unexpected:[1,2],'beyond-expectation':[3,2],rewrite:[5,2],undefined:[10,5],'unique-path':[3,5]};
+ const fr=forecastRules[b.id];if(fr){count('累计符合条件的考试日',fr[0],e?(e.count??new Set(p.map(x=>x.date)).size):null,'天');ppge('每次至少超越预测点',fr[1],minOf(p.map(x=>x.delta)));return rows}
+ switch(b.id){
+ case 'first-step':count('有效考试日',1,e?.date?1:null,'天');if(e?.date)add('首次记录日期','有效考试日',e.date,true);break;
+ case 'full-picture':count('已记录有效学科',3,e?.subjects?.length,'门');break;
+ case 'rank-aware':yes('有效单科排名','排名在参考人数范围内',e&&finite(e.position)&&finite(e.participants)?true:null,e&&finite(e.position)?'前 '+percent(e.position):'已满足');count('参考人数',30,e?.participants,'人');break;
+ case 'goal-set':yes('长期学习目标','已经建立',e?.label?true:null);break;
+ case 'reflection':yes('考后反思','已保存非空反思',e?.label?true:null);break;
+ case 'new-best':yes('成绩可比性','同科、同分类、同满分',e?.comparable??(p.length>=2?true:null),'同一可比序列');metric('个人纪录改善','>',0,diff(rate.at(-1),rate[0]),'个百分点');break;
+ case 'hold-peak':count('可比考试记录',5,e?.historyCount??(p.length? p.length:null));count('刷新前历史记录',3,e?.priorCount??(p.length? p.length-2:null));ppge('新纪录较此前最佳改善',5,diff(rate.at(-2),e?.previousBest));ppge('下一场较此前最佳改善',0,diff(rate.at(-1),e?.previousBest));break;
+ case 'step-up':count('相邻可比考试',2,p.length||null);ppge('位比改善',5,diff(pos[0],pos.at(-1)));break;
+ case 'getting-better':count('同一序列连续考试',3,p.length||null);yes('位比连续改善','每场均比上一场靠前',pos.length===3&&pos.every(finite)?pos[0]>pos[1]&&pos[1]>pos[2]:null,'连续改善');ppge('累计位比改善',5,diff(pos[0],pos.at(-1)));break;
+ case 'beyond-score':case 'more-than-score':case 'double-proof':{
+ const dual=b.id==='double-proof',n=b.id==='beyond-score'?1:3;count('符合条件的不同考试日',n,e?new Set(ev.map(x=>x.points?.at(-1)?.date).filter(Boolean)).size:null,'天');
+ if(dual)ppge('每次得分率改善',3,minOf(ev.map(x=>x.scoreChange)));else pple('每次得分率变化',-3,maxOf(ev.map(x=>x.scoreChange)));
+ ppge('每次位比改善',5,minOf(ev.map(x=>x.positionChange)));break}
+ case 'steady':case 'plateau':case 'another-height':case 'new-horizon':{
+ const old=mean(pos.slice(0,2)),fresh=pos.slice(2),steady=b.id==='steady',horizon=b.id==='new-horizon';
+ count(horizon?'可比总分考试':b.id==='another-height'?'可比单科考试':'可比考试',4,p.length||null);
+ if(!horizon)count('考试跨度',30,daySpan(p[0]?.date,p.at(-1)?.date),'天');
+ if(steady){ppge('后两场平均位比改善',5,diff(old,mean(fresh)));count('相邻变化未回落次数',2,pos.length===4&&pos.every(finite)?pos.slice(1).filter((x,i)=>x<=pos[i]).length:null,'次')}
+ else{if(!horizon)pple('前两场位比波动',5,spread(pos.slice(0,2)));ppge('后两场各自较此前均值改善',b.id==='plateau'?15:30,diff(old,maxOf(fresh)))}break}
+ case 'accumulation':case 'ascent':count(b.id==='ascent'?'可比单科考试':'可比考试',5,p.length||null);ppge('后两场各自较前三场均值改善',b.id==='ascent'?40:20,diff(mean(pos.slice(0,3)),maxOf(pos.slice(3))));break;
+ case 'comeback':count('可比考试',5,p.length||null);ppge('第三场较前两场平均回落',10,diff(pos[2],mean(pos.slice(0,2))));ppge('后两场各自较第三场改善',10,diff(pos[2],maxOf(pos.slice(3))));pple('后两场最差位比相对此前均值的落后',2,diff(maxOf(pos.slice(3)),mean(pos.slice(0,2))));break;
+ case 'harder':case 'headwind':count('可比单科考试',b.id==='harder'?4:5,e?.historyCount);metric('难度指数增加','≥',10,diff(e?.difficulty,e?.referenceDifficulty),'点');ppge('相对近期平均位比改善',b.id==='harder'?0:5,diff(e?.baseline,e?.actual));yes('难度估计质量','除历史场数外的质量检查通过',e?.qualityPassed,'已通过');break;
+ case 'chorus':case 'resonance':yes('考试可比性','同一对相邻可比考试',subjects.length?true:null);count('位比改善至少5个百分点的学科',b.id==='chorus'?3:5,subjects.length?subjects.filter(x=>diff(x.before,x.after)>=5).length:null,'门');pple('其余科目最大回落',2,subjects.length?Math.max(0,maxOf(subjects.map(x=>diff(x.after,x.before)))):null);break;
+ case 'puzzle':case 'cocoon':{
+ const cocoon=b.id==='cocoon',before=median(subjects.map(x=>x.before)),after=median(subjects.map(x=>x.after));
+ const x=e?.witnessSubject?subjects.find(s=>s.subject===e.witnessSubject):subjects.find(s=>finite(before)&&finite(after)&&s.before-before>=10&&s.after-after<=(cocoon?-5:5)&&s.before-s.after>=(cocoon?15:10));
+ count('可比考试',4,e?.historyCount??(e?.dates?.length===2?4:null));count('可比学科',4,subjects.length||null,'门');count('考试跨度',cocoon?60:30,daySpan(e?.dates?.[0],e?.dates?.at(-1)),'天');
+ if(x)add('符合条件的学科','同一门学科',x.subject,true);ppge('此前较学科中位水平落后',10,diff(x?.before,before));if(cocoon)ppge('此后较学科中位水平领先',5,diff(after,x?.after));else pple('此后较学科中位水平落后',5,diff(x?.after,after));ppge('该学科自身位比改善',cocoon?15:10,diff(x?.before,x?.after));if(!cocoon)metric('明显回落的学科','≤',1,subjects.length?subjects.filter(s=>s.after-s.before>2).length:null,'门');break}
+ case 'outside-range':case 'break-limit':metric('超越95%区间最佳端点',b.id==='outside-range'?'>':'≥',b.id==='outside-range'?0:5,e?.delta,'个百分点');if(e&&finite(e.low)&&finite(e.actual))add('预测边界与实际位比','实际位比优于区间最佳端点','前 '+percent(e.low)+' → 前 '+percent(e.actual),e.actual<e.low);break;
+ case 'phase-shift':count('可比考试',6,p.length||null);metric('模型变点概率','>',50,e?.probability,'%');count('变化前稳定状态长度',3,e?.stableRun,'场');ppge('变化场和下一场各自改善',5,e?.improvement);break;
+ case 'early':add('注册日期','早于 2026-08-27（北京时间）',e?.date,e?.date?e.date<'2026-08-27':null);break;
+ case 'triple':yes('活动参与记录','参加三百纪念活动',e?.verified??null);break;
+ case 'creator':yes('建议采纳','建议获采纳',e?.verified??null);yes('正式上线','相关功能已经上线',e?.verified??null);break;
+ case 'contributor':yes('反馈贡献','推动实际修复并经确认',e?.verified??null);break;
+ case 'pioneer':yes('内测参与','参与内测',e?.verified??null);yes('有效反馈','已提供反馈并核验',e?.verified??null);break;
+ case 'spark-support':yes('自愿支持','支持记录已核验（不按金额分级）',e?.verified??null);break;
+ case 'annual':yes('年度回顾','参与2026年度回顾',e?.verified??null);break;
+ default:add('解锁条件',b.condition,null,null);
+ }
+ return rows;
+}
+function renderConditions(b,e,locked,opt={}){
+ if(locked)return '<h3>解锁条件</h3><p>隐藏成就，解锁后揭晓。</p>';
+ const rows=conditionRows(b,e);
+ return '<p class="st-ach-summary">'+esc(summaries[b.id]||b.condition)+'</p><h3>解锁条件</h3><div class="st-ach-rule-table"><div class="st-ach-rule-head"><span>条件</span><span>'+(opt.demo?'示例表现':'实际表现')+'</span></div>'+rows.map(r=>'<div class="st-ach-rule-row"><div><strong>'+esc(r.name)+'</strong><small>'+esc(r.condition)+'</small></div><div class="st-ach-rule-actual '+(r.ok===true?'is-met':r.ok===false?'is-unmet':'is-unknown')+'"><span>'+esc(r.actual??(e?'证据未记录':opt.pending?'待核验':'暂无命中证据'))+'</span>'+(r.ok===true?'<small>✓ 满足</small>':r.ok===false?'<small>未满足</small>':'<small>—</small>')+'</div></div>').join('')+'</div>';
+}
+
 function evidence(b,e){
  if(!e)return cap('尚未获得 · 解锁后显示证据');
  if(e.kind==='forecast'||e.kind==='match'){
@@ -154,22 +226,22 @@ function evidence(b,e){
  return '<div class="st-ach-simple"><span>✓</span><div>'+esc(e.label||e.subject||'条件已满足')+(e.date?'<small>'+esc(e.date)+'</small>':'')+(e.subjects?'<small>'+esc(e.subjects.join('、'))+'</small>':'')+'</div></div>';
 }
 function demoEvidence(b){
- const day=i=>'2026-10-'+String(i+1).padStart(2,'0'),points=(v,score=false)=>v.map((x,i)=>({date:day(i*4),subject:'数学',position:score?null:x,rate:score?x:null}));
+ const day=i=>new Date(Date.UTC(2026,8,1+i)).toISOString().slice(0,10),points=(v,score=false)=>v.map((x,i)=>({date:day(i*21),subject:'数学',position:score?null:x,rate:score?x:null}));
  if(b.evidence==='forecast'||b.evidence==='match'){
  const n=({unexpected:1,'beyond-expectation':3,rewrite:5,undefined:10,'unique-path':3})[b.id]||3;
  return {kind:b.evidence,source:'demo',points:Array.from({length:n},(_,i)=>({date:day(i*2),prediction:36-i,actual:29-i,delta:7}))};
  }
  if(b.evidence==='interval')return {kind:'interval',source:'demo',low:20,high:46,actual:12,delta:8,date:day(4)};
- if(b.evidence==='difficulty')return {kind:'difficulty',source:'demo',difficulty:64,referenceDifficulty:49,actual:22,baseline:30};
- if(b.evidence==='radar'){let subjects=['语文','数学','英语','物理','化学','地理'];return {kind:'radar',source:'demo',subjects:subjects.map((s,i)=>({subject:s,before:b.id==='cocoon'||b.id==='puzzle'?(i===1?60:34+i):44+i,after:b.id==='cocoon'||b.id==='puzzle'?(i===1?23:33+i):31+i}))}}
+ if(b.evidence==='difficulty')return {kind:'difficulty',source:'demo',difficulty:64,referenceDifficulty:49,actual:22,baseline:30,historyCount:6,qualityPassed:true};
+ if(b.evidence==='radar'){let subjects=['语文','数学','英语','物理','化学','地理'];return {kind:'radar',source:'demo',historyCount:4,dates:['2026-06-01','2026-09-01'],witnessSubject:(b.id==='cocoon'||b.id==='puzzle')?'数学':undefined,subjects:subjects.map((s,i)=>({subject:s,before:b.id==='cocoon'||b.id==='puzzle'?(i===1?60:34+i):44+i,after:b.id==='cocoon'||b.id==='puzzle'?(i===1?23:33+i):31+i}))}}
  if(b.evidence==='dual'){const ev={points:[{date:day(3),subject:'数学'}],scoreChange:b.id==='double-proof'?6:-4,positionChange:8};return {kind:'dual',source:'demo',...(b.id==='beyond-score'?ev:{events:[0,1,2].map(i=>({...ev,points:[{date:day(i*5),subject:'数学'}]}))})}}
  if(b.evidence==='time'){const n=({'three-days':3,'five-days':5,'ten-days':10,'twenty-days':20,chronicle:40,'half-year':6,'year-trace':12,'four-seasons':12,rings:20,'time-witness':3,'long-road':4,'time-kept':6})[b.id]||6,yr=['year-trace','four-seasons','rings','chronicle'].includes(b.id),mo=yr?12:b.id==='half-year'?6:3;return {kind:'time',source:'demo',dates:[yr?'2025-10-01':b.id==='half-year'?'2026-05-01':'2026-08-01','2026-10-31'],count:n,span:yr?395:b.id==='half-year'?183:91,months:mo}}
- if(b.evidence==='score')return {kind:'score',source:'demo',points:points(b.id==='new-best'?[72,83]:[72,75,79,87,82],true),previousBest:79};
- if(b.evidence==='state')return {kind:'state',source:'demo',points:points([48,49,47,48,27,24]),probability:67,improvement:21};
+ if(b.evidence==='score')return {kind:'score',source:'demo',points:points(b.id==='new-best'?[72,83]:[72,75,79,87,82],true),previousBest:79,historyCount:5,priorCount:3};
+ if(b.evidence==='state')return {kind:'state',source:'demo',points:points([48,49,47,48,27,24]),probability:67,improvement:21,stableRun:4};
  if(b.evidence==='rank'){
  const p=({'step-up':[49,40],'getting-better':[49,44,38],steady:[49,45,42,36],comeback:[35,34,55,30,31],plateau:[53,51,29,27],'another-height':[67,64,32,31],ascent:[72,69,71,27,25],accumulation:[60,57,59,35,34],'new-horizon':[65,64,30,29]})[b.id]||[50,40,30,22];return {kind:'rank',source:'demo',points:points(p)};
  }
- return {kind:b.evidence,source:'demo',date:'2026-10-21',label:b.condition};
+ return {kind:b.evidence,source:'demo',date:b.id==='early'?'2026-08-21':'2026-10-21',label:b.condition,verified:true,...(b.id==='rank-aware'?{position:24,participants:650}:{}),...(b.id==='full-picture'?{subjects:['语文','数学','英语','物理','化学','地理']}: {})};
 }
 let dialog,deck,controls,shown,returnFocus,mode='front',tour=null,timer=null,ack=null,ackSent=false;
 const reduced=()=>g.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -188,7 +260,7 @@ function renderCard(b,a,opt={}){
  const label=preview?'模拟解锁':opt.realPreview?(earned?'真实数据 · 符合条件':'真实数据 · 条件详情'):earned?'成就已解锁':'成就详情';
  dialog.dataset.tier=b.tier;dialog.querySelector('.st-ach-batch').textContent=opt.batch>1?(opt.realPreview?'真实记录符合 '+opt.batch+' 项成就 · 预览而非发放':'已解锁 '+opt.batch+' 项成就 · 优先展示代表徽章'):opt.tour?'巡展 '+opt.tour:'';
  deck.className='st-ach-deck';
- deck.innerHTML='<section class="st-ach-face st-ach-front '+(opt.play?'st-ach-reveal':'')+'"><div class="st-ach-halo"></div><div class="st-ach-kicker">SCORE TRACKER · '+label+'</div><div class="st-ach-rarity">'+esc(C.tiers[b.tier])+(b.hidden&&(!locked)?' · 隐藏':'')+'</div><div class="st-ach-hero">'+emblem(b,locked)+'</div><h2>'+esc(locked?'尚未发现':b.name)+'</h2><p class="st-ach-quote">'+esc(locked?'等待属于你的发现。':b.quote)+'</p><div class="st-ach-rate">'+(locked?'—':esc(rate(b)))+'</div><small>'+ (locked?'解锁后揭晓':b.tier==='limited'?'历史参考 / 限定':'历史模拟获得率')+'</small><div class="st-ach-brand">SCORE TRACKER  /  ACHIEVEMENTS</div></section><section class="st-ach-face st-ach-back"><div class="st-ach-kicker">ACHIEVEMENT RECORD</div><h2>'+esc(locked?'尚未发现':b.name)+'</h2><h3>解锁条件</h3><p>'+esc(locked?'隐藏成就，解锁后揭晓。':b.condition)+'</p><h3>成就见证</h3>'+(locked?cap('尚未解锁'):evidence(b,a?.evidence))+(a?cap(preview?'示例数据 · 仅供交互预览':opt.realPreview&&source==='historical_replay'?'真实账号历史记录计算 · 预览，不正式发放；预测类为历史滚动回放':source==='historical_replay'?'历史滚动回放 · 非真实考前冻结预测':source==='demo'?'示例数据':source==='manual'?'经核验的纪念记录':'成就证据快照'):'')+(!earned&&!locked&&(b.mode!=='auto'||opt.pending)?cap(opt.pending||'待快照接入或活动核验，不会自动发放。'):'')+'</section>';
+ deck.innerHTML='<section class="st-ach-face st-ach-front '+(opt.play?'st-ach-reveal':'')+'"><div class="st-ach-halo"></div><div class="st-ach-kicker">SCORE TRACKER · '+label+'</div><div class="st-ach-rarity">'+esc(C.tiers[b.tier])+(b.hidden&&(!locked)?' · 隐藏':'')+'</div><div class="st-ach-hero">'+emblem(b,locked)+'</div><h2>'+esc(locked?'尚未发现':b.name)+'</h2><p class="st-ach-quote">'+esc(locked?'等待属于你的发现。':b.quote)+'</p><div class="st-ach-rate">'+(locked?'—':esc(rate(b)))+'</div><small>'+ (locked?'解锁后揭晓':b.tier==='limited'?'历史参考 / 限定':'历史模拟获得率')+'</small><div class="st-ach-brand">SCORE TRACKER  /  ACHIEVEMENTS</div></section><section class="st-ach-face st-ach-back"><div class="st-ach-kicker">ACHIEVEMENT RECORD</div><h2>'+esc(locked?'尚未发现':b.name)+'</h2>'+renderConditions(b,a?.evidence,locked,opt)+'<h3>成就见证</h3>'+(locked?cap('尚未解锁'):evidence(b,a?.evidence))+(a?cap(preview?'示例数据 · 仅供交互预览':opt.realPreview&&source==='historical_replay'?'真实账号历史记录计算 · 预览，不正式发放；预测类为历史滚动回放':source==='historical_replay'?'历史滚动回放 · 非真实考前冻结预测':source==='demo'?'示例数据':source==='manual'?'经核验的纪念记录':'成就证据快照'):'')+(!earned&&!locked&&(b.mode!=='auto'||opt.pending)?cap(opt.pending||'待快照接入或活动核验，不会自动发放。'):'')+'</section>';
  controls.innerHTML='<button type="button" data-flip>翻面 · 查看成就见证</button>'+(opt.demo||(opt.realPreview&&earned)?'<button type="button" data-replay>重播</button>':'')+(tour?'<button type="button" data-tour-stop>停止巡展</button>':'')+(opt.onGallery?'<button type="button" data-gallery>查看收藏馆</button>':'')+'<button type="button" data-dismiss>关闭</button>';
  controls.querySelector('[data-flip]').onclick=()=>{if(tour){stopTour();controls.querySelector('[data-tour-stop]')?.remove()}setFace(mode==='front'?'back':'front')};
  controls.querySelector('[data-dismiss]').onclick=()=>dialog.close();
@@ -220,5 +292,5 @@ function gallery(root,awards=[],demo=false,options={}){
 }
 function close(){if(dialog?.open)dialog.close();stopTour();if(deck)deck.innerHTML='';if(controls)controls.innerHTML='';shown=null;ack=null;returnFocus=null}
 function openGallery(awards){ensureDialog();stopTour();if(!dialog.open){returnFocus=document.activeElement;dialog.showModal()}ack=null;ackSent=false;dialog.dataset.tier='common';dialog.querySelector('.st-ach-batch').textContent='';deck.className='st-ach-deck st-ach-deck-gallery';deck.innerHTML='';const r=document.createElement('section');deck.append(r);gallery(r,awards);controls.innerHTML='<button type="button" data-dismiss>关闭收藏馆</button>';controls.querySelector('[data-dismiss]').onclick=()=>dialog.close()}
-g.ScoreAchievementUI={emblem,gallery,show,autoplay,openGallery,close,rate,demoEvidence};
+g.ScoreAchievementUI={emblem,gallery,show,autoplay,openGallery,close,rate,demoEvidence,conditionRows,summaries};
 })(window);
