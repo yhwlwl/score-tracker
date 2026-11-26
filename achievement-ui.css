@@ -35,3 +35,6 @@
 @media(max-width:480px){.st-ach-gallery{padding:13px}.st-ach-grid{grid-template-columns:repeat(auto-fill,minmax(94px,1fr));gap:7px}.st-ach-tile{padding:8px 4px}.st-ach-tile strong{font-size:12px}.st-ach-tile small{font-size:10px}.st-ach-face{padding:17px;min-height:435px}.st-ach-front h2{font-size:28px}.st-ach-quote{font-size:14px;margin:10px 0;min-height:54px}.st-ach-dialog-inner{padding-left:2px;padding-right:2px}.st-ach-back{max-height:calc(100dvh - 116px)}}
 @media(prefers-color-scheme:dark){.st-ach-gallery,.st-ach-dialog{--ach-bg:#202a3a;--ach-ink:#edf2fc;--ach-muted:#b5c1d3;--ach-line:#3b495d}}
 @media(prefers-reduced-motion:reduce){.st-ach-deck,.st-ach-tile{transition:none}.st-ach-dialog *{animation:none!important}.st-ach-tile:hover{transform:none}}
+
+/* v2: collection uses a lighter display case and less repetitive tile outlines. */
+.st-ach-tile{border-color:transparent;background:linear-gradient(160deg,#8197c408,#8197c403);padding-top:12px;border-radius:15px}.st-ach-tile:hover{border-color:var(--ach-line)}.st-ach-tile-image{width:min(100%,116px)}.st-ach-tile svg{filter:drop-shadow(0 3px 3px #17203530)}.st-ach-tile[data-tier=mythic] .st-ach-tile-image{filter:drop-shadow(0 0 6px #b9a7e83b)}.st-ach-tile[data-tier=legendary] .st-ach-tile-image{filter:drop-shadow(0 0 4px #d7b36830)}

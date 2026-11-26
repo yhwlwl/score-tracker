@@ -16,65 +16,99 @@ const star=(x,y,r=7)=>'<path d="M'+x+' '+(y-r)+'l'+(r*.25)+' '+(r*.75)+' '+(r*.7
 const L=(d,extra='')=>'<path d="'+d+'" '+extra+'/>';
 const circle=(x,y,r,extra='')=>'<circle cx="'+x+'" cy="'+y+'" r="'+r+'" '+extra+'/>';
 const text=(x,y,s,size=20)=>'<text x="'+x+'" y="'+y+'" font-size="'+size+'" text-anchor="middle" fill="currentColor" stroke="none" font-weight="700">'+esc(s)+'</text>';
+// Art direction v2: tiny enamel illustrations, distinct silhouettes, not line icons.
+const F=(d,fill='@gold',extra='')=>L(d,'fill="'+fill+'" stroke="none" '+extra);
+const S=(d,c='@light',w=4,extra='')=>L(d,'fill="none" stroke="'+c+'" stroke-width="'+w+'" '+extra);
+const D=(x,y,r,c='@gold',extra='')=>circle(x,y,r,'fill="'+c+'" stroke="none" '+extra);
+const rect=(x,y,w,h,fill='@gold',r=4)=>'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+r+'" fill="'+fill+'" stroke="none"/>';
+const spark=(x,y,r=8)=>star(x,y,r);
+const mountain=(x=0,y=0,k=1)=>'<g transform="translate('+x+' '+y+') scale('+k+')">'+F('M32 145L75 75L96 106L128 47L169 145Z','@shade')+F('M75 75L32 145H102Z','@color')+F('M128 47L94 145H169Z','@gold')+F('M128 47L111 94L128 83L145 94Z','@light')+F('M128 47L169 145H145L128 83Z','@shade')+F('M75 75L58 101L75 94L89 100Z','@light')+'</g>';
+const book=(label='')=>F('M47 65Q75 57 100 73Q125 57 153 65V141Q125 134 100 151Q75 134 47 141Z','@gold')+F('M100 73Q75 59 50 69V137Q77 130 100 145Z','@light')+F('M100 73Q126 60 150 69V137Q124 130 100 145Z','@color')+S('M100 75V145','@dark',2)+(label?'<text x="100" y="118" font-size="'+(label.length>2?23:35)+'" text-anchor="middle" fill="@dark" stroke="none" font-weight="900">'+esc(label)+'</text>':S('M59 85Q78 82 91 89M59 98Q78 95 91 102M109 89Q124 82 140 85M109 102Q124 95 140 98','@dark',3));
+const chart=(d,reference='',dots=[])=>F('M48 56H152V145H48Z','@panel')+S('M48 56V145H152','@muted',2)+S('M48 100H152M82 56V145M117 56V145','@muted',1,'opacity=".3"')+(reference?S(reference,'@muted',4,'stroke-dasharray="5 7"'): '')+S(d,'@dark',8)+S(d,'@gold',5)+dots.map(([x,y])=>D(x,y,5,'@light')).join('');
+const wing=(flip=false)=>'<g '+(flip?'transform="translate(200 0) scale(-1 1)"':'')+'>'+F('M96 103Q80 43 39 51Q32 87 60 105Q42 120 54 144Q82 148 98 121Z','@gold')+F('M96 104Q74 62 45 58Q45 89 70 104Z','@color')+F('M93 116Q70 104 58 128Q76 146 93 116Z','@light')+S('M92 108L59 69M91 114L63 131','@dark',2.5)+'</g>';
+const ribbon=(d,ref='')=>(ref?S(ref,'@muted',5,'stroke-dasharray="5 7"'): '')+S(d,'@dark',13)+S(d,'@gold',9)+S(d,'@light',2,'opacity=".8"');
+const leaf=(d)=>F(d,'@color')+S('M100 131L100 78','@light',3);
+const medallion=(n)=>D(100,100,42,'@shade')+D(100,100,36,'@gold')+D(100,100,30,'@dark')+text(100,116,n,n.length>2?29:43);
+const trophy=()=>F('M70 53H130V83Q130 109 110 118V135H133V148H67V135H90V118Q70 109 70 83Z')+S('M70 66H51V82Q51 102 76 104M130 66H149V82Q149 102 124 104','@color',6)+F('M78 59H98V104Q79 96 78 79Z','@light')+spark(100,83,12);
 const motif={
- seed:()=>L('M100 145V79M100 102Q64 100 60 67Q94 62 100 102M100 119Q137 115 143 83Q112 80 100 119')+L('M69 145H131','opacity=".5"'),
- grid:()=>[0,1,2].map(i=>[0,1,2].map(j=>'<rect x="'+(59+i*29)+'" y="'+(59+j*29)+'" width="23" height="23" rx="4" fill="currentColor" opacity="'+(0.4+(i+j)*.14)+'" stroke="none"/>').join('')).join(''),
- lens:()=>circle(88,88,32)+L('M110 110L142 142M67 100L80 85L91 91L105 73'),
- spark:()=>star(100,93,36)+star(142,55,10)+L('M70 144H130','opacity=".5"'),
- trail:()=>L('M52 136Q64 113 84 118T114 92T148 54','stroke-dasharray="7 10"')+circle(52,136,5,'fill="currentColor"')+circle(114,92,5,'fill="currentColor"')+star(148,54,9),
- quill:()=>L('M60 143L123 76M74 128Q55 90 87 63Q113 48 146 51Q144 102 104 121L74 128M96 108L91 78M110 94L134 92'),
- compass:()=>circle(100,100,43)+L('M112 60L103 104L61 128L97 91Z','fill="currentColor" fill-opacity=".55"')+star(100,48,5),
- arrow:()=>L('M54 140L83 111L105 117L147 68M124 68H147V91'),
- steps:()=>[0,1,2,3,4].map(i=>circle(53+i*22,135-i*15,8,'fill="currentColor" opacity="'+(.4+i*.14)+'" stroke="none"')).join('')+L('M52 135L141 75','stroke-width="2" opacity=".4"'),
- calendar:()=>L('M58 65H142V143H58ZM58 86H142M77 53V75M123 53V75')+star(100,113,14),
- half:()=>circle(100,100,45)+L('M100 55A45 45 0 0 1 100 145Z','fill="currentColor" opacity=".5"')+L('M100 73V127'),
- stairs:()=>L('M54 139H80V112H108V84H140V58M125 58H140V73'),
- dual:()=>L('M54 73L100 119L146 93','opacity=".5" stroke-dasharray="5 6"')+L('M54 135L100 97L146 60M131 60H146V75'),
- wave:()=>L('M53 136Q68 100 82 118T110 90T146 61')+L('M56 146L144 146','opacity=".4"'),
- merge:()=>L('M52 69L86 102L107 94L145 55M52 132L86 102M129 55H145V72')+circle(86,102,6,'fill="currentColor"'),
- peak:()=>L('M49 145L81 99L101 121L132 64L151 145Z')+L('M116 92L132 64L140 94','fill="currentColor" opacity=".5"')+star(132,50,7),
- ten:()=>text(100,118,'10',61)+L('M61 135H139','opacity=".5"'),
- 'forecast-one':()=>L('M51 132L83 106L117 112L148 90','stroke-dasharray="5 7" opacity=".45"')+L('M51 132L83 106L117 89L148 58')+star(148,58,10),
- road:()=>L('M49 139C59 111 80 138 99 104S130 97 148 54')+L('M48 151C67 122 84 150 108 112S140 105 158 67','opacity=".35"')+star(148,54,7),
- comeback:()=>L('M52 68L82 132L111 112L149 52M128 53H149V75')+circle(82,132,6,'fill="currentColor"'),
- 'stars-three':()=>L('M58 122L100 62L142 122Z','stroke-width="3" opacity=".5"')+star(58,122,14)+star(100,62,18)+star(142,122,14),
- shield:()=>L('M100 50L145 68V101Q144 134 100 151Q56 134 55 101V68Z')+L('M73 104L91 122L127 84'),
- crystal:()=>L('M100 47L137 82L122 148H78L63 82Z M63 82L100 100L137 82M100 47V148','stroke-width="4"')+star(100,58,9),
- hourglass:()=>L('M65 54H135M65 146H135M73 58Q73 83 100 100Q127 117 127 142M127 58Q127 83 100 100Q73 117 73 142')+L('M81 135L100 119L119 135Z','fill="currentColor" opacity=".5"'),
- seasons:()=>[0,1,2,3].map(i=>'<path d="M100 100L100 57A43 43 0 0 1 143 100Z" transform="rotate('+(i*90)+' 100 100)" fill="currentColor" opacity="'+(.25+i*.18)+'"/>').join('')+circle(100,100,43),
- 'break-ring':()=>circle(100,100,42,'stroke-dasharray="180 84" transform="rotate(-40 100 100)"')+L('M72 130L146 54M125 54H146V76'),
- butterfly:()=>L('M100 110Q56 40 48 76Q40 117 89 122Q57 153 85 149L100 131L115 149Q143 153 111 122Q160 117 152 76Q144 40 100 110Z','fill="currentColor" fill-opacity=".22"')+L('M100 86V140M100 86L89 70M100 86L111 70'),
- puzzle:()=>L('M58 58H91Q79 78 100 78Q121 78 109 58H142V92Q122 80 122 100Q122 120 142 108V142H108Q120 122 100 122Q80 122 92 142H58V108Q78 120 78 100Q78 80 58 92Z'),
- sail:()=>L('M100 47L148 116H100ZM91 68V116H56Z','fill="currentColor" fill-opacity=".2"')+L('M49 130Q71 116 91 130T132 130T151 130M61 142Q81 130 101 142T141 142','stroke-width="4"'),
- 'stars-five':()=>Array.from({length:5},(_,i)=>{const a=i*Math.PI*2/5-Math.PI/2;return star(100+44*Math.cos(a),100+44*Math.sin(a),11)}).join('')+circle(100,100,42,'stroke-width="3" opacity=".45"')+star(100,100,18),
- prism:()=>L('M100 47L151 137H49Z M100 47L100 137M49 137L126 92','stroke-width="4"')+L('M45 103H84M120 86L151 65','stroke-width="3" stroke-dasharray="5 5"'),
- sun:()=>circle(100,100,28,'fill="currentColor" fill-opacity=".2"')+Array.from({length:12},(_,i)=>L('M100 48V61','transform="rotate('+(i*30)+' 100 100)"')).join(''),
- 'forecast-three':()=>L('M51 138L79 114L112 105L149 84','stroke-dasharray="5 6" opacity=".45"')+L('M51 138L79 102L112 74L149 50')+[ [79,102],[112,74],[149,50] ].map(([x,y])=>circle(x,y,6,'fill="currentColor"')).join(''),
- range:()=>'<rect x="51" y="91" width="98" height="42" rx="5" fill="currentColor" opacity=".18" stroke-dasharray="5 5"/>'+L('M51 91H149M100 112V56','stroke-dasharray="5 6" opacity=".7"')+circle(100,56,9,'fill="currentColor"')+circle(100,56,17,'stroke-width="2"'),
- 'book-twenty':()=>L('M49 64Q78 56 100 73Q122 56 151 64V139Q122 130 100 145Q78 130 49 139Z M100 73V145','stroke-width="4"')+text(100,114,'20',32),
- branch:()=>L('M51 140L83 113L101 120L147 108M101 120L147 139','stroke-dasharray="5 6" opacity=".55"')+L('M51 140L83 113L101 120L147 54M128 54H147V73'),
- rings:()=>[16,28,40,49].map((r,i)=>circle(100,100,r,'stroke-width="'+(i===3?3:4)+'" opacity="'+(.4+i*.18)+'"')).join('')+L('M100 100L143 67','stroke-width="4"'),
- summit:()=>L('M48 144L81 110L94 126L133 60L153 144Z M108 105L133 60L140 96','stroke-width="4"')+star(133,49,12),
- mountain:()=>L('M44 144L78 93L95 115L131 52L157 144Z M120 72L131 52L141 83','fill="currentColor" fill-opacity=".18"')+L('M50 144H153')+star(132,44,7),
- shatter:()=>L('M55 60H137V145H55Z','stroke-dasharray="9 8" opacity=".55"')+L('M54 142L86 107L105 119L151 49M132 49H151V68')+L('M138 78L158 82M132 45L125 32','stroke-width="3"'),
- diamond:()=>L('M52 95L74 63H126L148 95L100 151Z M52 95H148M74 63L100 151L126 63','stroke-width="4"')+star(100,42,11),
- phase:()=>L('M50 130H83L115 67H150','stroke-dasharray="5 6" opacity=".5"')+L('M50 130L67 122L83 133L103 77L119 65L133 73L150 58')+L('M98 48V150','stroke-width="2" stroke-dasharray="3 5"')+circle(103,77,7,'fill="currentColor"'),
- horizon:()=>L('M48 132H152M52 132A48 48 0 0 1 148 132','stroke-width="4"')+L('M64 120L100 93L146 54M127 54H146V73')+star(100,72,8),
- infinity:()=>L('M53 100C53 67 80 64 100 100C120 136 147 133 147 100C147 67 120 64 100 100C80 136 53 133 53 100Z','stroke-width="6"')+star(145,55,9),
- scroll:()=>L('M49 69Q75 57 100 73Q125 57 151 69V141Q125 129 100 144Q75 129 49 141Z M100 73V144','stroke-width="4"')+star(74,96,11)+star(128,104,14)+star(82,126,6),
- flag:()=>L('M71 145V52M71 58Q101 43 141 67L126 94Q99 76 71 91','fill="currentColor" fill-opacity=".2"'),
- triple:()=>L('M55 130H87V104H117V77H145V49M127 49H145V67','stroke-width="5"')+text(67,147,'1M',15)+text(103,121,'10K',14)+text(133,92,'100',13),
- idea:()=>L('M81 124Q81 111 66 96Q54 65 82 54Q100 46 118 54Q146 65 134 96Q119 111 119 124ZM84 138H116M91 149H109')+star(100,82,13),
- tools:()=>L('M57 60L82 85L73 95L48 72Q40 103 67 112L111 151L130 132L86 90M129 51L148 69L95 122','stroke-width="5"')+star(144,51,7),
- rocket:()=>L('M100 54Q130 75 130 112L114 127H86L70 112Q70 75 100 54Z M70 104L49 136L86 127M130 104L151 136L114 127')+circle(100,94,12)+L('M92 138L100 157L108 138'),
- flame:()=>L('M103 49Q142 86 141 112Q142 149 100 151Q62 151 59 117Q59 92 80 75Q80 100 99 109Q115 82 103 49Z','fill="currentColor" fill-opacity=".22"')+L('M100 113Q122 138 100 148Q79 138 100 113Z','fill="currentColor"'),
- year:()=>L('M54 61H146V145H54ZM54 86H146M77 49V73M123 49V73','stroke-width="4"')+text(100,120,'2026',29)
+ seed:()=>F('M45 138Q100 118 155 138L148 151H52Z','@shade')+S('M100 137Q98 99 104 66','@light',5)+F('M103 105Q49 108 46 64Q87 61 103 105Z','@color')+F('M104 91Q110 46 153 54Q154 88 104 91Z')+S('M101 105L57 75M107 88L140 62','@light',2),
+ grid:()=>F('M55 64L128 52L145 132L72 146Z','@shade')+F('M59 55H137V143H59Z','@light')+rect(69,66,58,15,'@color',3)+[0,1,2].map(i=>[0,1].map(j=>rect(70+j*31,92+i*14,24,9,i===2?'@shade':'@color',2)).join('')).join(''),
+ lens:()=>F('M48 128H67V145H48ZM76 105H95V145H76ZM104 83H123V145H104Z','@shade')+D(109,82,34,'@gold')+D(109,82,28,'@dark')+S('M95 92L106 80L116 84L125 68','@light',4)+S('M132 107L154 132','@gold',9),
+ spark:()=>trophy()+spark(146,55,10),
+ trail:()=>F('M45 146Q56 114 82 122T109 87T151 48L160 59Q129 81 133 100T96 138T68 154Z','@shade')+S('M56 146Q69 118 85 129T119 91T150 52','@light',3,'stroke-dasharray="4 7"')+D(56,146,5,'@gold')+spark(150,52,12),
+ quill:()=>book()+F('M100 120Q91 80 147 46Q158 75 130 99L103 120Z','@color')+S('M88 139L143 55','@dark',3)+S('M89 138L143 55','@light',1.5),
+ compass:()=>D(100,100,47,'@gold')+D(100,100,40,'@dark')+S('M100 62V70M100 130V138M62 100H70M130 100H138','@muted',3)+F('M127 65L111 111L73 135L89 89Z','@light')+F('M127 65L100 100L111 111Z','@color')+F('M73 135L100 100L89 89Z','@shade')+D(100,100,4,'@dark'),
+ arrow:()=>F('M48 141H77V118H103V94H131V70H151V146H48Z','@shade')+F('M43 123L77 89L96 102L136 60L125 49H155V79L145 70L96 119L77 106L54 134Z','@gold'),
+ steps:()=>'<g transform="rotate(-24 100 100)">'+D(78,82,22,'@shade')+F('M66 78Q60 64 73 58Q87 54 90 77L85 95Q72 102 66 78Z','@gold')+D(67,53,4,'@light')+D(79,48,5,'@light')+D(90,55,4,'@light')+F('M106 120Q100 106 113 100Q127 96 130 119L125 137Q112 144 106 120Z','@gold')+D(107,95,4,'@light')+D(119,90,5,'@light')+D(130,97,4,'@light')+'</g>',
+ calendar:()=>rect(54,64,92,84,'@gold',10)+rect(60,86,80,56,'@light',5)+rect(54,64,92,22,'@color',7)+S('M76 54V76M124 54V76','@light',7)+[0,1,2].map(i=>[0,1,2,3].map(j=>rect(67+j*18,94+i*14,12,8,i===2&&j===3?'@color':'@shade',2)).join('')).join(''),
+ half:()=>D(100,100,45,'@shade')+F('M100 55A45 45 0 0 1 100 145Z','@gold')+F('M100 55A45 45 0 0 0 100 145Z','@color')+S('M100 60V140','@light',2)+F('M72 119Q53 101 76 81Q98 99 72 119Z','@light')+spark(125,97,18),
+ stairs:()=>F('M49 145V119H80V93H111V67H150V145Z','@shade')+F('M49 119L59 110H80V119ZM80 93L90 84H111V93ZM111 67L121 58H150V67Z','@light')+F('M49 119H80V145H49ZM80 93H111V145H80ZM111 67H150V145H111Z','@gold')+spark(141,48,8),
+ dual:()=>F('M47 67H88V137H47Z','@light')+S('M56 83H79M56 94H79M56 105H73','@dark',3)+F('M65 111L78 123L91 111H84V102H72V111Z','@shade')+F('M105 139V112H118V91H131V69H147V139Z','@color')+F('M102 86L129 58L153 58V82L143 72L112 102Z','@gold'),
+ wave:()=>F('M45 141Q68 127 78 130T110 106T155 60V151H45Z','@shade')+ribbon('M45 132Q66 110 80 120T112 95T153 55')+spark(153,55,7),
+ merge:()=>F('M48 61H82V101H48Z','@color')+F('M48 108H82V148H48Z','@gold')+S('M57 83L64 90L76 74M57 130L64 137L76 121','@dark',4)+ribbon('M83 82L111 102L148 60','M83 129L111 102')+S('M135 60H148V73','@light',4),
+ peak:()=>mountain()+F('M126 81V43L153 49L146 63L126 59Z','@color')+S('M126 45V83','@light',3)+spark(149,44,7),
+ ten:()=>book('10')+spark(145,56,8),
+ 'forecast-one':()=>chart('M49 137L83 111L116 98L150 61','M49 137L83 111L116 116L150 103',[[150,61]])+spark(150,61,11),
+ road:()=>F('M44 139L65 89L84 119L110 71L154 139Z','@shade')+D(138,60,17,'@gold')+F('M46 151Q95 120 86 107Q77 95 122 77Q87 99 102 107Q118 122 86 151Z','@light')+S('M65 149Q104 123 95 108T119 78','@color',2,'stroke-dasharray="5 5"'),
+ comeback:()=>F('M51 64L76 96L90 79L77 126L60 104Z','@shade')+F('M71 129L100 91L117 102L145 56L130 51L156 45L161 71L150 66L119 120L103 108L84 145Z','@gold')+F('M80 134Q48 115 41 88Q74 104 88 112Z','@color')+spark(153,46,8),
+ 'stars-three':()=>S('M52 128L100 58L148 128Z','@muted',2)+D(100,100,21,'@shade')+spark(52,128,21)+spark(100,58,25)+spark(148,128,21)+spark(100,100,8),
+ shield:()=>F('M100 44L146 62V100Q144 134 100 155Q56 134 54 100V62Z')+F('M100 54L135 69V101Q133 128 100 143Q67 128 65 101V69Z','@color')+F('M70 120L93 85L106 99L125 75L134 115L100 143Z','@shade')+S('M79 106L94 119L123 87','@light',5),
+ crystal:()=>F('M49 136L82 121L149 121L151 143H50Z','@shade')+F('M58 113L85 100L143 100L149 121L82 121L49 136Z','@color')+F('M71 91L100 77L136 77L143 100H85L58 113Z','@gold')+F('M100 77L100 47L132 67L136 77Z','@light')+spark(114,49,12),
+ hourglass:()=>rect(65,51,70,11,'@gold',3)+rect(65,138,70,11,'@gold',3)+F('M73 62H127Q127 86 104 100Q127 114 127 138H73Q73 114 96 100Q73 86 73 62Z','@light','opacity=".75"')+F('M80 76H120Q117 91 100 98Q83 91 80 76ZM80 135Q84 117 100 109Q116 117 120 135Z','@color')+S('M100 100V113','@color',3),
+ seasons:()=>D(100,100,48,'@shade')+F('M100 100V52A48 48 0 0 1 148 100Z','#eabf6a')+F('M100 100H148A48 48 0 0 1 100 148Z','#bf7e61')+F('M100 100V148A48 48 0 0 1 52 100Z','#90c6e0')+F('M100 100H52A48 48 0 0 1 100 52Z','#8bc6a5')+S('M69 88Q64 64 88 66Q90 86 69 88Z','@dark',2)+spark(124,77,13)+F('M111 114Q143 109 132 136Q118 135 111 114Z','@dark')+S('M76 113V136M66 119L86 130M66 130L86 119','@dark',2),
+ 'break-ring':()=>F('M44 68H81V92H44ZM44 98H67V122H44ZM44 128H82V146H44ZM89 68H153V92H106L97 83ZM76 98H99L89 112L107 122H76ZM91 128H153V146H91Z','@shade')+F('M58 135L90 103L105 109L140 65L126 61L158 52L157 82L147 76L109 125L94 119L71 147Z','@gold')+spark(152,53,10),
+ butterfly:()=>wing()+wing(true)+F('M97 82H103L106 133L100 145L94 133Z','@light')+S('M98 83L89 71M102 83L111 71','@light',3)+F('M44 135L57 146L49 153ZM146 136L153 148L140 153Z','@shade'),
+ puzzle:()=>F('M51 53H96V65Q76 64 76 79Q76 93 96 92V99H82Q83 118 68 118Q53 118 54 99H51Z','@color')+F('M102 53H147V99H132Q133 80 117 80Q102 80 102 99H101V91Q82 92 82 79Q82 66 102 67Z','@light')+F('M51 105H60Q59 124 74 124Q89 124 88 105H96V119Q77 118 77 134Q77 148 96 147V151H51Z','@shade')+F('M102 106H107Q108 86 121 86Q134 86 133 106H147V151H102V141Q83 142 83 134Q83 125 102 125Z','@gold')+spark(139,49,8),
+ sail:()=>F('M100 49L145 112H100Z','@light')+F('M93 66L93 112H58Z','@color')+S('M97 47V126','@gold',4)+F('M47 121H153L132 145H68Z','@gold')+F('M38 145Q61 132 83 145T127 145T165 145V154H38Z','@color'),
+ 'stars-five':()=>D(100,100,47,'@panel')+S('M58 105Q86 43 142 79Q171 104 132 134Q84 158 58 105Z','@muted',2)+[[100,53],[146,87],[128,142],[72,142],[54,87]].map(([x,y])=>spark(x,y,15)).join('')+spark(100,100,24),
+ prism:()=>F('M47 63H103V138H47Z','@light')+S('M57 76H93M57 89H91M57 102H79','@shade',4)+F('M108 130L122 105L134 114L151 77L143 75L157 63L164 84L155 82L137 133L124 125L117 142Z','@gold')+F('M67 119L86 119V127H67Z','@color'),
+ sun:()=>D(100,100,46,'@shade')+Array.from({length:12},(_,i)=>F('M97 45L103 45L106 58H94Z','@gold','transform="rotate('+(i*30)+' 100 100)"')).join('')+D(100,100,33,'@gold')+D(100,100,27,'@dark')+S('M100 76V101L119 111','@light',4)+D(100,100,4,'@light'),
+ 'forecast-three':()=>chart('M48 140L79 108L113 79L150 48','M48 140L79 128L113 118L150 103',[[79,108],[113,79],[150,48]])+spark(79,108,10)+spark(113,79,10)+spark(150,48,13),
+ range:()=>F('M47 89H153V133H47Z','@shade')+S('M47 89H153M47 133H153','@muted',3,'stroke-dasharray="5 5"')+F('M91 129H109V74H123L100 46L77 74H91Z','@gold')+spark(100,46,10),
+ 'book-twenty':()=>book('20')+spark(143,57,9),
+ branch:()=>ribbon('M50 145L85 117L104 122L146 53','M50 145L85 117L104 122L151 110M104 122L146 145')+F('M129 49L153 48L151 73Z','@gold')+D(104,122,6,'@light'),
+ rings:()=>F('M100 48Q142 44 151 86Q163 117 136 143Q100 162 68 141Q43 122 49 88Q56 51 100 48Z','@gold')+[14,25,36,44].map((r,i)=>'<ellipse cx="'+(96+i)+'" cy="'+(101-i)+'" rx="'+r+'" ry="'+(r*.91)+'" fill="none" stroke="@dark" stroke-width="2.5" opacity=".72"/>').join('')+F('M100 100L153 75L150 92Z','@shade'),
+ summit:()=>F('M40 130Q62 112 83 128Q106 104 126 124Q145 108 160 130V147H40Z','@shade')+F('M65 130L107 55L144 130Z','@gold')+F('M107 55L88 89L107 82L125 89Z','@light')+F('M107 55L144 130H123L107 82Z','@color')+spark(107,44,12),
+ mountain:()=>mountain()+F('M117 48L129 30L141 48L129 44Z','@light')+spark(129,36,9),
+ shatter:()=>F('M49 60H136V142H49Z','@shade')+S('M49 60H136V82M136 121V142H49Z','@muted',3)+F('M51 132L84 100L104 110L145 53L131 49L161 41L159 72L150 66L109 128L85 116L63 145Z','@gold')+F('M139 91L157 86L154 103ZM123 54L113 39L132 41ZM139 117L158 121L146 132Z','@light'),
+ diamond:()=>F('M45 79L70 55H130L155 79L100 149Z','@gold')+F('M45 79H155L100 149Z','@color')+F('M70 55L82 79L100 55L118 79L130 55Z','@light')+F('M82 79L100 149L118 79Z','@light')+S('M45 79H155M82 79L100 149L118 79','@dark',2)+spark(100,43,11),
+ phase:()=>F('M44 111H84V147H44Z','@shade')+F('M112 57H154V94H112Z','@color')+S('M44 127H84M112 75H154','@muted',2,'stroke-dasharray="4 5"')+ribbon('M48 132L65 124L82 131L110 77L127 70L151 63')+D(110,77,6,'@light')+spark(151,63,9),
+ horizon:()=>D(119,78,31,'@gold')+F('M43 120Q100 69 157 120V149H43Z','@color')+F('M43 134Q100 96 157 134V150H43Z','@shade')+F('M74 151Q123 112 110 101Q101 90 124 79Q105 98 125 104Q143 118 110 151Z','@light')+spark(141,52,8),
+ infinity:()=>S('M47 100C47 64 77 63 100 100C123 137 153 136 153 100C153 64 123 63 100 100C77 137 47 136 47 100Z','@shade',20)+S('M47 100C47 64 77 63 100 100C123 137 153 136 153 100C153 64 123 63 100 100C77 137 47 136 47 100Z','@gold',13)+S('M47 100C47 64 77 63 100 100C123 137 153 136 153 100C153 64 123 63 100 100C77 137 47 136 47 100Z','@light',2.5)+spark(151,51,10),
+ scroll:()=>book()+F('M50 68Q75 62 100 76Q126 62 150 68V137Q126 132 100 146Q74 132 50 137Z','@dark')+S('M60 123Q104 51 143 107','@color',5)+spark(73,105,10)+spark(101,86,13)+spark(132,98,8)+S('M100 77V145','@gold',2),
+ flag:()=>F('M54 144L82 97L103 117L125 79L148 144Z','@shade')+S('M93 125V49','@light',5)+F('M95 52Q121 43 148 62L134 87Q116 70 95 79Z','@gold')+spark(148,54,6),
+ triple:()=>F('M48 145H77V120H106V95H135V68H153V151H48Z','@shade')+F('M48 145H77V120H106V95H135V68H153V82H149V109H120V134H91V159H48Z','@gold')+S('M51 139H76V114H105V89H134V62H151M139 50L152 62L139 74','@light',4)+text(65,154,'1M',15)+text(93,129,'10K',13)+text(123,103,'100',12),
+ idea:()=>F('M100 46Q137 46 140 80Q140 100 120 116L117 132H83L80 116Q60 100 60 80Q63 46 100 46Z','@gold')+F('M75 73Q84 54 105 55Q79 68 79 92Z','@light')+rect(83,136,34,9,'@color',3)+rect(90,148,20,6,'@shade',3)+spark(103,84,16),
+ tools:()=>F('M48 60L72 73L86 62L95 88L86 103L142 146L132 157L75 114Q46 113 43 86Z','@gold')+F('M130 48L151 69L91 129L80 118Z','@color')+F('M119 48L130 37L162 69L151 80Z','@light')+spark(145,130,8),
+ rocket:()=>F('M100 43Q134 69 130 116L114 135H86L70 116Q66 69 100 43Z','@gold')+F('M100 43Q134 69 130 116L114 135H100Z','@color')+D(100,89,15,'@dark')+D(100,89,10,'@light')+F('M70 101L48 139L85 127ZM130 101L152 139L115 127Z','@shade')+F('M86 141L100 166L114 141Z','#efb677')+F('M94 141L100 156L106 141Z','@light'),
+ flame:()=>F('M103 45Q142 78 147 113Q151 150 100 158Q53 154 53 120Q53 95 77 75Q72 100 94 111Q117 80 103 45Z','#eb9e55')+F('M102 91Q128 119 125 137Q123 154 100 155Q79 151 80 134Q81 121 102 91Z','#ffe9ad')+spark(100,136,8),
+ year:()=>book('2026')+spark(144,57,11)
 };
+const frames={
+ round:'M100 12a88 88 0 1 1 0 176a88 88 0 1 1 0-176',
+ shield:'M100 8Q151 8 178 36V98Q178 158 100 193Q22 158 22 98V36Q49 8 100 8Z',
+ oct:'M67 9H133L179 55V145L133 191H67L21 145V55Z',
+ hex:'M100 8L179 53V147L100 192L21 147V53Z',
+ crest:'M100 6L123 25L158 22L174 57L187 75V128L158 166L124 174L100 194L76 174L42 166L13 128V75L26 57L42 22L77 25Z',
+ petal:'M100 8Q124 29 153 25Q153 48 180 69Q165 94 180 127Q153 145 153 171Q125 171 100 192Q75 171 47 171Q47 145 20 127Q35 94 20 69Q47 48 47 25Q76 29 100 8Z',
+ diamond:'M100 5L184 63V137L100 195L16 137V63Z',
+ winged:'M100 8L127 29L158 24L190 49L175 83L189 109L158 130L150 163L100 192L50 163L42 130L11 109L25 83L10 49L42 24L73 29Z',
+ star:'M100 3L125 29L160 20L163 57L194 80L174 108L190 141L155 154L145 187L112 177L100 197L88 177L55 187L45 154L10 141L26 108L6 80L37 57L40 20L75 29Z'
+};
+const artFrames={common:['round'],rare:['hex','shield','oct'],epic:['shield','oct','hex'],legendary:['crest','petal','winged','diamond'],mythic:['star','diamond','winged','crest'],limited:['round','shield','oct','petal','crest']};
+const artFrame={seed:'round',grid:'round',lens:'round',spark:'round',trail:'round',quill:'round',compass:'hex',arrow:'shield',steps:'hex',calendar:'oct',half:'oct',stairs:'shield',dual:'oct',wave:'hex',merge:'oct',peak:'shield',ten:'oct','forecast-one':'hex',road:'shield',comeback:'hex','stars-three':'oct',shield:'shield',crystal:'hex',hourglass:'oct',seasons:'oct','break-ring':'crest',butterfly:'petal',puzzle:'diamond',sail:'winged','stars-five':'petal',prism:'diamond',sun:'crest','forecast-three':'crest',range:'diamond','book-twenty':'crest',branch:'winged',rings:'petal',summit:'crest',mountain:'crest',shatter:'winged',diamond:'diamond',phase:'star',horizon:'crest',infinity:'winged',scroll:'star',flag:'round',triple:'crest',idea:'petal',tools:'shield',rocket:'diamond',flame:'petal',year:'oct'};
+const accents={seed:'#9bbda9',grid:'#9ab4c9',quill:'#b8c4e0',half:'#90c8bc',steps:'#95bbd9',seasons:'#e4c18c',road:'#87b4b9',hourglass:'#e2b5a1',butterfly:'#e5a6a5',puzzle:'#b9b4e8',sail:'#80c4d7','stars-five':'#efc777',sun:'#f3b65c',rings:'#d5a778',scroll:'#bcb3f5',horizon:'#b0c9ec',phase:'#89d9df',infinity:'#d7b2ef',shatter:'#a9bce9',diamond:'#b0e0f4',flag:'#98c8bd',triple:'#e5c178',idea:'#d2d49a',tools:'#96bdd8',rocket:'#92d3cb',flame:'#eda76e',year:'#b3c7ef'};
 let svgId=0;
 function emblem(b,locked=false){
- const id='stbadge'+(++svgId),[light,accent,dark]=colors[b.tier],shape=path[b.tier],special=b.tier==='mythic',limited=b.tier==='limited';
- if(locked)return '<svg viewBox="0 0 200 200" aria-hidden="true"><path d="'+shape+'" fill="none" stroke="currentColor" opacity=".26" stroke-width="2"/><circle cx="100" cy="100" r="62" fill="currentColor" opacity=".06"/><path d="M77 98V86a23 23 0 0 1 46 0v12M69 98h62v44H69z" fill="none" stroke="currentColor" stroke-width="6" opacity=".35"/></svg>';
- return '<svg viewBox="0 0 200 200" aria-hidden="true" class="st-ach-emblem" style="color:'+light+'"><defs><linearGradient id="'+id+'r" x1="0" y1="0" x2="1" y2="1">'+(special?'<stop stop-color="#b7f1ff"/><stop offset=".28" stop-color="#c5b4ff"/><stop offset=".53" stop-color="#fbd8e7"/><stop offset=".76" stop-color="#f9e5b2"/><stop offset="1" stop-color="#9584cb"/>':'<stop stop-color="'+light+'"/><stop offset=".33" stop-color="'+accent+'"/><stop offset=".54" stop-color="'+light+'"/><stop offset="1" stop-color="'+dark+'"/>')+'</linearGradient><radialGradient id="'+id+'c"><stop stop-color="'+dark+'"/><stop offset="1" stop-color="#172035"/></radialGradient></defs><path d="'+shape+'" fill="url(#'+id+'r)"/><path d="'+shape+'" fill="url(#'+id+'c)" transform="translate(100 100) scale(.9) translate(-100 -100)" stroke="'+light+'" stroke-width="1"/><circle cx="100" cy="100" r="62" fill="none" stroke="url(#'+id+'r)" stroke-width="'+(b.tier==='common'?2:4)+'"/><circle cx="100" cy="100" r="56" fill="none" stroke="'+accent+'" stroke-opacity=".55" stroke-width="1"/>'+(special||limited?'<circle cx="100" cy="100" r="75" stroke="'+light+'" stroke-opacity=".55" stroke-dasharray="2 6" fill="none"/>':'')+'<g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">'+(motif[b.motif]||motif.spark)()+'</g>'+(special||b.tier==='legendary'?star(100,21,6)+star(100,179,6):'')+'</svg>';
+ const id='stbadge'+(++svgId),[light,accent,dark]=colors[b.tier],special=b.tier==='mythic',limited=b.tier==='limited',shape=frames[artFrame[b.motif]]||frames[artFrames[b.tier][0]];
+ if(locked)return '<svg viewBox="0 0 200 200" aria-hidden="true"><path d="'+shape+'" fill="none" stroke="currentColor" opacity=".26" stroke-width="2"/><path d="M77 98V86a23 23 0 0 1 46 0v12M69 98h62v44H69z" fill="none" stroke="currentColor" stroke-width="6" opacity=".35"/></svg>';
+ const color=accents[b.motif]||accent, rim=special?'<stop stop-color="#bbf0ff"/><stop offset=".24" stop-color="#c3adf7"/><stop offset=".49" stop-color="#ffe0ee"/><stop offset=".72" stop-color="#f8d8a0"/><stop offset="1" stop-color="#8878bf"/>':'<stop stop-color="'+light+'"/><stop offset=".25" stop-color="'+accent+'"/><stop offset=".52" stop-color="'+light+'"/><stop offset="1" stop-color="'+dark+'"/>';
+ const defs='<defs><linearGradient id="'+id+'r" x1="0" y1="0" x2="1" y2="1">'+rim+'</linearGradient><radialGradient id="'+id+'c" cx=".37" cy=".28"><stop stop-color="'+dark+'"/><stop offset="1" stop-color="#172035"/></radialGradient><linearGradient id="'+id+'g" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="'+light+'"/><stop offset=".55" stop-color="'+light+'"/><stop offset="1" stop-color="'+accent+'"/></linearGradient><clipPath id="'+id+'p"><path d="'+shape+'" transform="translate(100 100) scale(.86) translate(-100 -100)"/></clipPath></defs>';
+ const art=(motif[b.motif]||motif.spark)().replace(/@(gold|light|color|shade|dark|muted|panel)/g,(_,k)=>({gold:'url(#'+id+'g)',light,color,shade:accent,dark:'#172035',muted:light,panel:'#17203566'})[k]);
+ const ticks=Array.from({length:special?12:8},(_,i)=>'<path d="M100 23V28" transform="rotate('+(i*(special?30:45))+' 100 100)" stroke="'+light+'" stroke-width="1.5" opacity=".36"/>').join('');
+ const backdrop=special?'<g opacity=".27" fill="'+light+'">'+[[38,63],[155,46],[161,114],[44,142],[84,38],[122,166],[64,165]].map(([x,y],i)=>'<circle cx="'+x+'" cy="'+y+'" r="'+(i%2?1.5:2.4)+'"/>').join('')+'</g>':'';
+ const engraving=(special||limited||b.tier==='legendary')?'<path d="M41 109Q50 156 93 169M159 109Q150 156 107 169" stroke="'+light+'" stroke-width="1.3" stroke-opacity=".32" fill="none"/>'+ticks:'';
+ return '<svg viewBox="0 0 200 200" aria-hidden="true" class="st-ach-emblem" style="color:'+light+'">'+defs+'<path d="'+shape+'" fill="'+dark+'" transform="translate(0 2)"/><path d="'+shape+'" fill="url(#'+id+'r)"/><path d="'+shape+'" fill="url(#'+id+'c)" transform="translate(100 100) scale(.91) translate(-100 -100)" stroke="'+light+'" stroke-width=".8"/><path d="'+shape+'" transform="translate(100 100) scale(.83) translate(-100 -100)" fill="none" stroke="'+light+'" stroke-opacity=".24" stroke-width="1"/><g clip-path="url(#'+id+'p)">'+backdrop+engraving+'<g stroke-linecap="round" stroke-linejoin="round" fill="none">'+art+'</g></g>'+(special||b.tier==='legendary'?'<path d="M100 14L104 21L100 28L96 21Z" fill="'+light+'"/>':'')+'</svg>';
 }
 const rate=b=>b.count==null?'待核验':(b.count/C.denominator*100).toFixed(b.count<100?3:2)+'%';
 const number=v=>Number.isFinite(Number(v))&&v!==null&&v!==''?String(Math.round(Number(v)*100)/100):'—';
