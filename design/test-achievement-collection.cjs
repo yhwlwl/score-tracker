@@ -67,5 +67,12 @@ root.querySelector('[data-tab="owned"]').click();root.querySelector('[data-edit]
 assert.equal(root.querySelectorAll('.st-ach-favorite-selected').length,1);
 assert.equal(win.ScoreAchievementUI.rateInfo(C.badges[0],{stats:{total:100,counts:{'first-step':50}}}).value,'50.00%');
 assert.equal(win.ScoreAchievementUI.evidenceDay(actual.find(a=>a.badge_id==='three-days')),'2026-10-03');
+const fullPreview=fs.readFileSync('achievement-full-preview.js','utf8');
+new Function(fullPreview);
+assert(fullPreview.includes("read('list_exams'")&&fullPreview.includes("read('get_goal'"));
+assert(!/achievement_refresh|achievement_ack|achievement_favorites/.test(fullPreview),'preview must never call production award actions');
+const fullIndex=fs.readFileSync('index.html','utf8');
+assert(fullIndex.includes('achievement-full-preview.js')&&!fullIndex.includes('achievement-app.js?'),'full website uses local preview only');
+assert(!/data-related|st-ach-related/.test(uiSource),'no related medals');
 dom.window.close();
 console.log('PASS: 51 unique medals, evaluator boundaries, cumulative prediction, immutable receipts contract, frozen kernel, hidden badge and front/back DOM preview.');

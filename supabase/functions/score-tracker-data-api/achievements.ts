@@ -42,8 +42,8 @@ async function collection(db:any,uid:string,list:any[],pilot=false) {
  return {enabled:true,awards:list,favorites:pref.error||!Array.isArray(pref.data?.favorites)?null:[...new Set<string>(pref.data.favorites.map(canonicalId))].filter(x=>ids.has(x)).slice(0,3),stats:stats.error?null:stats.data,pilot};
 }
 export async function achievements(db:any,uid:string,body:any) {
- const mode=Deno.env.get('SCORE_TRACKER_ACHIEVEMENTS_ENABLED')??'true';
- // Production release defaults on; explicit false/off disables, pilot requires the allowlist.
+ const mode=Deno.env.get('SCORE_TRACKER_ACHIEVEMENTS_ENABLED')??'false';
+ // Default off; explicit true enables, pilot requires the allowlist.
  const pilot=mode==='pilot';
  if(mode!=='true'&&(!pilot||!(Deno.env.get('SCORE_TRACKER_ACHIEVEMENT_PILOT_USERS')||'').split(',').map(x=>x.trim()).includes(uid)))return {enabled:false};
  if(body.action==='achievement_favorites'){
