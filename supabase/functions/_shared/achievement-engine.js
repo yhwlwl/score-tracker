@@ -17,6 +17,7 @@ function evaluate({exams=[],goal=null,createdAt=null,firstUseAt=null,today=beiji
  const revised=new Set(['first-step','full-picture','rank-aware','year-trace','rings','time-kept']);
  const evidenceDate=e=>e.achievedDate||(e.dateBasis==='record_unknown'?'':[e.date,...(e.points||[]).map(x=>x.date),...(e.events||[]).flatMap(x=>(x.points||[]).map(p=>p.date)),...(e.dates||[])].filter(Boolean).sort().at(-1)||'');
  const add=(id,evidence)=>{if(existing.has(id))return;const prior=out.get(id),d=evidenceDate(evidence);if(prior&&(!d||(evidenceDate(prior.evidence)&&evidenceDate(prior.evidence)<=d)))return;const version=revised.has(id)?2:1;out.set(id,{badge_id:id,rule_version:version,evidence:{...evidence,...(version===2?{ruleRevision:2}:{}),kind:evidence.kind||'record',source:evidence.source||'historical_replay'}})};
+ const canEarlier=(id,d)=>!existing.has(id)&&(!out.has(id)||!evidenceDate(out.get(id).evidence)||d<evidenceDate(out.get(id).evidence));
  const earlier=(a,b)=>!a?b:!b?a:a<=b?a:b;
  const eligibleDate=x=>{const d=beijing(x);return d&&d<=today?d:''};
  const createdDay=eligibleDate(createdAt),usedDay=eligibleDate(firstUseAt),startDay=earlier(createdDay,usedDay);
@@ -105,17 +106,17 @@ function evaluate({exams=[],goal=null,createdAt=null,firstUseAt=null,today=beiji
     const ev={date:o.date,examId:o.examId,actual:round(o.pos),prediction:round(prediction),delta:round(delta)};
     if(delta>=2)forecasts2.set(o.date,ev);
     if(delta>=5)forecasts5.set(o.date,ev);
-    if(models?.pal&&(!existing.has('outside-range')&&!out.has('outside-range')||!existing.has('break-limit')&&!out.has('break-limit'))){
+    if(models?.pal&&(canEarlier('outside-range',o.date)||canEarlier('break-limit',o.date))){
      try{const r=models.pal.pipeline.analyzeSeries(hist,PROD),[lo,hi]=r.nextExam.ci95Percentile;if(Number.isFinite(lo)&&Number.isFinite(hi)&&o.pos<lo){const ev={kind:'interval',model:'app-v34/no-se-v1',source:'historical_replay',date:o.date,actual:round(o.pos),low:round(lo),high:round(hi),delta:round(lo-o.pos)};add('outside-range',ev);if(lo-o.pos>=5)add('break-limit',ev)}}catch(_){/* invalid model outputs are not awards */}
     }
    }
-   if(models?.pal&&check(6)&&!existing.has('phase-shift')&&!out.has('phase-shift')){
+   if(models?.pal&&check(6)&&canEarlier('phase-shift',o.date)){
     const h=seg.slice(0,-1),k=h.length-1;try{const cp=models.pal.pipeline.analyzeSeries(h,PROD).changepoint,old=avg(h.slice(-4,-1).map(x=>x.pos)),fresh=Math.max(h.at(-1).pos,o.pos);if(k>=4&&cp.recentChangeProb[k]>.5&&cp.mapRunLength[k-1]>=3&&old-fresh>=5)add('phase-shift',{kind:'state',model:'app-v34/no-se-v1',points:seg.slice(-6).map(point),probability:round(cp.recentChangeProb[k]*100),improvement:round(old-fresh),stableRun:cp.mapRunLength[k-1]})}catch(_){}
    }
   }
-  if(!isTotal&&models?.worth&&(!existing.has('harder')&&!out.has('harder')||!existing.has('headwind')&&!out.has('headwind'))){
+  if(!isTotal&&models?.worth&&(canEarlier('harder',a[0].date)||canEarlier('headwind',a[0].date))){
    const validObs=a.filter(x=>Number.isFinite(x.rate));let seg=[];
-   for(const o of validObs){if((existing.has('harder')||out.has('harder'))&&(existing.has('headwind')||out.has('headwind')))break;if(seg.length&&!popOk([seg.at(-1),o]))seg=[];seg.push(o);if(seg.length<4||!popOk(seg))continue;
+   for(const o of validObs){if(!canEarlier('harder',o.date)&&!canEarlier('headwind',o.date))break;if(seg.length&&!popOk([seg.at(-1),o]))seg=[];seg.push(o);if(seg.length<4||!popOk(seg))continue;
     const prev=seg.slice(0,-1);const e=seg.map((x,j)=>({id:String(j),exam_date:x.date,grade_level:'same',total_participants:x.N,scores:{s:{actual:x.score,max:x.max,rank:x.rank,participants:x.N}}}));
     try{const r=models.worth.compare(e,'s',e.length-1,{mode:'period',start:prev[0].date,end:prev.at(-1).date});if(r.kind!=='estimate'||(r.warnings||[]).some(x=>x!=='历史记录还少'))continue;const baseline=avg(prev.slice(-3).map(x=>x.pos)),delta=r.difficulty-r.referenceDifficulty;if(delta>=10&&o.pos<=baseline){const ev={kind:'difficulty',model:'score-worth-v1',date:o.date,subject:o.subject,difficulty:round(r.difficulty),referenceDifficulty:round(r.referenceDifficulty),actual:round(o.pos),baseline:round(baseline),historyCount:seg.length,qualityPassed:true};add('harder',ev);if(seg.length>=5&&baseline-o.pos>=5)add('headwind',ev)}}catch(_){}
    }
