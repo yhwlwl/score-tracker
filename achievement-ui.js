@@ -243,7 +243,7 @@ function demoEvidence(b){
  }
  return {kind:b.evidence,source:'demo',date:b.id==='early'?'2026-08-21':'2026-10-21',label:b.condition,verified:true,...(b.id==='rank-aware'?{position:24,participants:650}:{}),...(b.id==='full-picture'?{subjects:['语文','数学','英语','物理','化学','地理']}: {})};
 }
-let dialog,deck,controls,shown,returnFocus,mode='front',tour=null,timer=null,ack=null,ackSent=false;
+let collectionDialog,dialog,deck,controls,shown,returnFocus,mode='front',tour=null,timer=null,ack=null,ackSent=false;
 const reduced=()=>g.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 function stopTour(){clearTimeout(timer);timer=null;tour=null}
 function ensureDialog(){
@@ -260,13 +260,13 @@ function renderCard(b,a,opt={}){
  const label=preview?'模拟解锁':opt.realPreview?(earned?'真实数据 · 符合条件':'真实数据 · 条件详情'):earned?'成就已解锁':'成就详情';
  dialog.dataset.tier=b.tier;dialog.querySelector('.st-ach-batch').textContent=opt.batch>1?(opt.realPreview?'真实记录符合 '+opt.batch+' 项成就 · 预览而非发放':'已解锁 '+opt.batch+' 项成就 · 优先展示代表徽章'):opt.tour?'巡展 '+opt.tour:'';
  deck.className='st-ach-deck';
- deck.innerHTML='<section class="st-ach-face st-ach-front '+(opt.play?'st-ach-reveal':'')+'"><div class="st-ach-halo"></div><div class="st-ach-kicker">SCORE TRACKER · '+label+'</div><div class="st-ach-rarity">'+esc(C.tiers[b.tier])+(b.hidden&&(!locked)?' · 隐藏':'')+'</div><div class="st-ach-hero">'+emblem(b,locked)+'</div><h2>'+esc(locked?'尚未发现':b.name)+'</h2><p class="st-ach-quote">'+esc(locked?'等待属于你的发现。':b.quote)+'</p><div class="st-ach-rate">'+(locked?'—':esc(rate(b)))+'</div><small>'+ (locked?'解锁后揭晓':b.tier==='limited'?'历史参考 / 限定':'历史模拟获得率')+'</small><div class="st-ach-brand">SCORE TRACKER  /  ACHIEVEMENTS</div></section><section class="st-ach-face st-ach-back"><div class="st-ach-kicker">ACHIEVEMENT RECORD</div><h2>'+esc(locked?'尚未发现':b.name)+'</h2>'+renderConditions(b,a?.evidence,locked,opt)+'<h3>成就见证</h3>'+(locked?cap('尚未解锁'):evidence(b,a?.evidence))+(a?cap(preview?'示例数据 · 仅供交互预览':opt.realPreview&&source==='historical_replay'?'真实账号历史记录计算 · 预览，不正式发放；预测类为历史滚动回放':source==='historical_replay'?'历史滚动回放 · 非真实考前冻结预测':source==='demo'?'示例数据':source==='manual'?'经核验的纪念记录':'成就证据快照'):'')+(!earned&&!locked&&(b.mode!=='auto'||opt.pending)?cap(opt.pending||'待快照接入或活动核验，不会自动发放。'):'')+'</section>';
+ deck.innerHTML='<section class="st-ach-face st-ach-front '+(opt.play?'st-ach-reveal':'')+'"><div class="st-ach-halo"></div><div class="st-ach-kicker">SCORE TRACKER · '+label+'</div><div class="st-ach-rarity">'+esc(C.tiers[b.tier])+(b.hidden&&(!locked)?' · 隐藏':'')+'</div><div class="st-ach-hero">'+emblem(b,locked)+'</div><h2>'+esc(locked?'尚未发现':b.name)+'</h2><p class="st-ach-quote">'+esc(locked?'等待属于你的发现。':b.quote)+'</p><div class="st-ach-rate">'+(locked?'—':esc(rateInfo(b,opt).value))+'</div><small>'+ (locked?'解锁后揭晓':esc(rateInfo(b,opt).label))+'</small>'+(!locked&&earned&&!preview?cap(dateLabel(a)):'')+'<div class="st-ach-brand">SCORE TRACKER  /  ACHIEVEMENTS</div></section><section class="st-ach-face st-ach-back"><div class="st-ach-kicker">ACHIEVEMENT RECORD</div><h2>'+esc(locked?'尚未发现':b.name)+'</h2>'+renderConditions(b,a?.evidence,locked,opt)+'<h3>成就见证</h3>'+(locked?cap('尚未解锁'):evidence(b,a?.evidence))+(a?cap(preview?'示例数据 · 仅供交互预览':opt.realPreview&&source==='historical_replay'?'真实账号历史记录计算 · 预览，不正式发放；预测类为历史滚动回放':source==='historical_replay'?'历史滚动回放 · 非真实考前冻结预测':source==='demo'?'示例数据':source==='manual'?'经核验的纪念记录':'成就证据快照'):'')+(!earned&&!locked&&(b.mode!=='auto'||opt.pending)?cap(opt.pending||'待快照接入或活动核验，不会自动发放。'):'')+'</section>';
  controls.innerHTML='<button type="button" data-flip>翻面 · 查看成就见证</button>'+(opt.demo||(opt.realPreview&&earned)?'<button type="button" data-replay>重播</button>':'')+(tour?'<button type="button" data-tour-stop>停止巡展</button>':'')+(opt.onGallery?'<button type="button" data-gallery>查看收藏馆</button>':'')+'<button type="button" data-dismiss>关闭</button>';
  controls.querySelector('[data-flip]').onclick=()=>{if(tour){stopTour();controls.querySelector('[data-tour-stop]')?.remove()}setFace(mode==='front'?'back':'front')};
  controls.querySelector('[data-dismiss]').onclick=()=>dialog.close();
  const replay=controls.querySelector('[data-replay]');if(replay)replay.onclick=()=>{stopTour();renderCard(b,a,{...opt,tour:null,play:true})};
  const stop=controls.querySelector('[data-tour-stop]');if(stop)stop.onclick=()=>{stopTour();stop.remove()};
- const gallery=controls.querySelector('[data-gallery]');if(gallery)gallery.onclick=()=>{stopTour();if(!ackSent&&ack){ackSent=true;ack()}ack=null;opt.onGallery()};
+ const gallery=controls.querySelector('[data-gallery]');if(gallery)gallery.onclick=()=>{stopTour();if(!ackSent&&ack){ackSent=true;ack()}ack=null;if(dialog.open)dialog.close();opt.onGallery()};
  setFace('front');
 }
 function show(b,a,opt={}){
@@ -278,19 +278,66 @@ function autoplay(list){
  timer=setTimeout(()=>{if(!tour||!dialog.open)return;setFace('back');timer=setTimeout(()=>{if(!tour||!dialog.open)return;tour.i++;if(tour.i>=tour.list.length){stopTour();controls.querySelector('[data-tour-stop]')?.remove();return}next()},reduced()?1800:2200)},reduced()?1200:1700)}
  next();
 }
-function gallery(root,awards=[],demo=false,options={}){
- const earned=new Map(awards.map(a=>[a.badge_id,a])),filter={tier:'all',query:'',only:!!options.realPreview,reveal:demo};root.classList.add('st-ach-gallery');
- root.innerHTML='<div class="st-ach-gallery-head"><div><small>ACHIEVEMENTS / COLLECTION</small><h2>我的成就</h2><p>每一枚徽章，都有自己的故事。</p></div><span>'+ (demo?'52 枚设计预览':options.realPreview?'符合 '+earned.size+' 枚':'已收藏 '+earned.size+' 枚')+'</span></div><div class="st-ach-filters"><select aria-label="稀有等级"><option value="all">全部等级</option>'+levels.map(t=>'<option value="'+t+'">'+C.tiers[t]+'</option>').join('')+'</select><input type="search" placeholder="查找成就" aria-label="查找成就">'+(demo?'<label><input type="checkbox" data-reveal checked> 展示隐藏设计</label><button type="button" data-random>随机模拟</button><button type="button" data-tour>全部巡展</button>':'<label><input type="checkbox" data-owned '+(filter.only?'checked':'')+'> '+(options.realPreview?'仅符合条件':'仅已获得')+'</label>')+'</div><div class="st-ach-grid"></div><p class="st-ach-caption">历史比例为规则设计回测参考；徽章不代表学生能力高低。</p>';
- const grid=root.querySelector('.st-ach-grid');
- function filtered(){return C.badges.filter(b=>(filter.tier==='all'||b.tier===filter.tier)&&(!filter.only||earned.has(b.id))&&(!filter.query||((b.hidden&&!earned.has(b.id)&&!filter.reveal)?'尚未发现':b.name).includes(filter.query)))}
- function draw(){grid.innerHTML=filtered().map(b=>{const a=earned.get(b.id),locked=!a&&!filter.reveal,secret=locked&&b.hidden;return '<button type="button" class="st-ach-tile '+(locked?'st-ach-locked':'')+'" data-id="'+b.id+'" data-tier="'+b.tier+'"><span class="st-ach-tile-image">'+emblem(b,locked)+'</span><strong>'+esc(secret?'尚未发现':b.name)+'</strong><small>'+esc(secret?'隐藏成就':C.tiers[b.tier])+(demo?' · '+esc(rate(b)):a?(options.realPreview?' · 符合条件':' · 已获得'):options.pending?.[b.id]?' · 待核验':options.realPreview?' · 未检测到符合条件':' · 未获得')+'</small></button>'}).join('')||'<p class="st-ach-caption">没有符合筛选条件的成就。</p>'}
- root.querySelector('select').onchange=e=>{filter.tier=e.target.value;draw()};root.querySelector('input[type=search]').oninput=e=>{filter.query=e.target.value.trim();draw()};
- if(demo){root.querySelector('[data-reveal]').onchange=e=>{filter.reveal=e.target.checked;draw()};root.querySelector('[data-random]').onclick=()=>{const list=filtered();if(list.length){const b=list[Math.floor(Math.random()*list.length)];show(b,{evidence:demoEvidence(b)},{demo:true,reveal:true,play:true})}};root.querySelector('[data-tour]').onclick=()=>autoplay(filtered())}
- else root.querySelector('[data-owned]').onchange=e=>{filter.only=e.target.checked;draw()};
- grid.onclick=e=>{const tile=e.target.closest('[data-id]');if(!tile)return;const b=B.get(tile.dataset.id);if(demo)show(b,{evidence:demoEvidence(b)},{demo:true,reveal:true,play:true});else if(options.realPreview)show(b,earned.get(b.id),{realPreview:true,play:earned.has(b.id),pending:options.pending?.[b.id]});else show(b,earned.get(b.id),{onGallery:()=>openGallery(awards)})};
- draw();
+
+function dayKey(x){if(typeof x!=='string'||!x)return '';if(/^\d{4}-\d{2}-\d{2}$/.test(x))return x;const t=Date.parse(x);return Number.isFinite(t)?new Date(t+28800000).toISOString().slice(0,10):''}
+function evidenceDay(a){if(!a)return '';const e=a.evidence||{};if(e.achievedDate)return dayKey(e.achievedDate);if(e.kind==='time')return '';return [e.date,...(e.points||[]).map(x=>x.date),...(e.events||[]).flatMap(x=>(x.points||[]).map(p=>p.date)),...(e.dates||[])].map(dayKey).filter(Boolean).sort().at(-1)||''}
+function awardDay(a){return evidenceDay(a)||dayKey(a?.awarded_at)}
+function dateLabel(a){const d=evidenceDay(a);return d?d.replaceAll('-','.')+(a?.evidence?.source==='historical_replay'?' · 历史':''):a?.awarded_at?dayKey(a.awarded_at).replaceAll('-','.')+' · 获得':'日期待追溯'}
+function rateInfo(b,opt={}){
+ const s=opt.stats;if(s&&Number(s.total)>0&&s.counts&&typeof s.counts==='object'){const c=Number(s.counts[b.id]??0);return {value:(c/Number(s.total)*100).toFixed(c>0&&c/Number(s.total)<.001?3:2)+'%',label:'全站获得率',number:c/Number(s.total)}}
+ if(opt.demo||opt.realPreview)return {value:rate(b),label:'历史达成率参考',number:b.count==null?Infinity:b.count/C.denominator};
+ return {value:'待统计',label:'全站获得率',number:Infinity}
 }
-function close(){if(dialog?.open)dialog.close();stopTour();if(deck)deck.innerHTML='';if(controls)controls.innerHTML='';shown=null;ack=null;returnFocus=null}
-function openGallery(awards){ensureDialog();stopTour();if(!dialog.open){returnFocus=document.activeElement;dialog.showModal()}ack=null;ackSent=false;dialog.dataset.tier='common';dialog.querySelector('.st-ach-batch').textContent='';deck.className='st-ach-deck st-ach-deck-gallery';deck.innerHTML='';const r=document.createElement('section');deck.append(r);gallery(r,awards);controls.innerHTML='<button type="button" data-dismiss>关闭收藏馆</button>';controls.querySelector('[data-dismiss]').onclick=()=>dialog.close()}
-g.ScoreAchievementUI={emblem,gallery,show,autoplay,openGallery,close,rate,demoEvidence,conditionRows,summaries};
+function favoriteIds(awards,preferred){const ids=new Set(awards.map(a=>a.badge_id));if(Array.isArray(preferred))return [...new Set(preferred)].filter(x=>ids.has(x)&&B.has(x)).slice(0,3);return [...awards].filter(a=>B.has(a.badge_id)).sort((a,b)=>awardDay(b).localeCompare(awardDay(a))).slice(0,3).map(a=>a.badge_id)}
+function entryHTML(awards=[],opt={}){const fav=favoriteIds(awards,opt.favorites),extras=awards.filter(a=>!fav.includes(a.badge_id)&&B.has(a.badge_id)).sort((a,b)=>awardDay(b).localeCompare(awardDay(a))).map(a=>a.badge_id),ids=[...fav,...extras].slice(0,5);return '<span class="st-ach-entry-top"><strong>我的成就</strong><span>'+esc(opt.realPreview?'符合 ':'已收藏 ')+awards.length+' 枚　›</span></span>'+(ids.length?'<span class="st-ach-entry-medals">'+ids.map(id=>emblem(B.get(id))).join('')+'</span>':'')+'<span class="st-ach-entry-sub">打开我的成长收藏册</span>'}
+function gallery(root,awards=[],demo=false,options={}){
+ const earned=new Map(awards.filter(a=>B.has(a.badge_id)).map(a=>[a.badge_id,a])),own=[...earned.values()],opt={...options,demo},filter={tier:'all',query:'',tab:demo?'all':'owned',sort:demo?'catalog':'rarity',reveal:demo};
+ let favorites=favoriteIds(own,options.favorites),editing=false,busy=false,editMessage='';
+ root.classList.add('st-ach-gallery');
+ const secret=b=>b.hidden&&!earned.has(b.id)&&!filter.reveal;
+ const name=b=>secret(b)?'尚未发现':b.name;
+ root.innerHTML='<div class="st-ach-collection-hero"><div class="st-ach-collection-top"><div><small>MY ACHIEVEMENTS</small><h2>成就馆</h2><div class="st-ach-collection-count">'+(demo?'52':own.length)+' <span>'+esc(demo?'枚设计预览':options.realPreview?'枚符合条件':'枚收藏')+'</span></div><p>每一枚，都是一段值得记住的经历。</p></div><div class="st-ach-collection-emblem"></div></div><div class="st-ach-tier-counts">'+levels.map(t=>'<div><strong>'+(demo?C.badges.filter(b=>b.tier===t).length:own.filter(a=>B.get(a.badge_id).tier===t).length)+'</strong><small>'+C.tiers[t]+'</small></div>').join('')+'</div></div>'+
+ (!demo?'<div class="st-ach-section-title"><strong>我的珍藏</strong><button type="button" data-edit>编辑代表徽章</button></div><div class="st-ach-featured"></div><p class="st-ach-edit-note" aria-live="polite"></p><div class="st-ach-tabs" role="group" aria-label="收藏馆分类"><button type="button" data-tab="owned">我的收藏</button><button type="button" data-tab="all">全部成就</button><button type="button" data-tab="timeline">成就历程</button></div>':'')+
+ '<div class="st-ach-filters"><select data-tier-select aria-label="稀有等级"><option value="all">全部等级</option>'+levels.map(t=>'<option value="'+t+'">'+C.tiers[t]+'</option>').join('')+'</select><input type="search" placeholder="查找成就" aria-label="查找成就"><select data-sort aria-label="排序"><option value="catalog">图鉴顺序</option><option value="rarity">稀有等级</option><option value="new">从近到远</option><option value="old">从远到近</option><option value="rate">达成率从低到高</option></select>'+(demo?'<label><input type="checkbox" data-reveal checked> 展示隐藏设计</label><button type="button" data-random>随机模拟</button><button type="button" data-tour>全部巡展</button>':'')+'</div><div class="st-ach-grid"></div><p class="st-ach-caption">'+esc(demo||options.realPreview?'预览比例为历史回测参考，并非正式获得率。历史日期依据现存记录推算；预览不正式发放。':'全站获得率按有效注册账号统计；历史日期由现存记录推算，无法追溯时显示获得日期。')+'</p>';
+ const grid=root.querySelector('.st-ach-grid'),sortEl=root.querySelector('[data-sort]');
+ function filtered(){
+  const order=filter.tab==='timeline'?(filter.sort==='old'?'old':'new'):filter.sort;
+  return C.badges.filter(b=>(filter.tier==='all'||b.tier===filter.tier)&&(filter.tab==='all'||earned.has(b.id))&&(!filter.query||name(b).includes(filter.query))).sort((a,b)=>{
+   if(order==='rate'){const x=secret(a)?Infinity:rateInfo(a,opt).number,y=secret(b)?Infinity:rateInfo(b,opt).number;return x===y?0:x<y?-1:1}
+   if(order==='rarity')return levels.indexOf(b.tier)-levels.indexOf(a.tier);
+   if(order==='new'||order==='old'){const x=awardDay(earned.get(a.id)),y=awardDay(earned.get(b.id));return !x&&y?1:x&&!y?-1:order==='new'?y.localeCompare(x):x.localeCompare(y)}
+   return 0});
+ }
+ function tile(b,timeline=false){
+  const a=earned.get(b.id),hidden=secret(b),r=rateInfo(b,opt),locked=!a&&!filter.reveal,date=a?dateLabel(a):options.pending?.[b.id]?'待核验':'尚未获得';
+  return '<button type="button" class="st-ach-tile '+(locked?'st-ach-locked ':'')+(editing&&favorites.includes(b.id)?'st-ach-favorite-selected ':'')+(timeline?'st-ach-timeline-tile':'')+'" data-id="'+b.id+'" data-tier="'+b.tier+'" '+(editing&&!a?'disabled':'')+'><span class="st-ach-tile-image">'+emblem(b,locked)+'</span><span class="st-ach-tile-text"><strong>'+esc(name(b))+'</strong><small>'+esc(hidden?'隐藏成就':C.tiers[b.tier])+'</small>'+(hidden?'':'<span class="st-ach-tile-rate">'+esc(r.value)+'</span><small>'+esc(r.label)+'</small>')+(timeline?'<span class="st-ach-timeline-quote">'+esc(b.quote)+'</span>':'')+(demo?'':'<span class="st-ach-tile-date">'+esc(date)+'</span>')+'</span>'+(editing&&favorites.includes(b.id)?'<span class="st-ach-favorite-check">✓</span>':'')+'</button>';
+ }
+ function draw(){
+  const lead=favorites[0]&&B.get(favorites[0]);root.querySelector('.st-ach-collection-emblem').innerHTML=lead?emblem(lead):'';
+  if(!demo){root.querySelector('.st-ach-featured').innerHTML=favorites.map(id=>{const b=B.get(id);return '<button type="button" data-featured="'+id+'">'+emblem(b)+'<strong>'+esc(b.name)+'</strong><small>'+C.tiers[b.tier]+'</small></button>'}).join('')+Array.from({length:3-favorites.length},()=>'<button type="button" data-add-favorite><span class="st-ach-feature-empty">＋</span><small>选择徽章</small></button>').join('');
+   root.querySelector('[data-edit]').textContent=editing?'完成编辑':'编辑代表徽章';root.querySelector('[data-edit]').disabled=busy;
+   root.querySelector('.st-ach-edit-note').textContent=editMessage||(editing?'从已获得的徽章中选择最多3枚，点击已选择的徽章可取消。':'');
+   root.querySelectorAll('[data-tab]').forEach(x=>{x.setAttribute('aria-pressed',String(x.dataset.tab===filter.tab));x.disabled=editing});
+  }
+  const timeline=filter.tab==='timeline';sortEl.querySelectorAll('option').forEach(o=>o.hidden=timeline&&!['new','old'].includes(o.value));sortEl.value=timeline?(filter.sort==='old'?'old':'new'):filter.sort;
+  grid.classList.toggle('st-ach-timeline',timeline);const list=filtered();
+  if(!list.length){grid.innerHTML='<p class="st-ach-caption">没有符合筛选条件的成就。</p>';return}
+  if(timeline){const map=new Map();for(const b of list){const day=awardDay(earned.get(b.id))||'unknown';if(!map.has(day))map.set(day,[]);map.get(day).push(b)}let month='';grid.innerHTML=[...map].map(([day,items])=>{const next=day==='unknown'?'日期待追溯':day.slice(0,7);const heading=month!==next?'<h3 class="st-ach-timeline-month">'+esc(day==='unknown'?next:next.slice(0,4)+' 年 '+Number(next.slice(5,7))+' 月')+'</h3>':'';month=next;return heading+'<section class="st-ach-timeline-day"><div class="st-ach-timeline-date"><strong>'+esc(day==='unknown'?'未记录准确日期':Number(day.slice(5,7))+'月'+Number(day.slice(8))+'日')+'</strong><small>'+items.length+' 项成就</small></div><div class="st-ach-timeline-items">'+items.map(b=>tile(b,true)).join('')+'</div></section>'}).join('')}
+  else grid.innerHTML=list.map(b=>tile(b)).join('');
+ }
+ async function toggleEdit(){if(busy)return;if(!editing){editing=true;filter.tab='owned';editMessage='';draw();return}busy=true;draw();try{if(options.onFavorites)await options.onFavorites([...favorites]);editing=false;editMessage=''}catch(_){editMessage='保存失败，请重试。'}finally{busy=false;draw()}}
+ function choose(b){if(!b||busy)return;if(editing){if(!earned.has(b.id))return;if(favorites.includes(b.id))favorites=favorites.filter(x=>x!==b.id);else if(favorites.length<3)favorites.push(b.id);else{editMessage='最多选择3枚，先取消一枚即可更换。';draw();return}editMessage='';draw();return}if(demo)show(b,{evidence:demoEvidence(b)},{...opt,reveal:true,play:true});else show(b,earned.get(b.id),{...opt,play:false,pending:options.pending?.[b.id]})}
+ root.querySelector('[data-tier-select]').onchange=e=>{filter.tier=e.target.value;draw()};
+ root.querySelector('input[type=search]').oninput=e=>{filter.query=e.target.value.trim();draw()};
+ sortEl.onchange=e=>{filter.sort=e.target.value;draw()};
+ if(demo){root.querySelector('[data-reveal]').onchange=e=>{filter.reveal=e.target.checked;draw()};root.querySelector('[data-random]').onclick=()=>{const list=filtered();if(list.length){const b=list[Math.floor(Math.random()*list.length)];show(b,{evidence:demoEvidence(b)},{demo:true,reveal:true,play:true})}};root.querySelector('[data-tour]').onclick=()=>autoplay(filtered())}
+ else{root.querySelector('[data-edit]').onclick=toggleEdit;root.querySelector('.st-ach-featured').onclick=e=>{const b=e.target.closest('[data-featured]');if(b)choose(B.get(b.dataset.featured));else if(e.target.closest('[data-add-favorite]')&&!editing)toggleEdit()};root.querySelector('.st-ach-tabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(!b||editing)return;filter.tab=b.dataset.tab;if(filter.tab==='timeline')filter.sort='new';draw()}}
+ grid.onclick=e=>{const tile=e.target.closest('[data-id]');if(tile)choose(B.get(tile.dataset.id))};draw();
+}
+function close(){if(dialog?.open)dialog.close();if(collectionDialog?.open)collectionDialog.close();stopTour();if(deck)deck.innerHTML='';if(controls)controls.innerHTML='';collectionDialog?.querySelector('.st-ach-collection-body')?.replaceChildren();shown=null;ack=null;returnFocus=null}
+function openGallery(awards,opt={}){
+ if(!collectionDialog){collectionDialog=document.createElement('dialog');collectionDialog.className='st-ach-collection-dialog';collectionDialog.setAttribute('aria-label','成就馆');collectionDialog.innerHTML='<div class="st-ach-collection-header"><button type="button" aria-label="返回账号页">‹ 返回</button><strong>成就馆</strong><small>Score Tracker</small></div><div class="st-ach-collection-body"></div>';document.body.append(collectionDialog);collectionDialog.querySelector('button').onclick=()=>collectionDialog.close()}
+ if(dialog?.open)dialog.close();const body=collectionDialog.querySelector('.st-ach-collection-body');body.replaceChildren();const r=document.createElement('section');body.append(r);gallery(r,awards,false,opt);if(!collectionDialog.open)collectionDialog.showModal();
+}
+g.ScoreAchievementUI={emblem,gallery,show,autoplay,openGallery,close,rate,demoEvidence,conditionRows,summaries,awardDay,evidenceDay,dateLabel,rateInfo,favoriteIds,entryHTML};
 })(window);

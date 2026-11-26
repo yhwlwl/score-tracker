@@ -53,9 +53,18 @@ for(const b of C.badges){
  win.document.querySelector('[data-dismiss]').click();
 }
 win.ScoreAchievementUI.gallery(root,[],false);
+root.querySelector('[data-tab="all"]').click();
 assert(root.querySelector('[data-id="outside-range"]').textContent.includes('尚未发现'));
 root.querySelector('[data-id="outside-range"]').click();
 assert(!win.document.querySelector('.st-ach-back').textContent.includes('95%预测区间最佳端点'));
 win.document.querySelector('[data-dismiss]').click();
+const sample=actual.filter(a=>a.evidence.date||a.evidence.points?.length||a.evidence.achievedDate);
+win.ScoreAchievementUI.gallery(root,sample,false,{realPreview:true,favorites:[]});
+assert.equal(root.querySelectorAll('[data-id]').length,sample.length);
+root.querySelector('[data-tab="timeline"]').click();assert(root.querySelector('.st-ach-timeline-day'));
+root.querySelector('[data-tab="owned"]').click();root.querySelector('[data-edit]').click();root.querySelector('[data-id]').click();
+assert.equal(root.querySelectorAll('.st-ach-favorite-selected').length,1);
+assert.equal(win.ScoreAchievementUI.rateInfo(C.badges[0],{stats:{total:100,counts:{'first-step':50}}}).value,'50.00%');
+assert.equal(win.ScoreAchievementUI.evidenceDay(actual.find(a=>a.badge_id==='three-days')),'2026-10-03');
 dom.window.close();
 console.log('PASS: 52 unique medals, evaluator boundaries, cumulative prediction, immutable receipts contract, frozen kernel, hidden badge and front/back DOM preview.');

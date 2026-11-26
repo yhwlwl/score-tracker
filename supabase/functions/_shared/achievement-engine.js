@@ -19,10 +19,10 @@ function evaluate({exams=[],goal=null,createdAt=null,today=beijing(new Date().to
  const es=all.filter(e=>Number.isFinite(num(e.total_actual_score))||Number.isFinite(num(e.total_raw_score))||Object.values(e.scores||{}).some(s=>valid(s.actual,s.max)||valid(s.raw,s.rawMax)));
  const examDays=[...new Set(es.map(e=>e.exam_date))],uploadDays=[...new Set(es.map(e=>beijing(e.created_at)).filter(Boolean))].sort(),months=new Set(examDays.map(d=>d.slice(0,7))),uploadMonths=new Set(uploadDays.map(d=>d.slice(0,7)));
  const span=examDays.length?days(examDays[0],examDays.at(-1)):0,upSpan=uploadDays.length?days(uploadDays[0],uploadDays.at(-1)):0;
- function time(id,dates){add(id,{kind:'time',dates:[dates[0],dates.at(-1)],count:dates.length,span:days(dates[0],dates.at(-1)),months:new Set(dates.map(d=>d.slice(0,7))).size})}
+ function time(id,dates){const rules={'three-days':[3,0,0],'five-days':[5,0,0],'ten-days':[10,0,0],'twenty-days':[20,0,0],chronicle:[40,0,0],'half-year':[6,0,6],'four-seasons':[12,0,12],'year-trace':[12,365,6],rings:[20,365,9],'time-witness':[3,30,0],'long-road':[4,60,0],'time-kept':[6,0,3]};const [n,spanMin,m]=rules[id];const seen=new Set();let achievedDate;for(let i=0;i<dates.length;i++){seen.add(dates[i].slice(0,7));if(i+1>=n&&days(dates[0],dates[i])>=spanMin&&seen.size>=m){achievedDate=dates[i];break}}add(id,{kind:'time',dates:[dates[0],dates.at(-1)],achievedDate,count:dates.length,span:days(dates[0],dates.at(-1)),months:new Set(dates.map(d=>d.slice(0,7))).size})}
  if(examDays.length)add('first-step',{date:examDays[0],count:examDays.length});
- const subjects=new Set();for(const e of es)for(const [s,v] of Object.entries(e.scores||{}))if(valid(v.actual,v.max)||valid(v.raw,v.rawMax))subjects.add(s);
- if(subjects.size>=3)add('full-picture',{subjects:[...subjects]});
+ const subjects=new Set();let fullPictureDate;for(const e of es){for(const [s,v] of Object.entries(e.scores||{}))if(valid(v.actual,v.max)||valid(v.raw,v.rawMax))subjects.add(s);if(subjects.size>=3&&!fullPictureDate)fullPictureDate=e.exam_date}
+ if(subjects.size>=3)add('full-picture',{subjects:[...subjects],achievedDate:fullPictureDate});
  if(goal)add('goal-set',{kind:'record',label:'长期目标已建立'});
  if(es.some(e=>{const r=e.reflection;return typeof r==='string'?!!r.trim():r&&typeof r==='object'&&JSON.stringify(r).replace(/[\s{}[\]"':,]/g,'').length>0}))add('reflection',{label:'已保存考后反思'});
  for(const [id,n] of [['three-days',3],['five-days',5],['ten-days',10],['twenty-days',20],['chronicle',40]])if(examDays.length>=n)time(id,examDays);
@@ -59,14 +59,14 @@ function evaluate({exams=[],goal=null,createdAt=null,today=beijing(new Date().to
     const ev={kind:'dual',points:[p,o].map(point),positionChange:round(dp),scoreChange:round(ds)};
     if(dp>=5&&ds<=-3){add('beyond-score',ev);diverg.set(o.date,ev)}
     if(dp>=5&&ds>=3)dual.set(o.date,ev);
-    const key=JSON.stringify([p.examId,o.examId]);if(!pairs.has(key))pairs.set(key,[]);pairs.get(key).push({subject:o.subject,before:round(p.pos),after:round(o.pos),dp});
+    const key=JSON.stringify([p.examId,o.examId]);if(!pairs.has(key))pairs.set(key,[]);pairs.get(key).push({date:o.date,subject:o.subject,before:round(p.pos),after:round(o.pos),dp});
    }
    best=Math.max(best,o.rate);
   }
  }
- if(diverg.size>=3)add('more-than-score',{kind:'dual',events:[...diverg.values()].slice(0,3),totalCount:diverg.size,minPositionChange:Math.min(...[...diverg.values()].map(x=>x.positionChange)),maxScoreChange:Math.max(...[...diverg.values()].map(x=>x.scoreChange))});
- if(dual.size>=3)add('double-proof',{kind:'dual',events:[...dual.values()].slice(0,3),totalCount:dual.size,minPositionChange:Math.min(...[...dual.values()].map(x=>x.positionChange)),minScoreChange:Math.min(...[...dual.values()].map(x=>x.scoreChange))});
- for(const a of pairs.values()){const good=a.filter(x=>x.dp>=5).length;if(a.every(x=>x.dp>=-2)){if(good>=3)add('chorus',{kind:'radar',subjects:a});if(good>=5)add('resonance',{kind:'radar',subjects:a})}}
+ if(diverg.size>=3)add('more-than-score',{kind:'dual',events:[...diverg.values()].sort((a,b)=>a.points.at(-1).date.localeCompare(b.points.at(-1).date)).slice(0,3),totalCount:diverg.size,minPositionChange:Math.min(...[...diverg.values()].map(x=>x.positionChange)),maxScoreChange:Math.max(...[...diverg.values()].map(x=>x.scoreChange))});
+ if(dual.size>=3)add('double-proof',{kind:'dual',events:[...dual.values()].sort((a,b)=>a.points.at(-1).date.localeCompare(b.points.at(-1).date)).slice(0,3),totalCount:dual.size,minPositionChange:Math.min(...[...dual.values()].map(x=>x.positionChange)),minScoreChange:Math.min(...[...dual.values()].map(x=>x.scoreChange))});
+ for(const a of pairs.values()){const good=a.filter(x=>x.dp>=5).length;if(a.every(x=>x.dp>=-2)){if(good>=3)add('chorus',{kind:'radar',subjects:a,date:a[0].date});if(good>=5)add('resonance',{kind:'radar',subjects:a,date:a[0].date})}}
  // Rank sequences; total is separated by subject basket. Split on population change.
  const forecasts2=new Map(),forecasts5=new Map();
  for(const seq of groups(rp,x=>JSON.stringify([x.category,x.subject])).values()){

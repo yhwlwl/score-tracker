@@ -3,11 +3,11 @@
 'use strict';
 const $=id=>document.getElementById(id),UI=window.ScoreAchievementUI,C=window.ScoreAchievements,E=window.ScoreAchievementEngine;
 const tabs=$('preview-tabs'),form=$('preview-login'),status=$('preview-status'),real=$('preview-real'),demo=$('achievement-preview'),account=$('preview-account'),notice=$('preview-result-note');
-let token='',user=null,awards=[],pending={},epoch=0,busy=false,request=null;
+let token='',user=null,awards=[],pending={},epoch=0,busy=false,request=null,previewFavorites=null;
 function message(s){status.textContent=s}
 function setMode(mode){UI.close();const isReal=mode==='real';demo.hidden=isReal;real.hidden=!isReal;tabs.querySelectorAll('button').forEach(b=>{const active=b.dataset.mode===mode;b.setAttribute('aria-pressed',String(active))})}
 function setBusy(value){busy=value;form.querySelectorAll('input,button').forEach(x=>x.disabled=value);$('preview-refresh').disabled=value;$('preview-use-session').disabled=value}
-function clearResult(){UI.close();awards=[];pending={};$('preview-real-gallery').replaceChildren();account.hidden=true;notice.textContent='';user=null;token=''}
+function clearResult(){UI.close();previewFavorites=null;awards=[];pending={};$('preview-real-gallery').replaceChildren();account.hidden=true;notice.textContent='';user=null;token=''}
 function reset(){epoch++;request?.abort();request=null;clearResult();form.reset();form.hidden=false;setBusy(false);message('');$('preview-use-session').hidden=!existingToken()}
 function existingToken(){try{return localStorage.getItem('st_token')||''}catch(_){return ''}}
 async function api(endpoint,action,fields,signal){
@@ -44,7 +44,7 @@ function render(result,session){
  form.hidden=true;account.hidden=false;
  $('preview-user').textContent=user.username||'已登录账号';
  notice.textContent='已读取 '+result.examCount+' 条考试记录，检测到 '+awards.length+' 枚符合条件的徽章；'+Object.keys(pending).length+' 枚待快照或活动资格核验。以下为真实历史数据计算结果，不代表正式发放。';
- UI.gallery($('preview-real-gallery'),awards,false,{realPreview:true,pending});
+ UI.gallery($('preview-real-gallery'),awards,false,{realPreview:true,pending,favorites:previewFavorites,onFavorites:async ids=>{previewFavorites=ids}});
  $('preview-pending').textContent=Object.keys(pending).length?'暂不能核验：'+C.badges.filter(b=>pending[b.id]).map(b=>b.name).join('、')+'。':'';
  $('preview-play').disabled=!awards.length;
  message('');setMode('real');
