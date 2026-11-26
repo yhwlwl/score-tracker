@@ -165,6 +165,10 @@ async function roundTrip(snapshot) {
     const local=await studyQuestion(db,'owner',{requestId:crypto.randomUUID(),question:'天气怎么样？',previous:first.requestId},async()=>{loaded++;return snapshot;});
     assert.equal(local.status,200);assert.equal(local.data.charged,0);assert.equal(local.data.id,first.requestId);
     assert.equal(loaded,0);assert.equal(sent,0);
+    const direct=await studyQuestion(db,'owner',{requestId:crypto.randomUUID(),question:'最近一次物理考了多少分？'},async()=>snapshot);
+    assert.equal(direct.status,200);assert.match(direct.data.answer,/0 分/);assert.equal(sent,0);
+    assert.equal((await studyQuestion(db,'owner',{requestId:crypto.randomUUID(),question:'最近一次数学考了多少分？'},async()=>snapshot)).status,200);
+    assert.equal(sent,0,'exact score lookup should not call a model');
     const forbidden=await explore(snapshot,'测试边界',[],async()=>({boundary:true,queries:[{tool:'results'}]}),undefined,undefined,{maxSteps:4,shouldFinalize:()=>false,onQuery:()=>{throw Error('boundary must precede tools');}});
     assert.equal(forbidden.kind,'boundary');assert.deepEqual(forbidden.evidence,[]);
     global.fetch=async(_,init)=>{
