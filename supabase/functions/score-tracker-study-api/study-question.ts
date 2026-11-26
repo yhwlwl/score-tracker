@@ -296,6 +296,7 @@ export async function explore(snapshot:any, question:string, history:any[], comp
         continue;
       }
       if(violations.length){
+        budget?.onIncomplete?.();
         const evidence= currentSorts;
         return {answer:'按实际录入的本场数据重新核对：\n\n'+evidence.map(f=>'**'+f.label+'**：'+f.value).join('\n\n'),evidence,next:''};
       }
@@ -406,6 +407,25 @@ export async function explore(snapshot:any, question:string, history:any[], comp
   throw Error('invalid_response');
 }
 
+// Exact score lookup uses the same authorized facts as the agent, without an LLM round trip.
+export async function directLatestScore(snapshot:any,question:string){
+  const tools=studyTools(snapshot);
+  const q=question.normalize('NFKC').replace(/[\s？?。！!]/g,'');
+  for(const [key,name] of Object.entries(tools.catalog.scopes)){
+    if(!key.startsWith('s:')||!name)continue;
+    const forms=['最近一次'+name+'考了多少分','最近一次'+name+'成绩是多少','最近一次'+name+'多少分',name+'最近一次考了多少分',name+'最近一次成绩是多少'];
+    if(!forms.includes(q)&&!forms.includes(q.replace(/^我(?:的)?/,'')))continue;
+    const result=await tools.query({tool:'results',scopes:[key],limit:1});
+    const fact=result.facts.find(f=>f.label===name);
+    if(!fact)return {answer:'暂时没有查到'+name+'的已录入成绩。',evidence:[],next:''};
+    // A zero score is a real score. Rank-only records must not be converted into scores.
+    const score=fact.value.split(' · ').find(v=>/^(?:-?\d+(?:\.\d+)?)(?:\/\d+(?:\.\d+)?)? 分$/.test(v));
+    if(!score)return {answer:'最近一次'+name+'有记录，但没有录入具体分数。'+fact.value+'。',evidence:[fact],next:''};
+    const [actual,max]=score.replace(/ 分$/,'').split('/');
+    return {answer:'最近一次'+name+'考了 **'+actual+' 分**'+(max?'，满分 '+max+' 分':'')+'。',evidence:[fact],next:''};
+  }
+  return null;
+}
 export async function studyQuestion(db:any, user:string, body:any, load:()=>Promise<any>, loadTrajectory?:TrajectoryLoader, progress?:ProgressListener, enableCache=true) {
   const fail = (status:number,error:string,code='') => ({status,data:{error,code}});
   const id = body.requestId, parent = body.previous || null, question = typeof body.question==='string' ? body.question.trim() : '';
@@ -460,8 +480,15 @@ export async function studyQuestion(db:any, user:string, body:any, load:()=>Prom
       const settled=await creditRpc(db,'score_tracker_study_finish',{p_user:user,p_task:id,p_turn:{question,previous:parent,providerSession,thinking:mode,result:{...hit,thinking:mode}}});
       return {status:200,data:{...hit,thinking:mode,charged:settled.charged,id,cached:true}};
     }
+    if(enableCache && !parent && mode!=='high'){
+      const direct=await directLatestScore(snapshot,question);
+      if(direct){
+        const settled=await creditRpc(db,'score_tracker_study_finish',{p_user:user,p_task:id,p_turn:{question,previous:parent,providerSession,thinking:mode,result:{...direct,thinking:mode}}});
+        return {status:200,data:{...direct,thinking:mode,charged:settled.charged,id}};
+      }
+    }
     let cacheable=Boolean(key), usedTools=0;
-    const pureTools=new Set(['results','examList','matrix','structure','profile','difficulty','goals','plan','benchmarks','statistics','baseline','scenario','aggregate']);
+    const pureTools=new Set(['results','examList','matrix','structure','profile','difficulty','benchmarks','statistics','baseline','aggregate']);
     let calls=0,spent=0;
     const approved=task.approved!=null&&Number.isFinite(Number(task.approved))?Math.min(settings.cap,Math.max(0,Number(task.approved))):settings.cap;
     const shouldFinalize=()=>spent>=approved*0.8;
@@ -502,7 +529,7 @@ export async function studyQuestion(db:any, user:string, body:any, load:()=>Prom
       return {status:200,data:{...result,thinking:mode,charged:settled.charged??0,id:parent}};
     }
     const settled=await creditRpc(db,'score_tracker_study_finish',{p_user:user,p_task:id,p_turn:{question,previous:parent,providerSession,thinking:mode,result:{...result,thinking:mode}}});
-    if(cacheable&&usedTools>0&&result.evidence?.length)rememberAnswer(key,result);
+    if(cacheable&&usedTools>0&&result.evidence?.length&&!/暂时|尚未|未查到|无法|失败|数据不足/.test(result.answer))rememberAnswer(key,result);
     return {status:200,data:{...result,thinking:mode,charged:settled.charged,id}};
   } catch (e) {
     if (started) await finishAiTask(db,user,id,false).catch(()=>{});
