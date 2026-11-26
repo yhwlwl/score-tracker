@@ -435,12 +435,12 @@ const badges=[
   },
   {
     "id": "rings",
-    "name": "年轮",
+    "name": "时光铭刻",
     "tier": "legendary",
     "count": 22,
     "evidence": "time",
     "condition": "至少20个考试日，跨度365天且覆盖9个自然月",
-    "quote": "岁月刻下年轮，你留下成长。",
+    "quote": "时间从不言语，却将每一次成长刻进了年轮。",
     "motif": "rings",
     "hidden": false,
     "mode": "auto"

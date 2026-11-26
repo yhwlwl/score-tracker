@@ -66,3 +66,18 @@
 .st-ach-entry{flex-direction:column;align-items:stretch;gap:8px;text-align:left;padding:13px;border-radius:14px}.st-ach-entry-top{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%}.st-ach-entry-top strong{font-size:14px}.st-ach-entry-top>span,.st-ach-entry-sub{font-size:12px;color:var(--muted,#64748b)}.st-ach-entry-medals{display:flex;gap:8px;align-items:center}.st-ach-entry-medals svg{width:min(18%,62px);flex-shrink:0}
 @media(max-width:600px){.st-ach-collection-dialog{margin:0;width:100%;height:100dvh;max-height:none;border-radius:0}.st-ach-collection-body{padding:13px}.st-ach-collection-header{padding:13px 14px}.st-ach-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.st-ach-tile{padding:9px 4px 7px}.st-ach-collection-hero{padding:16px}.st-ach-tile-rate{font-size:14px}.st-ach-tile-date{font-size:10px}.st-ach-collection-emblem{width:86px}}
 @media(prefers-color-scheme:dark){.st-ach-collection-dialog{--ach-bg:#202a3a;--ach-ink:#edf2fc;--ach-muted:#b5c1d3;--ach-line:#3b495d}}
+
+/* Compact collection tiles: the shared rate note states the source once. */
+.st-ach-rate-note{font-size:11px;color:var(--ach-muted);margin:2px 0 9px;line-height:1.55}
+.st-ach-tile-text{gap:3px}
+.st-ach-tile-rate{font-size:11px;font-weight:500;color:var(--ach-muted);margin-top:2px;line-height:1.45;white-space:nowrap;font-variant-numeric:tabular-nums}
+.st-ach-tile-text>small{font-weight:600}
+.st-ach-tile[data-tier=common] .st-ach-tile-text>small{color:#738397}
+.st-ach-tile[data-tier=rare] .st-ach-tile-text>small{color:#3676b3}
+.st-ach-tile[data-tier=epic] .st-ach-tile-text>small{color:#7759a8}
+.st-ach-tile[data-tier=legendary] .st-ach-tile-text>small{color:#946b2f}
+.st-ach-tile[data-tier=mythic] .st-ach-tile-text>small{color:#8562b4}
+.st-ach-tile[data-tier=limited] .st-ach-tile-text>small{color:#298377}
+.st-ach-timeline-tile .st-ach-tile-rate{font-size:12px}
+@media(max-width:600px){.st-ach-grid:not(.st-ach-timeline) .st-ach-tile{padding:8px 4px 9px;gap:3px}.st-ach-grid:not(.st-ach-timeline) .st-ach-tile-image{width:min(100%,100px)}.st-ach-grid:not(.st-ach-timeline) .st-ach-tile-rate{font-size:10px}.st-ach-grid:not(.st-ach-timeline) .st-ach-tile-date{padding-top:5px;margin-top:3px}}
+@media(prefers-color-scheme:dark){.st-ach-tile[data-tier=common] .st-ach-tile-text>small{color:#b0becd}.st-ach-tile[data-tier=rare] .st-ach-tile-text>small{color:#a0c9f1}.st-ach-tile[data-tier=epic] .st-ach-tile-text>small{color:#cfb8f2}.st-ach-tile[data-tier=legendary] .st-ach-tile-text>small{color:#e6c386}.st-ach-tile[data-tier=mythic] .st-ach-tile-text>small{color:#dfc9ff}.st-ach-tile[data-tier=limited] .st-ach-tile-text>small{color:#a5e0d2}}
