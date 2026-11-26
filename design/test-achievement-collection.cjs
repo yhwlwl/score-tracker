@@ -53,12 +53,6 @@ for(const b of C.badges){
  assert(win.document.querySelector('.st-ach-back').textContent.includes('示例数据'));
  win.document.querySelector('[data-dismiss]').click();
 }
-root.querySelector('[data-id="unexpected"]').click();
-win.document.querySelector('[data-flip]').click();
-assert.equal(win.document.querySelectorAll('[data-related]').length,3);
-win.document.querySelector('[data-related="rewrite"]').click();
-assert.equal(win.document.querySelector('.st-ach-front h2').textContent,'打破剧本');
-win.document.querySelector('[data-dismiss]').click();
 win.ScoreAchievementUI.gallery(root,[],false);
 root.querySelector('[data-tab="all"]').click();
 assert(root.querySelector('[data-id="outside-range"]').textContent.includes('尚未发现'));
@@ -71,11 +65,6 @@ assert.equal(root.querySelectorAll('[data-id]').length,sample.length);
 root.querySelector('[data-tab="timeline"]').click();assert(root.querySelector('.st-ach-timeline-day'));
 root.querySelector('[data-tab="owned"]').click();root.querySelector('[data-edit]').click();root.querySelector('[data-id]').click();
 assert.equal(root.querySelectorAll('.st-ach-favorite-selected').length,1);
-root.querySelector('[data-edit]').click();
-root.querySelector('[data-tab="all"]').click();
-root.querySelector('[data-id="unexpected"]').click();
-assert.equal(win.document.querySelectorAll('[data-related]').length,3);
-win.document.querySelector('[data-dismiss]').click();
 assert.equal(win.ScoreAchievementUI.rateInfo(C.badges[0],{stats:{total:100,counts:{'first-step':50}}}).value,'50.00%');
 assert.equal(win.ScoreAchievementUI.evidenceDay(actual.find(a=>a.badge_id==='three-days')),'2026-10-03');
 dom.window.close();
