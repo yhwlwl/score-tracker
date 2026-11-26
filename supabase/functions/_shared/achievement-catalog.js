@@ -39,7 +39,7 @@ const badges=[
   },
   {
     "id": "new-best",
-    "name": "新的突破",
+    "name": "刷新纪录",
     "tier": "common",
     "count": 3189,
     "evidence": "score",
@@ -188,7 +188,7 @@ const badges=[
     "count": 373,
     "evidence": "score",
     "condition": "至少5场同科同满分可比考试；已有至少3场历史，刷新得分率纪录5个百分点，下一场保持此前纪录水平",
-    "quote": "刷新一次是突破，守住一次是积累。",
+    "quote": "曾经的最高点，如今成为新的起点。",
     "motif": "peak",
     "hidden": false,
     "mode": "auto"
@@ -320,7 +320,7 @@ const badges=[
     "count": 77,
     "evidence": "radar",
     "condition": "至少4场、4科、跨度60天，前两场弱科较中位水平落后至少10个百分点，后两场成为较中位水平领先5个百分点的学科，自身改善至少15个百分点",
-    "quote": "曾经的短板，也能长出新的翅膀。",
+    "quote": "曾经难以跨越的地方，如今也能成为你的优势。",
     "motif": "butterfly",
     "hidden": false,
     "mode": "auto"
@@ -344,7 +344,7 @@ const badges=[
     "count": 62,
     "evidence": "difficulty",
     "condition": "至少5场可比单科考试，难度指数高于历史参考10点，实际位比较此前最多3场平均改善5个百分点；除历史场数外质量检查通过",
-    "quote": "逆风之中，依然向前。",
+    "quote": "难度升高了，你的脚步却没有停下。",
     "motif": "sail",
     "hidden": false,
     "mode": "auto"
@@ -368,7 +368,7 @@ const badges=[
     "count": 46,
     "evidence": "dual",
     "condition": "累计3个考试日达到分数之外的条件",
-    "quote": "数字有它的局限，而成长有更多答案。",
+    "quote": "分数记录了结果，却不是成长的全部答案。",
     "motif": "prism",
     "hidden": false,
     "mode": "auto"
@@ -392,7 +392,7 @@ const badges=[
     "count": 40,
     "evidence": "forecast",
     "condition": "累计3个不同考试日，实际总分位比优于EWMA预测点至少2个百分点",
-    "quote": "一次是意外，两次是巧合。第三次，算法该重新认识你了。",
+    "quote": "一次超越是意外，三次超越，是新的可能。",
     "motif": "forecast-three",
     "hidden": false,
     "mode": "auto"
@@ -404,14 +404,14 @@ const badges=[
     "count": 39,
     "evidence": "interval",
     "condition": "实际总分位比优于95%预测区间最佳端点",
-    "quote": "在算法划定的可能性之外，你留下了自己的坐标。",
+    "quote": "预测区间之外，依然有属于你的坐标。",
     "motif": "range",
     "hidden": true,
     "mode": "auto"
   },
   {
     "id": "twenty-days",
-    "name": "二十章",
+    "name": "第二十章",
     "tier": "legendary",
     "count": 29,
     "evidence": "time",
@@ -476,7 +476,7 @@ const badges=[
     "count": 8,
     "evidence": "forecast",
     "condition": "累计5个不同考试日，实际总分位比优于EWMA预测点至少2个百分点",
-    "quote": "剧本早已写好，可你从未按它演出。",
+    "quote": "预测写下了剧本，而你写出了另一种结局。",
     "motif": "shatter",
     "hidden": false,
     "mode": "auto"
@@ -500,7 +500,7 @@ const badges=[
     "count": 5,
     "evidence": "state",
     "condition": "至少6场可比考试，变点概率超过50%，此前已形成稳定状态，变化场与下一场均较此前3场平均位比改善5个百分点",
-    "quote": "无需再沿着旧轨迹外推。你已经改变了轨迹本身。",
+    "quote": "这一次，不只是超越预测，而是改变了轨迹本身。",
     "motif": "phase",
     "hidden": true,
     "mode": "auto"
@@ -524,7 +524,7 @@ const badges=[
     "count": 3,
     "evidence": "forecast",
     "condition": "累计10个不同考试日，实际总分位比优于EWMA预测点至少5个百分点",
-    "quote": "算法试图预测你，而你一次次成为它的例外。",
+    "quote": "算法可以计算你的过去，却没有资格定义你的未来。",
     "motif": "infinity",
     "hidden": false,
     "mode": "auto"
