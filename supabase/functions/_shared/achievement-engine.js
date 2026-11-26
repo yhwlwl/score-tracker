@@ -12,27 +12,34 @@ const groups=(a,key)=>{const m=new Map();for(const x of a){const k=key(x);if(!m.
 const dedup=a=>[...new Map(a.map(x=>[x.date,x])).values()];
 const beijing=x=>{const t=Date.parse(x);return Number.isFinite(t)?new Date(t+28800000).toISOString().slice(0,10):''};
 const point=o=>({date:o.date,subject:o.subject,position:round(o.pos),rate:Number.isFinite(o.rate)?round(o.rate):null,examId:o.examId});
-function evaluate({exams=[],goal=null,createdAt=null,today=beijing(new Date().toISOString()),owned=[],models=g.ScoreAchievementModels}={}){
+function evaluate({exams=[],goal=null,createdAt=null,firstUseAt=null,today=beijing(new Date().toISOString()),owned=[],models=g.ScoreAchievementModels}={}){
  const out=new Map(),existing=new Set(owned);
- const add=(id,evidence)=>{if(!existing.has(id)&&!out.has(id))out.set(id,{badge_id:id,rule_version:1,evidence:{...evidence,kind:evidence.kind||'record',source:evidence.source||'historical_replay'}})};
+ const revised=new Set(['first-step','full-picture','rank-aware','year-trace','rings','time-kept']);
+ const evidenceDate=e=>e.achievedDate||(e.dateBasis==='record_unknown'?'':[e.date,...(e.points||[]).map(x=>x.date),...(e.events||[]).flatMap(x=>(x.points||[]).map(p=>p.date)),...(e.dates||[])].filter(Boolean).sort().at(-1)||'');
+ const add=(id,evidence)=>{if(existing.has(id))return;const prior=out.get(id),d=evidenceDate(evidence);if(prior&&(!d||(evidenceDate(prior.evidence)&&evidenceDate(prior.evidence)<=d)))return;const version=revised.has(id)?2:1;out.set(id,{badge_id:id,rule_version:version,evidence:{...evidence,...(version===2?{ruleRevision:2}:{}),kind:evidence.kind||'record',source:evidence.source||'historical_replay'}})};
+ const earlier=(a,b)=>!a?b:!b?a:a<=b?a:b;
+ const eligibleDate=x=>{const d=beijing(x);return d&&d<=today?d:''};
+ const createdDay=eligibleDate(createdAt),usedDay=eligibleDate(firstUseAt),startDay=earlier(createdDay,usedDay);
  const all=exams.filter(e=>!e.is_hidden&&/^\d{4}-\d{2}-\d{2}$/.test(e.exam_date||'')&&e.exam_date<=today).sort((a,b)=>a.exam_date.localeCompare(b.exam_date)||String(a.created_at||'').localeCompare(String(b.created_at||''))||String(a.id).localeCompare(String(b.id)));
  const es=all.filter(e=>Number.isFinite(num(e.total_actual_score))||Number.isFinite(num(e.total_raw_score))||Object.values(e.scores||{}).some(s=>valid(s.actual,s.max)||valid(s.raw,s.rawMax)));
- const examDays=[...new Set(es.map(e=>e.exam_date))],uploadDays=[...new Set(es.map(e=>beijing(e.created_at)).filter(Boolean))].sort(),months=new Set(examDays.map(d=>d.slice(0,7))),uploadMonths=new Set(uploadDays.map(d=>d.slice(0,7)));
+ const examDays=[...new Set(es.map(e=>e.exam_date))],uploadDays=[...new Set(es.map(e=>eligibleDate(e.created_at)).filter(Boolean))].sort(),months=new Set(examDays.map(d=>d.slice(0,7))),uploadMonths=new Set(uploadDays.map(d=>d.slice(0,7)));
  const span=examDays.length?days(examDays[0],examDays.at(-1)):0,upSpan=uploadDays.length?days(uploadDays[0],uploadDays.at(-1)):0;
- function time(id,dates){const rules={'three-days':[3,0,0],'five-days':[5,0,0],'ten-days':[10,0,0],'twenty-days':[20,0,0],chronicle:[40,0,0],'half-year':[6,0,6],'four-seasons':[12,0,12],'year-trace':[12,365,6],rings:[20,365,9],'time-witness':[3,30,0],'long-road':[4,60,0],'time-kept':[6,0,3]};const [n,spanMin,m]=rules[id];const seen=new Set();let achievedDate;for(let i=0;i<dates.length;i++){seen.add(dates[i].slice(0,7));if(i+1>=n&&days(dates[0],dates[i])>=spanMin&&seen.size>=m){achievedDate=dates[i];break}}add(id,{kind:'time',dates:[dates[0],dates.at(-1)],achievedDate,count:dates.length,span:days(dates[0],dates.at(-1)),months:new Set(dates.map(d=>d.slice(0,7))).size})}
- if(examDays.length)add('first-step',{date:examDays[0],count:examDays.length});
- const subjects=new Set();let fullPictureDate;for(const e of es){for(const [s,v] of Object.entries(e.scores||{}))if(valid(v.actual,v.max)||valid(v.raw,v.rawMax))subjects.add(s);if(subjects.size>=3&&!fullPictureDate)fullPictureDate=e.exam_date}
- if(subjects.size>=3)add('full-picture',{subjects:[...subjects],achievedDate:fullPictureDate});
+ function time(id,dates){const rules={'three-days':[3,0,0],'five-days':[5,0,0],'ten-days':[10,0,0],'twenty-days':[20,0,0],chronicle:[40,0,0],'half-year':[6,0,6],'four-seasons':[12,0,12],'year-trace':[12,365,0],rings:[20,730,9],'time-witness':[3,30,0],'long-road':[4,60,0],'time-kept':[6,90,3]};const [n,spanMin,m]=rules[id];const seen=new Set();let achievedDate;for(let i=0;i<dates.length;i++){seen.add(dates[i].slice(0,7));if(i+1>=n&&days(dates[0],dates[i])>=spanMin&&seen.size>=m){achievedDate=dates[i];break}}add(id,{kind:'time',dateBasis:['time-witness','long-road','time-kept','year-trace'].includes(id)?'record_created':'exam',dates:[dates[0],dates.at(-1)],achievedDate,count:dates.length,span:days(dates[0],dates.at(-1)),months:new Set(dates.map(d=>d.slice(0,7))).size})}
+ if(startDay)add('first-step',{date:startDay,achievedDate:startDay,dateBasis:usedDay&&startDay===usedDay?'first_visit':'registration_fallback',verified:true});
+ const subjects=new Set(),subjectDates=new Map();
+ for(const e of es){for(const [s,v] of Object.entries(e.scores||{}))if(valid(v.actual,v.max)||valid(v.raw,v.rawMax)){subjects.add(s);const d=eligibleDate(v.created_at||v.createdAt||e.created_at);if(d)subjectDates.set(s,earlier(subjectDates.get(s),d))}}
+ const fullPictureDate=[...subjectDates.values()].sort()[2];
+ if(subjects.size>=3)add('full-picture',{subjects:[...subjects],achievedDate:fullPictureDate,dateBasis:fullPictureDate?'record_created':'record_unknown'});
  if(goal)add('goal-set',{kind:'record',label:'长期目标已建立'});
  if(es.some(e=>{const r=e.reflection;return typeof r==='string'?!!r.trim():r&&typeof r==='object'&&JSON.stringify(r).replace(/[\s{}[\]"':,]/g,'').length>0}))add('reflection',{label:'已保存考后反思'});
  for(const [id,n] of [['three-days',3],['five-days',5],['ten-days',10],['twenty-days',20],['chronicle',40]])if(examDays.length>=n)time(id,examDays);
  if(months.size>=6&&examDays.length>=6)time('half-year',examDays);
  if(months.size>=12&&examDays.length>=12)time('four-seasons',examDays);
- if(examDays.length>=12&&span>=365&&months.size>=6)time('year-trace',examDays);
- if(examDays.length>=20&&span>=365&&months.size>=9)time('rings',examDays);
+ if(uploadDays.length>=12&&upSpan>=365)time('year-trace',uploadDays);
+ if(examDays.length>=20&&span>=730&&months.size>=9)time('rings',examDays);
  if(uploadDays.length>=3&&upSpan>=30)time('time-witness',uploadDays);
  if(uploadDays.length>=4&&upSpan>=60)time('long-road',uploadDays);
- if(uploadDays.length>=6&&uploadMonths.size>=3)time('time-kept',uploadDays);
+ if(uploadDays.length>=6&&upSpan>=90&&uploadMonths.size>=3)time('time-kept',uploadDays);
  if(Number.isFinite(Date.parse(createdAt))&&Date.parse(createdAt)<Date.parse('2026-08-26T16:00:00Z'))add('early',{kind:'event',date:beijing(createdAt)});
  const rp=[],sp=[],perExam=new Map();
  for(const e of es){
@@ -44,7 +51,7 @@ function evaluate({exams=[],goal=null,createdAt=null,today=beijing(new Date().to
    const N=num(s.participants??e.total_participants),r=num(s.rank);
    const o={date:e.exam_date,examId:e.id,category:e.grade_level||'',subject,rate:hasScore?100*num(s.actual)/num(s.max):NaN,max:num(s.max),score:num(s.actual),rank:r,N,pos:rank(r,N)?100*r/N:NaN,prevId:null};
    if(hasScore)sp.push(o);
-   if(rank(r,N)){rp.push(o);ranks.push(o);add('rank-aware',{kind:'record',date:o.date,subject,position:round(o.pos),participants:N})}
+   if(rank(r,N)){rp.push(o);ranks.push(o);add('rank-aware',{kind:'record',date:o.date,achievedDate:eligibleDate(s.created_at||s.createdAt||e.created_at)||undefined,dateBasis:eligibleDate(s.created_at||s.createdAt||e.created_at)?'record_created':'record_unknown',subject,position:round(o.pos),participants:N})}
   }
   perExam.set(e.id,ranks);
   if(basket.length&&rank(e.total_rank,e.total_participants)){const N=num(e.total_participants),r=num(e.total_rank);rp.push({date:e.exam_date,examId:e.id,category:e.grade_level||'',subject:'总分:'+basket.sort().join('|'),rank:r,N,pos:100*r/N,rate:NaN})}
