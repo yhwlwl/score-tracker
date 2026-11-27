@@ -58,12 +58,23 @@ async function syncCentenaryAward(db:any,uid:string,list:any[]){
  const r=await db.from('score_tracker_achievement_awards').upsert({user_id:uid,badge_id:'triple',rule_version:1,awarded_at:published,seen_at:entry.seen_at??null,evidence:{kind:'event',source:'centenary',verified:true,achievedDate,dateBasis:'event',registrationPosition:entry.registration_position}},{onConflict:'user_id,badge_id',ignoreDuplicates:true});
  if(r.error)console.warn('achievement_centenary_sync_failed');
 }
+function qualificationDate(e:any){
+ if(e?.dateBasis==='record_unknown')return null;
+ if(typeof e?.achievedDate==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(e.achievedDate))return e.achievedDate;
+ return [e?.date,...(e?.points||[]).map((x:any)=>x.date),...(e?.events||[]).flatMap((x:any)=>(x.points||[]).map((p:any)=>p.date)),...(e?.dates||[])].filter(x=>typeof x==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(x)).sort().at(-1)||null;
+}
+async function persistQualifications(db:any,uid:string,found:any[]){
+ const input=found.filter(a=>ids.has(a.badge_id)).map(a=>({user_id:uid,badge_id:a.badge_id,rule_version:a.rule_version,achieved_date:qualificationDate(a.evidence),source:a.evidence?.source||'evaluation'}));
+ if(!input.length)return;
+ const r=await db.from('score_tracker_achievement_qualifications').upsert(input,{onConflict:'user_id,badge_id,rule_version',ignoreDuplicates:true});
+ if(r.error)throw r.error;
+}
 async function collection(db:any,uid:string,list:any[],pilot=false) {
- const [pref,stats]=await Promise.all([db.from('score_tracker_achievement_preferences').select('favorites').eq('user_id',uid).maybeSingle(),pilot?Promise.resolve({data:null,error:null}):db.rpc('score_tracker_achievement_stats_daily')]);
+ const [pref,stats]=await Promise.all([db.from('score_tracker_achievement_preferences').select('favorites').eq('user_id',uid).maybeSingle(),pilot?Promise.resolve({data:null,error:null}):db.rpc('score_tracker_achievement_live_stats')]);
  if(pref.error||stats.error)console.warn('achievement_collection_metadata_unavailable');
  return {enabled:true,awards:list,favorites:pref.error||!Array.isArray(pref.data?.favorites)?null:[...new Set<string>(pref.data.favorites.map(canonicalId))].filter(x=>ids.has(x)).slice(0,3),stats:stats.error?null:stats.data,pilot};
 }
-export async function achievements(db:any,uid:string,body:any) {
+export async function achievements(db:any,uid:string,body:any,qualificationOnly=false) {
  // Only release-v2 clients activate the new endpoint. Old production pages remain unchanged.
  if(body.achievement_release!==2)return {enabled:false};
  const mode=Deno.env.get('SCORE_TRACKER_ACHIEVEMENTS_V2_ENABLED')??'true';
@@ -99,15 +110,14 @@ export async function achievements(db:any,uid:string,body:any) {
   return {enabled:true,ok:true};
  }
  if(body.action==='achievement_overview')return await collection(db,uid,await awards(db,uid),pilot);
- const lock=await db.rpc('score_tracker_achievement_claim_scan',{p_user:uid});
+ if(!qualificationOnly){const lock=await db.rpc('score_tracker_achievement_claim_scan',{p_user:uid});
  if(lock.error)throw lock.error;
- if(!lock.data)return {...await collection(db,uid,await awards(db,uid),pilot),retryAfter:60};
+ if(!lock.data)return {...await collection(db,uid,await awards(db,uid),pilot),retryAfter:60};}
  let already=await awards(db,uid);
- await syncCentenaryAward(db,uid,already);
- already=await awards(db,uid);
+ if(!qualificationOnly){await syncCentenaryAward(db,uid,already);already=await awards(db,uid);}
  const firstStep=already.find((a:any)=>a.badge_id==='first-step');
  const needFirstUse=!firstStep||firstStep.rule_version<2;
- const needMatch=!already.some((a:any)=>a.badge_id==='unique-path');
+ const needMatch=!already.some((a:any)=>a.badge_id==='unique-path'&&a.rule_version===2);
  const [exams,scores,goal,user,firstVisit,predictions]=await Promise.all([
   rows(db,'score_tracker_exams',uid,'id,exam_date,created_at,is_hidden,grade_level,total_rank,total_participants,total_actual_score,total_raw_score,reflection'),
   rows(db,'score_tracker_scores',uid,'id,exam_id,subject,actual_score,max_score,raw_score,raw_max_score,rank_position,participant_count,exclude_from_total,created_at'),
@@ -125,12 +135,14 @@ export async function achievements(db:any,uid:string,body:any) {
  // Replay only the legacy record-time badges to correct evidence; never reset award or read receipts.
  const repairable=new Set(['first-step','full-picture','rank-aware']);
  const repairIds=new Set(already.filter((a:any)=>repairable.has(a.badge_id)&&a.rule_version<2).map((a:any)=>a.badge_id));
- const found=engine.evaluate({exams:[...byExam.values()],goal:goal.data,createdAt:user.data?.created_at,firstUseAt:firstVisit.error?null:firstVisit.data?.occurred_at,predictions:predictions.data||[],owned:already.filter((a:any)=>!repairIds.has(a.badge_id)).map((a:any)=>a.badge_id)});
+ const found=engine.evaluate({exams:[...byExam.values()],goal:goal.data,createdAt:user.data?.created_at,firstUseAt:firstVisit.error?null:firstVisit.data?.occurred_at,predictions:predictions.data||[],owned:[]});
+ await persistQualifications(db,uid,found);
+ if(qualificationOnly)return {enabled:true,ok:true};
  for(const a of found.filter((a:any)=>repairIds.has(a.badge_id)&&a.evidence.achievedDate)){
    const result=await db.from('score_tracker_achievement_awards').update({rule_version:a.rule_version,evidence:a.evidence}).eq('user_id',uid).eq('badge_id',a.badge_id).eq('rule_version',1);
    if(result.error)console.warn('achievement_legacy_date_repair_failed',a.badge_id);
  }
- const insert=found.filter((a:any)=>!repairIds.has(a.badge_id)&&catalogue.badges.some((b:any)=>b.id===a.badge_id&&(b.mode==='auto'||b.mode==='snapshot'&&['frozen_prediction','historical_replay','mixed_prediction'].includes(a.evidence.source)))).map((a:any)=>({user_id:uid,...a}));
+ const insert=found.filter((a:any)=>!already.some((old:any)=>old.badge_id===a.badge_id)&&!repairIds.has(a.badge_id)&&catalogue.badges.some((b:any)=>b.id===a.badge_id&&(b.mode==='auto'||b.mode==='snapshot'&&['frozen_prediction','historical_replay','mixed_prediction'].includes(a.evidence.source)))).map((a:any)=>({user_id:uid,...a}));
  if(insert.length){
   // Ignore conflicts to preserve the first award's evidence and read receipt.
   const r=await db.from('score_tracker_achievement_awards').upsert(insert,{onConflict:'user_id,badge_id',ignoreDuplicates:true});
