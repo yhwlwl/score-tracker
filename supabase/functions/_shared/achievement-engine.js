@@ -12,15 +12,15 @@ const groups=(a,key)=>{const m=new Map();for(const x of a){const k=key(x);if(!m.
 const dedup=a=>[...new Map(a.map(x=>[x.date,x])).values()];
 const beijing=x=>{const t=Date.parse(x);return Number.isFinite(t)?new Date(t+28800000).toISOString().slice(0,10):''};
 const point=o=>({date:o.date,subject:o.subject,position:round(o.pos),rate:Number.isFinite(o.rate)?round(o.rate):null,examId:o.examId});
-function evaluate({exams=[],goal=null,createdAt=null,firstUseAt=null,today=beijing(new Date().toISOString()),owned=[],models=g.ScoreAchievementModels}={}){
+function evaluate({exams=[],goal=null,createdAt=null,firstUseAt=null,predictions=[],today=beijing(new Date().toISOString()),owned=[],models=g.ScoreAchievementModels}={}){
  const out=new Map(),existing=new Set(owned);
- const revised=new Set(['first-step','full-picture','rank-aware','year-trace','rings','time-kept']);
+ const revised=new Set(['first-step','full-picture','rank-aware','year-trace','rings','time-kept','harder','headwind','outside-range','break-limit','phase-shift','unique-path','triple']);
  const evidenceDate=e=>e.achievedDate||(e.dateBasis==='record_unknown'?'':[e.date,...(e.points||[]).map(x=>x.date),...(e.events||[]).flatMap(x=>(x.points||[]).map(p=>p.date)),...(e.dates||[])].filter(Boolean).sort().at(-1)||'');
  const add=(id,evidence)=>{if(existing.has(id))return;const prior=out.get(id),d=evidenceDate(evidence);if(prior&&(!d||(evidenceDate(prior.evidence)&&evidenceDate(prior.evidence)<=d)))return;const version=revised.has(id)?2:1;out.set(id,{badge_id:id,rule_version:version,evidence:{...evidence,...(version===2?{ruleRevision:2}:{}),kind:evidence.kind||'record',source:evidence.source||'historical_replay'}})};
  const canEarlier=(id,d)=>!existing.has(id)&&(!out.has(id)||!evidenceDate(out.get(id).evidence)||d<evidenceDate(out.get(id).evidence));
  const earlier=(a,b)=>!a?b:!b?a:a<=b?a:b;
  const eligibleDate=x=>{const d=beijing(x);return d&&d<=today?d:''};
- const createdDay=eligibleDate(createdAt),usedDay=eligibleDate(firstUseAt),startDay=earlier(createdDay,usedDay);
+ const createdDay=eligibleDate(createdAt),usedDay=eligibleDate(firstUseAt),startDay=usedDay||createdDay;
  const all=exams.filter(e=>!e.is_hidden&&/^\d{4}-\d{2}-\d{2}$/.test(e.exam_date||'')&&e.exam_date<=today).sort((a,b)=>a.exam_date.localeCompare(b.exam_date)||String(a.created_at||'').localeCompare(String(b.created_at||''))||String(a.id).localeCompare(String(b.id)));
  const es=all.filter(e=>Number.isFinite(num(e.total_actual_score))||Number.isFinite(num(e.total_raw_score))||Object.values(e.scores||{}).some(s=>valid(s.actual,s.max)||valid(s.raw,s.rawMax)));
  const examDays=[...new Set(es.map(e=>e.exam_date))],uploadDays=[...new Set(es.map(e=>eligibleDate(e.created_at)).filter(Boolean))].sort(),months=new Set(examDays.map(d=>d.slice(0,7))),uploadMonths=new Set(uploadDays.map(d=>d.slice(0,7)));
@@ -31,8 +31,8 @@ function evaluate({exams=[],goal=null,createdAt=null,firstUseAt=null,today=beiji
  for(const e of es){for(const [s,v] of Object.entries(e.scores||{}))if(valid(v.actual,v.max)||valid(v.raw,v.rawMax)){subjects.add(s);const d=eligibleDate(v.created_at||v.createdAt||e.created_at);if(d)subjectDates.set(s,earlier(subjectDates.get(s),d))}}
  const fullPictureDate=[...subjectDates.values()].sort()[2];
  if(subjects.size>=3)add('full-picture',{subjects:[...subjects],achievedDate:fullPictureDate,dateBasis:fullPictureDate?'record_created':'record_unknown'});
- if(goal)add('goal-set',{kind:'record',label:'长期目标已建立'});
- if(es.some(e=>{const r=e.reflection;return typeof r==='string'?!!r.trim():r&&typeof r==='object'&&JSON.stringify(r).replace(/[\s{}[\]"':,]/g,'').length>0}))add('reflection',{label:'已保存考后反思'});
+ if(goal)add('goal-set',{kind:'record',dateBasis:'record_unknown',label:'长期目标已建立'});
+ if(es.some(e=>{const r=e.reflection;return typeof r==='string'?!!r.trim():r&&typeof r==='object'&&JSON.stringify(r).replace(/[\s{}[\]"':,]/g,'').length>0}))add('reflection',{dateBasis:'record_unknown',label:'已保存考后反思'});
  for(const [id,n] of [['three-days',3],['five-days',5],['ten-days',10],['twenty-days',20],['chronicle',40]])if(examDays.length>=n)time(id,examDays);
  if(months.size>=6&&examDays.length>=6)time('half-year',examDays);
  if(months.size>=12&&examDays.length>=12)time('four-seasons',examDays);
@@ -107,18 +107,18 @@ function evaluate({exams=[],goal=null,createdAt=null,firstUseAt=null,today=beiji
     if(delta>=2)forecasts2.set(o.date,ev);
     if(delta>=5)forecasts5.set(o.date,ev);
     if(models?.pal&&(canEarlier('outside-range',o.date)||canEarlier('break-limit',o.date))){
-     try{const r=models.pal.pipeline.analyzeSeries(hist,PROD),[lo,hi]=r.nextExam.ci95Percentile;if(Number.isFinite(lo)&&Number.isFinite(hi)&&o.pos<lo){const ev={kind:'interval',model:'app-v34/no-se-v1',source:'historical_replay',date:o.date,actual:round(o.pos),low:round(lo),high:round(hi),delta:round(lo-o.pos)};add('outside-range',ev);if(lo-o.pos>=5)add('break-limit',ev)}}catch(_){/* invalid model outputs are not awards */}
+     try{const r=models.pal.pipeline.analyzeSeries(hist.slice(-80),PROD),[lo,hi]=r.nextExam.ci95Percentile;if(Number.isFinite(lo)&&Number.isFinite(hi)&&o.pos<lo){const ev={kind:'interval',model:'app-v34/no-se-window80-v2',source:'historical_replay',date:o.date,actual:round(o.pos),low:round(lo),high:round(hi),delta:round(lo-o.pos)};add('outside-range',ev);if(lo-o.pos>=5)add('break-limit',ev)}}catch(_){/* invalid model outputs are not awards */}
     }
    }
    if(models?.pal&&check(6)&&canEarlier('phase-shift',o.date)){
-    const h=seg.slice(0,-1),k=h.length-1;try{const cp=models.pal.pipeline.analyzeSeries(h,PROD).changepoint,old=avg(h.slice(-4,-1).map(x=>x.pos)),fresh=Math.max(h.at(-1).pos,o.pos);if(k>=4&&cp.recentChangeProb[k]>.5&&cp.mapRunLength[k-1]>=3&&old-fresh>=5)add('phase-shift',{kind:'state',model:'app-v34/no-se-v1',points:seg.slice(-6).map(point),probability:round(cp.recentChangeProb[k]*100),improvement:round(old-fresh),stableRun:cp.mapRunLength[k-1]})}catch(_){}
+    const h=seg.slice(0,-1).slice(-80),k=h.length-1;try{const cp=models.pal.pipeline.analyzeSeries(h,PROD).changepoint,old=avg(h.slice(-4,-1).map(x=>x.pos)),fresh=Math.max(h.at(-1).pos,o.pos);if(k>=4&&cp.recentChangeProb[k]>.5&&cp.mapRunLength[k-1]>=3&&old-fresh>=5)add('phase-shift',{kind:'state',model:'app-v34/no-se-window80-v2',points:seg.slice(-6).map(point),probability:round(cp.recentChangeProb[k]*100),improvement:round(old-fresh),stableRun:cp.mapRunLength[k-1]})}catch(_){}
    }
   }
   if(!isTotal&&models?.worth&&(canEarlier('harder',a[0].date)||canEarlier('headwind',a[0].date))){
    const validObs=a.filter(x=>Number.isFinite(x.rate));let seg=[];
-   for(const o of validObs){if(!canEarlier('harder',o.date)&&!canEarlier('headwind',o.date))break;if(seg.length&&!popOk([seg.at(-1),o]))seg=[];seg.push(o);if(seg.length<4||!popOk(seg))continue;
+   for(const o of validObs){if(!canEarlier('harder',o.date)&&!canEarlier('headwind',o.date))break;if(seg.length&&!popOk([seg.at(-1),o]))seg=[];seg.push(o);if(seg.length>40)seg.shift();if(seg.length<4||!popOk(seg))continue;
     const prev=seg.slice(0,-1);const e=seg.map((x,j)=>({id:String(j),exam_date:x.date,grade_level:'same',total_participants:x.N,scores:{s:{actual:x.score,max:x.max,rank:x.rank,participants:x.N}}}));
-    try{const r=models.worth.compare(e,'s',e.length-1,{mode:'period',start:prev[0].date,end:prev.at(-1).date});if(r.kind!=='estimate'||(r.warnings||[]).some(x=>x!=='历史记录还少'))continue;const baseline=avg(prev.slice(-3).map(x=>x.pos)),delta=r.difficulty-r.referenceDifficulty;if(delta>=10&&o.pos<=baseline){const ev={kind:'difficulty',model:'score-worth-v1',date:o.date,subject:o.subject,difficulty:round(r.difficulty),referenceDifficulty:round(r.referenceDifficulty),actual:round(o.pos),baseline:round(baseline),historyCount:seg.length,qualityPassed:true};add('harder',ev);if(seg.length>=5&&baseline-o.pos>=5)add('headwind',ev)}}catch(_){}
+    try{const r=models.worth.compare(e,'s',e.length-1,{mode:'period',start:prev[0].date,end:prev.at(-1).date});if(r.kind!=='estimate'||(r.warnings||[]).some(x=>x!=='历史记录还少'))continue;const baseline=avg(prev.slice(-3).map(x=>x.pos)),delta=r.difficulty-r.referenceDifficulty;if(delta>=10&&o.pos<=baseline){const ev={kind:'difficulty',model:'score-worth-window40-v2',date:o.date,subject:o.subject,difficulty:round(r.difficulty),referenceDifficulty:round(r.referenceDifficulty),actual:round(o.pos),baseline:round(baseline),historyCount:seg.length,qualityPassed:true};add('harder',ev);if(seg.length>=5&&baseline-o.pos>=5)add('headwind',ev)}}catch(_){}
    }
   }
  }
@@ -137,6 +137,18 @@ function evaluate({exams=[],goal=null,createdAt=null,firstUseAt=null,today=beiji
    const cocoonWitness=arr.find(x=>x.before-b>=10&&x.after-c<=-5&&x.before-x.after>=15);if(days(frame[0].exam_date,frame[3].exam_date)>=60&&cocoonWitness)add('cocoon',{...ev,historyCount:4,witnessSubject:cocoonWitness.subject});
   }
  }
+ // A match badge only uses server-frozen predictions, never a hindsight estimate.
+ const matches=new Map();
+ for(const snapshot of [...predictions].sort((a,b)=>String(a.frozen_at).localeCompare(String(b.frozen_at)))){
+  const p=snapshot.prediction||{}, frozen=eligibleDate(snapshot.frozen_at);
+  if(snapshot.model!=='trajectory-forecast-v1'||!frozen||!p.lastDate||!Array.isArray(p.basket)||!p.basket.length||!Array.isArray(snapshot.history_exam_ids)||snapshot.history_exam_ids.length<3||!Number.isFinite(p.center)||p.center<0||p.center>100||p.references<3)continue;
+  const next=es.find(e=>e.exam_date>frozen&&e.exam_date>p.lastDate&&(e.grade_level||'')===p.category&&JSON.stringify(Object.keys(e.scores||{}).filter(k=>!e.scores[k].excludeFromTotal).sort())===JSON.stringify(p.basket)&&rank(e.total_rank,e.total_participants));
+  if(!next||snapshot.history_exam_ids.includes(next.id))continue;
+  const actual=100*num(next.total_rank)/num(next.total_participants),delta=p.center-actual;
+  if(delta>=5&&!matches.has(next.exam_date))matches.set(next.exam_date,{date:next.exam_date,examId:next.id,prediction:round(p.center),actual:round(actual),delta:round(delta),frozenAt:snapshot.frozen_at,referenceCount:p.references});
+ }
+ const witnesses=[...matches.values()].sort((a,b)=>a.date.localeCompare(b.date));
+ if(witnesses.length>=3)add('unique-path',{kind:'match',source:'frozen_prediction',model:'trajectory-forecast-v1',points:witnesses.slice(0,3),count:3,totalCount:witnesses.length,minDelta:Math.min(...witnesses.slice(0,3).map(x=>x.delta)),achievedDate:witnesses[2].date,dateBasis:'exam'});
  return [...out.values()];
 }
 const PROD={seWeighting:false,ewmaForecastAlpha:.4,conformalPriorK:4.539237871385978,conformalPriorW:4};

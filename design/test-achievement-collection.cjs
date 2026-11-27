@@ -12,6 +12,7 @@ const found=(exams,extra={})=>new Set(get(exams,extra).map(x=>x.badge_id));
 assert.equal(get([]).length,0);
 const first=get([],{createdAt:'2026-09-10T08:00:00Z',firstUseAt:'2026-09-10T09:00:00Z'}).find(a=>a.badge_id==='first-step');
 assert.equal(first.evidence.achievedDate,'2026-09-10');
+assert.equal(get([],{createdAt:'2026-09-10T08:00:00Z',firstUseAt:'2026-09-12T09:00:00Z'}).find(a=>a.badge_id==='first-step').evidence.achievedDate,'2026-09-12');
 assert.equal(get([],{createdAt:'2026-09-10T08:00:00Z'}).find(a=>a.badge_id==='first-step').evidence.dateBasis,'registration_fallback');
 const backfill=Array.from({length:12},(_,i)=>exam(i,40,80,{exam_date:new Date(Date.UTC(2025,10+i,10)).toISOString().slice(0,10),created_at:'2026-11-20T08:00:00Z'}));
 const backfillAwards=get(backfill,{createdAt:'2026-11-20T00:00:00Z'});
@@ -34,14 +35,14 @@ assert(!found(hist,{owned:['unexpected']}).has('unexpected'));
 assert(!hits.some(a=>!ids.has(a.badge_id)||C.badges.find(b=>b.id===a.badge_id).mode!=='auto'));
 assert(found([],{createdAt:'2026-08-26T15:59:59Z'}).has('early'));assert(!found([],{createdAt:'2026-08-26T16:00:00Z'}).has('early'));
 const actual=E.evaluate({exams:hist,today:'2026-11-25'});assert(actual.length>=hits.length);
-for(const a of actual){assert(a.evidence.source==='historical_replay');assert.equal(a.rule_version,['first-step','full-picture','rank-aware','year-trace','rings','time-kept'].includes(a.badge_id)?2:1)}
+for(const a of actual){assert(a.evidence.source==='historical_replay');assert.equal(a.rule_version,['first-step','full-picture','rank-aware','year-trace','rings','time-kept','harder','headwind','outside-range','break-limit','phase-shift','unique-path','triple'].includes(a.badge_id)?2:1)}
 const prod=fs.readFileSync('app-v34.js','utf8'),worth=fs.readFileSync('score-worth-model.js','utf8'),kernel=fs.readFileSync('supabase/functions/_shared/achievement-models.js','utf8');
 assert(kernel.includes(prod.slice(prod.indexOf('/* ---- PAL2 kernel:'),prod.indexOf('/* deep-beta-main.js'))));assert(kernel.includes(worth),'frozen kernels must match original files');
 const uiSource=fs.readFileSync('achievement-ui.js','utf8'),w={ScoreAchievements:C};
 new Function('window',uiSource)(w);
 const shapes=C.badges.map(b=>w.ScoreAchievementUI.emblem(b).replace(/stbadge\d+/g,'ID'));
-assert.equal(new Set(shapes).size,51);assert(shapes.every(s=>s.includes('<svg')&&!s.includes('undefined')));
 const centenary=C.badges.filter(b=>b.id==='triple'||b.name==='三百纪念');assert.equal(centenary.length,1);assert.equal(centenary[0].mode,'event');assert(w.ScoreAchievementUI.emblem(centenary[0]).includes('data:image/webp;base64,UklGR'));assert(!uiSource.includes('triple:()=>'));
+assert.equal(new Set(shapes).size,51);assert(shapes.every(s=>s.includes('<svg')&&!s.includes('undefined')));
 assert(C.badges.every(b=>w.ScoreAchievementUI.demoEvidence(b).source==='demo'));
 for(const b of C.badges){assert(w.ScoreAchievementUI.summaries[b.id]);assert(w.ScoreAchievementUI.conditionRows(b,w.ScoreAchievementUI.demoEvidence(b)).every(r=>r.ok===true));assert(w.ScoreAchievementUI.conditionRows(b,null).every(r=>r.ok===null));}
 for(const a of hits){const b=C.badges.find(b=>b.id===a.badge_id);assert(w.ScoreAchievementUI.conditionRows(b,a.evidence).every(r=>r.ok!==false),b.id);}

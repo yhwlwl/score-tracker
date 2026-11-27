@@ -2,7 +2,7 @@
 (function(){'use strict';
  if(!window.ScoreAchievementUI||!window.ScoreAchievements||typeof bindPage!=='function')return;
  const UI=window.ScoreAchievementUI,C=window.ScoreAchievements;
- let session='',cache=null,enabled=null,inFlight=null,refreshTimer=null,revealTimer=null,dirty=false,checked=false,entry=null,generation=0,cooldownRetry=false;
+ let session='',cache=null,enabled=null,inFlight=null,refreshTimer=null,revealTimer=null,dirty=false,checked=false,entry=null,generation=0,cooldownRetry=false,failures=0;
  const presented=new Set();let favorites=null,stats=null;
  function galleryOptions(){const owner=session;return {favorites,stats,onFavorites:async ids=>{if(key()!==owner)throw Error('account changed');const r=await call('achievement_favorites',{badgeIds:ids});if(key()!==owner||!r.ok)throw Error('save failed');favorites=r.favorites;mount()}}}
  function openCollection(){UI.openGallery(cache||[],galleryOptions())}
@@ -10,14 +10,14 @@
  const key=()=>{try{return state?.user&&state?.token?String(state.user.id||state.user.username)+':'+state.token:''}catch(_){return ''}};
  function sync(){
   const current=key();if(current!==session){
-   generation++;cooldownRetry=false;presented.clear();favorites=null;stats=null;session=current;cache=null;enabled=null;dirty=false;checked=false;inFlight=null;clearTimeout(refreshTimer);clearTimeout(revealTimer);refreshTimer=null;revealTimer=null;
+   generation++;cooldownRetry=false;failures=0;presented.clear();favorites=null;stats=null;session=current;cache=null;enabled=null;dirty=false;checked=false;inFlight=null;clearTimeout(refreshTimer);clearTimeout(revealTimer);refreshTimer=null;revealTimer=null;
    UI.close();entry?.remove();entry=null;
   }
   return current;
  }
  async function call(action,payload={}){
   const current=sync();if(!current)throw Error('not signed in');
-  const r=await fetch('/api/score-tracker-data-api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,token:state.token,...payload})});
+  const r=await fetch('/api/score-tracker-data-api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,token:state.token,...payload,achievement_release:2})});
   if(current!==key())throw Error('account changed');
   const data=await r.json();if(!r.ok)throw Error('achievement unavailable');return data;
  }
@@ -48,14 +48,14 @@
   if(inFlight){dirty=true;return}dirty=false;const gen=generation;
   const promise=call('achievement_refresh');inFlight=promise;
   try{
-   const r=await promise;if(gen!==generation||owner!==key())return;checked=true;enabled=r.enabled===true;if(!enabled)return;
+   const r=await promise;if(gen!==generation||owner!==key())return;failures=0;checked=true;enabled=r.enabled===true;if(!enabled)return;
    cache=Array.isArray(r.awards)?r.awards:[];favorites=r.favorites??null;stats=r.stats??null;mount();reveal();
    if(r.retryAfter&&!cooldownRetry){cooldownRetry=true;dirty=true;refreshTimer=setTimeout(refresh,Math.max(15,Math.min(120,Number(r.retryAfter)||60))*1000)}
-  }catch(_){if(gen===generation)checked=true}
+  }catch(_){if(gen===generation){checked=false;failures++;if(failures<=3&&!refreshTimer)refreshTimer=setTimeout(refresh,Math.min(8000,1000*2**failures));}}
   finally{if(gen===generation&&inFlight===promise){inFlight=null;if(dirty&&!refreshTimer)refreshTimer=setTimeout(refresh,1000)}}
  }
  const prev=bindPage;bindPage=function(){const r=prev.apply(this,arguments);if(sync()){mount();if(!checked&&!inFlight&&!refreshTimer)queue(900)}return r};
- if(typeof dataApiV7==='function'){const previous=dataApiV7;dataApiV7=async function(action,payload){const owner=key(),result=await previous.apply(this,arguments);if(owner&&key()===owner&&['save_exam','save_goal','save_exam_reflection','delete_exam','toggle_exam_hidden'].includes(action)&&!result?.error)queue(1200);return result}}
- document.addEventListener('visibilitychange',()=>{if(!document.hidden&&sync()){mount();if(!checked)queue();else reveal()}});
+ if(typeof dataApiV7==='function'){const previous=dataApiV7;dataApiV7=async function(action,payload){const owner=key(),result=await previous.apply(this,arguments);if(owner&&key()===owner&&['save_exam','save_goal','save_exam_reflection','delete_exam','toggle_exam_hidden','study_question'].includes(action)&&!result?.error)queue(1200);return result}}
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden&&sync()){mount();if(!checked&&!inFlight&&!refreshTimer){failures=0;queue()}else reveal()}});
  if(sync())queue(900);
 })();
