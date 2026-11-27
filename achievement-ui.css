@@ -123,3 +123,75 @@
 .st-ach-featured svg{width:min(100%,66px)}.st-ach-feature-empty{height:52px}
 .st-ach-tabs{margin:12px 0 8px}.st-ach-filters{margin:10px 0 8px}
 @media(max-width:600px){.st-ach-collection-hero{padding:12px 14px}.st-ach-featured svg{width:min(100%,58px)}}
+
+
+/* Collection polish: bounded entrance choreography, tier-aware showcase and compact evidence. */
+.st-ach-gallery{--ach-accent:#6085ba}
+.st-ach-collection-hero{position:relative;isolation:isolate;overflow:hidden;background:radial-gradient(ellipse at 88% 10%,#5d719b75,transparent 55%),linear-gradient(125deg,#2c4160,#172136 78%);box-shadow:0 8px 22px #14243a20}
+.st-ach-collection-hero:after{content:"";position:absolute;inset:0;pointer-events:none;z-index:-1;background:linear-gradient(110deg,transparent 25%,#ffffff16 48%,transparent 70%);transform:translateX(-110%)}
+.st-ach-gallery.st-ach-gallery-enter .st-ach-collection-hero:after{animation:st-ach-sweep 1.65s .18s ease-out both}
+.st-ach-collection-emblem{position:relative;isolation:isolate}
+.st-ach-collection-emblem:before{content:"";position:absolute;inset:8%;border-radius:50%;background:radial-gradient(circle,#9dbbea66,transparent 70%);z-index:-1}
+.st-ach-gallery-enter .st-ach-collection-emblem svg{animation:st-ach-medal-in .8s .1s both,st-ach-float 2.8s .9s ease-in-out 1}
+.st-ach-collection-progress{margin-top:10px;display:flex;align-items:center;gap:9px;font-size:11px;color:#d6e3f5;font-variant-numeric:tabular-nums}
+.st-ach-collection-progress progress{flex:1;width:100%;height:5px;appearance:none;border:0;background:#ffffff20;border-radius:8px;overflow:hidden}
+.st-ach-collection-progress progress::-webkit-progress-bar{background:#ffffff20;border-radius:8px}
+.st-ach-collection-progress progress::-webkit-progress-value{background:linear-gradient(90deg,#91acd9,#d6e5ff);border-radius:8px}
+.st-ach-collection-progress progress::-moz-progress-bar{background:#b5cdf2;border-radius:8px}
+.st-ach-tier-counts>div{border-radius:8px;padding:4px 1px;background:#ffffff08}
+.st-ach-tier-counts>div:nth-child(2) strong{color:#b9e6ff}.st-ach-tier-counts>div:nth-child(3) strong{color:#e5d4ff}.st-ach-tier-counts>div:nth-child(4) strong{color:#ffe8ab}.st-ach-tier-counts>div:nth-child(5) strong{color:#e9d8ff}.st-ach-tier-counts>div:nth-child(6) strong{color:#c9f6ea}
+.st-ach-tile,.st-ach-featured button{position:relative;overflow:hidden;background:linear-gradient(145deg,#8197c40b,transparent 65%);transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease}
+.st-ach-tile-image,.st-ach-featured svg{transition:transform .3s cubic-bezier(.2,.7,.25,1)}
+.st-ach-tile:not(.st-ach-locked)[data-tier=epic],.st-ach-featured [data-tier=epic]{--ach-card-glow:#9e83cb}
+.st-ach-tile:not(.st-ach-locked)[data-tier=legendary],.st-ach-featured [data-tier=legendary]{--ach-card-glow:#c7a05e}
+.st-ach-tile:not(.st-ach-locked)[data-tier=mythic],.st-ach-featured [data-tier=mythic]{--ach-card-glow:#ac91df}
+.st-ach-tile:not(.st-ach-locked)[data-tier=limited],.st-ach-featured [data-tier=limited]{--ach-card-glow:#69b9ab}
+.st-ach-tile:not(.st-ach-locked):before,.st-ach-featured button[data-featured]:before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 27%,var(--ach-card-glow,#8ca9d3),transparent 67%);opacity:.12}
+.st-ach-gallery-enter .st-ach-featured button,.st-ach-gallery-enter .st-ach-grid>.st-ach-tile{animation:st-ach-rise .38s var(--ach-delay,0ms) ease-out both}
+@media(hover:hover) and (pointer:fine){.st-ach-tile:not(:disabled):hover,.st-ach-featured button:hover{transform:translateY(-3px);border-color:var(--ach-card-glow,#8da8cc);box-shadow:0 7px 18px #33496b18}.st-ach-tile:hover .st-ach-tile-image,.st-ach-featured button:hover svg{transform:scale(1.06)}}
+.st-ach-tile:active,.st-ach-featured button:active{transform:scale(.98)}
+.st-ach-dialog[open] .st-ach-dialog-inner{animation:st-ach-dialog-in .32s cubic-bezier(.2,.7,.25,1) both}
+.st-ach-front{background:radial-gradient(ellipse at 50% 32%,var(--ach-glow,#32445b),#172135 56%,#101827)}
+.st-ach-front:after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(115deg,transparent 25%,#ffffff13 48%,transparent 70%);transform:translateX(-110%)}
+.st-ach-deck:not(.st-ach-flipped) .st-ach-front.st-ach-inspect:after,.st-ach-deck:not(.st-ach-flipped) .st-ach-front.st-ach-reveal:after{animation:st-ach-sweep 1.8s .15s ease-out both}
+.st-ach-front.st-ach-inspect .st-ach-hero{animation:st-ach-medal-in .62s cubic-bezier(.2,.7,.2,1) both}
+.st-ach-front.st-ach-inspect h2,.st-ach-front.st-ach-inspect .st-ach-quote,.st-ach-front.st-ach-inspect .st-ach-rate{animation:st-ach-rise .45s .12s both}
+.st-ach-front.st-ach-inspect .st-ach-quote{animation-delay:.2s}.st-ach-front.st-ach-inspect .st-ach-rate{animation-delay:.28s}
+.st-ach-front.st-ach-owned .st-ach-hero{position:relative;isolation:isolate}
+.st-ach-front.st-ach-owned .st-ach-hero:before{content:"";position:absolute;inset:-10%;border-radius:50%;z-index:-1;background:radial-gradient(circle,var(--ach-rarity,#a4bbdc),transparent 65%);opacity:.16;pointer-events:none}
+.st-ach-deck:not(.st-ach-flipped) .st-ach-front.st-ach-owned .st-ach-hero svg{animation:st-ach-float 3s .65s ease-in-out 1}
+.st-ach-dialog:is([data-tier=epic],[data-tier=legendary],[data-tier=mythic],[data-tier=limited]) .st-ach-front.st-ach-owned .st-ach-hero:before{opacity:.32}
+.st-ach-dialog:is([data-tier=legendary],[data-tier=mythic],[data-tier=limited]) .st-ach-front.st-ach-owned .st-ach-hero:after{content:"";position:absolute;inset:-8%;border:1px solid var(--ach-rarity,#dce4f1);border-radius:50%;opacity:.14;pointer-events:none}
+.st-ach-deck:not(.st-ach-flipped) .st-ach-front.st-ach-owned .st-ach-hero:after{animation:st-ach-ring 1.8s .2s ease-out both}
+.st-ach-rarity{border:1px solid #ffffff30;border-radius:20px;padding:3px 11px;letter-spacing:2px}
+.st-ach-front .st-ach-rate{font-size:clamp(23px,4dvh,33px)}
+.st-ach-back{scrollbar-width:thin;scrollbar-color:#9cabc2 transparent}
+.st-ach-back h2{font-size:clamp(20px,3.3dvh,26px);margin:4px 0 6px}
+.st-ach-back h3{margin:12px 0 5px;color:var(--ach-ink);font-size:12px;letter-spacing:.5px}
+.st-ach-back .st-ach-summary{font-size:13px!important;margin:7px 0 9px!important;padding:0 0 8px;line-height:1.5!important}
+.st-ach-rule-table{margin:5px 0 8px}.st-ach-rule-head,.st-ach-rule-row{padding:6px 9px;gap:8px}
+.st-ach-rule-row small{margin-top:1px;line-height:1.45}.st-ach-rule-actual.is-met{font-weight:700}
+.st-ach-rule-status{float:right;font-size:11px;font-weight:500;color:var(--ach-muted);letter-spacing:0}
+.st-ach-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:6px 0}.st-ach-metrics.st-ach-metrics-three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.st-ach-metrics>div{padding:8px 7px;background:linear-gradient(150deg,#8197c413,#8197c404)}.st-ach-metrics strong{font-size:clamp(14px,2.6dvh,19px)}
+.st-ach-time{display:grid;grid-template-columns:auto minmax(8px,1fr) auto;gap:7px;margin:8px 0 10px;padding:10px 8px;background:#8197c40b;border:1px solid var(--ach-line);border-radius:11px}
+.st-ach-time span{font-variant-numeric:tabular-nums;font-size:11px}.st-ach-time i{position:relative;background:linear-gradient(90deg,#91a9ce,#5d80b7)}
+.st-ach-time i:before,.st-ach-time i:after{content:"";position:absolute;width:7px;height:7px;top:-1.5px;border-radius:50%;background:#7395c5}.st-ach-time i:before{left:0}.st-ach-time i:after{right:0}
+.st-ach-time-label{display:block;font-size:10px;color:var(--ach-muted);margin-bottom:3px;font-weight:400}
+.st-ach-time>span:last-child{text-align:right}
+.st-ach-flipped .st-ach-time i{animation:st-ach-line-in .65s .22s both;transform-origin:left}
+.st-ach-flipped .st-ach-chart{animation:st-ach-rise .5s .2s both}
+.st-ach-rate-details{border:1px solid var(--ach-line);border-radius:11px;padding:0 9px;margin:9px 0 5px;background:#8197c407}
+.st-ach-rate-details summary{margin:8px 0!important;color:var(--ach-ink);font-weight:600}
+.st-ach-rate-details p{font-size:11px;line-height:1.5;margin:0 0 6px}
+.st-ach-back>.st-ach-caption{font-size:11px;line-height:1.45;margin:5px 0}
+.st-ach-controls button[data-flip]{background:linear-gradient(120deg,#5275ad,#41659e);box-shadow:0 3px 12px #294c812e}
+.st-ach-controls button:active{transform:scale(.98)}
+@keyframes st-ach-dialog-in{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes st-ach-medal-in{from{opacity:.2;transform:translateY(9px) scale(.84)}to{opacity:1;transform:none}}
+@keyframes st-ach-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes st-ach-sweep{from{transform:translateX(-110%)}to{transform:translateX(110%)}}
+@keyframes st-ach-ring{from{opacity:.42;transform:scale(.8)}to{opacity:0;transform:scale(1.28)}}
+@keyframes st-ach-line-in{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@media(max-width:360px){.st-ach-metrics.st-ach-metrics-three>div{padding:6px 4px}.st-ach-time{padding:8px 5px;gap:4px}.st-ach-time span{font-size:10px}}
+@media(prefers-reduced-motion:reduce){.st-ach-gallery *,.st-ach-gallery *:before,.st-ach-gallery *:after,.st-ach-dialog *,.st-ach-dialog *:before,.st-ach-dialog *:after{animation:none!important;transition:none!important}.st-ach-tile:hover,.st-ach-tile:active,.st-ach-featured button:hover,.st-ach-featured button:active,.st-ach-tile:hover .st-ach-tile-image,.st-ach-featured button:hover svg{transform:none!important}}
