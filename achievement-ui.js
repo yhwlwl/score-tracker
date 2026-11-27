@@ -147,7 +147,7 @@ const number=v=>Number.isFinite(Number(v))&&v!==null&&v!==''?String(Math.round(N
 const percent=v=>number(v)==='—'?'—':number(v)+'%';
 const pp=v=>number(v)==='—'?'—':number(v)+' 个百分点';
 const cap=(s)=>'<p class="st-ach-caption">'+esc(s)+'</p>';
-const metrics=a=>'<div class="st-ach-metrics">'+a.map(([k,v])=>'<div><small>'+esc(k)+'</small><strong>'+esc(v)+'</strong></div>').join('')+'</div>';
+const metrics=a=>'<div class="st-ach-metrics'+(a.length===3?' st-ach-metrics-three':'')+'">'+a.map(([k,v])=>'<div><small>'+esc(k)+'</small><strong>'+esc(v)+'</strong></div>').join('')+'</div>';
 const svg=(s)=>'<svg class="st-ach-chart" viewBox="0 0 320 165" role="img" aria-label="解锁证据图">'+s+'</svg>';
 function plot(series,position=true){
  const n=Math.max(2,...series.map(s=>s.values.length)),all=series.flatMap(s=>s.values).filter(v=>v!==null&&Number.isFinite(Number(v))).map(Number);if(!all.length)return '';
@@ -228,8 +228,8 @@ function conditionRows(b,e){
 }
 function renderConditions(b,e,locked,opt={}){
  if(locked)return '<h3>解锁条件</h3><p>隐藏成就，解锁后揭晓。</p>';
- const rows=conditionRows(b,e);
- return '<p class="st-ach-summary">'+esc(summaries[b.id]||b.condition)+'</p><h3>解锁条件</h3><div class="st-ach-rule-table"><div class="st-ach-rule-head"><span>条件</span><span>'+(opt.demo?'示例表现':'实际表现')+'</span></div>'+rows.map(r=>'<div class="st-ach-rule-row"><div><strong>'+esc(r.name)+'</strong><small>'+esc(r.condition)+'</small></div><div class="st-ach-rule-actual '+(r.ok===true?'is-met':r.ok===false?'is-unmet':'is-unknown')+'"><span>'+esc(r.actual??(e?'该项未留存':'尚未达成'))+'</span>'+(r.ok===true?'<small>✓ 满足</small>':r.ok===false?'<small>未满足</small>':'<small>—</small>')+'</div></div>').join('')+'</div>';
+ const rows=conditionRows(b,e),met=rows.filter(r=>r.ok===true).length;
+ return '<p class="st-ach-summary">'+esc(summaries[b.id]||b.condition)+'</p><h3>解锁条件'+(rows.length&&rows.every(r=>r.ok===true||r.ok===false)?'<span class="st-ach-rule-status">'+met+' / '+rows.length+' 项满足</span>':'')+'</h3><div class="st-ach-rule-table"><div class="st-ach-rule-head"><span>条件</span><span>'+(opt.demo?'示例表现':'实际表现')+'</span></div>'+rows.map(r=>'<div class="st-ach-rule-row"><div><strong>'+esc(r.name)+'</strong><small>'+esc(r.condition)+'</small></div><div class="st-ach-rule-actual '+(r.ok===true?'is-met':r.ok===false?'is-unmet':'is-unknown')+'"><span>'+esc(r.actual??(e?'该项未留存':'尚未达成'))+'</span>'+(r.ok===true?'<small>✓ 满足</small>':r.ok===false?'<small>未满足</small>':'<small>—</small>')+'</div></div>').join('')+'</div>';
 }
 
 function evidence(b,e){
@@ -253,7 +253,14 @@ function evidence(b,e){
  const p=e.points||[],isScore=e.kind==='score';
  return plot([{label:isScore?'实际得分率':'实际位比',values:p.map(x=>isScore?x.rate:x.position),color:'#29977f'}],!isScore)+metrics([['关联考试',String(p.length)+' 场'],[e.kind==='state'?'变点概率':isScore?'此前纪录':'改善幅度',e.kind==='state'?percent(e.probability):isScore?percent(e.previousBest):pp(e.improvement??(p[0]?.position-p.at(-1)?.position))]])+cap(p.map(x=>x.date).join(' · '));
  }
- if(e.kind==='time')return '<div class="st-ach-time"><span>'+esc(e.dates?.[0])+'</span><i></i><span>'+esc(e.dates?.[1])+'</span></div>'+metrics([['有效日期',String(e.count)+' 天'],['跨度',String(e.span)+' 天'],['覆盖月份',String(e.months)+' 月']]);
+ if(e.kind==='time'){
+  const names=conditionRows(b,e).map(r=>r.name),extra=[];
+  if(!names.some(n=>n==='不同实际录入日'||n==='不同有效考试日')&&Number.isFinite(e.count))extra.push(['有效日期',String(e.count)+' 天']);
+  if(!names.includes('首末日期跨度')&&Number.isFinite(e.span))extra.push(['跨度',String(e.span)+' 天']);
+  if(!names.includes('覆盖自然月')&&Number.isFinite(e.months))extra.push(['覆盖月份',String(e.months)+' 月']);
+  const timeline='<div class="st-ach-time"><span><small class="st-ach-time-label">起始记录</small>'+esc(e.dates?.[0]||'未记录')+'</span><i aria-hidden="true"></i><span><small class="st-ach-time-label">末次记录</small>'+esc(e.dates?.[1]||'未记录')+'</span></div>';
+  return timeline+(extra.length?metrics(extra):'');
+ }
  return '<div class="st-ach-simple"><span>✓</span><div>'+esc(e.label||e.subject||'条件已满足')+(e.date?'<small>'+esc(e.date)+'</small>':'')+(e.subjects?'<small>'+esc(e.subjects.join('、'))+'</small>':'')+'</div></div>';
 }
 function demoEvidence(b){
@@ -293,7 +300,7 @@ function renderCard(b,a,opt={}){
  const label=preview?'模拟解锁':opt.realPreview?(earned?'真实数据 · 符合条件':'真实数据 · 条件详情'):earned?'成就已解锁':'成就详情';
  dialog.dataset.tier=b.tier;dialog.querySelector('.st-ach-batch').textContent=opt.batch>1?(opt.realPreview?'真实记录符合 '+opt.batch+' 项成就 · 预览而非发放':'已解锁 '+opt.batch+' 项成就 · 优先展示代表徽章'):opt.tour?'巡展 '+opt.tour:'';
  deck.className='st-ach-deck';
- deck.innerHTML='<section class="st-ach-face st-ach-front '+(opt.play?'st-ach-reveal':'')+'"><div class="st-ach-halo"></div><div class="st-ach-kicker">SCORE TRACKER · '+label+'</div><div class="st-ach-rarity">'+esc(C.tiers[b.tier])+(b.hidden&&(!locked)?' · 隐藏':'')+'</div><div class="st-ach-hero">'+emblem(b,locked)+'</div><h2>'+esc(locked?'尚未发现':b.name)+'</h2><p class="st-ach-quote">'+esc(locked?'等待属于你的发现。':b.quote)+'</p><div class="st-ach-rate">'+(locked?'—':esc(rateInfo(b,opt).value))+'</div><small>'+ (locked?'解锁后揭晓':esc(rateInfo(b,opt).label))+'</small>'+(!locked&&earned&&!preview?cap(dateLabel(a)):'')+'<div class="st-ach-brand">SCORE TRACKER  /  ACHIEVEMENTS</div></section><section class="st-ach-face st-ach-back"><div class="st-ach-kicker">ACHIEVEMENT RECORD</div><h2>'+esc(locked?'尚未发现':b.name)+'</h2>'+renderConditions(b,a?.evidence,locked,opt)+(a?.rule_version===1&&['year-trace','rings','time-kept','first-step'].includes(b.id)?cap('按历史规则获得，保留原有成就'): '')+'<h3>成就见证</h3>'+(locked?cap('尚未解锁'):evidence(b,a?.evidence))+(locked?'':rateDetails(b,opt))+(b.id==='unique-path'&&a?.evidence?.points?.some(p=>p.source)?cap(a.evidence.points.map(p=>p.date+' · '+(p.source==='frozen_prediction'?'真实冻结预测':'历史滚动回测')).join('；')):'')+(a?cap(preview?'示例数据 · 仅供交互预览':opt.realPreview&&source==='historical_replay'?'真实账号历史记录计算 · 预览，不正式发放；预测类为历史滚动回放':source==='mixed_prediction'?'历史滚动回测与真实考前冻结预测共同达成':source==='historical_replay'?(['forecast','interval','state','match'].includes(a?.evidence?.kind)?'历史滚动回放 · 非真实考前冻结预测':'根据历史记录追溯成就'):source==='demo'?'示例数据':source==='manual'?'经核验的纪念记录':'成就证据快照'):'')+(!earned&&!locked&&b.mode==='manual'?cap('满足活动或贡献条件后，由管理员确认发放。'):!earned&&!locked&&b.id==='triple'?cap('三百纪念正式发布后，符合活动资格的账号自动获得同一枚纪念徽章。'):'')+'</section>';
+ deck.innerHTML='<section class="st-ach-face st-ach-front '+(opt.play?'st-ach-reveal':'st-ach-inspect')+(earned&&!locked?' st-ach-owned':'')+'"><div class="st-ach-halo"></div><div class="st-ach-kicker">SCORE TRACKER · '+label+'</div><div class="st-ach-rarity">'+esc(C.tiers[b.tier])+(b.hidden&&(!locked)?' · 隐藏':'')+'</div><div class="st-ach-hero">'+emblem(b,locked)+'</div><h2>'+esc(locked?'尚未发现':b.name)+'</h2><p class="st-ach-quote">'+esc(locked?'等待属于你的发现。':b.quote)+'</p><div class="st-ach-rate">'+(locked?'—':esc(rateInfo(b,opt).value))+'</div><small>'+ (locked?'解锁后揭晓':esc(rateInfo(b,opt).label))+'</small>'+(!locked&&earned&&!preview?cap(dateLabel(a)):'')+'<div class="st-ach-brand">SCORE TRACKER  /  ACHIEVEMENTS</div></section><section class="st-ach-face st-ach-back"><div class="st-ach-kicker">ACHIEVEMENT RECORD</div><h2>'+esc(locked?'尚未发现':b.name)+'</h2>'+renderConditions(b,a?.evidence,locked,opt)+(a?.rule_version===1&&['year-trace','rings','time-kept','first-step'].includes(b.id)?cap('按历史规则获得，保留原有成就'): '')+'<h3>成就见证</h3>'+(locked?cap('尚未解锁'):evidence(b,a?.evidence))+(locked?'':rateDetails(b,opt))+(b.id==='unique-path'&&a?.evidence?.points?.some(p=>p.source)?cap(a.evidence.points.map(p=>p.date+' · '+(p.source==='frozen_prediction'?'真实冻结预测':'历史滚动回测')).join('；')):'')+(a?cap(preview?'示例数据 · 仅供交互预览':opt.realPreview&&source==='historical_replay'?'真实账号历史记录计算 · 预览，不正式发放；预测类为历史滚动回放':source==='mixed_prediction'?'历史滚动回测与真实考前冻结预测共同达成':source==='historical_replay'?(['forecast','interval','state','match'].includes(a?.evidence?.kind)?'历史滚动回放 · 非真实考前冻结预测':'根据历史记录追溯成就'):source==='demo'?'示例数据':source==='manual'?'经核验的纪念记录':'成就证据快照'):'')+(!earned&&!locked&&b.mode==='manual'?cap('满足活动或贡献条件后，由管理员确认发放。'):!earned&&!locked&&b.id==='triple'?cap('三百纪念正式发布后，符合活动资格的账号自动获得同一枚纪念徽章。'):'')+'</section>';
  controls.innerHTML='<button type="button" data-flip>查看成就见证</button>'+(opt.demo&&!tour?'<button type="button" data-replay>重播</button>':'')+(tour?'<button type="button" data-tour-stop>停止巡展</button>':'')+(opt.onGallery?'<button type="button" data-gallery>查看收藏馆</button>':'');
  controls.querySelector('[data-flip]').onclick=()=>{if(tour){stopTour();controls.querySelector('[data-tour-stop]')?.remove()}setFace(mode==='front'?'back':'front')};
  const replay=controls.querySelector('[data-replay]');if(replay)replay.onclick=()=>{stopTour();renderCard(b,a,{...opt,tour:null,play:true})};
@@ -332,8 +339,9 @@ function rateInfo(b,opt={}){
 }
 function rateDetails(b,opt={}){
  const ref=rateInfo(b,opt),actual=actualRateInfo(b,opt);
- if(!ref.historical)return actual.value==='—'?'':cap('实际获得率 '+actual.value+'（'+actual.count+' / '+actual.total+' 人）');
- return cap('历史达成率 '+ref.value+'（'+ref.count+' / '+ref.total+' 人，'+C.referenceDay+' 全站回测）')+(actual.value==='—'?'':cap('实际获得率 '+actual.value+'（'+actual.count+' / '+actual.total+' 人，按已正式发放记录每日更新）'));
+ if(!ref.historical&&actual.value==='—')return '';
+ const info=(ref.historical?cap('历史达成率 '+ref.value+'（'+ref.count+' / '+ref.total+' 人，'+C.referenceDay+' 全站回测）'):'')+(actual.value==='—'?cap('实际获得率暂未统计'):cap('实际获得率 '+actual.value+'（'+actual.count+' / '+actual.total+' 人，按正式发放记录每日更新）'));
+ return '<details class="st-ach-rate-details"><summary>稀有度统计 · '+esc(ref.label)+' '+esc(ref.value)+'</summary>'+info+(ref.historical?cap('历史达成率与实际获得率采用不同统计口径；旧规则保留的成就可能不满足新版回测条件。'):'')+'</details>';
 }
 function rarestAwards(awards,opt={}){
  const rank=a=>{const b=B.get(a.badge_id);const n=rateInfo(b,opt).number;return Number.isFinite(n)?n:b.count==null?Infinity:b.count/C.denominator};
@@ -344,10 +352,11 @@ function entryHTML(awards=[],opt={}){const fav=favoriteIds(awards,opt.favorites,
 function gallery(root,awards=[],demo=false,options={}){
  const earned=new Map(awards.filter(a=>B.has(a.badge_id)).map(a=>[a.badge_id,a])),own=[...earned.values()],opt={...options,demo},filter={tier:'all',query:'',tab:demo?'all':'owned',sort:demo?'catalog':'rarity',reveal:demo};
  let favorites=favoriteIds(own,options.favorites,opt),editing=false,busy=false,editMessage='';
- root.classList.add('st-ach-gallery');
+ root.classList.add('st-ach-gallery','st-ach-gallery-enter');
+ let firstDraw=true;
  const secret=b=>b.hidden&&!earned.has(b.id)&&!filter.reveal;
  const name=b=>secret(b)?'尚未发现':b.name;
- root.innerHTML='<div class="st-ach-collection-hero"><div class="st-ach-collection-top"><div><small>MY ACHIEVEMENTS</small><h2>成就馆</h2><div class="st-ach-collection-count">'+(demo?C.badges.length:own.length)+' <span>'+esc(demo?'枚设计预览':options.realPreview?'枚符合条件':'枚收藏')+'</span></div><p>每一枚，都是一段值得记住的经历。</p></div><div class="st-ach-collection-emblem"></div></div><div class="st-ach-tier-counts">'+levels.map(t=>'<div><strong>'+(demo?C.badges.filter(b=>b.tier===t).length:own.filter(a=>B.get(a.badge_id).tier===t).length)+'</strong><small>'+C.tiers[t]+'</small></div>').join('')+'</div></div>'+
+ root.innerHTML='<div class="st-ach-collection-hero"><div class="st-ach-collection-top"><div><small>MY ACHIEVEMENTS</small><h2>成就馆</h2><div class="st-ach-collection-count">'+(demo?C.badges.length:own.length)+' <span>'+esc(demo?'枚设计预览':options.realPreview?'枚符合条件':'枚收藏')+'</span></div><p>每一枚，都是一段值得记住的经历。</p></div><div class="st-ach-collection-emblem"></div></div>'+(!demo?'<div class="st-ach-collection-progress"><progress aria-label="成就收藏进度" max="'+C.badges.length+'" value="'+own.length+'"></progress><span>'+own.length+' / '+C.badges.length+'</span></div>':'')+'<div class="st-ach-tier-counts">'+levels.map(t=>'<div><strong>'+(demo?C.badges.filter(b=>b.tier===t).length:own.filter(a=>B.get(a.badge_id).tier===t).length)+'</strong><small>'+C.tiers[t]+'</small></div>').join('')+'</div></div>'+
  (!demo?'<div class="st-ach-section-title"><strong>我的珍藏</strong><button type="button" data-edit>编辑代表徽章</button></div><div class="st-ach-featured"></div><p class="st-ach-edit-note" aria-live="polite"></p><div class="st-ach-tabs" role="group" aria-label="收藏馆分类"><button type="button" data-tab="owned">我的收藏</button><button type="button" data-tab="all">全部成就</button><button type="button" data-tab="timeline">成就历程</button></div>':'')+
  '<div class="st-ach-filters"><select data-tier-select aria-label="稀有等级"><option value="all">全部等级</option>'+levels.map(t=>'<option value="'+t+'">'+C.tiers[t]+'</option>').join('')+'</select><input type="search" placeholder="查找成就" aria-label="查找成就"><select data-sort aria-label="排序"><option value="catalog">图鉴顺序</option><option value="rarity">稀有等级</option><option value="new">从近到远</option><option value="old">从远到近</option><option value="rate">达成率从低到高</option></select>'+(demo?'<label><input type="checkbox" data-reveal checked> 展示隐藏设计</label><button type="button" data-random>随机模拟</button><button type="button" data-tour>全部巡展</button>':'')+'</div><p class="st-ach-rate-note">'+esc('自动成就及独一无二：历史达成率（'+C.referenceDay+'） · 活动及人工成就：实际获得率')+'</p><div class="st-ach-grid"></div><p class="st-ach-caption">'+esc('历史达成率按 '+C.denominator+' 个有效账号的现存记录及正式规则回测，不等于已发放比例。详情同时显示每日实际获得率。')+'</p>';
  const grid=root.querySelector('.st-ach-grid'),sortEl=root.querySelector('[data-sort]');
@@ -364,8 +373,9 @@ function gallery(root,awards=[],demo=false,options={}){
   return '<button type="button" class="st-ach-tile '+(locked?'st-ach-locked ':'')+(editing&&favorites.includes(b.id)?'st-ach-favorite-selected ':'')+(timeline?'st-ach-timeline-tile':'')+'" data-id="'+b.id+'" data-tier="'+b.tier+'" '+(editing&&!a?'disabled':'')+'><span class="st-ach-tile-image">'+emblem(b,locked)+'</span><span class="st-ach-tile-text"><strong>'+esc(name(b))+'</strong><small>'+esc(hidden?'隐藏成就':C.tiers[b.tier])+'</small>'+(hidden?'':'<span class="st-ach-tile-rate" title="'+esc(r.label)+'">'+esc(r.value.includes('%')?(r.historical?'达成率 ':'获得率 ')+r.value:r.value)+'</span>')+(timeline?'<span class="st-ach-timeline-quote">'+esc(b.quote)+'</span>':'')+(demo?'':'<span class="st-ach-tile-date">'+esc(date)+'</span>')+'</span>'+(editing&&favorites.includes(b.id)?'<span class="st-ach-favorite-check">✓</span>':'')+'</button>';
  }
  function draw(){
+  root.classList.toggle('st-ach-gallery-enter',firstDraw);const animate=firstDraw;firstDraw=false;
   const lead=favorites[0]&&B.get(favorites[0]);root.querySelector('.st-ach-collection-emblem').innerHTML=lead?emblem(lead):'';
-  if(!demo){root.querySelector('.st-ach-featured').innerHTML=favorites.map(id=>{const b=B.get(id);return '<button type="button" data-featured="'+id+'">'+emblem(b)+'<strong>'+esc(b.name)+'</strong><small>'+C.tiers[b.tier]+'</small></button>'}).join('')+Array.from({length:3-favorites.length},()=>'<button type="button" data-add-favorite><span class="st-ach-feature-empty">＋</span><small>选择徽章</small></button>').join('');
+  if(!demo){root.querySelector('.st-ach-featured').innerHTML=favorites.map(id=>{const b=B.get(id);return '<button type="button" data-featured="'+id+'" data-tier="'+b.tier+'">'+emblem(b)+'<strong>'+esc(b.name)+'</strong><small>'+C.tiers[b.tier]+'</small></button>'}).join('')+Array.from({length:3-favorites.length},()=>'<button type="button" data-add-favorite><span class="st-ach-feature-empty">＋</span><small>选择徽章</small></button>').join('');
    root.querySelector('[data-edit]').textContent=editing?'完成编辑':'编辑代表徽章';root.querySelector('[data-edit]').disabled=busy;
    root.querySelector('.st-ach-edit-note').textContent=editMessage||(editing?'从已获得的徽章中选择最多3枚，点击已选择的徽章可取消。':'');
    root.querySelectorAll('[data-tab]').forEach(x=>{x.setAttribute('aria-pressed',String(x.dataset.tab===filter.tab));x.disabled=editing});
@@ -375,6 +385,7 @@ function gallery(root,awards=[],demo=false,options={}){
   if(!list.length){grid.innerHTML='<p class="st-ach-caption">没有符合筛选条件的成就。</p>';return}
   if(timeline){const map=new Map();for(const b of list){const day=awardDay(earned.get(b.id))||'unknown';if(!map.has(day))map.set(day,[]);map.get(day).push(b)}let month='';grid.innerHTML=[...map].map(([day,items])=>{const next=day==='unknown'?'日期待追溯':day.slice(0,7);const heading=month!==next?'<h3 class="st-ach-timeline-month">'+esc(day==='unknown'?next:next.slice(0,4)+' 年 '+Number(next.slice(5,7))+' 月')+'</h3>':'';month=next;return heading+'<section class="st-ach-timeline-day"><div class="st-ach-timeline-date"><strong>'+esc(day==='unknown'?'未记录准确日期':Number(day.slice(5,7))+'月'+Number(day.slice(8))+'日')+'</strong><small>'+items.length+' 项成就</small></div><div class="st-ach-timeline-items">'+items.map(b=>tile(b,true)).join('')+'</div></section>'}).join('')}
   else grid.innerHTML=list.map(b=>tile(b)).join('');
+  if(animate){root.querySelectorAll('.st-ach-featured button,.st-ach-grid>.st-ach-tile').forEach((el,i)=>el.style.setProperty('--ach-delay',Math.min(i,11)*28+'ms'))}
  }
  async function toggleEdit(){if(busy)return;if(!editing){editing=true;filter.tab='owned';editMessage='';draw();return}busy=true;draw();try{if(options.onFavorites)await options.onFavorites([...favorites]);editing=false;editMessage=''}catch(_){editMessage='保存失败，请重试。'}finally{busy=false;draw()}}
  function choose(b){if(!b||busy)return;if(editing){if(!earned.has(b.id))return;if(favorites.includes(b.id))favorites=favorites.filter(x=>x!==b.id);else if(favorites.length<3)favorites.push(b.id);else{editMessage='最多选择3枚，先取消一枚即可更换。';draw();return}editMessage='';draw();return}if(demo)show(b,{evidence:demoEvidence(b)},{...opt,reveal:true,play:true});else show(b,earned.get(b.id),{...opt,play:false,pending:options.pending?.[b.id]})}
