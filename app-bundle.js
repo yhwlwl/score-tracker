@@ -13158,7 +13158,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     var controller=new AbortController(),timeout=setTimeout(function(){controller.abort();},10000);
     try { var url=new URL('index.html',location.href);url.searchParams.set('__cb',Date.now());var r=await fetch(url.href,{cache:'no-store',signal:controller.signal});if(!r.ok)throw new Error('版本检查失败');var doc=new DOMParser().parseFromString(await r.text(),'text/html'),m=doc.querySelector('meta[name="application-version"]');if(!m||!/^v?\d+(\.\d+){0,2}$/i.test(m.content))throw new Error('暂时未找到版本信息');return {version:version(m.content),build:build(doc)}; } finally {clearTimeout(timeout);}
   }
-  function blocking() { try{if(state.onboarding)return true;}catch(_){}return document.visibilityState!=='visible'||!!document.querySelector('.modal-backdrop,.fv36-back,.st-fb-back,.pwa-back,.school-back,.gmodal-backdrop.open'); }
+  function blocking() { try{if(state.onboarding)return true;}catch(_){}return document.visibilityState!=='visible'||!!document.querySelector('dialog.st-centenary-dialog[open],.modal-backdrop,.fv36-back,.st-fb-back,.pwa-back,.school-back,.gmodal-backdrop.open'); }
   function injectStyle() {
     if(document.getElementById('release-notices-style'))return;
     var s=document.createElement('style');s.id='release-notices-style';s.textContent=
@@ -13394,7 +13394,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       }
       if(!manual){pending=pending.filter(function(item){return item.kind!=='release'||item.manual||item.id===target;});if(modal&&modal.kind==='release'&&!modal.manual&&modal.id!==target)close('superseded');}
       if(manual||(u.id!=='guest'&&c.enabled!==false)){if(manual||!seen(u,'release',target))enqueue({user:u,kind:'release',id:target,title:title,content:content,updated_at:known?c.updated_at:null,source:source,manual:!!manual,releases:manual?releases:null,announcements:manual?announcements:null});else track('notice_suppressed',{kind:'release',notice_id:target,reason:'already_seen',source:source});}
-      if(!manual&&config){['announcement','tip'].forEach(function(kind){if(!c[kind+'_enabled']||!c[kind+'_content']||seen(u,kind,String(c[kind+'_id'])))return;enqueue({user:u,kind:kind,id:String(c[kind+'_id']),title:c.announcement_title,content:c[kind+'_content'],updated_at:c.updated_at,commentsEnabled:c.announcement_comments_enabled,commentsPublic:c.announcement_comments_public!==false,commentTitle:c.announcement_comment_title,source:source,manual:false});});}
+      if(!manual&&config){['announcement','tip'].forEach(function(kind){if(kind==='announcement'&&c.announcement_id==='63656e74656e617279323032')return;if(!c[kind+'_enabled']||!c[kind+'_content']||seen(u,kind,String(c[kind+'_id'])))return;enqueue({user:u,kind:kind,id:String(c[kind+'_id']),title:c.announcement_title,content:c[kind+'_content'],updated_at:c.updated_at,commentsEnabled:c.announcement_comments_enabled,commentsPublic:c.announcement_comments_public!==false,commentTitle:c.announcement_comment_title,source:source,manual:false});});}
     })().finally(function(){busy=null;});return busy;
   }
   function sync() {
@@ -13410,7 +13410,15 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   window.addEventListener('online',function(){if(Date.now()-lastCheck>=PERIOD)check('online',false);});
   window.addEventListener('storage',function(e){if(e.key==='st_token'&&user()&&e.newValue!==user().token){pending=[];if(modal)close('account_changed');}});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',sync,{once:true});else sync();
-  window.__releaseNotices={check:check,compareVersions:compare,currentVersion:function(){return CURRENT;},refreshSupport:function(){if(modal)mountSupport(modal.back,modal);},openAnnouncementReply:openAnnouncementReply,openAnnouncement:function(){track('announcement_manual_opened',{source:'settings'});return check('manual_announcement',true,'announcement');}};
+  async function openCentenaryDiscussion(){
+    var u=user();if(!u||u.id==='guest')return;
+    var data=await call('notice_history',{},u),nowUser=user();if(!nowUser||nowUser.id!==u.id||nowUser.token!==u.token)return;
+    var c=data.config||{},id='63656e74656e617279323032',r=(data.announcements||[]).find(function(x){return x.id===id;});
+    if(c.announcement_id===id)r={id:id,title:c.announcement_title,content:c.announcement_content,updated_at:c.updated_at,comments_enabled:c.announcement_comments_enabled,comments_public:c.announcement_comments_public,comment_title:c.announcement_comment_title};
+    if(!r)return;
+    enqueue({user:u,kind:'announcement',id:id,title:r.title,content:r.content,updated_at:r.updated_at,commentsEnabled:c.announcement_id===id?r.comments_enabled===true:true,commentsReadOnly:c.announcement_id!==id,commentsPublic:r.comments_public!==false,commentTitle:r.comment_title||'纪念留言',source:'centenary',manual:true});
+  }
+  window.__releaseNotices={openCentenaryDiscussion:openCentenaryDiscussion,check:check,compareVersions:compare,currentVersion:function(){return CURRENT;},refreshSupport:function(){if(modal)mountSupport(modal.back,modal);},openAnnouncementReply:openAnnouncementReply,openAnnouncement:function(){track('announcement_manual_opened',{source:'settings'});return check('manual_announcement',true,'announcement');}};
   var replyStyle=document.createElement('style');replyStyle.textContent='.rn-admin-reply{margin-top:12px;padding:12px 14px;border-left:3px solid var(--accent,#315efb);background:var(--accent-soft,#f3f6ff);border-radius:8px;font-size:13px;line-height:1.8;overflow-wrap:anywhere}.rn-admin-reply time{display:block;font-size:11px;color:var(--muted,#68758b)}.rn-admin-reply>div{white-space:pre-wrap;margin-top:4px}';document.head.appendChild(replyStyle);
 })();
 
