@@ -195,3 +195,21 @@
 @keyframes st-ach-line-in{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 @media(max-width:360px){.st-ach-metrics.st-ach-metrics-three>div{padding:6px 4px}.st-ach-time{padding:8px 5px;gap:4px}.st-ach-time span{font-size:10px}}
 @media(prefers-reduced-motion:reduce){.st-ach-gallery *,.st-ach-gallery *:before,.st-ach-gallery *:after,.st-ach-dialog *,.st-ach-dialog *:before,.st-ach-dialog *:after{animation:none!important;transition:none!important}.st-ach-tile:hover,.st-ach-tile:active,.st-ach-featured button:hover,.st-ach-featured button:active,.st-ach-tile:hover .st-ach-tile-image,.st-ach-featured button:hover svg{transform:none!important}}
+
+/* Centenary is a distinct navy-and-gold edition, including preview. */
+.st-ach-dialog[data-badge=triple]{--ach-rarity:#f0d295;--ach-glow:#38486a}
+.st-ach-dialog[data-badge=triple] .st-ach-front{background:radial-gradient(ellipse at 50% 38%,#37476a 0%,#1b2b45 40%,#101b30 76%);border-color:#c8a66c;box-shadow:0 18px 70px #090e20aa,inset 0 0 45px #10192b55}
+.st-ach-dialog[data-badge=triple] .st-ach-front:before{border-color:#d4b47965}
+.st-ach-dialog[data-badge=triple] .st-ach-kicker{color:#c4cfe2}
+.st-ach-dialog[data-badge=triple] .st-ach-rarity{color:#f0d295;border-color:#d4b47970;background:#d4b4790c}
+.st-ach-dialog[data-badge=triple] .st-ach-front h2,.st-ach-dialog[data-badge=triple] .st-ach-rate{color:#f4dba7;text-shadow:0 2px 18px #d4b47929}
+.st-ach-dialog[data-badge=triple] .st-ach-quote{color:#d9e3f4;opacity:1;line-height:1.65}
+.st-ach-dialog[data-badge=triple] .st-ach-front>small,.st-ach-dialog[data-badge=triple] .st-ach-brand,.st-ach-dialog[data-badge=triple] .st-ach-front .st-ach-caption{color:#b8c7df;opacity:1}
+.st-ach-dialog[data-badge=triple] .st-ach-hero{position:relative;isolation:isolate}
+.st-ach-dialog[data-badge=triple] .st-ach-hero:before{content:"";position:absolute;inset:-9%;border-radius:50%;z-index:-1;background:radial-gradient(circle,#e6bd7250,transparent 67%);pointer-events:none}
+.st-ach-dialog[data-badge=triple] .st-ach-hero:after{content:"";position:absolute;inset:-6%;border:1px solid #e2c08340;border-radius:50%;z-index:-1;pointer-events:none}
+.st-ach-dialog[data-badge=triple] .st-ach-deck:not(.st-ach-flipped) .st-ach-reveal .st-ach-hero svg{animation:st-ach-float 3s .65s ease-in-out 1;filter:drop-shadow(0 6px 12px #0005)}
+.st-ach-dialog[data-badge=triple] .st-ach-controls button[data-flip]{background:linear-gradient(115deg,#29476c,#44658e);color:#fff;border:1px solid #bfa16c70}
+.st-ach-centenary-live{border-top:1px solid var(--ach-line);padding-top:8px;margin-top:10px}
+.st-ach-centenary-live p{font-size:12px;margin:4px 0}.st-ach-centenary-live small{font-size:10px;color:var(--ach-muted)}
+@media(prefers-reduced-motion:reduce){.st-ach-dialog[data-badge=triple] .st-ach-hero svg{animation:none!important}}
