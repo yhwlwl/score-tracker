@@ -559,11 +559,11 @@ const badges=[
     "tier": "limited",
     "count": null,
     "evidence": "event",
-    "condition": "参与三百纪念活动（100天、10K注册、1M交互）",
+    "condition": "三百纪念正式发布时获得活动纪念资格（100天、10K注册、1M交互）",
     "quote": "三个数字，一段共同写下的历史。",
     "motif": "triple",
     "hidden": false,
-    "mode": "manual"
+    "mode": "event"
   },
   {
     "id": "creator",
