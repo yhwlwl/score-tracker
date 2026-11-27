@@ -151,6 +151,8 @@ const app=fs.readFileSync('achievement-app.js','utf8');
 new Function(app);
 assert(app.includes("achievement_release:2")&&app.includes("call('achievement_refresh'")&&app.includes("call('achievement_ack'")&&app.includes("call('achievement_favorites'"));
 assert(!app.includes('ScoreAchievementEngine'),'release UI must not evaluate or issue local awards');
+assert(app.includes('followup(owner)')&&app.includes('clearTimeout(followupTimer)')&&app.includes('Date.now()-lastRefresh>=120000'),'foreground resume and coalesced post-save replay refresh must remain enabled');
+assert(app.includes('key()===owner&&!document.hidden'),'delayed refresh must not cross account sessions or run in background');
 const fullIndex=fs.readFileSync('index.html','utf8');
 assert(fullIndex.includes('achievement-app.js?')&&!fullIndex.includes('achievement-full-preview.js')&&!fullIndex.includes('achievement-engine.js'),'same authenticated adapter in preview and release');
 assert(!uiSource.includes('待核验')&&!uiSource.includes('待快照接入'));
