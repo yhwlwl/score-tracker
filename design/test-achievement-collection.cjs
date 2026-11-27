@@ -84,7 +84,14 @@ assert.equal(root.querySelectorAll('[data-id]').length,sample.length);
 root.querySelector('[data-tab="timeline"]').click();assert(root.querySelector('.st-ach-timeline-day'));
 root.querySelector('[data-tab="owned"]').click();root.querySelector('[data-edit]').click();root.querySelector('[data-id]').click();
 assert.equal(root.querySelectorAll('.st-ach-favorite-selected').length,1);
-assert.equal(win.ScoreAchievementUI.rateInfo(C.badges[0],{stats:{total:100,counts:{'first-step':50}}}).value,'50.00%');
+assert.equal(C.denominator,9936);
+assert.equal(C.badges.filter(b=>b.mode==='auto').length,45);
+assert(C.badges.filter(b=>b.mode==='auto').every(b=>Number.isInteger(b.count)&&b.count>=0&&b.count<=C.denominator));
+assert.equal(win.ScoreAchievementUI.rateInfo(C.badges[0],{stats:{total:100,counts:{'first-step':50}}}).value,'100.00%');
+assert.equal(win.ScoreAchievementUI.actualRateInfo(C.badges[0],{stats:{total:100,counts:{'first-step':50}}}).value,'50.00%');
+assert.equal(win.ScoreAchievementUI.rateInfo(C.badges.find(b=>b.id==='unique-path'),{stats:{total:9936,counts:{}}}).value,'0.00%');
+assert.equal(win.ScoreAchievementUI.rateInfo(C.badges.find(b=>b.id==='year-trace'),{stats:{total:100,counts:{}}}).value,'0.00%');
+assert.equal(win.ScoreAchievementUI.rateInfo(C.badges.find(b=>b.id==='full-picture'),{stats:{total:100,counts:{}}}).value,'57.41%');
 assert.equal(win.ScoreAchievementUI.evidenceDay(actual.find(a=>a.badge_id==='three-days')),'2026-10-03');
 // Default display uses the lowest known rate, not the most recent date.
 const favSample=[{badge_id:'first-step',awarded_at:'2026-11-26'},{badge_id:'chronicle',awarded_at:'2026-09-01'},{badge_id:'rewrite',awarded_at:'2026-10-01'},{badge_id:'unexpected',awarded_at:'2026-11-25'}];

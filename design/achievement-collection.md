@@ -51,3 +51,9 @@
 - 保留51枚已审查的徽章；未确认的新提议不加入本次发布。三百纪念使用原版活动徽章，根据原有发布及账号资格记录同步同一枚，完成日期为活动正式发布时间；独一无二由真实总分年级轨迹参考预测冻结并匹配下一场同分类同科目组合的考试，不回填伪造的考前预测。首次冻结不可覆盖；至少3个不同考试日超越5个百分点。限定活动/贡献由管理员确认后发放，不向未获得用户展示待核验。管理员可通过现有 session 调用 achievement_admin_grant（achievement_release:2、username、badgeId、eventDate、confirmed:true），仅限手工徽章，重复请求不重发。
 - 长历史模型回放采用最近80场预测/状态窗口与最近40场难度窗口，避免历史长度无限放大拟合成本；阈值保持不变，旧奖项仍保留。改规则的历史参考率不再冒充全站获得率。首次使用优先真实账号访问记录，注册仅兜底。
 - 部署目标：数据API增量接入保留线上学情问答等接口；轨迹API只新增冻结快照。生产前端仍需用户合并至main才发布。
+
+## 2026-11-27 上线前全站参考达成率
+- 按正式 v2 evaluator 与冻结模型（commit ae4bd0b）将非管理员、非 showcase/admin/admin1 的账号按 UUID 哈希划分为 16 个互斥分片，全部完成：9,936 个账号、19,768 条可见且日期不晚于当天的考试、135,552 条对应成绩。每人每徽章最多计一次，保留已有真实奖项；目标仅判断是否存在，反思仅取非空标志，不读取内容。数据来自同一日分批查询，不是单事务冻结快照。首次使用日期不影响符合人数（注册兜底）。
+- 45 枚自动徽章：前端卡片显示 2026-11-27 参考达成率，详情同时显示后端每日实际获得率；不把回测人数写入正式 award 或实际获得率表，也不提前批量发奖。快照与限定类仅展示实际获得率，不使用推测值；真实为零就显示零。默认代表徽章排序使用可核实参考比例。
+- 独一无二：线上已验证存在一条符合快照格式的真实轨迹冻结记录，尚无正式发放；三次不同考试日分别超越至少5个百分点的条件已通过合成回归，真实三次达成需等待未来考试数据。
+- 参考总计：{"first-step":9936,"full-picture":5704,"rank-aware":3547,"new-best":3225,"three-days":2378,"reflection":17,"goal-set":1973,"step-up":1834,"five-days":1243,"time-witness":841,"half-year":818,"getting-better":812,"beyond-score":559,"steady":576,"double-proof":450,"hold-peak":372,"ten-days":278,"unexpected":225,"long-road":223,"comeback":165,"chorus":147,"harder":148,"accumulation":138,"year-trace":0,"four-seasons":109,"plateau":95,"cocoon":77,"puzzle":76,"headwind":62,"resonance":53,"more-than-score":40,"time-kept":2,"beyond-expectation":40,"outside-range":39,"twenty-days":29,"unique-path":0,"rings":12,"another-height":19,"ascent":9,"rewrite":7,"break-limit":8,"phase-shift":6,"new-horizon":4,"undefined":3,"chronicle":3,"early":4281,"triple":0,"creator":0,"pioneer":0,"spark-support":0,"annual":0}
