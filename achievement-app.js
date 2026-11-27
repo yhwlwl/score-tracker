@@ -5,7 +5,14 @@
  let session='',cache=null,enabled=null,inFlight=null,refreshTimer=null,revealTimer=null,dirty=false,checked=false,entry=null,adminEntry=null,generation=0,cooldownRetry=false,failures=0;
  const presented=new Set();let favorites=null,stats=null;
  function galleryOptions(){const owner=session;return {favorites,stats,onFavorites:async ids=>{if(key()!==owner)throw Error('account changed');const r=await call('achievement_favorites',{badgeIds:ids});if(key()!==owner||!r.ok)throw Error('save failed');favorites=r.favorites;mount()}}}
- function openCollection(){UI.openGallery(cache||[],galleryOptions())}
+ let openingCollection=false;
+ async function openCollection(){
+  const owner=key();if(!owner||openingCollection)return;openingCollection=true;
+  try{const r=await call('achievement_overview');if(key()!==owner)return;if(r.enabled){cache=Array.isArray(r.awards)?r.awards:cache;favorites=r.favorites??favorites;stats=r.stats??stats;mount()}}
+  catch(_){/* last successful aggregate remains usable */}
+  finally{openingCollection=false}
+  if(key()===owner)UI.openGallery(cache||[],galleryOptions());
+ }
  const tierOrder=['common','rare','epic','legendary','limited','mythic'];
  const key=()=>{try{return state?.user&&state?.token?String(state.user.id||state.user.username)+':'+state.token:''}catch(_){return ''}};
  function sync(){
