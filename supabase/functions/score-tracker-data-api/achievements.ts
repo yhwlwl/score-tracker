@@ -36,6 +36,28 @@ async function awards(db:any,uid:string) {
  if(r.error)throw r.error;
  return canonicalAwards(r.data||[]);
 }
+// Mirror only the original event eligibility, using one canonical collection badge.
+async function syncCentenaryAward(db:any,uid:string,list:any[]){
+ const existing=list.find((a:any)=>a.badge_id==='triple');
+ if(existing?.seen_at)return;
+ const [milestone,qualification]=await Promise.all([
+  db.from('score_tracker_centenary').select('published_at').eq('id',1).maybeSingle(),
+  db.from('score_tracker_centenary_accounts').select('registration_position,seen_at').eq('user_id',uid).maybeSingle()
+ ]);
+ if(milestone.error||qualification.error){console.warn('achievement_centenary_unavailable');return;}
+ const published=milestone.data?.published_at,entry=qualification.data;
+ if(!published||!entry)return;
+ if(existing){
+  if(entry.seen_at){
+   const r=await db.from('score_tracker_achievement_awards').update({seen_at:entry.seen_at}).eq('user_id',uid).eq('badge_id','triple').is('seen_at',null);
+   if(r.error)console.warn('achievement_centenary_receipt_sync_failed');
+  }
+  return;
+ }
+ const achievedDate=new Date(Date.parse(published)+8*3600000).toISOString().slice(0,10);
+ const r=await db.from('score_tracker_achievement_awards').upsert({user_id:uid,badge_id:'triple',rule_version:1,awarded_at:published,seen_at:entry.seen_at??null,evidence:{kind:'event',source:'centenary',verified:true,achievedDate,dateBasis:'event',registrationPosition:entry.registration_position}},{onConflict:'user_id,badge_id',ignoreDuplicates:true});
+ if(r.error)console.warn('achievement_centenary_sync_failed');
+}
 async function collection(db:any,uid:string,list:any[],pilot=false) {
  const [pref,stats]=await Promise.all([db.from('score_tracker_achievement_preferences').select('favorites').eq('user_id',uid).maybeSingle(),pilot?Promise.resolve({data:null,error:null}):db.rpc('score_tracker_achievement_stats_daily')]);
  if(pref.error||stats.error)console.warn('achievement_collection_metadata_unavailable');
@@ -67,7 +89,9 @@ export async function achievements(db:any,uid:string,body:any) {
  const lock=await db.rpc('score_tracker_achievement_claim_scan',{p_user:uid});
  if(lock.error)throw lock.error;
  if(!lock.data)return {...await collection(db,uid,await awards(db,uid),pilot),retryAfter:60};
- const already=await awards(db,uid);
+ let already=await awards(db,uid);
+ await syncCentenaryAward(db,uid,already);
+ already=await awards(db,uid);
  const firstStep=already.find((a:any)=>a.badge_id==='first-step');
  const needFirstUse=!firstStep||firstStep.rule_version<2;
  const [exams,scores,goal,user,firstVisit]=await Promise.all([
