@@ -238,6 +238,24 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
     if(response.ok)return json({ok:true,status:response.status,latency_ms:Date.now()-started,message:'连接成功，模型已响应'});
     return json({ok:false,status:response.status,latency_ms:Date.now()-started,message:detail||('HTTP '+response.status),code:'upstream_error'});
   }
+  if(action==='feature_round_admin'&&req.method==='GET'){
+    const [r,p]=await Promise.all([db.rpc('score_tracker_rounds_overview',{p_user:admin.id,p_admin:true}),db.from('score_tracker_feature_vote_options').select('id,label,description,development_status,development_note,completed_at').order('sort_order')]);
+    if(r.error||p.error)throw r.error||p.error;
+    return json({...r.data,pool:p.data||[]});
+  }
+  if(action==='feature_round_save'&&req.method==='POST'){
+    const b=await req.json();
+    if(!Array.isArray(b.options)||b.options.length>50||typeof b.publish!=='boolean')return json({error:'轮次配置无效'},400);
+    const r=await db.rpc('score_tracker_round_save',{p_id:b.id||null,p_title:b.title,p_start:b.startsAt,p_end:b.endsAt,p_max:b.maxChoices,p_options:b.options,p_publish:b.publish});
+    if(r.error){if(r.error.code==='23P01')return json({error:'投票时间与已发布轮次重叠'},409);if(['22023','22P02','22007','23514'].includes(r.error.code))return json({error:r.error.message},400);throw r.error;}
+    return json({ok:true,id:r.data});
+  }
+  if(action==='feature_round_decision'&&req.method==='POST'){
+    const b=await req.json(),status=String(b.status||''),note=String(b.note||'').trim();
+    if(!['pending','accepted','deferred','declined','developing','released'].includes(status)||note.length>500)return json({error:'决策状态或说明不正确'},400);
+    const r=await db.from('score_tracker_feature_vote_options').update({development_status:status,development_note:note,updated_at:new Date().toISOString(),...(status==='released'?{completed_at:new Date().toISOString(),is_active:false}:{})}).eq('id',b.id).is('completed_at',null).select('id').maybeSingle();
+    if(r.error)throw r.error;if(!r.data)return json({error:'该功能已完成或不存在'},409);return json({ok:true});
+  }
   if(action==='feature_votes'){
     try{
     const ai=q.searchParams.get('include_ai')==='0'?undefined:await readAiConfig();
@@ -313,7 +331,7 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
     const or=await db.from('score_tracker_feature_vote_options').insert({option_key:key,label:String(sr.data.content).slice(0,160),source:'user_suggestion',sort_order:sort}).select('id').single();if(or.error)throw or.error;
     const up=await db.from('score_tracker_feature_vote_suggestions').update({status:'promoted',promoted_option_id:or.data.id,updated_at:new Date().toISOString()}).eq('id',id).eq('status','new').select('id').maybeSingle();
     if(up.error||!up.data){await db.from('score_tracker_feature_vote_options').delete().eq('id',or.data.id);if(up.error)throw up.error;return json({error:'这条需求已经处理过了'},409);}
-    const vr=await db.from('score_tracker_feature_votes').insert({user_id:sr.data.user_id,option_id:or.data.id});if(vr.error&&vr.error.code!=='23505')throw vr.error;
+    const vr=await db.from('score_tracker_feature_votes').insert({user_id:sr.data.user_id,option_id:or.data.id});if(vr.error&&!['23505','22023'].includes(vr.error.code))throw vr.error;
     return json({ok:true,option_id:or.data.id})
   }
   if(action==='feature_suggestion_dismiss'&&req.method==='POST'){

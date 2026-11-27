@@ -79,7 +79,12 @@
     if (!key) return Promise.reject(new Error('未登录'));
     if (!force && overviewCache) return Promise.resolve(overviewCache);
     if (!force && overviewPromise) return overviewPromise;
-    var pending = voteApi('feature_vote_overview').then(function (data) {
+    var pending = Promise.all([voteApi('feature_vote_overview'),voteApi('feature_round_overview').catch(function(e){if(e.status===404||e.status===400)return {enabled:false};throw e;})]).then(function (responses) {
+      var data=responses[0], info=responses[1];
+      if(info && info.enabled){
+        var round=(info.rounds||[]).find(function(r){return r.state==='open';});
+        data=Object.assign({},data,{roundInfo:info,options:round?round.options.map(function(o){return Object.assign({},o,{isActive:true});}):[],myVotes:round?round.options.filter(function(o){return o.votedByMe;}):[],availableCount:round?round.options.length:0,totalVoters:round?round.participants:0});
+      }
       if (key !== userKey()) throw new Error('账号已切换');
       overviewCache = data || {};
       return overviewCache;
@@ -237,6 +242,8 @@
       var hasUnvoted = options.length
         ? options.some(function (item) { return item && item.isActive !== false && !item.votedByMe; })
         : Number(data.availableCount || 0) > 0;
+      var activeRound=data.roundInfo && data.roundInfo.rounds.find(function(r){return r.state==='open';});
+      if(activeRound){try{if(localStorage.getItem('st_round_seen:'+userKey()+':'+activeRound.id))return;}catch(_){}}
       if (!hasVoted && hasUnvoted) {
         if (hasBlockingModal()) { queueAutoCheck(320); return; }
         openVoteModal('auto', data);
@@ -266,6 +273,7 @@
     }
     if (key !== userKey() || document.getElementById('featureVoteV36')) return;
     if (source === 'auto' && hasBlockingModal()) { queueAutoCheck(320); return; }
+    if(data.roundInfo && data.roundInfo.enabled){openRoundModal(source,data);return;}
     var options = visibleOptions(data);
     var back = document.createElement('div');
     back.id = 'featureVoteV36';
@@ -343,11 +351,63 @@
     }
   }
 
+  var roundStatuses={pending:'待评估',accepted:'已采纳',deferred:'暂缓',declined:'暂不采纳',developing:'开发中',released:'已上线'};
+  function roundTime(value){return new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(value));}
+  function resultRows(round){
+    return (round.options||[]).slice().sort(function(a,b){return Number(b.votes||0)-Number(a.votes||0);}).map(function(o){
+      var pct=round.participants&&o.votes!=null?(100*o.votes/round.participants).toFixed(1):'0.0';
+      return '<div class="fv36-account-row"><div class="fv36-account-row-main"><b>'+esc(o.label)+'</b><small>'+ (o.votes==null?'投票后可见':Number(o.votes)+'票 · '+pct+'%') +'</small>'+(o.note?'<p class="fv36-sub">'+esc(o.note)+'</p>':'')+'</div><span class="fv36-badge">'+esc(roundStatuses[o.status]||'待评估')+'</span></div>';
+    }).join('');
+  }
+  function roundHistory(info){
+    var history=(info.rounds||[]).filter(function(r){return r.state==='closed';});
+    if(info.legacy&&info.legacy.options&&info.legacy.options.length)history=history.concat([info.legacy]);
+    return '<div class="fv36-account-list">'+(history.length?history.map(function(r){return '<details class="fv36-account-details"><summary>'+esc(r.number?'第'+r.number+'轮 · '+r.title:r.title)+' · '+Number(r.participants||0)+'人</summary><div class="fv36-account-list">'+resultRows(r)+'</div></details>';}).join(''):'<p class="fv36-sub">暂无历史轮次</p>')+'</div>';
+  }
+  function openRoundModal(source,data){
+    var info=data.roundInfo,round=(info.rounds||[]).find(function(r){return r.state==='open';}),key=userKey(),selected=new Set(round?round.choices:[]),back=document.createElement('div');
+    back.id='featureVoteV36';back.className='fv36-back';back.dataset.source=source||'manual';
+    var title=round?'第'+round.number+'轮 · '+round.title:'功能共创';
+    back.innerHTML='<div class="fv36-modal" role="dialog" aria-modal="true" aria-labelledby="fv36Title"><div class="fv36-head"><div><div class="fv36-kicker">功能共创</div><h2 id="fv36Title">'+esc(title)+'</h2><p class="fv36-sub">'+(round?esc(roundTime(round.startsAt)+' — '+roundTime(round.endsAt)+'（北京时间） · '+round.participants+'人参与'):'当前没有开放的投票')+'</p></div><button class="fv36-close" type="button" aria-label="关闭">×</button></div><div class="fv36-body"><div class="fv36-help">投票结果是产品迭代的重要参考，具体开发计划由开发者综合决定。</div><div class="fv36-options" id="fvRoundOptions"></div><div class="fv36-error" role="status" id="fvRoundError"></div>'+(round?'<div class="fv36-actions"><button class="fv36-submit" type="button" id="fvRoundSubmit">提交投票</button></div>':'')+'<details class="fv36-account-details"><summary>往期投票与开发进展</summary>'+roundHistory(info)+'</details><div class="fv36-other"><label for="fvRoundSuggestion">提出新功能建议</label><input id="fvRoundSuggestion" maxlength="300" placeholder="写下你希望增加的功能"><div class="fv36-actions"><button class="fv36-submit" id="fvRoundSuggest" type="button">提交建议</button></div></div><button type="button" class="fv36-feedback-link">使用问题？去反馈里问问</button></div></div>';
+    document.body.appendChild(back);
+    function close(){if(source==='auto')autoDismissed=true;back.remove();}
+    if(source==='auto'&&round){try{localStorage.setItem('st_round_seen:'+key+':'+round.id,'1');}catch(_){}}
+    back.querySelector('.fv36-close').onclick=close;
+    back.addEventListener('click',function(e){if(e.target===back)close();});
+    back.querySelector('.fv36-feedback-link').onclick=function(){close();window.__scoreTrackerFeedback?.open({type:'other'});};
+    track('feature_vote_modal_open',{source:source||'manual',round_id:round&&round.id,total_voters:round&&round.participants||0});
+    var error=back.querySelector('#fvRoundError'),submit=back.querySelector('#fvRoundSubmit');
+    function draw(){
+      if(!round)return;
+      back.querySelector('#fvRoundOptions').innerHTML=round.options.map(function(o){
+        var on=selected.has(o.id);
+        return '<button type="button" class="fv36-option '+(on?'selected':'')+'" aria-pressed="'+on+'" data-round-choice="'+esc(o.id)+'"><span class="fv36-check">✓</span><span class="fv36-option-main"><span class="fv36-label">'+esc(o.label)+'</span>'+(o.description?'<span class="fv36-count">'+esc(o.description)+'</span>':'')+(o.votes!=null?'<span class="fv36-count">'+Number(o.votes)+'票 · '+(round.participants?(o.votes/round.participants*100).toFixed(1):'0.0')+'%</span>':'')+'</span><span class="fv36-badge">'+esc(roundStatuses[o.status]||'待评估')+'</span></button>';
+      }).join('');
+      back.querySelectorAll('[data-round-choice]').forEach(function(b){b.onclick=function(){var id=b.dataset.roundChoice;if(selected.has(id))selected.delete(id);else if(selected.size<round.maxChoices)selected.add(id);else{error.textContent='最多选择 '+round.maxChoices+' 项';return;}error.textContent='';draw();};});
+      submit.disabled=!selected.size;submit.textContent=(round.choices.length?'保存修改':'提交投票')+'（'+selected.size+'/'+round.maxChoices+'）';
+    }
+    draw();
+    if(submit)submit.onclick=async function(){submit.disabled=true;error.textContent='';try{
+      var r=await voteApi('feature_round_submit',{roundId:round.id,optionIds:Array.from(selected)});
+      if(userKey()!==key)return;
+      invalidateOverview();autoDismissed=true;back.remove();track('feature_vote_submit_success',{round_id:round.id,source:source||'manual',option_count:selected.size});
+      hydrateAccountCard(true);openVoteModal('manual');
+    }catch(e){error.textContent=e.message||'投票失败';submit.disabled=false;}};
+    var suggest=back.querySelector('#fvRoundSuggest');
+    suggest.onclick=async function(){var input=back.querySelector('#fvRoundSuggestion'),custom=input.value.trim();if(!custom){error.textContent='请输入需求';return;}suggest.disabled=true;try{await voteApi('feature_vote_submit',{optionIds:[],customRequest:custom});if(userKey()!==key)return;input.value='';error.textContent='建议已提交';invalidateOverview();}catch(e){error.textContent=e.message;}finally{suggest.disabled=false;}};
+  }
+
   function accountCardShell() {
     return '<div class="card fv36-account" id="featureVoteCardV36"><div class="fv36-account-head"><div><h3 class="card-title">功能投票</h3><p class="card-sub">支持你希望优先上线的功能。</p></div><button type="button" class="secondary" id="featureVoteOpenV36">投票</button></div><details class="fv36-account-details"><summary>查看选项、票数和我的需求</summary><div id="featureVoteAccountBodyV36" class="subtle-note">读取中…</div></details></div>';
   }
   function renderAccountData(root, data) {
     if (!root || !data) return;
+    if(data.roundInfo&&data.roundInfo.enabled){
+      var info=data.roundInfo,round=info.rounds.find(function(r){return r.state==='open';}),body=root.querySelector('#featureVoteAccountBodyV36'),open=root.querySelector('#featureVoteOpenV36');
+      if(body){body.className='';body.innerHTML=(round?'<p class="fv36-sub">'+esc('第'+round.number+'轮 · '+round.title+' · '+round.participants+'人参与 · 截止 '+roundTime(round.endsAt))+'</p><div class="fv36-account-list">'+resultRows(round)+'</div>':'<p class="fv36-sub">暂无开放轮次</p>')+roundHistory(info);}
+      if(open){open.textContent=round?(round.choices.length?'查看 / 修改投票':'参与本轮投票'):'查看结果';open.onclick=function(){openVoteModal('account');};}
+      return;
+    }
     var options = visibleOptions(data);
     var myVotes = Array.isArray(data.myVotes) ? data.myVotes : options.filter(function (x) { return x.votedByMe; });
     var archivedMine = myVotes.filter(function (x) { return x.isActive === false && !x.completedAt; });

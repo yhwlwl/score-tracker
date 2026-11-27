@@ -815,6 +815,7 @@ async function submitFeatureVote(uid: string, rawIds: any, rawCustom: any) {
       const ir = await db.from("score_tracker_feature_votes").insert(
         missing.map((option_id) => ({ user_id: uid, option_id }))
       );
+      if (ir.error?.code === "22023") return {error:"旧投票已归档，请刷新后参与新一轮投票",status:409};
       if (ir.error && ir.error.code !== "23505") throw ir.error;
       addedVotes = missing.length;
     }
@@ -869,6 +870,17 @@ Deno.serve(async (req: Request) => {
       } catch (e) {
         return out({ error: e instanceof Error ? e.message : "默认人数保存失败" }, 400);
       }
+    }
+    if (action === "feature_round_overview") {
+      const r=await db.rpc("score_tracker_rounds_overview",{p_user:user.id,p_admin:false});
+      if(r.error){if(r.error.code==="PGRST202"||r.error.code==="42883")return out({enabled:false,rounds:[]});throw r.error;}
+      return out(r.data);
+    }
+    if (action === "feature_round_submit") {
+      if(!Array.isArray(body.optionIds)||body.optionIds.length>50)return out({error:"选项无效"},400);
+      const r=await db.rpc("score_tracker_round_submit",{p_user:user.id,p_round:body.roundId,p_choices:body.optionIds});
+      if(r.error){if(["22023","22P02"].includes(r.error.code))return out({error:r.error.message},400);throw r.error;}
+      return out({ok:true,roundInfo:r.data});
     }
     if (action === "feature_vote_status" || action === "feature_vote_overview") return out(await featureVoteOverview(user.id));
     if (action === "feature_vote_submit") {
