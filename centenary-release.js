@@ -1,7 +1,7 @@
 /* Centenary release: no client-side publishing or eligibility calculation. */
 (function(g){
 'use strict';
-const NOTICE_ID='63656e74656e617279323032', PERIOD=120000;
+const NOTICE_ID='63656e74656e617279323032', PERIOD=120000, LIVE_PERIOD=60000;
 const previewPage=typeof document!=='undefined'&&document.documentElement.hasAttribute('data-centenary-review');
 function eligible(d){if(previewPage)return d?.preview===true&&Number.isFinite(Number(d.personal_events))&&!!d.measured_at;return d?.published===true&&d.paused!==true&&d.eligible===true&&!!d.published_at}
 function shouldPrompt(d,already){return eligible(d)&&(previewPage||!d.seen_at)&&!already}
@@ -11,7 +11,7 @@ const num=v=>v==null?'—':Number(v).toLocaleString('zh-CN');
 const date=(v,dayOnly=false)=>{if(!v)return'—';const d=new Date(v);return Number.isFinite(d.getTime())?new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit',...(dayOnly?{}:{hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'})}).format(d):'—'};
 function user(){if(previewPage){try{const token=localStorage.getItem('st_token');return token?{id:'preview-session',token}:null}catch(_){return null}}try{return state.user&&state.token&&state.user.id&&state.user.id!=='guest'?{id:String(state.user.id),token:state.token}:null}catch(_){return null}}
 function key(u){return u?u.id+':'+u.token:''}
-let owner='',data=null,dialog=null,entry=null,inflight=false,last=0,shown=false,generation=0,seenPending=false,controller=null,ackPending=false;
+let owner='',data=null,dialog=null,entry=null,inflight=false,last=0,shown=false,generation=0,seenPending=false,controller=null,ackPending=false,updateOpenDialog=null;
 function current(k){return !!k&&key(user())===k&&owner===k}
 async function api(action,u,signal){
  if(previewPage&&action!=='centenary_preview')throw Error('preview is read-only');
@@ -20,8 +20,8 @@ async function api(action,u,signal){
  try{if(signal?.aborted)throw Error('cancelled');const r=await fetch('/api/score-tracker-notices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,token:u.token}),signal:c.signal,cache:'no-store'});const d=await r.json();if(!r.ok||d.error)throw Error('纪念数据暂不可用');return d}
  finally{clearTimeout(timer);signal?.removeEventListener('abort',abort)}
 }
-function close(){if(dialog){const old=dialog;dialog=null;try{old.close()}catch(_){}old.remove()}}
-function reset(k){generation++;controller?.abort();controller=null;owner=k;data=null;last=0;shown=false;inflight=false;seenPending=false;ackPending=false;close();entry?.remove();entry=null}
+function close(){updateOpenDialog=null;if(dialog){const old=dialog;dialog=null;try{old.close()}catch(_){}old.remove()}}
+function reset(k){if(g.ScoreAchievementUI?.centenaryOpen?.())g.ScoreAchievementUI.close();generation++;controller?.abort();controller=null;owner=k;data=null;last=0;shown=false;inflight=false;seenPending=false;ackPending=false;close();entry?.remove();entry=null}
 function blocked(){try{if(state.onboarding)return true}catch(_){}return document.visibilityState!=='visible'||Array.from(document.querySelectorAll('dialog[open],.rn-back,.modal-backdrop,.fv36-back,.st-fb-back,.pwa-back,.school-back,.gmodal-backdrop.open,.first-run-setup-overlay')).some(x=>x.getClientRects().length)}
 function mount(){if(previewPage){const label=document.getElementById('preview-status'),button=document.getElementById('preview-open');if(eligible(data)){label.textContent='已读取真实账户数据 · 统计于 '+date(data.measured_at);button.disabled=false;}else button.disabled=true;return;}if(!eligible(data)){entry?.remove();entry=null;return}
  let card;try{if(state.page==='account')card=document.querySelector('#content .account-grid .account-card')}catch(_){}
@@ -35,24 +35,29 @@ function open(manual=false){const u=user(),k=key(u),gen=generation;if(!current(k
  const style=document.createElement('style');style.textContent=css;shadow.append(style);const wrap=document.createElement('div');wrap.innerHTML=markup;shadow.append(wrap);el.append(host);
  const $=id=>shadow.getElementById(id);const badge= g.ScoreAchievements?.badges?.find(b=>b.id==='triple'),achievementUI=g.ScoreAchievementUI;
  if(badge&&achievementUI){const vector=achievementUI.emblem(badge);$('centenaryBadge').src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(vector);}
- $('title').textContent='三百纪念';$('daydate').textContent=date(d.day_at,true);$('accountdate').textContent=d.account_hit_at?date(d.account_hit_at):'—';$('eventdate').textContent=d.event_hit_at?date(d.event_hit_at):'—';$('accounts').textContent=num(d.publish_account_count??d.account_count);$('events').textContent=num(d.publish_event_count??d.event_count);$('days').textContent=num(d.days_together);$('position').textContent=num(d.registration_position);$('interactions').textContent=num(d.personal_events);$('measured').textContent='纪念发布于 '+date(d.published_at)+' · 北京时间';
- if(previewPage&&!d.published){$('measured').textContent='真实统计于 '+date(d.measured_at)+' · 北京时间';$('accounts').previousElementSibling.lastChild.textContent='当前注册账户';$('events').previousElementSibling.lastChild.textContent='当前累计交互';$('badgeStatus').textContent='纪念徽章预览 · 尚未发放';if(!d.account_hit_at){const remaining=10000-Number(d.account_count);$('accountdate').textContent=Number.isFinite(remaining)&&remaining>0?'还差 '+num(remaining)+' 人':'达成时间尚未核定';}if(!d.event_hit_at)$('eventdate').textContent='尚未达成';if(d.registration_position==null)$('position').textContent='—';}
+ const milestones=Array.from(shadow.querySelectorAll('.milestone'));
+ function paint(next){Object.assign(d,next);
+  $('title').textContent='三百纪念';$('daydate').textContent=date(d.day_at,true);$('accountdate').textContent=d.account_hit_at?date(d.account_hit_at):'—';$('eventdate').textContent=d.event_hit_at?date(d.event_hit_at):'—';$('accounts').textContent=num(d.account_count??d.publish_account_count);$('events').textContent=num(d.event_count??d.publish_event_count);$('days').textContent=num(d.days_together);$('position').textContent=num(d.registration_position);$('interactions').textContent=num(d.personal_events);$('accounts').previousElementSibling.lastChild.textContent='当前注册账户';$('events').previousElementSibling.lastChild.textContent='当前累计交互';$('measured').textContent='最新统计于 '+date(d.measured_at)+' · 北京时间'+(d.published_at?'　｜　纪念发布于 '+date(d.published_at,true):'');
+ if(previewPage){$('badgeStatus').textContent=d.published&&d.eligible?'纪念徽章已获得 · 永久保留':'纪念徽章预览 · 尚未发放';}if(previewPage&&!d.published){$('measured').textContent='真实统计于 '+date(d.measured_at)+' · 北京时间';$('accounts').previousElementSibling.lastChild.textContent='当前注册账户';$('events').previousElementSibling.lastChild.textContent='当前累计交互';$('badgeStatus').textContent='纪念徽章预览 · 尚未发放';if(!d.account_hit_at){const remaining=10000-Number(d.account_count);$('accountdate').textContent=Number.isFinite(remaining)&&remaining>0?'还差 '+num(remaining)+' 人':'达成时间尚未核定';}if(!d.event_hit_at)$('eventdate').textContent='尚未达成';if(d.registration_position==null)$('position').textContent='—';}
 
  $('accountdate').title='首次检测达标时间（北京时间）';$('eventdate').title='交互记录入库时间（北京时间）';
- const hits=[!!d.day_at,!!d.account_hit_at,!!d.event_hit_at];
+ const hits=[!!d.day_at&&Date.parse(d.day_at)<=Date.now(),!!d.account_hit_at,!!d.event_hit_at];
  const labels=['上线百日','注册破万','交互破百万'];
  const hitDates=[d.day_at,d.account_hit_at,d.event_hit_at];
- const milestones=Array.from(shadow.querySelectorAll('.milestone'));
+ 
  milestones.forEach((m,i)=>{m.dataset.hit=String(hits[i]);m.querySelector('.milestone-state').textContent=hits[i]?'✦ 已达成':'目标 · 尚未点亮'});
- if(!hits[1]&&d.account_count!=null&&Number.isFinite(Number(d.account_count))){const bar=document.createElement('div');bar.className='progress-track';bar.setAttribute('role','progressbar');bar.setAttribute('aria-label','注册目标进度');bar.setAttribute('aria-valuemin','0');bar.setAttribute('aria-valuemax','10000');const count=Math.max(0,Math.min(10000,Number(d.account_count)));bar.setAttribute('aria-valuenow',String(count));const fill=document.createElement('i');fill.style.width=(count/100)+'%';bar.append(fill);milestones[1].append(bar)}
+ milestones[1].querySelector('.progress-track')?.remove();if(!hits[1]&&d.account_count!=null&&Number.isFinite(Number(d.account_count))){const bar=document.createElement('div');bar.className='progress-track';bar.setAttribute('role','progressbar');bar.setAttribute('aria-label','注册目标进度');bar.setAttribute('aria-valuemin','0');bar.setAttribute('aria-valuemax','10000');const count=Math.max(0,Math.min(10000,Number(d.account_count)));bar.setAttribute('aria-valuenow',String(count));const fill=document.createElement('i');fill.style.width=(count/100)+'%';bar.append(fill);milestones[1].append(bar)}
  // Product dates below are verified Git commit dates, not claimed release dates.
  const moments=[{label:'最初的小网页',date:'2026/08/20',hit:true,stamp:'2026-08-20T00:00:00+08:00',desc:'目标与实际成绩'},{label:'AI 成绩识图',date:'2026/09/27',hit:true,stamp:'2026-09-27T20:56:01+08:00',desc:'功能提交'},{label:'成绩含金量',date:'2026/10/01',hit:true,stamp:'2026-10-01T22:50:09+08:00',desc:'代码合并'},...labels.map((label,i)=>({label,date:hitDates[i]?date(hitDates[i],true):'尚未点亮',hit:hits[i],stamp:hitDates[i]}))].sort((a,b)=>(a.stamp?new Date(a.stamp).getTime():Infinity)-(b.stamp?new Date(b.stamp).getTime():Infinity));
- for(const m of moments){const item=document.createElement('div');item.className='moment';item.dataset.hit=String(m.hit);const t=document.createElement('time'),b=document.createElement('b');t.textContent=m.date;b.textContent=m.label;item.append(t,b);if(m.desc){const detail=document.createElement('small');detail.textContent=m.desc;item.append(detail)}$('timeline').append(item)}
+ $('timeline').replaceChildren();for(const m of moments){const item=document.createElement('div');item.className='moment';item.dataset.hit=String(m.hit);const t=document.createElement('time'),b=document.createElement('b');t.textContent=m.date;b.textContent=m.label;item.append(t,b);if(m.desc){const detail=document.createElement('small');detail.textContent=m.desc;item.append(detail)}$('timeline').append(item)}
  const pos=d.registration_position==null?null:Number(d.registration_position),days=d.days_together==null?null:Number(d.days_together);
  $('serial').textContent=Number.isSafeInteger(pos)&&pos>0?'NO. '+String(pos).padStart(6,'0'):'';
  $('personalCopy').textContent=days>=90?'从最初的小网页，到今天的三百纪念，谢谢你一路同行。':days>=30?'从你第一次来到这里，属于你的记录便慢慢积累起来。': '每一段新的旅程，都从第一次记录开始。很高兴你来到这里。';
  if(days==null)$('personalCopy').textContent='每一份记录，都是这段故事的一部分。';
- const save=$('saveCard');save.onclick=async()=>{if(!current(k))return;try{const medal=$('centenaryBadge');if(medal.decode)await medal.decode();if(!current(k)||!el.isConnected)return;
+
+ }
+ paint(d);updateOpenDialog=paint;
+  const save=$('saveCard');save.onclick=async()=>{if(!current(k))return;try{const medal=$('centenaryBadge');if(medal.decode)await medal.decode();if(!current(k)||!el.isConnected)return;
  const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1350;const c=canvas.getContext('2d');if(!c)throw Error('canvas unavailable');
  const grad=c.createLinearGradient(0,0,1080,1350);grad.addColorStop(0,'#233d63');grad.addColorStop(.55,'#101d33');grad.addColorStop(1,'#273b56');c.fillStyle=grad;c.fillRect(0,0,1080,1350);
  c.strokeStyle='#c9ac76';c.lineWidth=2;c.strokeRect(45,45,990,1260);
@@ -65,7 +70,7 @@ function open(manual=false){const u=user(),k=key(u),gen=generation;if(!current(k
  draw(d.published?'纪念于 '+date(d.published_at,true):'预览 · 尚未正式发布',1050,28,'#c7d6ee');draw('每一份记录，都算数。',1170,38,'#f4dcaa',600);draw('SCORE TRACKER',1235,23,'#a6b9d6');
  const a=document.createElement('a');a.download='score-tracker-三百纪念.png';a.href=canvas.toDataURL('image/png');document.body.append(a);a.click();a.remove();
  }catch(_){save.textContent='暂无法保存';setTimeout(()=>{save.textContent='保存纪念卡'},1800)}};
- const animateNumbers=()=>{if(matchMedia('(prefers-reduced-motion: reduce)').matches||typeof requestAnimationFrame!=='function')return;milestones.forEach((m,i)=>{if(!hits[i])return;const n=m.querySelector('[data-count]'),target=Number(n.dataset.count);if(!Number.isFinite(target))return;const start=performance.now(),delay=100+i*130;const frame=now=>{if(!el.isConnected)return;const p=Math.max(0,Math.min(1,(now-start-delay)/850));n.textContent=num(Math.round(target*(1-Math.pow(1-p,3))));if(p<1)requestAnimationFrame(frame)};requestAnimationFrame(frame)})};
+ const animateNumbers=()=>{if(matchMedia('(prefers-reduced-motion: reduce)').matches||typeof requestAnimationFrame!=='function')return;milestones.forEach((m,i)=>{if(m.dataset.hit!=='true')return;const n=m.querySelector('[data-count]'),target=Number(n.dataset.count);if(!Number.isFinite(target))return;const start=performance.now(),delay=100+i*130;const frame=now=>{if(!el.isConnected)return;const p=Math.max(0,Math.min(1,(now-start-delay)/850));n.textContent=num(Math.round(target*(1-Math.pow(1-p,3))));if(p<1)requestAnimationFrame(frame)};requestAnimationFrame(frame)})};
  const conf=$('confetti');for(let i=0;i<28;i++){const n=document.createElement('i');n.style.left=(3+i*43%93)+'%';n.style.top=(3+i*29%87)+'%';n.style.setProperty('--r',(i*79%140-70)+'deg');n.style.setProperty('--d',(i%6*.055)+'s');n.style.setProperty('--c',['#a5b5e9','#9fc8bb','#d5bd8a','#c9bce8'][i%4]);conf.append(n)}
  const finish=()=>{if(current(k))acknowledge(u,k,gen);close()};
  $('close').onclick=finish;
@@ -73,7 +78,7 @@ function open(manual=false){const u=user(),k=key(u),gen=generation;if(!current(k
   if(!current(k)){close();return}
   const status=$('awardStatus'),button=$('done');
   if(!badge||!achievementUI){status.hidden=false;status.textContent='徽章组件暂不可用，请刷新后重试。';return}
-  if(previewPage&&!d.published){finish();achievementUI.show(badge,null,{demo:true,reveal:true,play:true});return;}
+  if(previewPage&&(!d.published||!d.eligible)){try{const latest=await api('centenary_preview',u);if(!current(k)||!el.isConnected)return;Object.assign(d,latest);if(!d.published||!d.eligible){finish();achievementUI.show(badge,null,{demo:true,reveal:true,play:true,centenaryLive:{...d}});return;}}catch(_){if(current(k)&&el.isConnected){status.hidden=false;status.textContent='实时数据暂不可用，请重试。'}return}}
   button.disabled=true;status.hidden=false;status.textContent='正在读取纪念徽章…';
   const ac=new AbortController(),timeout=setTimeout(()=>ac.abort(),8000);
   try{
@@ -83,7 +88,7 @@ function open(manual=false){const u=user(),k=key(u),gen=generation;if(!current(k
    const award=awards.find(a=>a.badge_id==='triple');
    if(!res.ok||overview.enabled!==true||!award)throw Error('award unavailable');
    finish();
-   achievementUI.show(badge,award,{stats:overview.stats,play:true,autoFlip:true,...(previewPage?{}:{onGallery:()=>{if(current(k))achievementUI.openGallery(awards,{stats:overview.stats,favorites:overview.favorites})}})});
+   achievementUI.show(badge,award,{stats:overview.stats,play:true,autoFlip:true,centenaryLive:{...d},...(previewPage?{}:{onGallery:()=>{if(current(k))achievementUI.openGallery(awards,{stats:overview.stats,favorites:overview.favorites})}})});
   }catch(_){if(current(k)&&el.isConnected){status.hidden=false;status.textContent='暂时无法读取纪念徽章，请重试。';button.disabled=false}}
   finally{clearTimeout(timeout)}
  };
@@ -96,10 +101,10 @@ function open(manual=false){const u=user(),k=key(u),gen=generation;if(!current(k
  shown=true;seenPending=!d.seen_at;acknowledge(u,k,gen)}catch(_){close();return}
 }
 async function refresh(u,k){if(inflight||!current(k)||document.visibilityState!=='visible')return;inflight=true;last=Date.now();const gen=generation,ac=new AbortController();controller=ac;
- try{const d=await api(previewPage?'centenary_preview':'centenary_status',u,ac.signal);if(!current(k)||gen!==generation)return;data=d;if(!eligible(d)){close();entry?.remove();entry=null;seenPending=false;return}mount();if(seenPending)acknowledge(u,k,gen);if(shouldPrompt(d,shown)&&!blocked())open()}
+ try{const d=await api(previewPage?'centenary_preview':'centenary_status',u,ac.signal);if(!current(k)||gen!==generation)return;data=d;if(!eligible(d)){if(g.ScoreAchievementUI?.centenaryOpen?.())g.ScoreAchievementUI.close();close();entry?.remove();entry=null;seenPending=false;return}if(updateOpenDialog)updateOpenDialog(d);g.ScoreAchievementUI?.updateCentenaryLive?.(d);mount();if(seenPending)acknowledge(u,k,gen);if(shouldPrompt(d,shown)&&!blocked())open()}
  catch(_){if(previewPage&&gen===generation)document.getElementById('preview-status').textContent='读取失败，请先登录同一预览站，再点击重新读取。';}finally{if(gen===generation){inflight=false;controller=null}}
 }
-function tick(force=false){const u=user(),k=key(u);if(k!==owner)reset(k);if(!u||document.visibilityState!=='visible'){if(previewPage&&!u)document.getElementById('preview-status').textContent='请先登录此预览站，再返回本页。';return;}mount();if(shouldPrompt(data,shown)&&!blocked())open();if(force||Date.now()-last>=PERIOD)refresh(u,k)}
+function tick(force=false){const u=user(),k=key(u);if(k!==owner)reset(k);if(!u||document.visibilityState!=='visible'){if(previewPage&&!u)document.getElementById('preview-status').textContent='请先登录此预览站，再返回本页。';return;}mount();if(shouldPrompt(data,shown)&&!blocked())open();if(force||Date.now()-last>=(dialog||g.ScoreAchievementUI?.centenaryOpen?.()?LIVE_PERIOD:PERIOD))refresh(u,k)}
 if(previewPage){document.getElementById('preview-open').onclick=()=>open(true);document.getElementById('preview-reload').onclick=()=>{shown=false;close();tick(true)};}
 setInterval(()=>tick(),2000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')tick(true)});g.addEventListener('online',()=>tick(true));g.addEventListener('storage',()=>tick());tick(true);
 })(globalThis);

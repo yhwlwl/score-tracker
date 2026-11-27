@@ -322,11 +322,28 @@ function ensureDialog(){
  document.addEventListener('visibilitychange',()=>{if(document.hidden)stopFlip()});
 }
 function setFace(f){stopFlip();mode=f;deck.classList.toggle('st-ach-flipped',f==='back');const front=deck.querySelector('.st-ach-front'),back=deck.querySelector('.st-ach-back');front.inert=f!=='front';back.inert=f!=='back';front.setAttribute('aria-hidden',String(f!=='front'));back.setAttribute('aria-hidden',String(f!=='back'));const btn=controls.querySelector('[data-flip]');if(btn)btn.textContent=f==='front'?'查看成就见证':'返回徽章正面'}
+
+let centenaryLive=null;
+function centenaryOpen(){return !!(dialog?.open&&shown?.id==='triple'&&centenaryLive)}
+function paintCentenaryLive(){
+ if(!centenaryOpen())return;
+ const d=centenaryLive,n=d.live_award_count==null?NaN:Number(d.live_award_count),total=d.account_count==null?NaN:Number(d.account_count),valid=Number.isFinite(n)&&Number.isFinite(total)&&total>0&&n>=0&&n<=total;
+ const rate=deck.querySelector('.st-ach-rate'),label=rate?.nextElementSibling;if(rate)rate.textContent=valid?(100*n/total).toFixed(2)+'%':'—';if(label)label.textContent=valid?'实际获得率':'获得率暂未获取';
+ let detail=deck.querySelector('.st-ach-centenary-live');
+ if(!detail){detail=document.createElement('div');detail.className='st-ach-centenary-live';deck.querySelector('.st-ach-back')?.append(detail)}
+ const stamp=d.measured_at&&Number.isFinite(Date.parse(d.measured_at))?new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).format(new Date(d.measured_at)):'';
+ const fmt=x=>x==null?'—':Number(x).toLocaleString('zh-CN');
+ detail.replaceChildren();const heading=document.createElement('h3');heading.textContent='此刻的三百纪念';detail.append(heading);
+ for(const [name,value] of [['当前注册账户',fmt(d.account_count)],['累计交互',fmt(d.event_count)],['实际已发放',valid?fmt(n):'—']]){const row=document.createElement('p');row.textContent=name+' · '+value;detail.append(row)}
+ const foot=document.createElement('small');foot.textContent=stamp?'统计于 '+stamp+' · 北京时间':'等待最新统计';detail.append(foot);
+}
+function updateCentenaryLive(d){if(!centenaryOpen()||!d)return;Object.assign(centenaryLive,d);paintCentenaryLive()}
+
 function renderCard(b,a,opt={}){
- stopFlip();shown=b;opt={...opt,award:a};const earned=!!a,preview=!!opt.demo,locked=!earned&&b.hidden&&!opt.reveal,source=a?.evidence?.source;
+ stopFlip();shown=b;centenaryLive=b.id==='triple'&&opt.centenaryLive?opt.centenaryLive:null;opt={...opt,award:a};const earned=!!a,preview=!!opt.demo,locked=!earned&&b.hidden&&!opt.reveal,source=a?.evidence?.source;
  const publicRate=rateInfo(b,opt);
- const label=preview?'模拟解锁':opt.realPreview?(earned?'真实数据 · 符合条件':'真实数据 · 条件详情'):earned?'成就已解锁':'成就详情';
- dialog.dataset.tier=b.tier;dialog.querySelector('.st-ach-batch').textContent=opt.batch>1?(opt.realPreview?'真实记录符合 '+opt.batch+' 项成就 · 预览而非发放':'已解锁 '+opt.batch+' 项成就 · 优先展示代表徽章'):opt.tour?'巡展 '+opt.tour:'';
+ const label=preview?(centenaryLive?'活动预览 · 尚未发放':'模拟解锁'):opt.realPreview?(earned?'真实数据 · 符合条件':'真实数据 · 条件详情'):earned?'成就已解锁':'成就详情';
+ dialog.dataset.tier=b.tier;dialog.dataset.badge=b.id;dialog.querySelector('.st-ach-batch').textContent=opt.batch>1?(opt.realPreview?'真实记录符合 '+opt.batch+' 项成就 · 预览而非发放':'已解锁 '+opt.batch+' 项成就 · 优先展示代表徽章'):opt.tour?'巡展 '+opt.tour:'';
  deck.className='st-ach-deck';
  deck.innerHTML='<section class="st-ach-face st-ach-front '+(opt.play?'st-ach-reveal':'st-ach-inspect')+(earned&&!locked?' st-ach-owned':'')+'"><div class="st-ach-halo"></div><div class="st-ach-kicker">SCORE TRACKER · '+label+'</div><div class="st-ach-rarity">'+esc(C.tiers[b.tier])+(b.hidden&&(!locked)?' · 隐藏':'')+'</div><div class="st-ach-hero">'+emblem(b,locked)+'</div><h2>'+esc(locked?'尚未发现':b.name)+'</h2><p class="st-ach-quote">'+esc(locked?'等待属于你的发现。':b.quote)+'</p><div class="st-ach-rate">'+(locked?'—':esc(publicRate.value))+'</div><small>'+ (locked?'解锁后揭晓':esc(publicRate.historical?'参考达成率':'获得率'))+'</small>'+(!locked&&earned&&!preview?cap(dateLabel(a)):'')+'<div class="st-ach-brand">SCORE TRACKER  /  ACHIEVEMENTS</div></section><section class="st-ach-face st-ach-back"><div class="st-ach-kicker">ACHIEVEMENT RECORD</div><h2>'+esc(locked?'尚未发现':b.name)+'</h2>'+renderConditions(b,a?.evidence,locked,opt)+'<h3>成就见证</h3>'+(locked?cap('尚未解锁'):evidence(b,a?.evidence))+(b.id==='unique-path'&&a?.evidence?.points?.some(p=>p.source)?cap(a.evidence.points.map(p=>p.date+' · '+(p.source==='frozen_prediction'?'真实冻结预测':'历史滚动回测')).join('；')):'')+(a?cap(preview?'示例数据 · 仅供交互预览':opt.realPreview&&source==='historical_replay'?'真实账号历史记录计算 · 预览，不正式发放；预测类为历史滚动回放':source==='mixed_prediction'?'历史滚动回测与真实考前冻结预测共同达成':source==='historical_replay'?(['forecast','interval','state','match'].includes(a?.evidence?.kind)?'历史滚动回放 · 非真实考前冻结预测':'根据历史记录追溯成就'):source==='demo'?'示例数据':source==='manual'?'经核验的纪念记录':'成就证据快照'):'')+(!earned&&!locked&&b.mode==='manual'?cap('满足活动或贡献条件后，由管理员确认发放。'):!earned&&!locked&&b.id==='triple'?cap('三百纪念正式发布后，符合活动资格的账号自动获得同一枚纪念徽章。'):'')+'</section>';
  controls.innerHTML='<button type="button" data-flip>查看成就见证</button>'+(opt.demo&&!tour?'<button type="button" data-replay>重播</button>':'')+(tour?'<button type="button" data-tour-stop>停止巡展</button>':'')+(opt.onGallery?'<button type="button" data-gallery>查看收藏馆</button>':'');
@@ -334,6 +351,7 @@ function renderCard(b,a,opt={}){
  const replay=controls.querySelector('[data-replay]');if(replay)replay.onclick=()=>{stopTour();renderCard(b,a,{...opt,tour:null,play:true})};
  const stop=controls.querySelector('[data-tour-stop]');if(stop)stop.onclick=()=>{stopTour();stop.remove()};
  const gallery=controls.querySelector('[data-gallery]');if(gallery)gallery.onclick=()=>{stopTour();if(!ackSent&&ack){ackSent=true;ack()}ack=null;if(dialog.open)dialog.close();opt.onGallery()};
+ if(centenaryLive)paintCentenaryLive();
  setFace('front');
  // A single, cancellable flip for an actual reveal; ordinary detail browsing never auto-flips.
  if(opt.autoFlip&&opt.play&&earned&&!opt.demo&&!tour&&!reduced()&&!document.hidden){
@@ -429,5 +447,5 @@ function openGallery(awards,opt={}){
  if(!collectionDialog){collectionDialog=document.createElement('dialog');collectionDialog.className='st-ach-collection-dialog';collectionDialog.setAttribute('aria-label','成就馆');collectionDialog.innerHTML='<div class="st-ach-collection-header"><button type="button" aria-label="返回账号页">‹ 返回</button><strong>成就馆</strong><small>Score Tracker</small></div><div class="st-ach-collection-body"></div>';document.body.append(collectionDialog);collectionDialog.querySelector('button').onclick=()=>collectionDialog.close()}
  if(dialog?.open)dialog.close();const body=collectionDialog.querySelector('.st-ach-collection-body');body.replaceChildren();const r=document.createElement('section');body.append(r);gallery(r,awards,false,opt);if(!collectionDialog.open)collectionDialog.showModal();
 }
-g.ScoreAchievementUI={emblem,gallery,show,autoplay,openGallery,close,rate,rateDetails,demoEvidence,conditionRows,summaries,awardDay,evidenceDay,dateLabel,rateInfo,actualRateInfo,favoriteIds,entryHTML};
+g.ScoreAchievementUI={centenaryOpen,updateCentenaryLive,emblem,gallery,show,autoplay,openGallery,close,rate,rateDetails,demoEvidence,conditionRows,summaries,awardDay,evidenceDay,dateLabel,rateInfo,actualRateInfo,favoriteIds,entryHTML};
 })(window);
