@@ -41,6 +41,7 @@ const uiSource=fs.readFileSync('achievement-ui.js','utf8'),w={ScoreAchievements:
 new Function('window',uiSource)(w);
 const shapes=C.badges.map(b=>w.ScoreAchievementUI.emblem(b).replace(/stbadge\d+/g,'ID'));
 assert.equal(new Set(shapes).size,51);assert(shapes.every(s=>s.includes('<svg')&&!s.includes('undefined')));
+const centenary=C.badges.filter(b=>b.id==='triple'||b.name==='三百纪念');assert.equal(centenary.length,1);assert.equal(centenary[0].mode,'event');assert(w.ScoreAchievementUI.emblem(centenary[0]).includes('data:image/webp;base64,UklGR'));assert(!uiSource.includes('triple:()=>'));
 assert(C.badges.every(b=>w.ScoreAchievementUI.demoEvidence(b).source==='demo'));
 for(const b of C.badges){assert(w.ScoreAchievementUI.summaries[b.id]);assert(w.ScoreAchievementUI.conditionRows(b,w.ScoreAchievementUI.demoEvidence(b)).every(r=>r.ok===true));assert(w.ScoreAchievementUI.conditionRows(b,null).every(r=>r.ok===null));}
 for(const a of hits){const b=C.badges.find(b=>b.id===a.badge_id);assert(w.ScoreAchievementUI.conditionRows(b,a.evidence).every(r=>r.ok!==false),b.id);}
