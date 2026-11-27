@@ -152,9 +152,17 @@ function evaluate({exams=[],goal=null,createdAt=null,firstUseAt=null,predictions
  // Server-only historical replay: never manufacture a past frozen_at.
  for(const snapshot of predictions){
   const p=snapshot.prediction||{},date=p.targetDate;
-  if(snapshot.model!=='trajectory-replay-v1'||p.source!=='historical_replay'||p.cutoff!=='2026-11-27'||!date||date>=p.cutoff||!p.lastDate||p.lastDate>=date||!p.peerThrough||p.peerThrough>=date||realDates.has(date)||matches.has(date)||!Number.isFinite(p.center)||p.center<0||p.center>100||p.references<3||!Array.isArray(p.basket)||!Array.isArray(snapshot.history_exam_ids)||snapshot.history_exam_ids.length<3||new Set(snapshot.history_exam_ids).size!==snapshot.history_exam_ids.length)continue;
+  if(!['trajectory-replay-v1','trajectory-replay-v2'].includes(snapshot.model)||p.source!=='historical_replay'||!date||date>today||(snapshot.model==='trajectory-replay-v1'&&(p.cutoff!=='2026-11-27'||date>=p.cutoff))||!p.lastDate||p.lastDate>=date||!p.peerThrough||p.peerThrough>=date||realDates.has(date)||matches.has(date)||!Number.isFinite(p.center)||p.center<0||p.center>100||p.references<3||!Array.isArray(p.basket)||!Array.isArray(snapshot.history_exam_ids)||snapshot.history_exam_ids.length<3||new Set(snapshot.history_exam_ids).size!==snapshot.history_exam_ids.length)continue;
   const target=es.find(e=>e.id===snapshot.result_exam_id&&e.exam_date===date&&(e.grade_level||'')===p.category&&JSON.stringify(Object.keys(e.scores||{}).filter(k=>!e.scores[k].excludeFromTotal).sort())===JSON.stringify(p.basket)&&rank(e.total_rank,e.total_participants));
   if(!target||snapshot.history_exam_ids.includes(target.id)||!snapshot.history_exam_ids.every(id=>es.some(e=>e.id===id&&e.exam_date<date)))continue;
+  if(snapshot.model==='trajectory-replay-v2'){
+   const basket=e=>JSON.stringify(Object.keys(e.scores||{}).filter(k=>!e.scores[k].excludeFromTotal).sort());
+   const compatible=es.filter(e=>basket(e)===JSON.stringify(p.basket)&&rank(e.total_rank,e.total_participants)&&e.exam_date<=date);
+   const counts=new Map();for(const e of compatible)counts.set(e.exam_date,(counts.get(e.exam_date)||0)+1);
+   if(counts.get(date)!==1)continue;
+   const prev=compatible.filter(e=>e.exam_date<date&&counts.get(e.exam_date)===1&&(e.grade_level||'')===p.category).slice(-80);
+   if(!Array.isArray(p.ownHistory)||prev.length!==p.ownHistory.length||prev.some((e,i)=>{const h=p.ownHistory[i];return h[0]!==e.id||h[1]!==e.exam_date||h[2]!==(e.grade_level||'')||Math.abs(h[3]-100*num(e.total_rank)/num(e.total_participants))>1e-7})||Math.abs(p.targetPosition-100*num(target.total_rank)/num(target.total_participants))>1e-7)continue;
+  }
   const actual=100*num(target.total_rank)/num(target.total_participants),delta=p.center-actual;
   if(delta>=5)matches.set(date,{date,examId:target.id,prediction:round(p.center),actual:round(actual),delta:round(delta),referenceCount:p.references,source:'historical_replay',peerThrough:p.peerThrough});
  }

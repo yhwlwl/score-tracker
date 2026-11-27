@@ -79,11 +79,14 @@ end $$;
 -- Up to two independent accounts per minute, zero HTTP calls on empty queue.
 create function public.st_achievement_dispatch(p_url text) returns integer
 language plpgsql security invoker set search_path='' as $$
-declare j record; n int:=0; token uuid;
+declare j record; n int:=0; token uuid; capacity integer;
 begin
+ update public.score_tracker_achievement_jobs set lease=null,lease_until=null,started=false,leased_generation=null,attempts=attempts+1,last_error='lease_expired',due_at=now()+make_interval(secs=>least(3600,60*power(2,least(attempts,6))::int)) where lease_until<=now();
+ select greatest(0,2-count(*)::integer) into capacity from public.score_tracker_achievement_jobs where lease_until>now();
+ if capacity=0 then return 0; end if;
  for j in select user_id from public.score_tracker_achievement_jobs
    where due_at<=now() and (lease is null or lease_until<=now())
-   order by due_at,user_id limit 2 for update skip locked loop
+   order by due_at,user_id limit capacity for update skip locked loop
   token:=gen_random_uuid();
   update public.score_tracker_achievement_jobs set lease=token,lease_until=now()+interval '4 minutes',started=false,leased_generation=generation where user_id=j.user_id;
   perform net.http_post(url:=p_url,headers:=jsonb_build_object('Content-Type','application/json'),body:=jsonb_build_object('lease',token),timeout_milliseconds:=60000);
