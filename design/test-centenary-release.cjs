@@ -7,3 +7,48 @@ assert(js.includes("api('centenary_status'")&&js.includes("api('centenary_seen'"
 assert(js.includes('data:image/webp;base64,UklGR'));assert(fs.readFileSync('index.html','utf8').includes('centenary-release.js'));assert(fs.readFileSync('tools/cf-build.js','utf8').includes('"centenary-release.js"'));
 assert(sql.includes('a<10000 or e<1000000')&&sql.includes('set armed=false')&&sql.includes("on conflict(user_id,badge_id) do nothing")&&sql.includes(NOTICE_ID));assert(!/cron\.schedule\(/.test(sql));
 console.log('PASS centenary visibility gates, asset inclusion, manual release safeguards');
+
+const {JSDOM}=require('jsdom');
+const delay=()=>new Promise(r=>setTimeout(r,20));
+async function testDom(){
+ const dom=new JSDOM('<!doctype html><html><body><main id="content"><div class="account-grid"><div class="account-card"></div></div></main></body></html>',{url:'https://centenary.test/',runScripts:'outside-only',pretendToBeVisual:true});
+ const w=dom.window,doc=w.document,requests=[];let check,published=false,paused=false,seen=false,fail=false;
+ w.state={user:{id:'user-a'},token:'token-a',page:'account'};
+ w.matchMedia=()=>({matches:false});
+ w.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','')};
+ w.HTMLDialogElement.prototype.close=function(){this.removeAttribute('open')};
+ w.HTMLElement.prototype.getClientRects=function(){return this.hasAttribute('hidden')?[]:[{}]};
+ w.setInterval=fn=>{check=fn;return 1};
+ w.__releaseNotices={openCentenaryDiscussion:async()=>requests.push({action:'open-discussion'})};
+ w.fetch=async(url,opt)=>{
+  const b=JSON.parse(opt.body);requests.push(b);assert.equal(url,'/api/score-tracker-notices');
+  if(fail)return {ok:false,json:async()=>({error:'test failure'})};
+  if(b.action==='centenary_seen'){seen=true;return {ok:true,json:async()=>({ok:true})}}
+  assert.equal(b.action,'centenary_status');
+  const eligible=b.token==='token-a';
+  return {ok:true,json:async()=>published&&!paused?{...ready,eligible,seen_at:seen?'2026-11-29T00:01:00Z':null,day_at:'2026-11-26T16:00:00Z',registration_position:42,days_together:100,personal_events:123,publish_account_count:10000,publish_event_count:1061156,account_hit_at:'2026-11-29T00:00:00Z',event_hit_at:'2026-11-22T01:25:41Z'}:{published:false}};
+ };
+ const force=async()=>{w.dispatchEvent(new w.Event('online'));await delay();};
+ try{
+  w.eval(js);await delay();
+  assert(!doc.querySelector('.st-centenary-dialog'));assert(!doc.querySelector('.st-centenary-entry'));assert(!requests.some(x=>x.action==='centenary_seen'));
+  fail=true;await force();assert(!doc.querySelector('.st-centenary-dialog'));fail=false;
+  published=true;await force();
+  let dialog=doc.querySelector('.st-centenary-dialog[open]');assert(dialog);let shadow=dialog.firstChild.shadowRoot;
+  assert.equal(shadow.getElementById('title').textContent,'你是第 42 位注册的用户');
+  assert.equal(shadow.getElementById('accounts').textContent,'10,000');
+  assert.equal(shadow.getElementById('events').textContent,'1,061,156');
+  assert(shadow.querySelector('.mini-badge img').src.startsWith('data:image/webp;base64,UklGR'));
+  assert.equal(requests.filter(x=>x.action==='centenary_seen').length,1);
+  shadow.getElementById('done').click();assert(!doc.querySelector('.st-centenary-dialog'));assert(doc.querySelector('.st-centenary-entry'));
+  await force();check();assert(!doc.querySelector('.st-centenary-dialog'));assert.equal(requests.filter(x=>x.action==='centenary_seen').length,1);
+  doc.querySelector('.st-centenary-entry').click();dialog=doc.querySelector('.st-centenary-dialog[open]');assert(dialog);
+  dialog.firstChild.shadowRoot.getElementById('discussion').click();await delay();assert(requests.some(x=>x.action==='open-discussion'));assert(!doc.querySelector('.st-centenary-dialog'));
+  w.state={user:{id:'user-b'},token:'token-b',page:'account'};check();await delay();assert(!doc.querySelector('.st-centenary-entry'));assert(!doc.querySelector('.st-centenary-dialog'));assert(!requests.some(x=>x.action==='centenary_seen'&&x.token==='token-b'));
+  w.state={user:{id:'user-a'},token:'token-a',page:'account'};check();await delay();assert(doc.querySelector('.st-centenary-entry'));assert(!doc.querySelector('.st-centenary-dialog'));
+  paused=true;await force();assert(!doc.querySelector('.st-centenary-entry'));assert(!doc.querySelector('.st-centenary-dialog'));
+  w.state={user:null,token:'',page:'account'};check();const count=requests.length;await force();assert.equal(requests.length,count);
+  console.log('PASS centenary DOM: unpublished/failed requests, manual publish transition, one-time acknowledgement, replay, exact discussion, account isolation, pause and logout');
+ }finally{w.close()}
+}
+testDom().catch(e=>{console.error(e);process.exitCode=1});
