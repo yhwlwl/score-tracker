@@ -2,7 +2,7 @@
 (function(){'use strict';
  if(!window.ScoreAchievementUI||!window.ScoreAchievements||typeof bindPage!=='function')return;
  const UI=window.ScoreAchievementUI,C=window.ScoreAchievements;
- let session='',cache=null,enabled=null,inFlight=null,refreshTimer=null,revealTimer=null,dirty=false,checked=false,entry=null,generation=0,cooldownRetry=false,failures=0;
+ let session='',cache=null,enabled=null,inFlight=null,refreshTimer=null,revealTimer=null,dirty=false,checked=false,entry=null,adminEntry=null,generation=0,cooldownRetry=false,failures=0;
  const presented=new Set();let favorites=null,stats=null;
  function galleryOptions(){const owner=session;return {favorites,stats,onFavorites:async ids=>{if(key()!==owner)throw Error('account changed');const r=await call('achievement_favorites',{badgeIds:ids});if(key()!==owner||!r.ok)throw Error('save failed');favorites=r.favorites;mount()}}}
  function openCollection(){UI.openGallery(cache||[],galleryOptions())}
@@ -11,7 +11,7 @@
  function sync(){
   const current=key();if(current!==session){
    generation++;cooldownRetry=false;failures=0;presented.clear();favorites=null;stats=null;session=current;cache=null;enabled=null;dirty=false;checked=false;inFlight=null;clearTimeout(refreshTimer);clearTimeout(revealTimer);refreshTimer=null;revealTimer=null;
-   UI.close();entry?.remove();entry=null;
+   UI.close();entry?.remove();entry=null;adminEntry?.remove();adminEntry=null;
   }
   return current;
  }
@@ -26,17 +26,37 @@
  }
  function mount(){
   if(!sync()||enabled!==true)return;
-  if(state.page!=='account'){entry?.remove();entry=null;return}
+  if(state.page!=='account'){entry?.remove();entry=null;adminEntry?.remove();adminEntry=null;return}
   const card=document.querySelector('#content .account-grid .account-card');if(!card)return;
   if(!entry||!entry.isConnected){entry=document.createElement('button');entry.type='button';entry.className='st-ach-entry';entry.onclick=openCollection;const before=card.querySelector('.account-secure-v39,#logoutBtn');if(before&&before.parentElement===card)card.insertBefore(entry,before);else card.append(entry)}
   entry.innerHTML=UI.entryHTML(cache||[],{favorites,stats});
+  if(state.user?.is_admin===true&&(!adminEntry||!adminEntry.isConnected)){
+   adminEntry=document.createElement('button');adminEntry.type='button';adminEntry.textContent='管理发放限定徽章';adminEntry.className='st-ach-entry';adminEntry.onclick=adminGrant;entry.after(adminEntry);
+  }
+ }
+ function adminGrant(){
+  if(state.user?.is_admin!==true)return;
+  const owner=key(),dialog=document.createElement('dialog'),form=document.createElement('form');
+  dialog.style.cssText='max-width:min(420px,90vw);width:100%;border:1px solid #8493a8;border-radius:14px;padding:20px;background:Canvas;color:CanvasText';
+  form.style.cssText='display:grid;gap:12px';
+  const heading=document.createElement('h2');heading.textContent='发放限定徽章';
+  const field=(text,control)=>{const l=document.createElement('label');l.style.cssText='display:grid;gap:5px';l.append(document.createTextNode(text),control);return l};
+  const username=document.createElement('input');username.required=true;username.maxLength=40;username.autocomplete='off';
+  const badge=document.createElement('select');for(const b of C.badges.filter(b=>b.mode==='manual')){const o=document.createElement('option');o.value=b.id;o.textContent=b.name;badge.append(o)}
+  const date=document.createElement('input');date.type='date';date.required=true;date.max=new Date(Date.now()+8*3600000).toISOString().slice(0,10);
+  const confirm=document.createElement('input');confirm.type='checkbox';confirm.required=true;const check=document.createElement('label');check.append(confirm,document.createTextNode(' 我已确认该账号确实满足活动或贡献条件'));
+  const status=document.createElement('p');status.setAttribute('role','status');const submit=document.createElement('button');submit.type='submit';submit.textContent='确认发放';const close=document.createElement('button');close.type='button';close.textContent='关闭';close.onclick=()=>dialog.close();
+  form.append(heading,field('账号用户名',username),field('徽章',badge),field('实际参与或贡献日期',date),check,status,submit,close);dialog.append(form);document.body.append(dialog);
+  dialog.addEventListener('close',()=>dialog.remove(),{once:true});
+  form.onsubmit=async e=>{e.preventDefault();if(key()!==owner)return;submit.disabled=true;try{const r=await call('achievement_admin_grant',{username:username.value.trim(),badgeId:badge.value,eventDate:date.value,confirmed:confirm.checked});if(!r.ok)throw Error();status.textContent='发放成功（已有徽章不会重复发放）';confirm.checked=false;queue()}catch(_){status.textContent='发放失败，请核对账号、日期和管理员权限。'}finally{submit.disabled=false}};
+  dialog.showModal();
  }
  function acknowledge(ids,owner){
   if(key()!==owner)return;call('achievement_ack',{badgeIds:ids}).then(()=>{if(key()!==owner)return;const set=new Set(ids);cache=(cache||[]).map(a=>set.has(a.badge_id)?{...a,seen_at:new Date().toISOString()}:a);mount()}).catch(()=>{});
  }
  function reveal(){
   clearTimeout(revealTimer);revealTimer=null;if(!sync()||enabled!==true||document.hidden)return;
-  const fresh=(cache||[]).filter(a=>!a.seen_at&&!presented.has(a.badge_id)&&C.badges.some(b=>b.id===a.badge_id));if(!fresh.length)return;
+  const fresh=(cache||[]).filter(a=>a.badge_id!=='triple'&&!a.seen_at&&!presented.has(a.badge_id)&&C.badges.some(b=>b.id===a.badge_id));if(!fresh.length)return;
   if(blocked()){revealTimer=setTimeout(reveal,1800);return}
   const owner=session,badges=new Map(C.badges.map(b=>[b.id,b]));
   const ordered=[...fresh].sort((a,b)=>tierOrder.indexOf(badges.get(b.badge_id).tier)-tierOrder.indexOf(badges.get(a.badge_id).tier));

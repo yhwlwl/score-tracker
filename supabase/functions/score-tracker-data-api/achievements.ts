@@ -36,11 +36,6 @@ async function awards(db:any,uid:string) {
  if(r.error)throw r.error;
  return canonicalAwards(r.data||[]);
 }
-async function collection(db:any,uid:string,list:any[],pilot=false) {
- const [pref,stats]=await Promise.all([db.from('score_tracker_achievement_preferences').select('favorites').eq('user_id',uid).maybeSingle(),pilot?Promise.resolve({data:null,error:null}):db.rpc('score_tracker_achievement_stats_daily')]);
- if(pref.error||stats.error)console.warn('achievement_collection_metadata_unavailable');
- return {enabled:true,awards:list,favorites:pref.error||!Array.isArray(pref.data?.favorites)?null:[...new Set<string>(pref.data.favorites.map(canonicalId))].filter(x=>ids.has(x)).slice(0,3),stats:stats.error?null:stats.data,pilot};
-}
 // Mirror only the original event eligibility, using one canonical collection badge.
 async function syncCentenaryAward(db:any,uid:string,list:any[]){
  const existing=list.find((a:any)=>a.badge_id==='triple');

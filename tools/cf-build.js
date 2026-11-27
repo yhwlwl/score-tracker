@@ -6,7 +6,7 @@ const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..");
 const OUT = path.join(ROOT, "deploy");
-if(process.env.CF_PAGES_BRANCH==='main')require('node:child_process').execFileSync(process.execPath,[path.join(ROOT,'tools/check-ai-release-backend.mjs')],{cwd:ROOT,stdio:'inherit'});
+if(process.env.CF_PAGES_BRANCH==='main'){for(const check of ['check-ai-release-backend.mjs','check-achievement-release-backend.mjs'])require('node:child_process').execFileSync(process.execPath,[path.join(ROOT,'tools',check)],{cwd:ROOT,stdio:'inherit'});}
 const FILES = [
   "first-run-setup.css",
   "first-run-setup.js",

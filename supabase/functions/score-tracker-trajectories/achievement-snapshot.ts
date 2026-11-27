@@ -14,7 +14,7 @@ export async function captureAchievementPrediction(db:any,uid:string,body:any,da
  if(sc.error)throw sc.error;if((sc.data||[]).length>=1000)return;
  const baskets=new Map<string,string[]>();for(const row of sc.data||[]){if(row.exclude_from_total)continue;const a=baskets.get(row.exam_id)||[];a.push(row.subject);baskets.set(row.exam_id,a);}
  for(const a of baskets.values())a.sort();
- const pos=(x:any)=>{const n=Number(x.total_participants),r=Number(x.total_rank);if(n<30||r<1||r>n||!Number.isInteger(n)||!Number.isInteger(r))return NaN;const v=100*r/n;return x.total_year_position_percent==null?v:Number(x.total_year_position_percent);};
+ const pos=(x:any)=>{const n=Number(x.total_participants),r=Number(x.total_rank);if(n<30||r<1||r>n||!Number.isInteger(n)||!Number.isInteger(r))return NaN;const v=100*r/n;const stored=x.total_year_position_percent==null?v:Number(x.total_year_position_percent);return Math.abs(v-stored)<=0.011?v:NaN;};
  const find=(i:number,basket?:string[])=>e.data.filter((x:any)=>x.exam_date===dates[i]&&(x.grade_level||'')===data.history_categories[i]&&Math.abs(pos(x)-history[i])<=0.011&&(!basket||JSON.stringify(baskets.get(x.id))===JSON.stringify(basket)));
  const last=find(history.length-1);if(last.length!==1)return;
  const basket=baskets.get(last[0].id);if(!basket?.length)return;

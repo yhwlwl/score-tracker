@@ -10,6 +10,12 @@ const exam=(i,r,actual=60,overrides={})=>({id:'exam'+i,exam_date:'2026-10-'+Stri
 const get=(exams,extra={})=>E.evaluate({exams,today:'2026-11-25',models:null,...extra});
 const found=(exams,extra={})=>new Set(get(exams,extra).map(x=>x.badge_id));
 assert.equal(get([]).length,0);
+const matchExams=[1,5,9,13,17,21].map(i=>exam(i,30,80));
+const snapshots=[5,13,21].map((i,k)=>({model:'trajectory-forecast-v1',frozen_at:'2026-10-'+String(i).padStart(2,'0')+'T00:00:00Z',history_exam_ids:['history1','history2','history3'],prediction:{center:40,references:3,lastDate:'2026-10-01',category:'a',basket:['数学']}}));
+const match=get(matchExams,{predictions:snapshots}).find(a=>a.badge_id==='unique-path');
+assert(match&&match.evidence.source==='frozen_prediction'&&match.evidence.points.length===3);
+assert(!get(matchExams,{predictions:snapshots.slice(0,2)}).some(a=>a.badge_id==='unique-path'));
+
 const first=get([],{createdAt:'2026-09-10T08:00:00Z',firstUseAt:'2026-09-10T09:00:00Z'}).find(a=>a.badge_id==='first-step');
 assert.equal(first.evidence.achievedDate,'2026-09-10');
 assert.equal(get([],{createdAt:'2026-09-10T08:00:00Z',firstUseAt:'2026-09-12T09:00:00Z'}).find(a=>a.badge_id==='first-step').evidence.achievedDate,'2026-09-12');

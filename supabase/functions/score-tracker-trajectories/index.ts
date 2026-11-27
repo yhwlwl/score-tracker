@@ -21,7 +21,7 @@ Deno.serve(async (req:Request) => {
     if(raw.length>8192) return out({error:'请求内容过长'},413);
     const body = JSON.parse(raw);
     if(!body||typeof body!=='object'||Array.isArray(body)) return out({error:'请求内容不正确'},400);
-    if(body.action==='release_capabilities') return out({privacy_status_version:1});
+    if(body.action==='release_capabilities') return out({privacy_status_version:1,achievement_prediction_version:1});
     if(typeof body.token!=='string'||!body.token||body.token.length>512) return out({error:'请先登录'},401);
     const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(body.token)))].map(x=>x.toString(16).padStart(2,'0')).join('');
     const {data:user,error:authError} = await db.from('score_tracker_users').select('id,session_expires_at').eq('session_token_hash',hash).maybeSingle();

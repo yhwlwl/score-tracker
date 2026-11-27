@@ -844,6 +844,7 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return out({ error: "Method not allowed" }, 405);
   try {
     const body = await req.json().catch(() => ({}));
+    if(body.action==='achievement_release_status'){const r=await db.rpc('score_tracker_achievement_stats_daily');const enabled=(Deno.env.get('SCORE_TRACKER_ACHIEVEMENTS_V2_ENABLED')??'true')==='true';const ready=!r.error&&Number(r.data?.total)>0&&enabled;return out({achievement_release:2,ready,enabled},ready?200:503);}
     if(body.action==='release_capabilities'){const c=await aiReleaseCapabilities(db);return out(c,c.migration_ready?200:503);}
     if (String(body.action ?? "") === "login_v2") {
       const r = await loginV2(body);
