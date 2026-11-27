@@ -10,6 +10,11 @@ const exam=(i,r,actual=60,overrides={})=>({id:'exam'+i,exam_date:'2026-10-'+Stri
 const get=(exams,extra={})=>E.evaluate({exams,today:'2026-11-25',models:null,...extra});
 const found=(exams,extra={})=>new Set(get(exams,extra).map(x=>x.badge_id));
 assert.equal(get([]).length,0);
+// A rank-only exam must qualify rank achievements, not score achievements.
+const rankOnly=[65,55,45].map((r,i)=>exam(i,r,null,{total_actual_score:null,total_raw_score:null,scores:{数学:{actual:null,max:100,rank:r,participants:100}}}));
+const rankOnlyHits=found(rankOnly);assert(rankOnlyHits.has('rank-aware')&&rankOnlyHits.has('step-up')&&rankOnlyHits.has('getting-better'));assert(!rankOnlyHits.has('new-best')&&!rankOnlyHits.has('full-picture'));
+assert(!found([{...rankOnly[0],is_hidden:true}]).has('rank-aware'));
+const snapSource=fs.readFileSync('supabase/functions/score-tracker-trajectories/achievement-snapshot.ts','utf8');assert(snapSource.includes('forecast.estimate(allHistory,data.matches,mode)')&&snapSource.includes('allHistory.slice(-80)')&&!snapSource.includes('history.length>80'));
 const spanDates=['2026-08-20','2026-09-20','2026-10-20','2026-11-19'];
 const useExams=spanDates.map((d,i)=>exam(i,30,80,{exam_date:d,created_at:d+'T00:00:00Z'}));
 const kept=get(useExams).find(a=>a.badge_id==='time-kept');
