@@ -12,6 +12,7 @@ const FILES = [
   "first-run-setup.js",
   "setup-preferences-guide.js",
   "index.html",
+  "centenary-release.js",
   "styles.css",
   "appearance-studio.css",
   "appearance-studio.js",
