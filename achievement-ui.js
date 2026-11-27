@@ -126,10 +126,37 @@ function limitedEmblem(b,id){
  const trim=edgeArt[b.motif]?.()||'';
  return '<svg viewBox="0 0 200 200" aria-hidden="true" class="st-ach-emblem" style="color:#fff0c7">'+defs+p(1,'#365b56')+p(.985,metal)+p(.935,a.base,a.edge,.7)+p(.905,'url(#'+id+'e)')+p(.866,'none',a.edge,.85)+'<g clip-path="url(#'+id+'p)"><g transform="translate(100 100) scale('+a.scale+') translate(-100 -100)" stroke-linecap="round" stroke-linejoin="round">'+art+'</g></g><g stroke-linecap="round" stroke-linejoin="round">'+trim+'</g></svg>';
 }
-// Reuse the original event artwork; never draw a second centenary badge.
-const centenaryBadge='data:image/webp;base64,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';
+// Vector redraw of the single original centenary emblem. No bitmap or external font.
+function centenaryEmblem(id){
+ const gold='url(#'+id+'gold)',navy='url(#'+id+'navy)',blue='url(#'+id+'blue)';
+ return '<svg viewBox="0 0 200 200" aria-hidden="true" class="st-ach-emblem" data-art="centenary-vector" xmlns="http://www.w3.org/2000/svg">'+
+ '<defs><linearGradient id="'+id+'gold" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#fff1c7"/><stop offset=".26" stop-color="#e8bd72"/><stop offset=".53" stop-color="#fff4d4"/><stop offset=".79" stop-color="#bd8740"/><stop offset="1" stop-color="#f0c77c"/></linearGradient>'+
+ '<radialGradient id="'+id+'navy" cx=".36" cy=".25" r=".9"><stop stop-color="#233c64"/><stop offset=".65" stop-color="#14253f"/><stop offset="1" stop-color="#0b172c"/></radialGradient>'+
+ '<linearGradient id="'+id+'blue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#315979"/><stop offset="1" stop-color="#14253f"/></linearGradient></defs>'+
+ '<g stroke-linejoin="round" stroke-linecap="round">'+
+ '<circle cx="100" cy="94" r="76" fill="'+navy+'" stroke="#77522b" stroke-width="4.8"/>'+
+ '<circle cx="100" cy="93" r="76" fill="none" stroke="'+gold+'" stroke-width="3"/>'+
+ '<circle cx="100" cy="93" r="69" fill="none" stroke="#547ca8" stroke-opacity=".65" stroke-width="1.3"/>'+
+ '<path d="M37 66a69 69 0 0 1 35-34M136 34a69 69 0 0 1 30 37" fill="none" stroke="#c6e4ff" stroke-width="2" opacity=".78"/>'+
+ '<path d="M61 173h78l-12 16H73z" fill="'+gold+'" stroke="#a16e35" stroke-width=".8"/>'+
+ '<circle cx="100" cy="181" r="3.1" fill="#15243a" stroke="#ffe3ac" stroke-width=".7"/>'+
+ '<path d="M100 7L187 175H13Z" fill="'+navy+'" stroke="#765027" stroke-width="6.6"/>'+
+ '<path d="M100 7L187 175H13Z" fill="none" stroke="'+gold+'" stroke-width="4.2"/>'+
+ '<path d="M100 18L174 165H26Z" fill="none" stroke="#e2bd79" stroke-width="1.1" opacity=".78"/>'+
+ '<path d="M91 57H119L132 81H78Z" fill="'+blue+'" stroke="'+gold+'" stroke-width="1.5"/>'+
+ '<path d="M69 89H135L151 119H53Z" fill="'+blue+'" stroke="'+gold+'" stroke-width="1.7"/>'+
+ '<path d="M49 126H151L170 164H29Z" fill="'+blue+'" stroke="'+gold+'" stroke-width="1.8"/>'+
+ // Numeric marks constructed from vector paths, matching the original hierarchy.
+ '<g stroke="#fff1c9" stroke-width="2.25" fill="none"><path d="M91 65l3-2v12m-4 0h8"/><rect x="101" y="63" width="7" height="12" rx="3"/><rect x="112" y="63" width="7" height="12" rx="3"/></g>'+
+ '<g stroke="#fff1c9" stroke-width="3" fill="none"><path d="M76 99l4-3v17m-5 0h10"/><rect x="89" y="96" width="10" height="17" rx="4.2"/><path d="M106 96v17m12-17-12 9 12 8"/></g>'+
+ '<g fill="'+gold+'"><path d="M68 138l13-6h8l-5 27H74l4-19-11 3Z"/><path d="M95 132h12l4 14 9-14h12l-5 27h-10l3-16-11 16h-5l-5-16-3 16h-9Z"/></g>'+
+ '<path d="M121 116l14-18 8 4 14-23" stroke="#10223b" stroke-width="7.5" fill="none"/>'+
+ '<path d="M121 116l14-18 8 4 14-23" stroke="'+gold+'" stroke-width="4.2" fill="none"/>'+
+ '<path d="M146 80l16-10-1 18-6-5Z" fill="'+gold+'" stroke="#f7e0a4" stroke-width=".7"/>'+
+ '</g></svg>';
+}
 function emblem(b,locked=false){
- if(b.id==='triple'&&!locked)return '<svg viewBox="0 0 200 200" aria-hidden="true" class="st-ach-emblem"><image href="'+centenaryBadge+'" x="0" y="0" width="200" height="200" preserveAspectRatio="xMidYMid meet"/></svg>';
+ if(b.id==='triple'&&!locked)return centenaryEmblem('stcentenary'+(++svgId));
  const id='stbadge'+(++svgId),[light,accent,dark]=colors[b.tier],special=b.tier==='mythic',limited=b.tier==='limited',shape=frames[artFrame[b.motif]]||frames[artFrames[b.tier][0]];
  if(locked)return '<svg viewBox="0 0 200 200" aria-hidden="true"><path d="'+shape+'" fill="none" stroke="currentColor" opacity=".26" stroke-width="2"/><path d="M77 98V86a23 23 0 0 1 46 0v12M69 98h62v44H69z" fill="none" stroke="currentColor" stroke-width="6" opacity=".35"/></svg>';
  if(limited)return limitedEmblem(b,id);

@@ -66,7 +66,7 @@ assert(kernel.includes(prod.slice(prod.indexOf('/* ---- PAL2 kernel:'),prod.inde
 const uiSource=fs.readFileSync('achievement-ui.js','utf8'),w={ScoreAchievements:C};
 new Function('window',uiSource)(w);
 const shapes=C.badges.map(b=>w.ScoreAchievementUI.emblem(b).replace(/stbadge\d+/g,'ID'));
-const centenary=C.badges.filter(b=>b.id==='triple'||b.name==='三百纪念');assert.equal(centenary.length,1);assert.equal(centenary[0].mode,'event');assert(w.ScoreAchievementUI.emblem(centenary[0]).includes('data:image/webp;base64,UklGR'));assert(!uiSource.includes('triple:()=>'));
+const centenary=C.badges.filter(b=>b.id==='triple'||b.name==='三百纪念');assert.equal(centenary.length,1);assert.equal(centenary[0].mode,'event');const centenaryArt=w.ScoreAchievementUI.emblem(centenary[0]),centenaryArt2=w.ScoreAchievementUI.emblem(centenary[0]);assert(centenaryArt.includes('data-art="centenary-vector"')&&centenaryArt.includes('<path')&&centenaryArt.includes('<linearGradient')&&!/<image\b|data:image\//.test(centenaryArt));assert.notEqual(centenaryArt.match(/id="([^"]+)"/)[1],centenaryArt2.match(/id="([^"]+)"/)[1]);assert(!uiSource.includes('triple:()=>'));
 assert.equal(new Set(shapes).size,51);assert(shapes.every(s=>s.includes('<svg')&&!s.includes('undefined')));
 assert(C.badges.every(b=>w.ScoreAchievementUI.demoEvidence(b).source==='demo'));
 for(const b of C.badges){assert(w.ScoreAchievementUI.summaries[b.id]);assert(w.ScoreAchievementUI.conditionRows(b,w.ScoreAchievementUI.demoEvidence(b)).every(r=>r.ok===true));assert(w.ScoreAchievementUI.conditionRows(b,null).every(r=>r.ok===null));}
