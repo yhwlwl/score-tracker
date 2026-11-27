@@ -11,7 +11,11 @@ const badges=[
     "quote": "每一段成长，都始于第一次启程。",
     "motif": "seed",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 2,
+    "legacyRates": {
+      "1": 5988
+    }
   },
   {
     "id": "full-picture",
@@ -287,7 +291,11 @@ const badges=[
     "quote": "一年光阴，被你写成了一条成长轨迹。",
     "motif": "hourglass",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 2,
+    "legacyRates": {
+      "1": 129
+    }
   },
   {
     "id": "four-seasons",
@@ -377,13 +385,20 @@ const badges=[
     "id": "time-kept",
     "name": "不负时光",
     "tier": "legendary",
-    "count": 2,
+    "count": 32,
     "evidence": "time",
-    "condition": "至少6个实际录入日，首末录入跨度至少90天，覆盖至少3个自然月",
+    "condition": "至少4个实际录入日，首末录入跨度至少90天，覆盖至少3个自然月",
     "quote": "时间留下了成长的证据。",
     "motif": "sun",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "referenceTotal": 9938,
+    "referenceDay": "2026-11-27",
+    "ruleVersion": 3,
+    "legacyRates": {
+      "1": 43,
+      "2": 2
+    }
   },
   {
     "id": "beyond-expectation",
@@ -443,19 +458,29 @@ const badges=[
     "quote": "时间从不言语，却将每一次成长刻进了年轮。",
     "motif": "rings",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 2,
+    "legacyRates": {
+      "1": 23
+    }
   },
   {
     "id": "another-height",
     "name": "另一个高度",
     "tier": "legendary",
-    "count": 19,
+    "count": 22,
     "evidence": "rank",
-    "condition": "4场可比单科考试跨度30天，前两场波动不超过5个百分点，后两场各较前两场平均改善30个百分点",
+    "condition": "5场可比单科考试跨度至少30天，前两场位比波动不超过5个百分点，后三场各较前两场平均改善至少20个百分点",
     "quote": "曾经以为遥远的地方，如今已在脚下。",
     "motif": "summit",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "referenceTotal": 9938,
+    "referenceDay": "2026-11-27",
+    "ruleVersion": 2,
+    "legacyRates": {
+      "1": 19
+    }
   },
   {
     "id": "ascent",
@@ -614,7 +639,7 @@ const badges=[
     "mode": "manual"
   }
 ];
-const catalog={version:1,denominator:9936,referenceDay:'2026-11-27',referenceExams:19768,referenceScores:135552,tiers:{common:'普通',rare:'稀有',epic:'史诗',legendary:'传说',mythic:'至臻',limited:'限定'},badges};
+const catalog={version:1,denominator:9936,referenceDay:'2026-11-27',referenceExams:19768,referenceScores:135552,legacyReferenceTotal:9938,legacyReferenceDay:'2026-11-27',tiers:{common:'普通',rare:'稀有',epic:'史诗',legendary:'传说',mythic:'至臻',limited:'限定'},badges};
 g.ScoreAchievements=catalog;
 if(typeof module!=='undefined'&&module.exports)module.exports=catalog;
 })(globalThis);

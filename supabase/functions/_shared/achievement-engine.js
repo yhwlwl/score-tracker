@@ -14,9 +14,9 @@ const beijing=x=>{const t=Date.parse(x);return Number.isFinite(t)?new Date(t+288
 const point=o=>({date:o.date,subject:o.subject,position:round(o.pos),rate:Number.isFinite(o.rate)?round(o.rate):null,examId:o.examId});
 function evaluate({exams=[],goal=null,createdAt=null,firstUseAt=null,predictions=[],today=beijing(new Date().toISOString()),owned=[],models=g.ScoreAchievementModels}={}){
  const out=new Map(),existing=new Set(owned);
- const revised=new Set(['first-step','full-picture','rank-aware','year-trace','rings','time-kept','harder','headwind','outside-range','break-limit','phase-shift','unique-path','triple']);
+ const revised=new Set(['first-step','full-picture','rank-aware','year-trace','rings','time-kept','another-height','harder','headwind','outside-range','break-limit','phase-shift','unique-path','triple']);
  const evidenceDate=e=>e.achievedDate||(e.dateBasis==='record_unknown'?'':[e.date,...(e.points||[]).map(x=>x.date),...(e.events||[]).flatMap(x=>(x.points||[]).map(p=>p.date)),...(e.dates||[])].filter(Boolean).sort().at(-1)||'');
- const add=(id,evidence)=>{if(existing.has(id))return;const prior=out.get(id),d=evidenceDate(evidence);if(prior&&(!d||(evidenceDate(prior.evidence)&&evidenceDate(prior.evidence)<=d)))return;const version=revised.has(id)?2:1;out.set(id,{badge_id:id,rule_version:version,evidence:{...evidence,...(version===2?{ruleRevision:2}:{}),kind:evidence.kind||'record',source:evidence.source||'historical_replay'}})};
+ const add=(id,evidence)=>{if(existing.has(id))return;const prior=out.get(id),d=evidenceDate(evidence);if(prior&&(!d||(evidenceDate(prior.evidence)&&evidenceDate(prior.evidence)<=d)))return;const version=id==='time-kept'?3:revised.has(id)?2:1;out.set(id,{badge_id:id,rule_version:version,evidence:{...evidence,...(version>=2?{ruleRevision:version}:{}),kind:evidence.kind||'record',source:evidence.source||'historical_replay'}})};
  const canEarlier=(id,d)=>!existing.has(id)&&(!out.has(id)||!evidenceDate(out.get(id).evidence)||d<evidenceDate(out.get(id).evidence));
  const earlier=(a,b)=>!a?b:!b?a:a<=b?a:b;
  const eligibleDate=x=>{const d=beijing(x);return d&&d<=today?d:''};
@@ -25,7 +25,7 @@ function evaluate({exams=[],goal=null,createdAt=null,firstUseAt=null,predictions
  const es=all.filter(e=>Number.isFinite(num(e.total_actual_score))||Number.isFinite(num(e.total_raw_score))||Object.values(e.scores||{}).some(s=>valid(s.actual,s.max)||valid(s.raw,s.rawMax)));
  const examDays=[...new Set(es.map(e=>e.exam_date))],uploadDays=[...new Set(es.map(e=>eligibleDate(e.created_at)).filter(Boolean))].sort(),months=new Set(examDays.map(d=>d.slice(0,7))),uploadMonths=new Set(uploadDays.map(d=>d.slice(0,7)));
  const span=examDays.length?days(examDays[0],examDays.at(-1)):0,upSpan=uploadDays.length?days(uploadDays[0],uploadDays.at(-1)):0;
- function time(id,dates){const rules={'three-days':[3,0,0],'five-days':[5,0,0],'ten-days':[10,0,0],'twenty-days':[20,0,0],chronicle:[40,0,0],'half-year':[6,0,6],'four-seasons':[12,0,12],'year-trace':[12,365,0],rings:[20,730,9],'time-witness':[3,30,0],'long-road':[4,60,0],'time-kept':[6,90,3]};const [n,spanMin,m]=rules[id];const seen=new Set();let achievedDate;for(let i=0;i<dates.length;i++){seen.add(dates[i].slice(0,7));if(i+1>=n&&days(dates[0],dates[i])>=spanMin&&seen.size>=m){achievedDate=dates[i];break}}add(id,{kind:'time',dateBasis:['time-witness','long-road','time-kept','year-trace'].includes(id)?'record_created':'exam',dates:[dates[0],dates.at(-1)],achievedDate,count:dates.length,span:days(dates[0],dates.at(-1)),months:new Set(dates.map(d=>d.slice(0,7))).size})}
+ function time(id,dates){const rules={'three-days':[3,0,0],'five-days':[5,0,0],'ten-days':[10,0,0],'twenty-days':[20,0,0],chronicle:[40,0,0],'half-year':[6,0,6],'four-seasons':[12,0,12],'year-trace':[12,365,0],rings:[20,730,9],'time-witness':[3,30,0],'long-road':[4,60,0],'time-kept':[4,90,3]};const [n,spanMin,m]=rules[id];const seen=new Set();let achievedDate;for(let i=0;i<dates.length;i++){seen.add(dates[i].slice(0,7));if(i+1>=n&&days(dates[0],dates[i])>=spanMin&&seen.size>=m){achievedDate=dates[i];break}}add(id,{kind:'time',dateBasis:['time-witness','long-road','time-kept','year-trace'].includes(id)?'record_created':'exam',dates:[dates[0],dates.at(-1)],achievedDate,count:dates.length,span:days(dates[0],dates.at(-1)),months:new Set(dates.map(d=>d.slice(0,7))).size})}
  if(startDay)add('first-step',{date:startDay,achievedDate:startDay,dateBasis:usedDay&&startDay===usedDay?'first_visit':'registration_fallback',verified:true});
  const subjects=new Set(),subjectDates=new Map();
  for(const e of es){for(const [s,v] of Object.entries(e.scores||{}))if(valid(v.actual,v.max)||valid(v.raw,v.rawMax)){subjects.add(s);const d=eligibleDate(v.created_at||v.createdAt||e.created_at);if(d)subjectDates.set(s,earlier(subjectDates.get(s),d))}}
@@ -40,7 +40,7 @@ function evaluate({exams=[],goal=null,createdAt=null,firstUseAt=null,predictions
  if(examDays.length>=20&&span>=730&&months.size>=9)time('rings',examDays);
  if(uploadDays.length>=3&&upSpan>=30)time('time-witness',uploadDays);
  if(uploadDays.length>=4&&upSpan>=60)time('long-road',uploadDays);
- if(uploadDays.length>=6&&upSpan>=90&&uploadMonths.size>=3)time('time-kept',uploadDays);
+ if(uploadDays.length>=4&&upSpan>=90&&uploadMonths.size>=3)time('time-kept',uploadDays);
  if(Number.isFinite(Date.parse(createdAt))&&Date.parse(createdAt)<Date.parse('2026-08-26T16:00:00Z'))add('early',{kind:'event',date:beijing(createdAt)});
  const rp=[],sp=[],perExam=new Map();
  for(const e of es){
@@ -91,12 +91,12 @@ function evaluate({exams=[],goal=null,createdAt=null,firstUseAt=null,predictions
     if(days(x.date,t.date)>=30){
       if(old-avg([z.pos,t.pos])>=5&&[y.pos<=x.pos,z.pos<=y.pos,t.pos<=z.pos].filter(Boolean).length>=2)add('steady',ev);
       if(Math.abs(x.pos-y.pos)<=5&&gain>=15)add('plateau',ev);
-      if(!isTotal&&Math.abs(x.pos-y.pos)<=5&&gain>=30)add('another-height',ev);
     }
     if(isTotal&&gain>=30)add('new-horizon',ev);
    }
    if(check(5)){
     const [x,y,z,t,v]=last(5),old=avg([x.pos,y.pos,z.pos]),worst=Math.max(t.pos,v.pos),gain=old-worst,ev={kind:'rank',points:last(5).map(point),improvement:round(gain)};
+    if(!isTotal&&days(x.date,v.date)>=30&&Math.abs(x.pos-y.pos)<=5&&avg([x.pos,y.pos])-Math.max(z.pos,t.pos,v.pos)>=20)add('another-height',{kind:'rank',points:last(5).map(point),improvement:round(avg([x.pos,y.pos])-Math.max(z.pos,t.pos,v.pos)),historyCount:5});
     if(gain>=20)add('accumulation',ev);
     if(!isTotal&&gain>=40)add('ascent',ev);
     if(z.pos-avg([x.pos,y.pos])>=10&&z.pos-worst>=10&&worst<=avg([x.pos,y.pos])+2)add('comeback',ev);

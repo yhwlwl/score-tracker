@@ -10,6 +10,17 @@ const exam=(i,r,actual=60,overrides={})=>({id:'exam'+i,exam_date:'2026-10-'+Stri
 const get=(exams,extra={})=>E.evaluate({exams,today:'2026-11-25',models:null,...extra});
 const found=(exams,extra={})=>new Set(get(exams,extra).map(x=>x.badge_id));
 assert.equal(get([]).length,0);
+const spanDates=['2026-08-20','2026-09-20','2026-10-20','2026-11-19'];
+const useExams=spanDates.map((d,i)=>exam(i,30,80,{exam_date:d,created_at:d+'T00:00:00Z'}));
+const kept=get(useExams).find(a=>a.badge_id==='time-kept');
+assert(kept&&kept.rule_version===3&&kept.evidence.ruleRevision===3&&kept.evidence.achievedDate==='2026-11-19');
+assert(!get(useExams.slice(0,3)).some(a=>a.badge_id==='time-kept'));
+const heights=[65,64,40,39,38].map((r,i)=>{const d=new Date(Date.UTC(2026,8,1+i*10)).toISOString().slice(0,10);return exam(i,r,80,{exam_date:d,created_at:d+'T00:00:00Z'})});
+const height=get(heights).find(a=>a.badge_id==='another-height');
+assert(height&&height.rule_version===2&&height.evidence.points.length===5);
+assert(!get(heights.slice(0,4)).some(a=>a.badge_id==='another-height'));
+assert(!get([...heights.slice(0,4),{...heights[4],scores:{数学:{actual:80,max:100,rank:55,participants:100}}}]).some(a=>a.badge_id==='another-height'));
+
 const matchExams=[1,5,9,13,17,21].map(i=>exam(i,30,80));
 const snapshots=[5,13,21].map((i,k)=>({model:'trajectory-forecast-v1',frozen_at:'2026-10-'+String(i).padStart(2,'0')+'T00:00:00Z',history_exam_ids:['history1','history2','history3'],prediction:{center:40,references:3,lastDate:'2026-10-01',category:'a',basket:['数学']}}));
 const match=get(matchExams,{predictions:snapshots}).find(a=>a.badge_id==='unique-path');
@@ -49,7 +60,7 @@ assert(!found(hist,{owned:['unexpected']}).has('unexpected'));
 assert(!hits.some(a=>!ids.has(a.badge_id)||C.badges.find(b=>b.id===a.badge_id).mode!=='auto'));
 assert(found([],{createdAt:'2026-08-26T15:59:59Z'}).has('early'));assert(!found([],{createdAt:'2026-08-26T16:00:00Z'}).has('early'));
 const actual=E.evaluate({exams:hist,today:'2026-11-25'});assert(actual.length>=hits.length);
-for(const a of actual){assert(a.evidence.source==='historical_replay');assert.equal(a.rule_version,['first-step','full-picture','rank-aware','year-trace','rings','time-kept','harder','headwind','outside-range','break-limit','phase-shift','unique-path','triple'].includes(a.badge_id)?2:1)}
+for(const a of actual){assert(a.evidence.source==='historical_replay');assert.equal(a.rule_version,a.badge_id==='time-kept'?3:['first-step','full-picture','rank-aware','year-trace','rings','another-height','harder','headwind','outside-range','break-limit','phase-shift','unique-path','triple'].includes(a.badge_id)?2:1)}
 const prod=fs.readFileSync('app-v34.js','utf8'),worth=fs.readFileSync('score-worth-model.js','utf8'),kernel=fs.readFileSync('supabase/functions/_shared/achievement-models.js','utf8');
 assert(kernel.includes(prod.slice(prod.indexOf('/* ---- PAL2 kernel:'),prod.indexOf('/* deep-beta-main.js'))));assert(kernel.includes(worth),'frozen kernels must match original files');
 const uiSource=fs.readFileSync('achievement-ui.js','utf8'),w={ScoreAchievements:C};
@@ -98,7 +109,16 @@ assert(C.badges.filter(b=>b.mode==='auto').every(b=>Number.isInteger(b.count)&&b
 assert.equal(win.ScoreAchievementUI.rateInfo(C.badges[0],{stats:{total:100,counts:{'first-step':50}}}).value,'100.00%');
 assert.equal(win.ScoreAchievementUI.actualRateInfo(C.badges[0],{stats:{total:100,counts:{'first-step':50}}}).value,'50.00%');
 assert.equal(win.ScoreAchievementUI.rateInfo(C.badges.find(b=>b.id==='unique-path'),{stats:{total:9936,counts:{}}}).value,'0.33%');
-assert.equal(win.ScoreAchievementUI.rateInfo(C.badges.find(b=>b.id==='year-trace'),{stats:{total:100,counts:{}}}).value,'0.00%');
+const year=C.badges.find(b=>b.id==='year-trace'),timeKept=C.badges.find(b=>b.id==='time-kept'),another=C.badges.find(b=>b.id==='another-height');
+assert.equal(win.ScoreAchievementUI.rateInfo(year,{stats:{total:100,counts:{}}}).value,'0.00%');
+assert.equal(win.ScoreAchievementUI.rateInfo(year,{award:{rule_version:1}}).value,'1.30%');
+assert.equal(win.ScoreAchievementUI.rateInfo(timeKept).value,'0.32%');
+assert.equal(win.ScoreAchievementUI.rateInfo(timeKept,{award:{rule_version:2}}).value,'0.020%');
+assert.equal(win.ScoreAchievementUI.rateInfo(another).value,'0.22%');
+assert.equal(win.ScoreAchievementUI.rateInfo(another,{award:{rule_version:1}}).value,'0.19%');
+assert(!win.ScoreAchievementUI.rateDetails(year,{award:{rule_version:1},stats:{total:100,counts:{}}}).includes('实际获得率'));
+assert(win.ScoreAchievementUI.conditionRows(timeKept,kept.evidence).every(r=>r.ok===true));
+assert(win.ScoreAchievementUI.conditionRows(another,height.evidence).every(r=>r.ok===true));
 assert.equal(win.ScoreAchievementUI.rateInfo(C.badges.find(b=>b.id==='full-picture'),{stats:{total:100,counts:{}}}).value,'57.41%');
 assert.equal(win.ScoreAchievementUI.evidenceDay(actual.find(a=>a.badge_id==='three-days')),'2026-10-03');
 // Default display uses the lowest known rate, not the most recent date.
