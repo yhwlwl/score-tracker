@@ -5,9 +5,10 @@ import { examReflection } from "./reflection.ts";
 import { achievements } from "./achievements.ts";
 function queueAchievementQualification(db:any,uid:string){
  if(Deno.env.get('SCORE_TRACKER_ACHIEVEMENTS_V2_ENABLED')==='false')return;
- const task=achievements(db,uid,{achievement_release:2,action:'achievement_refresh'},true).catch((e:any)=>console.warn('achievement_qualification_update_failed',e?.code||'internal'));
  const runtime=(globalThis as any).EdgeRuntime;
- if(runtime?.waitUntil)runtime.waitUntil(task);
+ if(!runtime?.waitUntil)return;
+ try{runtime.waitUntil(Promise.resolve().then(()=>achievements(db,uid,{achievement_release:2,action:'achievement_refresh'},true)).catch((e:any)=>console.warn('achievement_qualification_update_failed',e?.code||'internal')));}
+ catch(_){console.warn('achievement_qualification_queue_failed');}
 }
 import "../_shared/exam-goals.js";
 const examGoals = (globalThis as any).ScoreExamGoals;
