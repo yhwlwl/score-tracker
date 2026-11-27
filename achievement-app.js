@@ -56,7 +56,7 @@
  }
  function reveal(){
   clearTimeout(revealTimer);revealTimer=null;if(!sync()||enabled!==true||document.hidden)return;
-  const fresh=(cache||[]).filter(a=>a.badge_id!=='triple'&&!a.seen_at&&!presented.has(a.badge_id)&&C.badges.some(b=>b.id===a.badge_id));if(!fresh.length)return;
+  const fresh=(cache||[]).filter(a=>a.badge_id!=='triple'&&a.badge_id!=='triple'&&!a.seen_at&&!presented.has(a.badge_id)&&C.badges.some(b=>b.id===a.badge_id));if(!fresh.length)return;
   if(blocked()){revealTimer=setTimeout(reveal,1800);return}
   const owner=session,badges=new Map(C.badges.map(b=>[b.id,b]));
   const ordered=[...fresh].sort((a,b)=>tierOrder.indexOf(badges.get(b.badge_id).tier)-tierOrder.indexOf(badges.get(a.badge_id).tier));
