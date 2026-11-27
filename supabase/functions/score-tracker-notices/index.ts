@@ -60,6 +60,17 @@ Deno.serve(async req => {
     if(action==='notice_public'&&req.method==='POST')return json({config:await config()});
     if(action==='notice_history'&&req.method==='POST'){const c=await config(true),releases=releaseHistory(c,c),announcements=announcementHistory(c);delete c.release_history;delete c.announcement_history;return json({config:c,releases,announcements});}
     user=await auth(req.headers.get('x-score-token')||String(body.token||''));if(!user)return json({error:'登录已失效，请重新登录'},401);
+    if(['centenary_preview','centenary_status','centenary_seen'].includes(action)&&req.method==='POST'){
+      // Always derive the user from the authenticated session, never the request body.
+      const r=await db.rpc('score_tracker_centenary_data',{p_user:user.id});if(r.error)throw r.error;
+      const data=r.data;if(!data)return json({error:'纪念数据不存在'},404);
+      if(action==='centenary_status'&&(!data.published||data.paused))return json({published:false});
+      if(action==='centenary_seen'){
+        if(!data.published||data.paused||!data.eligible)return json({error:'活动暂未开放'},403);
+        const saved=await db.from('score_tracker_centenary_accounts').update({seen_at:new Date().toISOString()}).eq('user_id',user.id).is('seen_at',null);if(saved.error)throw saved.error;return json({ok:true});
+      }
+      return json({...data,preview:action==='centenary_preview'});
+    }
     if((action.startsWith('notification_')||['feature_completion_admin','feature_option_complete','feature_option_active'].includes(action))&&!user.is_admin)return json({error:'只有管理员可以修改这些内容'},403);
     if(['announcement_reply_inbox','announcement_reply_detail','announcement_reply_read'].includes(action)&&req.method==='POST'){
       const result=await announcementReplies(db,user,action,body,async()=>{const c=await config(true);return {notices:announcementHistory(c),current:c.announcement_id,commentsEnabled:c.announcement_enabled&&c.announcement_comments_enabled};});
