@@ -4,7 +4,7 @@ for(const d of [null,{}, {...ready,published:false},{...ready,eligible:false},{.
 assert(eligible(ready));assert(shouldPrompt(ready,false));assert(!shouldPrompt(ready,true));assert(!shouldPrompt({...ready,seen_at:'2026-11-29T00:01:00Z'},false));
 const js=fs.readFileSync('centenary-release.js','utf8'),sql=fs.readFileSync('design/centenary/manual-publish.sql','utf8');
 assert(js.includes("api('centenary_status'")&&js.includes("api('centenary_seen'"));assert(!/centenary_preview|centenary_refresh|armed=true/.test(js));
-assert(js.includes('data:image/webp;base64,UklGR'));assert(fs.readFileSync('index.html','utf8').includes('centenary-release.js'));assert(fs.readFileSync('tools/cf-build.js','utf8').includes('"centenary-release.js"'));
+assert(js.includes('data:image/svg+xml')&&!js.includes('data:image/webp'));assert(js.includes("action:'achievement_overview'"));assert(fs.readFileSync('index.html','utf8').includes('centenary-release.js'));assert(fs.readFileSync('tools/cf-build.js','utf8').includes('"centenary-release.js"'));
 assert(sql.includes('a<10000 or e<1000000')&&sql.includes('set armed=false')&&sql.includes("on conflict(user_id,badge_id) do nothing")&&sql.includes(NOTICE_ID));assert(!/cron\.schedule\(/.test(sql));
 console.log('PASS centenary visibility gates, asset inclusion, manual release safeguards');
 
@@ -14,6 +14,7 @@ async function testDom(){
  const dom=new JSDOM('<!doctype html><html><body><main id="content"><div class="account-grid"><div class="account-card"></div></div></main></body></html>',{url:'https://centenary.test/',runScripts:'outside-only',pretendToBeVisual:true});
  const w=dom.window,doc=w.document,requests=[];let check,published=false,paused=false,seen=false,fail=false;
  w.state={user:{id:'user-a'},token:'token-a',page:'account'};
+ w.ScoreAchievements={badges:[{id:'triple',name:'三百纪念'}]};w.ScoreAchievementUI={emblem:()=>'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"/>',show:(b,a,opt)=>requests.push({action:'show-award',badge:b.id,award:a,autoFlip:opt.autoFlip})};
  w.matchMedia=()=>({matches:false});
  w.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','')};
  w.HTMLDialogElement.prototype.close=function(){this.removeAttribute('open')};
@@ -21,7 +22,7 @@ async function testDom(){
  w.setInterval=fn=>{check=fn;return 1};
  w.__releaseNotices={openCentenaryDiscussion:async()=>requests.push({action:'open-discussion'})};
  w.fetch=async(url,opt)=>{
-  const b=JSON.parse(opt.body);requests.push(b);assert.equal(url,'/api/score-tracker-notices');
+  const b=JSON.parse(opt.body);requests.push(b);if(b.action==='achievement_overview'){assert.equal(url,'/api/score-tracker-data-api');return {ok:true,json:async()=>({enabled:true,awards:[{badge_id:'triple',awarded_at:ready.published_at}],stats:{total:10000,counts:{triple:10000}}})}}assert.equal(url,'/api/score-tracker-notices');
   if(fail)return {ok:false,json:async()=>({error:'test failure'})};
   if(b.action==='centenary_seen'){seen=true;return {ok:true,json:async()=>({ok:true})}}
   assert.equal(b.action,'centenary_status');
@@ -41,9 +42,9 @@ async function testDom(){
   assert.equal(shadow.getElementById('done').textContent,'收藏这份纪念');
   assert.equal(shadow.getElementById('accounts').textContent,'10,000');
   assert.equal(shadow.getElementById('events').textContent,'1,061,156');
-  assert(shadow.querySelector('.mini-badge img').src.startsWith('data:image/webp;base64,UklGR'));
+  assert(shadow.querySelector('.mini-badge img').src.startsWith('data:image/svg+xml'));
   assert.equal(requests.filter(x=>x.action==='centenary_seen').length,1);
-  shadow.getElementById('done').click();assert(!doc.querySelector('.st-centenary-dialog'));assert(doc.querySelector('.st-centenary-entry'));
+  shadow.getElementById('done').click();await delay();assert(requests.some(x=>x.action==='show-award'&&x.badge==='triple'&&x.autoFlip));assert(!doc.querySelector('.st-centenary-dialog'));assert(doc.querySelector('.st-centenary-entry'));
   await force();check();assert(!doc.querySelector('.st-centenary-dialog'));assert.equal(requests.filter(x=>x.action==='centenary_seen').length,1);
   doc.querySelector('.st-centenary-entry').click();dialog=doc.querySelector('.st-centenary-dialog[open]');assert(dialog);
   dialog.firstChild.shadowRoot.getElementById('discussion').click();await delay();assert(requests.some(x=>x.action==='open-discussion'));assert(!doc.querySelector('.st-centenary-dialog'));
