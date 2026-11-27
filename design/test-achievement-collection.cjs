@@ -15,6 +15,14 @@ const snapshots=[5,13,21].map((i,k)=>({model:'trajectory-forecast-v1',frozen_at:
 const match=get(matchExams,{predictions:snapshots}).find(a=>a.badge_id==='unique-path');
 assert(match&&match.evidence.source==='frozen_prediction'&&match.evidence.points.length===3);
 assert(!get(matchExams,{predictions:snapshots.slice(0,2)}).some(a=>a.badge_id==='unique-path'));
+const replayExams=[0,1,2,3,4,5].map(i=>exam(i,30,80));
+const replays=[3,4,5].map(i=>({model:'trajectory-replay-v1',result_exam_id:'exam'+i,history_exam_ids:replayExams.slice(0,i).map(e=>e.id),prediction:{center:40,references:3,lastDate:replayExams[i-1].exam_date,targetDate:replayExams[i].exam_date,peerThrough:'2026-10-01',category:'a',basket:['数学'],source:'historical_replay',cutoff:'2026-11-27'}}));
+assert.equal(get(replayExams,{predictions:replays}).find(a=>a.badge_id==='unique-path').evidence.source,'historical_replay');
+assert(!get(replayExams,{predictions:[...replays.slice(0,2),{...replays[2],prediction:{...replays[2].prediction,peerThrough:replayExams[5].exam_date}}]}).some(a=>a.badge_id==='unique-path'));
+const realMiss={model:'trajectory-forecast-v1',frozen_at:'2026-10-05T00:00:00Z',history_exam_ids:['exam0','exam1','exam2'],prediction:{center:31,references:3,lastDate:'2026-10-03',category:'a',basket:['数学']}};
+assert(!get(replayExams,{predictions:[...replays,realMiss]}).some(a=>a.badge_id==='unique-path'));
+const mixed=get(replayExams,{predictions:[...replays,{...realMiss,prediction:{...realMiss.prediction,center:40}}]}).find(a=>a.badge_id==='unique-path');
+assert(mixed&&mixed.evidence.source==='mixed_prediction'&&mixed.evidence.points.length===3);
 
 const first=get([],{createdAt:'2026-09-10T08:00:00Z',firstUseAt:'2026-09-10T09:00:00Z'}).find(a=>a.badge_id==='first-step');
 assert.equal(first.evidence.achievedDate,'2026-09-10');
@@ -89,7 +97,7 @@ assert.equal(C.badges.filter(b=>b.mode==='auto').length,45);
 assert(C.badges.filter(b=>b.mode==='auto').every(b=>Number.isInteger(b.count)&&b.count>=0&&b.count<=C.denominator));
 assert.equal(win.ScoreAchievementUI.rateInfo(C.badges[0],{stats:{total:100,counts:{'first-step':50}}}).value,'100.00%');
 assert.equal(win.ScoreAchievementUI.actualRateInfo(C.badges[0],{stats:{total:100,counts:{'first-step':50}}}).value,'50.00%');
-assert.equal(win.ScoreAchievementUI.rateInfo(C.badges.find(b=>b.id==='unique-path'),{stats:{total:9936,counts:{}}}).value,'0.00%');
+assert.equal(win.ScoreAchievementUI.rateInfo(C.badges.find(b=>b.id==='unique-path'),{stats:{total:9936,counts:{}}}).value,'0.33%');
 assert.equal(win.ScoreAchievementUI.rateInfo(C.badges.find(b=>b.id==='year-trace'),{stats:{total:100,counts:{}}}).value,'0.00%');
 assert.equal(win.ScoreAchievementUI.rateInfo(C.badges.find(b=>b.id==='full-picture'),{stats:{total:100,counts:{}}}).value,'57.41%');
 assert.equal(win.ScoreAchievementUI.evidenceDay(actual.find(a=>a.badge_id==='three-days')),'2026-10-03');

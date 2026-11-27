@@ -114,7 +114,7 @@ export async function achievements(db:any,uid:string,body:any) {
   db.from('score_tracker_user_goals').select('user_id').eq('user_id',uid).maybeSingle(),
   db.from('score_tracker_users').select('created_at').eq('id',uid).single(),
   needFirstUse?db.from('score_tracker_visit_logs').select('occurred_at').eq('user_id',uid).in('event_type',['app_page_view','page_view']).order('occurred_at',{ascending:true}).limit(1).maybeSingle():Promise.resolve({data:null,error:null}),
-  needMatch?db.from('score_tracker_achievement_predictions').select('model,context_key,frozen_at,history_exam_ids,prediction').eq('user_id',uid).order('frozen_at',{ascending:true}).limit(1000):Promise.resolve({data:[],error:null})
+  needMatch?db.from('score_tracker_achievement_predictions').select('model,context_key,frozen_at,history_exam_ids,prediction,result_exam_id').eq('user_id',uid).order('frozen_at',{ascending:true}).limit(1000):Promise.resolve({data:[],error:null})
  ]);
  if(goal.error)throw goal.error;
  if(user.error)throw user.error;
@@ -130,7 +130,7 @@ export async function achievements(db:any,uid:string,body:any) {
    const result=await db.from('score_tracker_achievement_awards').update({rule_version:a.rule_version,evidence:a.evidence}).eq('user_id',uid).eq('badge_id',a.badge_id).eq('rule_version',1);
    if(result.error)console.warn('achievement_legacy_date_repair_failed',a.badge_id);
  }
- const insert=found.filter((a:any)=>!repairIds.has(a.badge_id)&&catalogue.badges.some((b:any)=>b.id===a.badge_id&&(b.mode==='auto'||b.mode==='snapshot'&&a.evidence.source==='frozen_prediction'))).map((a:any)=>({user_id:uid,...a}));
+ const insert=found.filter((a:any)=>!repairIds.has(a.badge_id)&&catalogue.badges.some((b:any)=>b.id===a.badge_id&&(b.mode==='auto'||b.mode==='snapshot'&&['frozen_prediction','historical_replay','mixed_prediction'].includes(a.evidence.source)))).map((a:any)=>({user_id:uid,...a}));
  if(insert.length){
   // Ignore conflicts to preserve the first award's evidence and read receipt.
   const r=await db.from('score_tracker_achievement_awards').upsert(insert,{onConflict:'user_id,badge_id',ignoreDuplicates:true});

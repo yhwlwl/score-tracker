@@ -57,3 +57,8 @@
 - 45 枚自动徽章：前端卡片显示 2026-11-27 参考达成率，详情同时显示后端每日实际获得率；不把回测人数写入正式 award 或实际获得率表，也不提前批量发奖。快照与限定类仅展示实际获得率，不使用推测值；真实为零就显示零。默认代表徽章排序使用可核实参考比例。
 - 独一无二：线上已验证存在一条符合快照格式的真实轨迹冻结记录，尚无正式发放；三次不同考试日分别超越至少5个百分点的条件已通过合成回归，真实三次达成需等待未来考试数据。
 - 参考总计：{"first-step":9936,"full-picture":5704,"rank-aware":3547,"new-best":3225,"three-days":2378,"reflection":17,"goal-set":1973,"step-up":1834,"five-days":1243,"time-witness":841,"half-year":818,"getting-better":812,"beyond-score":559,"steady":576,"double-proof":450,"hold-peak":372,"ten-days":278,"unexpected":225,"long-road":223,"comeback":165,"chorus":147,"harder":148,"accumulation":138,"year-trace":0,"four-seasons":109,"plateau":95,"cocoon":77,"puzzle":76,"headwind":62,"resonance":53,"more-than-score":40,"time-kept":2,"beyond-expectation":40,"outside-range":39,"twenty-days":29,"unique-path":0,"rings":12,"another-height":19,"ascent":9,"rewrite":7,"break-limit":8,"phase-shift":6,"new-horizon":4,"undefined":3,"chronicle":3,"early":4281,"triple":0,"creator":0,"pioneer":0,"spark-support":0,"annual":0}
+
+## 独一无二：历史与冻结双轨
+- 截止2026-11-27之前的考试，使用 design/achievement-trajectory-replay.cjs 对当前允许轨迹共享的非测试账号做一次历史滚动重算；严格排除目标日及以后的本人、参考轨迹考试，统一默认 shape / balanced / 20条参考，至少3条。现存历史补录按考试日期排序，不声称当时真实生成过预测；参考池限定当前同意共享且满足严格排名校验的数据。
+- 首次回测：829名拥有至少4条同科目组合记录的账号，5,370条记录，1,744个候选考试，1,566次匹配，457次达标（291人），33人至少3次。历史达成率33/9936=0.332%。历史结果仅保存本人考试ID、聚合预测中心、参考数、时间边界，不保存参考用户身份；真实 frozen_at 为本次计算时间，不伪造考前记录。
+- 上线后真实冻结预测优先（包含未达标的真实预测）；同一考试日去重，历史与真实可以累计，按第三个达标考试日确定完成时间。历史快照只在既有预览后端按账号刷新时正常授予，不批量提前发奖。新增历史补录不自动重跑整站参考池，本轮为上线前一次性回测。

@@ -138,17 +138,28 @@ function evaluate({exams=[],goal=null,createdAt=null,firstUseAt=null,predictions
   }
  }
  // A match badge only uses server-frozen predictions, never a hindsight estimate.
- const matches=new Map();
+ const matches=new Map(),realDates=new Set();
  for(const snapshot of [...predictions].sort((a,b)=>String(a.frozen_at).localeCompare(String(b.frozen_at)))){
   const p=snapshot.prediction||{}, frozen=eligibleDate(snapshot.frozen_at);
   if(snapshot.model!=='trajectory-forecast-v1'||!frozen||!p.lastDate||!Array.isArray(p.basket)||!p.basket.length||!Array.isArray(snapshot.history_exam_ids)||snapshot.history_exam_ids.length<3||!Number.isFinite(p.center)||p.center<0||p.center>100||p.references<3)continue;
   const next=es.find(e=>e.exam_date>frozen&&e.exam_date>p.lastDate&&(e.grade_level||'')===p.category&&JSON.stringify(Object.keys(e.scores||{}).filter(k=>!e.scores[k].excludeFromTotal).sort())===JSON.stringify(p.basket)&&rank(e.total_rank,e.total_participants));
   if(!next||snapshot.history_exam_ids.includes(next.id))continue;
   const actual=100*num(next.total_rank)/num(next.total_participants),delta=p.center-actual;
-  if(delta>=5&&!matches.has(next.exam_date))matches.set(next.exam_date,{date:next.exam_date,examId:next.id,prediction:round(p.center),actual:round(actual),delta:round(delta),frozenAt:snapshot.frozen_at,referenceCount:p.references});
+  // The first real forecast for a date is authoritative, including a miss.
+  if(realDates.has(next.exam_date))continue;realDates.add(next.exam_date);
+  if(delta>=5)matches.set(next.exam_date,{date:next.exam_date,examId:next.id,prediction:round(p.center),actual:round(actual),delta:round(delta),frozenAt:snapshot.frozen_at,referenceCount:p.references,source:'frozen_prediction'});
+ }
+ // Server-only historical replay: never manufacture a past frozen_at.
+ for(const snapshot of predictions){
+  const p=snapshot.prediction||{},date=p.targetDate;
+  if(snapshot.model!=='trajectory-replay-v1'||p.source!=='historical_replay'||p.cutoff!=='2026-11-27'||!date||date>=p.cutoff||!p.lastDate||p.lastDate>=date||!p.peerThrough||p.peerThrough>=date||realDates.has(date)||matches.has(date)||!Number.isFinite(p.center)||p.center<0||p.center>100||p.references<3||!Array.isArray(p.basket)||!Array.isArray(snapshot.history_exam_ids)||snapshot.history_exam_ids.length<3||new Set(snapshot.history_exam_ids).size!==snapshot.history_exam_ids.length)continue;
+  const target=es.find(e=>e.id===snapshot.result_exam_id&&e.exam_date===date&&(e.grade_level||'')===p.category&&JSON.stringify(Object.keys(e.scores||{}).filter(k=>!e.scores[k].excludeFromTotal).sort())===JSON.stringify(p.basket)&&rank(e.total_rank,e.total_participants));
+  if(!target||snapshot.history_exam_ids.includes(target.id)||!snapshot.history_exam_ids.every(id=>es.some(e=>e.id===id&&e.exam_date<date)))continue;
+  const actual=100*num(target.total_rank)/num(target.total_participants),delta=p.center-actual;
+  if(delta>=5)matches.set(date,{date,examId:target.id,prediction:round(p.center),actual:round(actual),delta:round(delta),referenceCount:p.references,source:'historical_replay',peerThrough:p.peerThrough});
  }
  const witnesses=[...matches.values()].sort((a,b)=>a.date.localeCompare(b.date));
- if(witnesses.length>=3)add('unique-path',{kind:'match',source:'frozen_prediction',model:'trajectory-forecast-v1',points:witnesses.slice(0,3),count:3,totalCount:witnesses.length,minDelta:Math.min(...witnesses.slice(0,3).map(x=>x.delta)),achievedDate:witnesses[2].date,dateBasis:'exam'});
+ if(witnesses.length>=3)add('unique-path',{kind:'match',source:witnesses.slice(0,3).every(x=>x.source==='frozen_prediction')?'frozen_prediction':witnesses.slice(0,3).every(x=>x.source==='historical_replay')?'historical_replay':'mixed_prediction',model:'trajectory-hybrid-v1',points:witnesses.slice(0,3),count:3,totalCount:witnesses.length,minDelta:Math.min(...witnesses.slice(0,3).map(x=>x.delta)),achievedDate:witnesses[2].date,dateBasis:'exam'});
  return [...out.values()];
 }
 const PROD={seWeighting:false,ewmaForecastAlpha:.4,conformalPriorK:4.539237871385978,conformalPriorW:4};
