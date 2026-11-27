@@ -35,7 +35,10 @@ async function testDom(){
   fail=true;await force();assert(!doc.querySelector('.st-centenary-dialog'));fail=false;
   published=true;await force();
   let dialog=doc.querySelector('.st-centenary-dialog[open]');assert(dialog);let shadow=dialog.firstChild.shadowRoot;
-  assert.equal(shadow.getElementById('title').textContent,'你是第 42 位注册的用户');
+  assert.equal(shadow.getElementById('title').textContent,'三百纪念');
+  assert.equal(shadow.getElementById('position').textContent,'42');
+  assert(!shadow.getElementById('title').textContent.includes('42'));
+  assert.equal(shadow.getElementById('done').textContent,'收藏这份纪念');
   assert.equal(shadow.getElementById('accounts').textContent,'10,000');
   assert.equal(shadow.getElementById('events').textContent,'1,061,156');
   assert(shadow.querySelector('.mini-badge img').src.startsWith('data:image/webp;base64,UklGR'));
