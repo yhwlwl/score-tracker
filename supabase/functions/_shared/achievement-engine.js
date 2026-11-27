@@ -43,13 +43,15 @@ function evaluate({exams=[],goal=null,createdAt=null,firstUseAt=null,predictions
  if(uploadDays.length>=4&&upSpan>=90&&uploadMonths.size>=3)time('time-kept',uploadDays);
  if(Number.isFinite(Date.parse(createdAt))&&Date.parse(createdAt)<Date.parse('2026-08-26T16:00:00Z'))add('early',{kind:'event',date:beijing(createdAt)});
  const rp=[],sp=[],perExam=new Map();
- for(const e of es){
+ // A rank observation is valid independently of whether a score was recorded.
+ for(const e of all){
   const basket=[],ranks=[];
   for(const [subject,s] of Object.entries(e.scores||{})){
    if(s.excludeFromTotal)continue;
-   const hasScore=valid(s.actual,s.max),hasRaw=valid(s.raw,s.rawMax);if(!hasScore&&!hasRaw)continue;
-   basket.push(subject);
+   const hasScore=valid(s.actual,s.max),hasRaw=valid(s.raw,s.rawMax);
    const N=num(s.participants??e.total_participants),r=num(s.rank);
+   if(!hasScore&&!hasRaw&&!rank(r,N))continue;
+   basket.push(subject);
    const o={date:e.exam_date,examId:e.id,category:e.grade_level||'',subject,rate:hasScore?100*num(s.actual)/num(s.max):NaN,max:num(s.max),score:num(s.actual),rank:r,N,pos:rank(r,N)?100*r/N:NaN,prevId:null};
    if(hasScore)sp.push(o);
    if(rank(r,N)){rp.push(o);ranks.push(o);add('rank-aware',{kind:'record',date:o.date,achievedDate:eligibleDate(s.created_at||s.createdAt||e.created_at)||undefined,dateBasis:eligibleDate(s.created_at||s.createdAt||e.created_at)?'record_created':'record_unknown',subject,position:round(o.pos),participants:N})}
