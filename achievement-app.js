@@ -2,7 +2,7 @@
 (function(){'use strict';
  if(!window.ScoreAchievementUI||!window.ScoreAchievements||typeof bindPage!=='function')return;
  const UI=window.ScoreAchievementUI,C=window.ScoreAchievements;
- let session='',cache=null,enabled=null,inFlight=null,refreshTimer=null,revealTimer=null,dirty=false,checked=false,entry=null,adminEntry=null,generation=0,cooldownRetry=false,failures=0;
+ let session='',cache=null,enabled=null,inFlight=null,refreshTimer=null,revealTimer=null,dirty=false,checked=false,entry=null,adminEntry=null,generation=0,cooldownRetry=false,failures=0,lastRefresh=0,followupTimer=null;
  const presented=new Set();let favorites=null,stats=null;
  function galleryOptions(){const owner=session;return {favorites,stats,onFavorites:async ids=>{if(key()!==owner)throw Error('account changed');const r=await call('achievement_favorites',{badgeIds:ids});if(key()!==owner||!r.ok)throw Error('save failed');favorites=r.favorites;mount()}}}
  let openingCollection=false;
@@ -17,7 +17,7 @@
  const key=()=>{try{return state?.user&&state?.token?String(state.user.id||state.user.username)+':'+state.token:''}catch(_){return ''}};
  function sync(){
   const current=key();if(current!==session){
-   generation++;cooldownRetry=false;failures=0;presented.clear();favorites=null;stats=null;session=current;cache=null;enabled=null;dirty=false;checked=false;inFlight=null;clearTimeout(refreshTimer);clearTimeout(revealTimer);refreshTimer=null;revealTimer=null;
+   generation++;cooldownRetry=false;failures=0;lastRefresh=0;clearTimeout(followupTimer);followupTimer=null;presented.clear();favorites=null;stats=null;session=current;cache=null;enabled=null;dirty=false;checked=false;inFlight=null;clearTimeout(refreshTimer);clearTimeout(revealTimer);refreshTimer=null;revealTimer=null;
    UI.close();entry?.remove();entry=null;adminEntry?.remove();adminEntry=null;
   }
   return current;
@@ -63,7 +63,7 @@
  }
  function reveal(){
   clearTimeout(revealTimer);revealTimer=null;if(!sync()||enabled!==true||document.hidden)return;
-  const fresh=(cache||[]).filter(a=>a.badge_id!=='triple'&&a.badge_id!=='triple'&&!a.seen_at&&!presented.has(a.badge_id)&&C.badges.some(b=>b.id===a.badge_id));if(!fresh.length)return;
+  const fresh=(cache||[]).filter(a=>a.badge_id!=='triple'&&!a.seen_at&&!presented.has(a.badge_id)&&C.badges.some(b=>b.id===a.badge_id));if(!fresh.length)return;
   if(blocked()){revealTimer=setTimeout(reveal,1800);return}
   const owner=session,badges=new Map(C.badges.map(b=>[b.id,b]));
   const ordered=[...fresh].sort((a,b)=>tierOrder.indexOf(badges.get(b.badge_id).tier)-tierOrder.indexOf(badges.get(a.badge_id).tier));
@@ -75,14 +75,16 @@
   if(inFlight){dirty=true;return}dirty=false;const gen=generation;
   const promise=call('achievement_refresh');inFlight=promise;
   try{
-   const r=await promise;if(gen!==generation||owner!==key())return;failures=0;checked=true;enabled=r.enabled===true;if(!enabled)return;
+   const r=await promise;if(gen!==generation||owner!==key())return;failures=0;checked=true;enabled=r.enabled===true;if(!r.retryAfter)lastRefresh=Date.now();if(!enabled)return;
    cache=Array.isArray(r.awards)?r.awards:[];favorites=r.favorites??null;stats=r.stats??null;mount();reveal();
    if(r.retryAfter&&!cooldownRetry){cooldownRetry=true;dirty=true;refreshTimer=setTimeout(refresh,Math.max(15,Math.min(120,Number(r.retryAfter)||60))*1000)}
   }catch(_){if(gen===generation){checked=false;failures++;if(failures<=3&&!refreshTimer)refreshTimer=setTimeout(refresh,Math.min(8000,1000*2**failures));}}
   finally{if(gen===generation&&inFlight===promise){inFlight=null;if(dirty&&!refreshTimer)refreshTimer=setTimeout(refresh,1000)}}
  }
+ // A save may enqueue an asynchronous trajectory replay. One coalesced follow-up, not a polling loop.
+ function followup(owner){clearTimeout(followupTimer);followupTimer=setTimeout(()=>{followupTimer=null;if(key()===owner&&!document.hidden)queue(0)},120000)}
  const prev=bindPage;bindPage=function(){const r=prev.apply(this,arguments);if(sync()){mount();if(!checked&&!inFlight&&!refreshTimer)queue(900)}return r};
- if(typeof dataApiV7==='function'){const previous=dataApiV7;dataApiV7=async function(action,payload){const owner=key(),result=await previous.apply(this,arguments);if(owner&&key()===owner&&['save_exam','save_goal','save_exam_reflection','delete_exam','toggle_exam_hidden','study_question'].includes(action)&&!result?.error)queue(1200);return result}}
- document.addEventListener('visibilitychange',()=>{if(!document.hidden&&sync()){mount();if(!checked&&!inFlight&&!refreshTimer){failures=0;queue()}else reveal()}});
+ if(typeof dataApiV7==='function'){const previous=dataApiV7;dataApiV7=async function(action,payload){const owner=key(),result=await previous.apply(this,arguments);if(owner&&key()===owner&&['save_exam','save_goal','save_exam_reflection','delete_exam','toggle_exam_hidden','study_question'].includes(action)&&!result?.error){queue(1200);if(action!=='study_question')followup(owner)}return result}}
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden&&sync()){mount();if((!checked||Date.now()-lastRefresh>=120000)&&!inFlight&&!refreshTimer){failures=0;queue()}else reveal()}});
  if(sync())queue(900);
 })();
