@@ -27,7 +27,7 @@ async function testDom(){
   if(b.action==='centenary_seen'){seen=true;return {ok:true,json:async()=>({ok:true})}}
   assert.equal(b.action,'centenary_status');
   const eligible=b.token==='token-a';
-  return {ok:true,json:async()=>published&&!paused?{...ready,eligible,seen_at:seen?'2026-11-29T00:01:00Z':null,day_at:'2026-11-26T16:00:00Z',registration_position:42,days_together:100,personal_events:123,publish_account_count:10000,publish_event_count:1061156,account_hit_at:'2026-11-29T00:00:00Z',event_hit_at:'2026-11-22T01:25:41Z'}:{published:false}};
+  return {ok:true,json:async()=>published&&!paused?{...ready,eligible,seen_at:seen?'2026-11-29T00:01:00Z':null,day_at:'2026-11-26T16:00:00Z',registration_position:42,days_together:100,personal_events:123,publish_account_count:10000,publish_event_count:1061156,account_count:10000,event_count:1061156,live_award_count:10000,measured_at:'2026-11-29T00:00:00Z',account_hit_at:'2026-11-29T00:00:00Z',event_hit_at:'2026-11-22T01:25:41Z'}:{published:false}};
  };
  const force=async()=>{w.dispatchEvent(new w.Event('online'));await delay();};
  try{
