@@ -458,6 +458,20 @@ async function checkAgentCompleteness(snapshot) {
   });
   assert.equal((dedup.answer.match(/66%/g)||[]).length,1,'do not duplicate an already complete forecast');
   assert.match(dedup.answer,/物理近期有变化/);
+  let placementCalls=0;
+  const placed=await explore(rich,'分析我的物理最近如何，预测下一次并给复习建议',[],async messages=>{
+    if(placementCalls++===0)return {tool:'trajectory',scopes:['s:物理'],metric:'score'};
+    const {results}=JSON.parse(messages.at(-1).content);
+    return {answer:'整体有变化。\n\n**下次预测**：可能接近近期水平。\n\n**复习安排**：先复盘错题。',forecastAfter:2,refs:[results[1].facts[0].id]};
+  });
+  const placedParagraphs=placed.answer.split(/\n\s*\n/);
+  assert.equal(placedParagraphs.length,3);
+  assert.match(placedParagraphs[1],/下次物理的得分率大概是 66%/);
+  assert.match(placedParagraphs[2],/复习安排/);
+  assert.doesNotMatch(placedParagraphs[2],/下次物理的得分率/);
+  assert.ok(placed.chart.series.some(s=>s.points.some(p=>p.forecast)));
+  assert.equal(placed.chartAfter[0],2);
+
   let broadCalls=0;
   const broad=await explore(rich,'分析最近学习状态，哪些科目进步，哪些科目拖后腿？预测下一次考试表现，接下来如何分配精力？',[],async messages=>{
     if(broadCalls++===0)return {queries:[{tool:'trajectory',scopes:['total'],metric:'score'},{tool:'results',scopes:['s:数学']}]};
