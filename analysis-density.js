@@ -407,7 +407,7 @@
         }
       }
     }
-    if(k==='hall'){var hallHelp=help(card.querySelector('.sv31-scroll')?.parentElement,'hall',[['score','不同满分怎么比较','90/100与135/150都是90%。以得分率比较，最佳分数仍保留原卷满分。']]);if(hallHelp){var hallNote=card.querySelector('.card-title-row .card-sub');if(hallNote&&!hallNote.classList.contains('ad-keyline')){inlineNote(hallNote,'满分不同时按得分率比较，原卷分数仅供参考。');hallNote.classList.add('ad-keyline');}}}
+    if(k==='hall'){var hallHelp=help(card.querySelector('.sv31-scroll')?.parentElement,'hall',[['score','不同满分怎么比较','90/100与135/150都是90%。以得分率比较，最佳分数仍保留原卷满分。']]);if(hallHelp){var hallNote=card.querySelector('.card-title-row .card-sub');if(hallNote&&!hallNote.classList.contains('ad-keyline')){inlineNote(hallNote,'最佳排名与最佳得分可能来自不同考试；满分不同时按得分率比较。');hallNote.classList.add('ad-keyline');}}}
     if(k==='calib'){var calibHelp=help(card.querySelector('.sv31-scroll')?.parentElement,'calib',[['rank','排名目标怎么看','前20%就是100人里约第20名。建议的参考分取自自己以前考过的试卷。']]);if(calibHelp){var calibNote=card.querySelector('.card-title-row .card-sub');if(calibNote&&!calibNote.classList.contains('ad-keyline')){inlineNote(calibNote,'建议以排名为准，参考分来自历史考试。');calibNote.classList.add('ad-keyline');}}}
     if(k==='kpi'){var kpi=card.querySelector('.sv31-kpi');if(kpi)help(kpi.parentElement,'kpi',[['rank','排名位置怎么读','前20%表示约在100人中第20名。不同考试人数不同，用排名百分比更容易比较。']]);}
     if(k==='trend')help(card.querySelector(':scope > .fold-body-v38')||card,'trend',[['trend','看连续变化','排名图越靠上越靠前，一次起伏不等于整体趋势变化。'],['score','不同考试的分数','满分与难度不同时，不能只凭分数高低判断进退。']]);

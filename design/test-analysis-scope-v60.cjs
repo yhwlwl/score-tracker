@@ -63,3 +63,13 @@ state.sv31={subjMod:['数学'],matrixMetricV60:'rank'};
 f=api.applySubjectModule(api.buildFeatures(es));f.flags['0|数学']={lvl:2,e:-50};f.flags['1|数学']={lvl:1,e:-20};f.flags['2|数学']={lvl:-1,e:40};
 for(const metric of ['rank','class','score']){state.sv31.matrixMetricV60=metric;matrix=api.matrix(f,'combined',true);assert.equal(matrix.includes('sv31-dot'),false);assert.equal(matrix.includes('matrix-legend-v60'),false);assert.match(matrix,/data-analysis-matrix-v60="difficulty"/);assert.match(matrix,/matrix-reading-v60/);}
 console.log('PASS: matrix indicator isolation');
+
+// Hall: separate year/class/score records and explicit recent comparison basis.
+state.sv31={subjMod:['数学']};
+const separate=[exam('1',96,8,5),exam('2',90,4,6),exam('3',93,6,2)];
+f=api.applySubjectModule(api.buildFeatures(separate));
+let hall=api.hall(f,'rank');
+assert.match(hall,/历史最佳排名/);assert.match(hall,/历史最佳得分/);assert.match(hall,/最近可比记录/);assert.match(hall,/距离历史最佳/);
+assert.match(hall,/年级排名 前4%/);assert.match(hall,/班排 前4%/);assert.match(hall,/96\/100/);assert.match(hall,/差 2 个百分点/);assert.match(hall,/与最佳年级排名有差距/);
+assert.ok(!hall.includes('正处最好状态'));
+console.log('PASS: hall separates ranking scopes, score records and explicit gaps');

@@ -883,65 +883,97 @@ function structureHtmlV32(f,mode){
 }
 /* ---------- ⑤ 个人最佳殿堂 ---------- */
 function hallHtmlV32(f,mode){
-  var rows=[],fallback=false;
-  function scoreBest(rows){var a=rows.filter(function(x){return x.actual!==null&&x.actual!==undefined;});if(!a.length)return '—';var maxima=new Set(a.map(function(x){return x.max;})),mixed=maxima.size>1||!a[0].max;var comparable=a.filter(function(x){return x.rate!==null&&x.rate!==undefined;});var b=(mixed&&comparable.length?comparable:a).slice().sort(function(x,y){return mixed&&comparable.length?y.rate-x.rate:y.actual-x.actual;})[0];var name=f.exams[b.i]&&f.exams[b.i].name||'';return '<b>'+r32(b.actual)+(b.max?'/'+r32(b.max):'分')+'</b>'+(mixed&&comparable.length?' <small>('+r32(b.rate)+'%)</small>':'')+'<small class="best-exam-v60">'+esc32(shortName32(name))+'</small>';}
-  var totalBest=scoreBest(f.exams.map(function(e,i){return Object.assign({i:i},scopedScoreV60(e,f));}));
-  function classBest(series){var a=series.filter(function(x){return x.cls!==null&&x.cls!==undefined;});if(!a.length)return null;var b=a.reduce(function(x,y){return y.cls<x.cls?y:x;});return {txt:'班排 '+fmtPos32(b.cls),at:f.exams[b.i].name,vals:a.map(function(x){return 100-x.cls;}),gap:r32(a[a.length-1].cls-b.cls)};}
-  var totalCls=classBest(f.exams.map(function(e,i){return {i:i,cls:scopedClassV60(e,f)};}));
-  function pushClass(name,info,score){push(name,info.vals,info.txt,info.at,info.gap+"个百分点",'<span class="pill '+(info.gap<=1?'ok':'flat')+'">'+(info.gap<=1?'接近最佳':'距最佳')+'</span>',score);}
-  function push(name,vals,bestTxt,at,gapTxt,pill,score){rows.push({name:name,vals:vals,bestTxt:bestTxt,at:at,gapTxt:gapTxt,pill:pill,score:score||'—'});}
-  if(f.totalSeries.length>=1){
-    var best=Math.min.apply(null,f.totalSeries.map(function(x){return x.pos;}));
-    var lastP=f.totalSeries[f.totalSeries.length-1].pos,gap=r32(lastP-best);
-    var bestEntry=f.totalSeries.filter(function(x){return x.pos===best;})[0];
-    var st=gap<=1?"ok":"acc";
-    if(gap>5){
-      var ncT=0;for(var kT=f.totalSeries.length-1;kT>0;kT--){if(f.totalSeries[kT].pos-best>5)ncT++;else break;}
-      if(ncT>=2)st="warn";
-    }
-    push((f.totalLabel||"总分")+(f.totalSynthetic?"*":""),f.totalSeries.map(function(x){return 100-x.pos;}),fmtPos32(best)+(totalCls?'<small class="best-exam-v60">'+totalCls.txt+' · '+esc32(shortName32(totalCls.at))+'</small>':''),f.exams[bestEntry.i].name,
-      gap<=0.05?"0":r32(Math.abs(gap))+"个百分点",
-      '<span class="pill '+(st==="ok"?"ok":(st==="warn"?"warn":"acc"))+'" title="依据:距个人最佳 '+r32(Math.abs(gap))+' 个百分点">'+pbLabelV32(st,gap)+"</span>",totalBest);
-  }else if(totalCls){pushClass(f.totalLabel||"总分",totalCls,totalBest);}
-  else if(f.scoreSeries&&f.scoreSeries.length>=1){
-    var bS=f.scoreSeries[0];f.scoreSeries.forEach(function(x){if(x.score>bS.score)bS=x;});
-    fallback=true;
-    push(f.totalLabel||"总分",f.scoreSeries.map(function(x){return x.score;}),Math.round(bS.score)+"分",f.exams[bS.i].name,"—",
-      '<span class="pill flat">分数参考</span>',totalBest);
+  var rows=[];
+  function valid(v){return v!==null&&v!==undefined&&Number.isFinite(Number(v));}
+  function examNote(x){
+    var e=x&&f.exams[x.i];if(!e)return '';
+    return '<small class="best-exam-v60 hall-exam-v32">'+esc32(e.name||'未命名考试')+(e.exam_date?' · '+esc32(e.exam_date):'')+'</small>';
   }
+  function metric(label,value,entry){
+    return '<div class="hall-metric-v32">'+(label?'<small class="hall-metric-label-v32">'+esc32(label)+'</small>':'')+'<b>'+value+'</b>'+examNote(entry)+'</div>';
+  }
+  function scoreText(x){
+    return r32(x.actual)+(x.max>0?'/'+r32(x.max):'分');
+  }
+  function scoreInfo(series){
+    var a=series.filter(function(x){return valid(x.actual);});if(!a.length)return null;
+    var mixed=new Set(a.map(function(x){return x.max;})).size>1||!(a[0].max>0);
+    var comparable=a.filter(function(x){return valid(x.rate);});
+    var basis=mixed&&comparable.length?'rate':'actual';
+    var candidates=basis==='rate'?comparable:a;
+    var best=candidates.reduce(function(x,y){return y[basis]>x[basis]?y:x;}),last=candidates[candidates.length-1];
+    return {best:best,last:last,latestActual:a[a.length-1],basis:basis,comparable:comparable,mixed:mixed};
+  }
+  function rankInfo(series,key,label){
+    var a=series.filter(function(x){return valid(x[key]);});if(!a.length)return null;
+    var best=a.reduce(function(x,y){return y[key]<x[key]?y:x;}),last=a[a.length-1];
+    return {label:label,key:key,best:best,last:last,gap:Math.max(0,r32(last[key]-best[key])),series:a};
+  }
+  function rankMetric(info,entry){
+    // Label and value are kept together so class and grade records cannot be mistaken for one another.
+    return metric('',esc32(info.label)+' '+fmtPos32(entry[info.key]),entry);
+  }
+  function gapMetric(info){
+    return metric(info.label,info.gap<=0.05?'已持平':'差 '+info.gap+' 个百分点',null);
+  }
+  function push(name,yearSeries,classSeries,scoreSeries){
+    var year=rankInfo(yearSeries,'pos','年级排名'),cls=rankInfo(classSeries,'cls','班排'),score=scoreInfo(scoreSeries);
+    if(!year&&!cls&&!score)return;
+    var ranks=[year,cls].filter(Boolean),primary=year||cls;
+    var bestRank=ranks.map(function(info){return rankMetric(info,info.best);}).join('')||'<small class="hall-metric-label-v32">未记录排名</small>';
+    var bestScore=score?metric('',scoreText(score.best)+(score.basis==='rate'?' <small>('+r32(score.best.rate)+'%)</small>':''),score.best):'<small class="hall-metric-label-v32">未记录得分</small>';
+    var latest=ranks.map(function(info){return rankMetric(info,info.last);}).join('');
+    var gaps=ranks.map(gapMetric).join('');
+    var trend=[],status='',tone='flat',trendLabel='';
+    if(primary){
+      trend=primary.series.map(function(x){return 100-x[primary.key];});
+      trendLabel=primary.label+'走势';
+      if(primary.gap<=0.05){status='排名达到历史最佳';tone='ok';}
+      else if(primary.gap<=1){status='排名接近历史最佳';tone='ok';}
+      else{status='与最佳排名有差距';tone='acc';
+        var streak=0;for(var k=primary.series.length-1;k>=0;k--){if(primary.series[k][primary.key]-primary.best[primary.key]>5)streak++;else break;}
+        if(streak>=2){status='连续'+streak+'场距最佳排名较远';tone='warn';}
+      }
+      if(score)latest+=metric('最近得分',scoreText(score.latestActual),score.latestActual);
+    }else if(score){
+      latest=metric('最近得分',scoreText(score.latestActual),score.latestActual);
+      var rr=score.comparable;
+      if(rr.length){
+        var rb=rr.reduce(function(x,y){return y.rate>x.rate?y:x;}),rl=rr[rr.length-1],rg=Math.max(0,r32(rb.rate-rl.rate));
+        trend=rr.map(function(x){return x.rate;});trendLabel='得分率走势';
+        if(rl.i!==score.latestActual.i)latest+=metric('最近可比得分率',r32(rl.rate)+'%',rl);
+        gaps=metric('得分率参考',rg<=0.05?'已持平':'差 '+rg+' 个百分点',null);
+      }else{
+        trend=scoreSeries.filter(function(x){return valid(x.actual);}).map(function(x){return x.actual;});trendLabel='分数走势（满分未知）';
+        gaps='<small class="hall-metric-label-v32">暂无可比满分</small>';
+      }
+      status='仅分数参考';
+    }
+    // When both ranking scopes exist, the status describes the grade ranking only.
+    if(primary&&year&&cls)status=status.replace('排名','年级排名');
+    else if(primary&&cls&&!year)status=status.replace('排名','班级排名');
+    rows.push({name:name,bestRank:bestRank,bestScore:bestScore,latest:latest,gaps:gaps,trend:trend,trendLabel:trendLabel,status:status,tone:tone});
+  }
+  var totalScores=f.exams.map(function(e,i){return Object.assign({i:i},scopedScoreV60(e,f));});
+  var totalClass=f.exams.map(function(e,i){return {i:i,cls:scopedClassV60(e,f)};});
+  push((f.totalLabel||'总分')+(f.totalSynthetic?'*':''),f.totalSeries,totalClass,totalScores);
   f.subjects.forEach(function(s){
     if(f.analysisSelection&&f.analysisSelection.length===1&&f.analysisSelection[0]===s&&rows.length)return;
-    var vp=f.valid[s],cb=classBest(f.series[s]);
-    if(vp.length){
-      var p=f.pb[s],lastP=vp[vp.length-1].pos;
-      var cls=p.st==="ok"?"ok":(p.st==="warn"?"warn":"acc");
-      push(s,vp.map(function(x){return 100-x.pos;}),fmtPos32(p.pos)+(cb?'<small class="best-exam-v60">'+cb.txt+' · '+esc32(shortName32(cb.at))+'</small>':''),f.exams[p.i].name,
-        p.gap<=0.05?"0":r32(Math.abs(p.gap))+"个百分点",
-        '<span class="pill '+cls+'" title="依据:距个人最佳 '+r32(Math.abs(p.gap))+' 个百分点">'+pbLabelV32(p.st,p.gap)+"</span>",scoreBest(f.series[s]));
-    }else if(cb){pushClass(s,cb,scoreBest(f.series[s]));}
-    else{
-      var rr=f.series[s].filter(function(x){return x.rate!==null;});
-      if(rr.length>=1){
-        fallback=true;
-        var b=rr[0];rr.forEach(function(x){if(x.rate>b.rate)b=x;});
-        push(s,rr.map(function(x){return x.rate;}),Math.round(b.rate)+"%",f.exams[b.i].name,"—",
-          '<span class="pill flat">仅同卷可比</span>',scoreBest(f.series[s]));
-      }else if(f.series[s].some(function(x){return x.actual!==null;})){fallback=true;push(s,[],'—','—','—','<span class="pill flat">分数记录</span>',scoreBest(f.series[s]));}
-    }
+    push(s,f.valid[s]||[],f.series[s]||[],f.series[s]||[]);
   });
-  if(!rows.length)return "";
+  if(!rows.length)return '';
   var body=rows.map(function(r){
-    return '<tr><td data-hall-field="subject">'+esc32(r.name)+'</td><td data-hall-field="spark">'+sparkSvg32(r.vals)+'</td>'
-      +'<td data-hall-field="rank" data-label="最佳排名 / 参考" class="num" style="font-weight:800">'+r.bestTxt+'</td><td data-hall-field="score" data-label="最佳得分" class="num">'+r.score+'</td>'
-      +'<td data-hall-field="exam" data-label="考到于" style="color:var(--muted)">'+esc32(shortName32(r.at))+'</td>'
-      +'<td data-hall-field="gap" data-label="现在差" class="num">'+r.gapTxt+'</td>'
-      +'<td data-hall-field="status">'+r.pill+'</td></tr>';
-  }).join("");
+    return '<tr><td data-hall-field="subject">'+esc32(r.name)+'</td><td data-hall-field="spark"><small class="hall-metric-label-v32">'+esc32(r.trendLabel)+'</small>'+sparkSvg32(r.trend)+'</td>'
+      +'<td data-hall-field="rank" data-label="历史最佳排名">'+r.bestRank+'</td><td data-hall-field="score" data-label="历史最佳得分">'+r.bestScore+'</td>'
+      +'<td data-hall-field="exam" data-label="最近可比记录">'+r.latest+'</td>'
+      +'<td data-hall-field="gap" data-label="距离历史最佳">'+r.gaps+'</td>'
+      +'<td data-hall-field="status"><span class="pill '+r.tone+'">'+esc32(r.status)+'</span></td></tr>';
+  }).join('');
   return '<div class="card"><div class="card-title-row"><div><h3 class="card-title">⑤ 个人最佳殿堂</h3>'
-    +'<p class="card-sub">满分不同时按最高得分率展示；分数仅供参考。</p></div>'
-    +lockTagV32(mode)+"</div>"
-    +'<div class="sv31-scroll hall-scroll-v32"><table class="hall-table-v32"><thead><tr><th>科目</th><th>历次小走势</th><th style="text-align:right">最佳排名 / 参考</th><th>最佳得分</th><th>考到于</th><th style="text-align:right">现在差</th><th>状态</th></tr></thead><tbody>'
-    +body+"</tbody></table></div></div>";
+    +'<p class="card-sub">分别记录历史最佳排名与得分；各自对应的考试可能不同。满分不同时按得分率比较。</p></div>'
+    +lockTagV32(mode)+'</div>'
+    +'<div class="sv31-scroll hall-scroll-v32"><table class="hall-table-v32"><thead><tr><th>科目</th><th>历次小走势</th><th>历史最佳排名</th><th>历史最佳得分</th><th>最近可比记录</th><th>距离历史最佳</th><th>状态</th></tr></thead><tbody>'
+    +body+'</tbody></table></div></div>';
 }
 /* ---------- ⑥ 目标校准 ---------- */
 function calibHtmlV32(f,mode){
@@ -1288,6 +1320,7 @@ function injectStylesV32(){
     ".sv31-tot{outline:2px solid var(--accent-soft,#eef1ff);outline-offset:-2px;border-radius:6px}",
     ".sv31-controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}",
     ".sv31-scroll-x{overflow-x:auto;max-width:100%;scrollbar-width:none}.sv31-scroll-x::-webkit-scrollbar{display:none}",
+    "#content .hall-table-v32{min-width:760px;table-layout:auto}#content .hall-table-v32 :is(td,th){text-align:left;vertical-align:top;overflow-wrap:normal;word-break:normal}#content .hall-table-v32 td[data-hall-field=rank],#content .hall-table-v32 td[data-hall-field=score],#content .hall-table-v32 td[data-hall-field=exam]{min-width:132px}#content .hall-table-v32 td[data-hall-field=gap]{min-width:104px}#content .hall-metric-v32{display:flex;flex-direction:column;gap:2px;min-width:0;text-align:left}#content .hall-metric-v32+.hall-metric-v32{margin-top:7px}#content .hall-metric-v32 b{font-size:var(--ui-small,13px);font-weight:650;line-height:1.45;overflow-wrap:anywhere}#content .hall-metric-label-v32,#content .hall-exam-v32{display:block;font-size:var(--ui-caption,11px);font-weight:400;color:var(--muted);line-height:1.45;white-space:normal;overflow-wrap:anywhere;margin:0}#content .hall-table-v32 td[data-hall-field=status] .pill{white-space:normal;line-height:1.4}#content .hall-table-v32 td[data-hall-field=spark] .hall-metric-label-v32{margin-bottom:4px}@media(max-width:620px){#content .hall-table-v32 td[data-hall-field=rank],#content .hall-table-v32 td[data-hall-field=score],#content .hall-table-v32 td[data-hall-field=exam],#content .hall-table-v32 td[data-hall-field=gap]{min-width:0;padding-top:7px;border-top:1px solid var(--line)}#content .hall-table-v32 td[data-hall-field=status]{font-size:var(--ui-caption,11px)}#content .hall-table-v32 td[data-hall-field=status] .pill{display:inline-block;max-width:100%;box-sizing:border-box}#content .hall-table-v32 td[data-label]::before{font-weight:600;margin-bottom:5px}}",
     ".sv31-seg{display:flex;background:var(--panel-solid,#fff);border:1px solid var(--line,#e8ebf0);border-radius:12px;padding:4px;gap:4px;margin-left:auto;flex:none}",
     ".sv31-seg button{border:0;background:transparent;color:var(--muted,#788392);padding:8px 14px;border-radius:9px;font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:600}",
     ".sv31-seg button.active{background:var(--accent,#5d72e8);color:#fff}",

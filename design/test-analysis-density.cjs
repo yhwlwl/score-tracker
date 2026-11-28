@@ -31,3 +31,5 @@ console.log('PASS: consolidated simple details preserve core content and never s
 
 for(const mode of ['simple','standard','full','invalid'])assert.equal(d.layerDefault(mode),mode==='full');
 console.log('PASS: history layer defaults to on only in full mode');
+
+assert.deepEqual(d.columnIndices('hall',['科目','历次小走势','历史最佳排名','历史最佳得分','最近可比记录','距离历史最佳','状态']),[1]);
