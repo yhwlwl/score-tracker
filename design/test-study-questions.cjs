@@ -407,6 +407,18 @@ async function checkAgentCompleteness(snapshot) {
   assert.equal(charts.charts[0].series[0].metric,'rate');
   assert.equal(charts.charts[1].series[0].metric,'rank');
   assert.deepEqual(charts.chartAfter,[1,2]);
+  let layoutCalls=0;
+  const completeText='这是一段完整的综合判断。'.repeat(210)+'\n\n下一步：复盘错题，保持稳定练习。';
+  const flexible=await explore(rich,'深入分析数学并给复习建议',[],async messages=>{
+    if(layoutCalls++===0)return {tool:'results',scopes:['s:数学'],range:'all'};
+    const {results,visualHints}=JSON.parse(messages.at(-1).content);
+    assert.ok(visualHints.sparkline.some(s=>s.metric==='rate'));
+    const rate=results[0].series.find(s=>s.metric==='rate').id,rank=results[0].series.find(s=>s.metric==='rank').id;
+    return {answer:completeText,refs:[results[0].facts[0].id],chart:{type:'line',series:[rate,rank],metric:'rank',after:1}};
+  });
+  assert.equal(flexible.answer,completeText,'complete valid synthesis is not truncated');
+  assert.equal(flexible.chart.defaultMetric,'rank');
+
   let miniCalls=0;
   const compact=await explore(rich,'分析我的数学和物理，给我几个复习建议',[],async messages=>{
     if(miniCalls++===0)return {tool:'results',scopes:['s:数学','s:物理'],range:'all'};
