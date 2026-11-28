@@ -26,8 +26,16 @@
     '.st-entry-layout .subject-ranks-v16{margin:0!important;gap:6px!important;padding:2px 0 4px}',
     '.st-entry-layout .subject-rank-row-v16{grid-template-columns:36px minmax(0,1fr) minmax(0,1fr)!important;gap:6px!important}',
     '.st-entry-layout .subject-rank-row-v16 input{min-height:38px;padding:7px 8px!important;min-width:0}',
-    '.st-entry-layout .st-entry-rank-closed .subject-ranks-v16{display:none!important}',
+    '.st-entry-layout .st-entry-rank-closed .subject-ranks-v16{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}',
+    '.st-entry-layout .st-entry-rank-closed .subject-rank-row-v16{grid-template-columns:36px minmax(0,1fr)!important}',
+    '.st-entry-layout .st-entry-rank-closed :is(.year-participants-v16,.class-participants-v16){display:none!important}',
+    '.st-entry-layout .st-entry-rank-closed .position-percent-v17{grid-column:2!important}',
+    '.st-entry-layout .st-entry-rank-toggle{min-height:28px!important;font-size:11px!important;color:var(--muted)!important}',
+    '.st-entry-layout .subject-ranks-v16{border-top:1px solid var(--line);padding-top:9px!important}',
+    '.st-entry-layout .subject-ranks-v16 .subject-rank-row-v16>span{color:var(--text);font-weight:600}',
+    '@media(max-width:360px){.st-entry-layout .st-entry-rank-closed .subject-rank-row-v16{grid-template-columns:30px minmax(0,1fr)!important;gap:4px!important}}',
     '.st-entry-layout .st-entry-rank-toggle,.st-entry-layout .st-entry-manual-toggle{display:flex;align-items:center;justify-content:space-between;gap:7px;width:100%;min-height:34px;padding:5px 0;color:var(--text);border:0;background:transparent;font:inherit;font-size:12px;text-align:left;cursor:pointer}',
+    '.st-entry-layout.rank-entry-percent-v17 .st-entry-rank-toggle,.st-entry-layout .st-entry-rank-toggle[hidden]{display:none!important}',
     '.st-entry-layout .st-entry-rank-toggle span,.st-entry-layout .st-entry-manual-toggle span{min-width:0;overflow-wrap:anywhere}',
     '.st-entry-layout .st-entry-summary{font-size:11px;color:var(--muted);margin-left:auto;text-align:right}',
     '.st-entry-layout .st-entry-arrow{width:7px;height:7px;border:solid currentColor;border-width:0 1.5px 1.5px 0;transform:rotate(45deg);margin:0 3px 4px 3px;flex:none;color:var(--muted)}',
@@ -92,6 +100,8 @@
     var toolbar=document.createElement('div');toolbar.className='st-entry-modebar';
     toolbar.innerHTML='<div class="st-entry-modes" role="group" aria-label="成绩录入布局"><button type="button" data-st-entry-mode="compact">紧凑</button><button type="button" data-st-entry-mode="detail">详细</button></div><span class="st-entry-count" aria-live="polite"></span>';
     list.before(toolbar);
+    var rankMode=modal.querySelector('.rank-entry-mode-v17');
+    if(rankMode)toolbar.after(rankMode);
     var count=toolbar.querySelector('.st-entry-count'), footerCount=null;
     var actions=body && body.querySelector(':scope > .modal-actions');
     if(actions && sheet){
@@ -110,12 +120,10 @@
     }
     function cardName(card){return value(card,'.exam-subject-name-v10');}
     function rankSummary(card){
-      var percent=modal.dataset.rankEntryModeV17==='percent';
-      var y=value(card,percent?'.year-position-v17':'.year-rank-v16'),c=value(card,percent?'.class-position-v17':'.class-rank-v16');
       var yp=value(card,'.year-participants-v16'),cp=value(card,'.class-participants-v16'),parts=[];
-      if(y)parts.push('年 '+y+(percent?'%':yp?'/'+yp:''));
-      if(c)parts.push('班 '+c+(percent?'%':cp?'/'+cp:''));
-      return parts.join(' · ') || '选填';
+      if(yp)parts.push('年级 '+yp);
+      if(cp)parts.push('班级 '+cp);
+      return parts.join(' · ') || '沿用总分人数';
     }
     function refresh(){
       if(!modal.isConnected)return;
@@ -126,10 +134,16 @@
         if(value(card,'.actual-v16')||value(card,'.raw-v16'))entered++;
         if(!ranks)return;
         if(!toggle){
-          toggle=button('排名 / 位比','st-entry-rank-toggle');ranks.before(toggle);
+          // Scores and ranks are primary inputs; only the reference population folds.
+          var scores=card.querySelector('.score-compact-v14');
+          if(scores && scores.parentElement===card && scores.nextElementSibling!==ranks)scores.after(ranks);
+          toggle=button('参考人数','st-entry-rank-toggle');ranks.after(toggle);
           toggle.addEventListener('click',function(){var key=cardName(card);overrides.set(key,card.classList.contains('st-entry-rank-closed'));refresh();});
         }
         var opened=overrides.has(name)?overrides.get(name):mode==='detail';
+        var percent=modal.dataset.rankEntryModeV17==='percent';
+        if(percent)opened=false;
+        toggle.hidden=percent;
         card.classList.toggle('st-entry-rank-closed',!opened);toggle.setAttribute('aria-expanded',String(opened));
         text(toggle.querySelector('.st-entry-summary'),rankSummary(card));
         var averages=card.querySelector('.exam-averages>summary>span');
