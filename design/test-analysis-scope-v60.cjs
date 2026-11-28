@@ -88,3 +88,19 @@ const justScore=[{...exam('1',96,8,5),total_rank:null,total_class_rank:null,scor
 f=api.applySubjectModule(api.buildFeatures(justScore));hall=api.hall(f,'rank');
 assert.ok(!hall.includes('年级排名')&&!hall.includes('班级排名'));assert.match(hall,/首次记录/);
 console.log('PASS: compact personal best, independent records, mixed maxima, ties and missing data');
+
+// Compact layout: one common latest exam, exceptions retain their actual source.
+state.sv31={subjMod:['数学']};
+f=api.applySubjectModule(api.buildFeatures(separate));hall=api.hall(f,'rank');
+assert.equal((hall.match(/最近一次：/g)||[]).length,1);
+assert.equal((hall.match(/hall-recent-exam-v32/g)||[]).length,0);
+assert.equal((hall.match(/class="hall-trend-v32"/g)||[]).length,3);
+assert.ok(!hall.includes('hall-trends-v32'));assert.match(hall,/hall-below-v32">↓ 3 分/);
+assert.match(hall,/hall-record-v32">↑ 刷新纪录/);
+assert.match(hall,/2026-10-01/);assert.match(hall,/2026-10-02/);
+const incomplete=[exam('1',96,8,5),{...exam('2',90,4,6),scores:{数学:{actual:90,max:100}}}];
+f=api.applySubjectModule(api.buildFeatures(incomplete));hall=api.hall(f,'rank');
+assert.equal((hall.match(/hall-recent-exam-v32/g)||[]).length,2);
+assert.match(hall,/记录于：1 <time>2026-10-01/);
+assert.match(hall,/最近一次：<\/span><b>2<\/b>/);
+console.log('PASS: compact in-row trends, shared recent exam, older metric provenance and colored deltas');
