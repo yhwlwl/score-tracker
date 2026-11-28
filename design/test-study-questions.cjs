@@ -411,7 +411,7 @@ async function checkAgentCompleteness(snapshot) {
   const compact=await explore(rich,'分析我的数学和物理，给我几个复习建议',[],async messages=>{
     if(miniCalls++===0)return {tool:'results',scopes:['s:数学','s:物理'],range:'all'};
     const {results:[result]}=JSON.parse(messages.at(-1).content);
-    const ids=result.series.filter(s=>s.metric==='rate'&&s.dimension==='exams'&&s.points?.filter(p=>Number.isFinite(p.value)).length>=2).map(s=>s.id);
+    const ids=result.series.filter(s=>s.metric==='rate'&&s.dimension==='exams'&&s.values?.filter(p=>Number.isFinite(p[1])).length>=2).map(s=>s.id);
     assert.ok(ids.length>=2);
     return {answer:'先看近期状态。\n\n接下来优先复盘。',refs:[result.facts[0].id],components:[
       {type:'sparkline',series:[...ids,99999],title:'两科走势',after:1},
