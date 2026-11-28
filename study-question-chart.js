@@ -370,7 +370,11 @@
     const forecastAxes=axes.filter(axis=>axis.key.startsWith('next:'));
     const historyAxes=axes.filter(axis=>!axis.key.startsWith('next:'));
     const defaultView = {table:'table',scatter:pairs.length?'scatter':'plot',heatmap:heatGroups.length && timeline?'heatmap':'table'};
-    let view=defaultView[chart.type] || 'plot', metric=groups[0], heatMetric=heatGroups[0];
+    // Prefer the requested valid metric, otherwise the one that compares the most subjects.
+    const coverage=m=>new Set(seriesByMetric.get(m).filter(s=>s.points.some(p=>finite(p.value))).map(s=>s.label.replace(/(?:年级位置|得分率)$/,''))).size;
+    const best=groups.slice().sort((a,b)=>coverage(b)-coverage(a)||Number(percentMetrics.includes(b))-Number(percentMetrics.includes(a)))[0];
+    const initial=groups.includes(chart.defaultMetric)?chart.defaultMetric:best;
+    let view=defaultView[chart.type] || 'plot', metric=initial, heatMetric=heatGroups.includes(initial)?initial:heatGroups[0];
     let range=0, pairIndex=0, observer, activeKey=axes.at(-1).key, activeHeat;
     const figure = node('figure', 'sq-chart');
     const heading = node('div', 'sq-chart-heading');
