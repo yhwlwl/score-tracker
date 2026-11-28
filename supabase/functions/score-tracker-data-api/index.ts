@@ -235,10 +235,12 @@ async function list(user: any, goalAware = false) {
   ]);
   if (er.error) throw er.error;
   const ids = (er.data ?? []).map((e: any) => e.id);
+  const modulesRequest = ensureModules(user.id, configured);
   let rows: any[] = [],
     examModules: any[] = [];
-  if (ids.length) {
-    const [sr, mr] = await Promise.all([
+  const [modules, scoreResults] = await Promise.all([
+    modulesRequest,
+    ids.length ? Promise.all([
       db
         .from("score_tracker_scores")
         .select(
@@ -252,13 +254,15 @@ async function list(user: any, goalAware = false) {
         .eq("user_id", user.id)
         .in("exam_id", ids)
         .order("sort_order"),
-    ]);
+    ]) : Promise.resolve(null),
+  ]);
+  if (scoreResults) {
+    const [sr, mr] = scoreResults;
     if (sr.error) throw sr.error;
     if (mr.error) throw mr.error;
     rows = sr.data ?? [];
     examModules = mr.data ?? [];
   }
-  const modules = await ensureModules(user.id, configured);
   const exams = (er.data ?? []).map((e: any) => {
     const scores = Object.fromEntries(
       rows
@@ -418,13 +422,13 @@ async function cleanAverages(uid: string, exam: any, rows: any[]) {
     if (!selected.length && !(key === "total" && score(exam.total_actual_score) !== null)) throw new Error("请先选择均分对应的科目");
     const max = selected.reduce((sum, r) => sum + r.max_score, 0);
     const entry: any = { basis: JSON.stringify(selected.map((r) => [r.subject, r.max_score]).sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)) };
-    for (const scope of ["class", "year", "classMax", "yearMax"]) {
+    for (const scope of ["class", "year", "classMax", "yearMax", "undergraduate", "specialCutoff"]) {
       const v = source[scope];
       if (v === "" || v == null) continue;
       if ((typeof v !== "number" && typeof v !== "string") || !String(v).trim()) throw new Error("均分请输入有效数字");
       const n = score(v);
       if (n === null || Math.abs(Number(v) * 100 - Math.round(Number(v) * 100)) > 0.000001) throw new Error("均分请输入 0～99999，最多两位小数");
-      if (!(key === "total" && score(exam.total_actual_score) !== null) && n > max) throw new Error((scope.endsWith("Max") ? "最高分" : "均分") + "不能超过对应科目的最终满分");
+      if (!(key === "total" && score(exam.total_actual_score) !== null) && n > max) throw new Error((scope === "undergraduate" || scope === "specialCutoff" ? "分数线" : scope.endsWith("Max") ? "最高分" : "均分") + "不能超过对应科目的最终满分");
       entry[scope] = n;
     }
     const personal = key === "total" && score(exam.total_actual_score) !== null ? score(exam.total_actual_score) : selected.length && selected.every((r) => r.actual_score !== null) ? selected.reduce((sum, r) => sum + r.actual_score, 0) : null;
@@ -433,7 +437,7 @@ async function cleanAverages(uid: string, exam: any, rows: any[]) {
       if ((personal !== null && entry[highest] + 0.000001 < personal) || (entry[mean] !== undefined && entry[highest] < entry[mean])) throw new Error("最高分不能低于个人最终分或对应均分，请核对");
     }
     if (entry.classMax !== undefined && entry.yearMax !== undefined && entry.classMax > entry.yearMax) throw new Error("班级最高分不能高于年级最高分，请核对");
-    if (["class","year","classMax","yearMax"].some((k) => entry[k] !== undefined)) cleaned[key] = entry;
+    if (["class","year","classMax","yearMax","undergraduate","specialCutoff"].some((k) => entry[k] !== undefined)) cleaned[key] = entry;
   }
   return cleaned;
 }
@@ -479,8 +483,19 @@ async function saveExam(uid: string, exam: any) {
     e2 = rankErr(cr, cn, "班级总排名");
   if (e1) return { error: e1, status: 400 };
   if (e2) return { error: e2, status: 400 };
-  const templates = await subjects(uid),
-    dm = new Map<string, number>(templates.map((x: any) => [x.name, x.defaultMax] as [string, number])),
+  const requestedId = String(exam?.id ?? "");
+  const rawModuleIds = Array.isArray(exam?.moduleIds)
+    ? [...new Set<string>(exam.moduleIds.map((x: any) => String(x ?? "")).filter(Boolean))].slice(0, 12)
+    : [];
+  const moduleOwnership = () => rawModuleIds.length
+    ? db.from("score_tracker_modules").select("id").eq("user_id", uid).in("id", rawModuleIds)
+    : Promise.resolve({ data: [], error: null });
+  const [templates, ownedExam, checkedModules] = await Promise.all([
+    subjects(uid),
+    requestedId ? db.from("score_tracker_exams").select("id,averages,exam_goals,total_rank,total_class_rank,total_year_position_percent,total_class_position_percent,total_actual_score,total_raw_score,city_rank,district_rank").eq("id", requestedId).eq("user_id", uid).maybeSingle() : Promise.resolve(null),
+    moduleOwnership(),
+  ]);
+  const dm = new Map<string, number>(templates.map((x: any) => [x.name, x.defaultMax] as [string, number])),
     entries = exam?.scores && typeof exam.scores === "object" ? Object.entries(exam.scores) : [];
   if (entries.length > 40) return { error: "单次考试最多记录 40 个科目/模块", status: 400 };
   const seen = new Set<string>(),
@@ -567,10 +582,22 @@ async function saveExam(uid: string, exam: any) {
   if (hasKey("averages")) values.averages = averages;
   let oldExam: any = null;
   if (id) {
-    const owned = await db.from("score_tracker_exams").select("id,averages,exam_goals,total_rank,total_class_rank,total_year_position_percent,total_class_position_percent,total_actual_score,total_raw_score,city_rank,district_rank").eq("id", id).eq("user_id", uid).maybeSingle();
+    const owned = ownedExam!;
     if (owned.error) throw owned.error;
     if (!owned.data) return { error: "没有找到这次考试", status: 404 };
     oldExam = owned.data;
+    // Legacy clients do not know cutoff fields. Never silently erase them on an ordinary edit.
+    if (hasKey("averages") && exam.cutoff_scores_version !== 1) {
+      for (const [key, old] of Object.entries(owned.data.averages || {}) as [string, any][]) {
+        if (!old || (old.undergraduate == null && old.specialCutoff == null)) continue;
+        const stillSelected = key === "total" || (key.startsWith("s:") && rows.some((r) => r.subject === key.slice(2))) || (key.startsWith("m:") && Array.isArray(exam.moduleIds) && exam.moduleIds.includes(key.slice(2)));
+        if (!stillSelected) continue;
+        if (averages[key] && averages[key].basis !== old.basis) return {error:"参考分数口径已变化，请使用最新版编辑分数线",status:400};
+        const next = averages[key] || {basis:old.basis};
+        for (const field of ["undergraduate","specialCutoff"]) if (next[field] == null && old[field] != null) next[field] = old[field];
+        averages[key] = next;
+      }
+    }
     // Old clients replace means; preserve highest references with the original basis.
     if (hasKey("averages") && exam.reference_scores_version !== 1) {
       for (const [key, old] of Object.entries(owned.data.averages || {}) as [string, any][]) {
@@ -585,16 +612,17 @@ async function saveExam(uid: string, exam: any) {
   if (hasKey("exam_goals") || oldExam?.exam_goals) {
     // Use authenticated ownership and existing database values for provenance;
     // clients cannot forge the original goal or set a recorded exam back to planned.
+    const [previous, previousModules] = await Promise.all([
+      oldExam ? db.from("score_tracker_scores").select("subject,actual_score,raw_score,rank_position,class_rank_position,year_position_percent,class_position_percent,target_score,max_score").eq("exam_id",id).eq("user_id",uid) : Promise.resolve({data:[],error:null}),
+      oldExam ? db.from("score_tracker_exam_modules").select("module_id,ranks").eq("exam_id",id).eq("user_id",uid) : Promise.resolve({data:[],error:null}),
+    ]);
+    const checked = checkedModules;
     if (oldExam) {
-      const previous = await db.from("score_tracker_scores").select("subject,actual_score,raw_score,rank_position,class_rank_position,year_position_percent,class_position_percent,target_score,max_score").eq("exam_id",id).eq("user_id",uid);
       if (previous.error) throw previous.error;
       oldExam.scores = Object.fromEntries((previous.data||[]).map((x:any)=>[x.subject,{actual:x.actual_score,raw:x.raw_score,rank:x.rank_position,classRank:x.class_rank_position,yearPositionPercent:x.year_position_percent,classPositionPercent:x.class_position_percent,target:x.target_score,max:x.max_score}]));
-      const previousModules = await db.from("score_tracker_exam_modules").select("module_id,ranks").eq("exam_id",id).eq("user_id",uid);
       if (previousModules.error) throw previousModules.error;
       oldExam.moduleRanks=Object.fromEntries((previousModules.data||[]).map((x:any)=>[x.module_id,x.ranks||{}]));
     }
-    const requestedIds = Array.isArray(exam.moduleIds) ? [...new Set<string>(exam.moduleIds.map(String))].slice(0,12) : [];
-    const checked = requestedIds.length ? await db.from("score_tracker_modules").select("id").eq("user_id", uid).in("id", requestedIds) : {data:[],error:null};
     if (checked.error) throw checked.error;
     const allowedIds = (checked.data||[]).map((x:any)=>String(x.id));
     const normalized = {...values,city_rank:hasKey("city_rank")?cityR:oldExam?.city_rank,district_rank:hasKey("district_rank")?distR:oldExam?.district_rank,moduleIds:allowedIds,moduleRanks:Object.fromEntries(Object.entries(exam.moduleRanks||{}).filter(([k])=>allowedIds.includes(k)).map(([k,v])=>[k,moduleRanksClean(v)])),scores:Object.fromEntries(rows.map((x:any)=>[x.subject,{target:x.target_score,max:x.max_score,actual:x.actual_score,raw:x.raw_score,rank:x.rank_position,classRank:x.class_rank_position,yearPositionPercent:x.year_position_percent,classPositionPercent:x.class_position_percent}]))};
@@ -645,11 +673,8 @@ async function saveExam(uid: string, exam: any) {
   }
   const md = await db.from("score_tracker_exam_modules").delete().eq("exam_id", id).eq("user_id", uid);
   if (md.error) throw md.error;
-  const rawModuleIds = Array.isArray(exam?.moduleIds)
-    ? [...new Set(exam.moduleIds.map((x: any) => String(x ?? "")).filter(Boolean))].slice(0, 12)
-    : [];
   if (rawModuleIds.length) {
-    const owned = await db.from("score_tracker_modules").select("id").eq("user_id", uid).in("id", rawModuleIds);
+    const owned = checkedModules;
     if (owned.error) throw owned.error;
     const valid = (owned.data ?? []).map((x: any) => x.id);
     if (valid.length) {
@@ -863,7 +888,7 @@ Deno.serve(async (req: Request) => {
     if(action==='account_usage'){
       const r=await db.from('score_tracker_ai_tasks').select('id,feature,status,charged_credits,created_at,finished_at').eq('user_id',user.id).order('created_at',{ascending:false}).limit(20);if(r.error)throw r.error;return out({usage:r.data||[]});
     }
-    if (action === "reference_scores_capability") return out({ reference_scores_version: 1 });
+    if (action === "reference_scores_capability") return out({ reference_scores_version: 1, cutoff_scores_version: 1 });
     if (action === "get_exam_reflection" || action === "save_exam_reflection") {
       const result = await examReflection(db, user.id, body);
       if(action==='save_exam_reflection'&&result.status<400){await refreshGrowth(user.id);}

@@ -202,7 +202,7 @@
       var calibSub=card.querySelector('.card-title-row .card-sub');if(calibSub&&!calibSub.classList.contains('ad-keyline'))inlineNote(calibSub,'下次建议以排名为准，例如前20%就是100人中约第20名。参考分取自你以前考过的试卷。');
     }
     if(k==='hall'){
-      var hallSub=card.querySelector('.card-title-row .card-sub');if(hallSub&&!hallSub.classList.contains('ad-keyline'))inlineNote(hallSub,'满分不同时比较得分率，例如90/100与135/150都是90%。');
+      var hallSub=card.querySelector('.card-title-row .card-sub');if(hallSub&&!hallSub.classList.contains('ad-keyline'))inlineNote(hallSub,'同满分比得分，不同满分比得分率；↓ 表示距最佳的差距。');
     }
     if(k==='worth'){
       var d=card.querySelector('.worth-method');
@@ -407,7 +407,7 @@
         }
       }
     }
-    if(k==='hall'){var hallHelp=help(card.querySelector('.sv31-scroll')?.parentElement,'hall',[['score','不同满分怎么比较','90/100与135/150都是90%。以得分率比较，最佳分数仍保留原卷满分。']]);if(hallHelp){var hallNote=card.querySelector('.card-title-row .card-sub');if(hallNote&&!hallNote.classList.contains('ad-keyline')){inlineNote(hallNote,'满分不同时按得分率比较，原卷分数仅供参考。');hallNote.classList.add('ad-keyline');}}}
+    if(k==='hall'){var hallHelp=help(card.querySelector('.sv31-scroll')?.parentElement,'hall',[['score','不同满分怎么比较','90/100与135/150都是90%。以得分率比较，最佳分数仍保留原卷满分。']]);if(hallHelp){var hallNote=card.querySelector('.card-title-row .card-sub');if(hallNote&&!hallNote.classList.contains('ad-keyline')){inlineNote(hallNote,'同满分比得分，不同满分比得分率；↓ 表示距最佳的差距。');hallNote.classList.add('ad-keyline');}}}
     if(k==='calib'){var calibHelp=help(card.querySelector('.sv31-scroll')?.parentElement,'calib',[['rank','排名目标怎么看','前20%就是100人里约第20名。建议的参考分取自自己以前考过的试卷。']]);if(calibHelp){var calibNote=card.querySelector('.card-title-row .card-sub');if(calibNote&&!calibNote.classList.contains('ad-keyline')){inlineNote(calibNote,'建议以排名为准，参考分来自历史考试。');calibNote.classList.add('ad-keyline');}}}
     if(k==='kpi'){var kpi=card.querySelector('.sv31-kpi');if(kpi)help(kpi.parentElement,'kpi',[['rank','排名位置怎么读','前20%表示约在100人中第20名。不同考试人数不同，用排名百分比更容易比较。']]);}
     if(k==='trend')help(card.querySelector(':scope > .fold-body-v38')||card,'trend',[['trend','看连续变化','排名图越靠上越靠前，一次起伏不等于整体趋势变化。'],['score','不同考试的分数','满分与难度不同时，不能只凭分数高低判断进退。']]);
@@ -464,7 +464,7 @@
       }
       switch(k){
         case'insights':insights(card);break;
-        case'hall':case'calib':table(card,k);break;
+        case'calib':table(card,k);break;
         case'structure':
           table(card,k);
           group(card,'structure-catch','追赶参考','standard',function(c){

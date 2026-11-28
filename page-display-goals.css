@@ -47,3 +47,9 @@
  #content #goalHeroV33:not(.gh-has-side) .gh-chips:has(.gh-chip:nth-child(5)):not(:has(.gh-chip:nth-child(6))){--pd-goal-basis:calc((100% - 32px)/5)}
  #content #goalHeroV33:not(.gh-has-side) .gh-chips:has(.gh-chip:nth-child(6)):not(:has(.gh-chip:nth-child(7))){--pd-goal-basis:calc((100% - 40px)/6)}
 }
+
+/* Native touch scrolling only in the mobile subject strip. */
+@media(max-width:639px){
+ #content #goalHeroV33 .gh-chips{width:100%;max-width:100%;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;touch-action:pan-x pan-y!important;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+}
+@media(min-width:640px){#content #goalHeroV33 .gh-chips{touch-action:auto!important}}

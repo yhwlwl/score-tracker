@@ -61,7 +61,17 @@
     '.st-entry-layout .score-total-preview-v13{display:grid;gap:8px!important;margin:4px 0 8px!important;grid-template-columns:repeat(2,minmax(0,1fr))}',
     '.st-entry-layout .score-total-box-v13{border:0!important;background:transparent!important;padding:5px 0!important;min-width:0;border-radius:0!important;box-shadow:none!important}',
     '.st-entry-layout .score-total-box-v13 b{font-size:24px!important;font-variant-numeric:tabular-nums;line-height:1.2;overflow-wrap:anywhere}',
-    '.st-entry-layout .score-total-box-v13:has(#finalTotalV16){order:-1}',
+    '.st-entry-layout .score-total-box-v13:has(#finalTotalV16){order:-1;padding:10px 12px!important;border-radius:12px!important;background:var(--accent-soft,var(--cell,transparent))!important;background:color-mix(in srgb,var(--accent) 9%,var(--panel-solid,var(--input-bg,#fff)))!important;border:1px solid color-mix(in srgb,var(--accent) 25%,var(--line))!important}',
+    '.st-entry-layout .score-total-box-v13:has(#finalTotalV16) span,.st-entry-layout #finalTotalV16{color:var(--accent)!important}',
+    '.st-entry-layout #finalTotalV16{font-size:30px!important;font-weight:750!important}',
+    '.st-entry-layout .score-total-box-v13:has(#rawTotalV16){padding:10px 12px!important;align-self:center}',
+    '.st-entry-layout #rawTotalV16{font-size:22px!important;color:var(--text)!important;font-weight:600!important}',
+    '.st-entry-layout .combo-total-v21 .combo-head-v21 b{font-size:16px!important;color:var(--text);font-weight:700}',
+    '.st-entry-layout .combo-total-v21 .total-ranks-v16{border-top:1px solid var(--line);padding-top:12px;margin:10px 0!important}',
+    '.st-entry-layout .combo-total-v21 .rank-scope-card-v16 b{color:var(--accent)!important;font-weight:650!important}',
+    '.st-entry-layout .combo-total-v21 :is(.exam-averages,.eg-editor){border-top:1px solid var(--line)!important;padding:7px 0!important}',
+    '.st-entry-layout .combo-total-v21 .st-entry-manual-toggle{color:var(--muted);font-size:12px}',
+    '.st-entry-layout .st-entry-footer .save-btn{background:var(--accent)!important;color:var(--accent-contrast,#fff)!important;border-color:var(--accent)!important}',
     '.st-entry-layout .manual-total-v24{padding:0!important;margin:0 0 5px!important;border:0!important}',
     '.st-entry-layout .manual-total-title-v24{display:none!important}',
     '.st-entry-layout .manual-total-grid-v24{grid-template-columns:repeat(2,minmax(0,1fr))}',
@@ -121,7 +131,7 @@
       manualOpen=!!(value(manual,'.total-actual-override-v24')||value(manual,'.total-raw-override-v24'));
       manual.prepend(manualButton);
       var preview=total.querySelector('.score-total-preview-v13');
-      if(preview)preview.after(manual);
+      if(preview){var totalRanks=total.querySelector('.total-ranks-v16');if(totalRanks){preview.after(totalRanks);totalRanks.after(manual);}else preview.after(manual);var refs=total.querySelector('.exam-averages');if(refs)manual.after(refs);}
       manualButton.addEventListener('click',function(){manualOpen=!manualOpen;refresh();});
     }
     function cardName(card){return value(card,'.exam-subject-name-v10');}
@@ -153,7 +163,7 @@
         card.classList.toggle('st-entry-rank-closed',!opened);toggle.setAttribute('aria-expanded',String(opened));
         text(toggle.querySelector('.st-entry-summary'),rankSummary(card));
         var averages=card.querySelector('.exam-averages>summary>span');
-        if(averages && averages.textContent==='参考分数（选填：平均分，最高分）')text(averages,'参考分数 · 平均分 / 最高分');
+        if(averages && averages.textContent==='参考分数（选填：平均分，最高分）')text(averages,'参考分数（选填）');
       });
       var status='已录入 '+entered+'/'+cards.length+' 科';text(count,status);text(footerCount,status);
       if(manualButton){

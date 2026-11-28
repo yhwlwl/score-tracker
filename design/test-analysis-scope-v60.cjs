@@ -26,19 +26,19 @@ f=api.applySubjectModule(api.buildFeatures(es.map(e=>({...e,total_rank:null,tota
 assert.match(api.trend(f,'combined'),/sv31-pane on" data-pane="score"/);
 assert.match(api.matrix(f,'combined'),/data-analysis-matrix-v60="score" aria-pressed="true"/);
 assert.match(api.trend(f,'combined'),/得分率参考/);
-assert.match(api.hall(f,'rank'),/96\/100/);
+assert.match(api.hall(f,'rank'),/96<\/b><small class="hall-max-v32">\/100/);
 state.sv31={subjMod:['数学'],trendMetricV60:'score',matrixMetricV60:'score'};
 f=api.applySubjectModule(api.buildFeatures(es.map(e=>({...e,total_rank:null,total_actual_score:null,scores:{数学:{classRank:e.scores.数学.classRank,classParticipants:50}}}))));
 assert.match(api.trend(f,'combined'),/sv31-pane on" data-pane="class"/);
 assert.match(api.matrix(f,'combined'),/data-analysis-matrix-v60="class" aria-pressed="true"/);
-assert.match(api.hall(f,'rank'),/班排 前6%/);
+assert.match(api.hall(f,'rank'),/班级排名[\s\S]*?前6%/);
 state.sv31={subjMod:['数学']};
 f=api.applySubjectModule(api.buildFeatures(es));
-assert.match(api.hall(f,'rank'),/最佳得分/);
-assert.match(api.hall(f,'rank'),/96\/100/);
-assert.match(api.hall(f,'rank'),/班排 前6%/);
+assert.match(api.hall(f,'rank'),/历史最佳/);
+assert.match(api.hall(f,'rank'),/96<\/b><small class="hall-max-v32">\/100/);
+assert.match(api.hall(f,'rank'),/班级排名[\s\S]*?前6%/);
 const merged=api.applySubjectModule(api.buildFeatures(es.slice(0,2).map((e,i)=>({...e,scores:{数学:{actual:i?110:96,max:i?150:100,rank:i?7:8,participants:100}}}))));
-assert.match(api.hall(merged,'rank'),/96\/100/);
+assert.match(api.hall(merged,'rank'),/96<\/b><small class="hall-max-v32">\/100/);
 assert.match(api.hall(merged,'rank'),/\(96%\)/);
 console.log('PASS: mixed maxima, score/class-only records, metric fallback');
 
@@ -63,3 +63,44 @@ state.sv31={subjMod:['数学'],matrixMetricV60:'rank'};
 f=api.applySubjectModule(api.buildFeatures(es));f.flags['0|数学']={lvl:2,e:-50};f.flags['1|数学']={lvl:1,e:-20};f.flags['2|数学']={lvl:-1,e:40};
 for(const metric of ['rank','class','score']){state.sv31.matrixMetricV60=metric;matrix=api.matrix(f,'combined',true);assert.equal(matrix.includes('sv31-dot'),false);assert.equal(matrix.includes('matrix-legend-v60'),false);assert.match(matrix,/data-analysis-matrix-v60="difficulty"/);assert.match(matrix,/matrix-reading-v60/);}
 console.log('PASS: matrix indicator isolation');
+
+// Hall: three independent records, compact deltas, original exam metadata.
+state.sv31={subjMod:['数学']};
+const separate=[exam('1',96,8,5),exam('2',90,4,6),exam('3',93,6,2)];
+f=api.applySubjectModule(api.buildFeatures(separate));
+let hall=api.hall(f,'rank');
+assert.match(hall,/历史最佳/);assert.match(hall,/最近表现/);
+assert.match(hall,/年级排名[\s\S]*?前4%/);assert.match(hall,/班级排名[\s\S]*?前4%/);
+assert.match(hall,/96<\/b><small class="hall-max-v32">\/100/);
+assert.match(hall,/↓ 3 分/);assert.match(hall,/↓ 2 个百分点/);assert.match(hall,/↑ 刷新纪录/);
+assert.match(hall,/2026-10-01/);assert.match(hall,/2026-10-02/);assert.match(hall,/2026-10-03/);
+assert.equal((hall.match(/class="hall-trend-v32"/g)||[]).length,3);
+assert.ok(!hall.includes('距离历史最佳')&&!hall.includes('正处最好状态'));
+const mixed=[exam('1',90,8,5),{...exam('2',96,4,6),scores:{数学:{actual:132,max:150,rank:4,participants:100}}}];
+f=api.applySubjectModule(api.buildFeatures(mixed));hall=api.hall(f,'rank');
+assert.match(hall,/↓ 2 个百分点/);assert.match(hall,/得分率走势/);
+const tied=[exam('1',96,8,5),exam('2',96,8,5)];
+f=api.applySubjectModule(api.buildFeatures(tied));hall=api.hall(f,'rank');
+assert.equal((hall.match(/✓ 持平最佳/g)||[]).length,3);
+const missingMax=[exam('1',96,8,5),{...exam('2',90,4,6),scores:{数学:{actual:97}}}];
+f=api.applySubjectModule(api.buildFeatures(missingMax));hall=api.hall(f,'rank');assert.match(hall,/满分未知或无效 · 未比较/);
+const justScore=[{...exam('1',96,8,5),total_rank:null,total_class_rank:null,scores:{数学:{actual:96,max:100}}}];
+f=api.applySubjectModule(api.buildFeatures(justScore));hall=api.hall(f,'rank');
+assert.ok(!hall.includes('年级排名')&&!hall.includes('班级排名'));assert.match(hall,/首次记录/);
+console.log('PASS: compact personal best, independent records, mixed maxima, ties and missing data');
+
+// Compact layout: one common latest exam, exceptions retain their actual source.
+state.sv31={subjMod:['数学']};
+f=api.applySubjectModule(api.buildFeatures(separate));hall=api.hall(f,'rank');
+assert.equal((hall.match(/最近一次：/g)||[]).length,1);
+assert.equal((hall.match(/hall-recent-exam-v32/g)||[]).length,0);
+assert.equal((hall.match(/class="hall-trend-v32"/g)||[]).length,3);
+assert.ok(!hall.includes('hall-trends-v32'));assert.match(hall,/hall-below-v32">↓ 3 分/);
+assert.match(hall,/hall-record-v32">↑ 刷新纪录/);
+assert.match(hall,/2026-10-01/);assert.match(hall,/2026-10-02/);
+const incomplete=[exam('1',96,8,5),{...exam('2',90,4,6),scores:{数学:{actual:90,max:100}}}];
+f=api.applySubjectModule(api.buildFeatures(incomplete));hall=api.hall(f,'rank');
+assert.equal((hall.match(/hall-recent-exam-v32/g)||[]).length,2);
+assert.match(hall,/记录于：1 <time>2026-10-01/);
+assert.match(hall,/最近一次：<\/span><b>2<\/b>/);
+console.log('PASS: compact in-row trends, shared recent exam, older metric provenance and colored deltas');

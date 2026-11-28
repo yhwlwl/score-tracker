@@ -24,6 +24,11 @@ function check(source,citySource,run){
   }
   const distinctMax=env.recordHtml({id:'scale',name:'不同满分',scores:{物理:{actual:80,max:100,raw:55,rawMax:70},化学:{raw:64,rawMax:70,max:100},生物:{actual:0,max:80},地理:{actual:65,max:120},政治:{actual:70}}});
   assert.ok(distinctMax.includes('<span>80</span><small>/100</small>'));
+  assert.ok(distinctMax.includes('<strong>55</strong><small>/70</small>'));
+  const equalMax=env.recordHtml({id:'equal',name:'同满分',scores:{物理:{actual:80,max:100,raw:75,rawMax:100}}});
+  assert.ok(equalMax.includes('<span>80</span><small>/100</small>')&&equalMax.includes('<strong>75</strong></span>'));
+  const equalScore=env.recordHtml({id:'same',name:'不同满分同分数',scores:{物理:{actual:60,max:100,raw:60,rawMax:70}}});
+  assert.ok(equalScore.includes('<span>60</span><small>/100</small>')&&equalScore.includes('<strong>60</strong><small>/70</small>'));
   assert.ok(distinctMax.includes('<span>64</span><small>/70</small>'));
   assert.ok(distinctMax.includes('<span>0</span><small>/80</small>'));
   assert.ok(distinctMax.includes('<span>65</span><small>/120</small>'));

@@ -95,7 +95,7 @@
       Object.entries(object(ex.averages || {}, label + '均分')).forEach(function (entry) {
         var k=entry[0], r=object(entry[1],label+'均分'), avg={};
         if (k !== 'total' && !(k.startsWith('s:') && own(e.scores,k.slice(2))) && !(k.startsWith('m:') && e.moduleIds.includes(k.slice(2)))) throw new Error(label+'均分引用了缺失的科目或组合');
-        ['class','year','classMax','yearMax'].forEach(function (scope) { if (own(r,scope)) avg[scope]=number(r[scope],label+'参考成绩'); });
+        ['class','year','classMax','yearMax','undergraduate','specialCutoff'].forEach(function (scope) { if (own(r,scope)) avg[scope]=number(r[scope],label+'参考成绩'); });
         if (r.basis != null) avg.basis=str(r.basis,5000,label+'均分口径'); e.averages[k]=avg;
       });
       Object.entries(object(ex.question_type_scores || {}, label+'题型')).forEach(function (entry) {

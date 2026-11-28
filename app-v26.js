@@ -92,8 +92,8 @@
     var ranks=rankMetricV26(year,'年级')+rankMetricV26(cls,'班级');
     return ranks?'<div class="record-rankgrid-v26">'+ranks+'</div>':'';
   }
-  function subGridV26(raw,target,single){
-    var metrics=(!single&&presentV26(raw)?metricV26('原始',formatScore(raw),null):'')+(presentV26(target)?metricV26('目标',formatScore(target),null):'');
+  function subGridV26(raw,target,single,rawMax){
+    var metrics=(!single&&presentV26(raw)?metricV26('原始',formatScore(raw),presentV26(rawMax)&&rawMax>0?formatScore(rawMax):null):'')+(presentV26(target)?metricV26('目标',formatScore(target),null):'');
     return metrics?'<div class="record-subgrid-v26">'+metrics+'</div>':'';
   }
   function scoreValueV26(value,max){
@@ -107,11 +107,13 @@
     var year=rankInfoByScopeV16(exam,name,'year'),cls=rankInfoByScopeV16(exam,name,'class');
     var rank=rankPairV26(year,cls);
     if(eff===null&&raw===null&&t===null&&!rank)return '';
-    var single=finalOnlySubjectV62(name),rawShown=raw!==null&&(a===null||Number(raw)!==Number(a))?raw:null;
+    var single=finalOnlySubjectV62(name),finalMax=num(row.max),rawMax=num(row.rawMax)??finalMax;
+    var differentMax=finalMax!==null&&rawMax!==null&&finalMax>0&&rawMax>0&&finalMax!==rawMax;
+    var rawShown=raw!==null&&(a===null||Number(raw)!==Number(a)||differentMax)?raw:null;
     return '<div class="score-cell-v26">'
       +'<div class="sc-name-v26" title="'+escapeHtml(name)+'">'+escapeHtml(name)+(row.excludeFromTotal?'<span class="stat-badge-v17">统计项</span>':'')+'</div>'
-      +scoreValueV26(eff,a===null?(num(row.rawMax)??num(row.max)):num(row.max))
-      +subGridV26(rawShown,t,single)
+      +scoreValueV26(eff,a===null?rawMax:finalMax)
+      +subGridV26(rawShown,t,single,a!==null&&differentMax?rawMax:null)
       +rank
       +'</div>';
   }
@@ -119,17 +121,18 @@
     var fin=examScore(exam,m.name,'actual');
     var raw=(typeof examRawScoreV13==='function')?examRawScoreV13(exam,m.name):null;
     var tgt=examScore(exam,m.name,'target');
-    var max=examMax(exam,m.name);
+    var max=examMax(exam,m.name),rawMax=typeof rawMaxV14==='function'?rawMaxV14(exam,m.name):null;
+    var differentMax=presentV26(max)&&presentV26(rawMax)&&Number(max)>0&&Number(rawMax)>0&&Number(max)!==Number(rawMax);
     var r=(ranksMap&&ranksMap[String(m.id)])||{};
     var yr=num(r.yearRank),yp=num(r.yearParticipants),cr=num(r.classRank),cp=num(r.classParticipants);
     if(fin===null&&raw===null&&tgt===null&&yr===null&&cr===null)return '';
     var shown=fin!==null?fin:raw;
-    var rawShown=raw!==null&&(fin===null||Number(raw)!==Number(fin))?raw:null;
+    var rawShown=raw!==null&&(fin===null||Number(raw)!==Number(fin)||differentMax)?raw:null;
     var rank=rankPairV26({rank:yr,participants:yp},{rank:cr,participants:cp});
     return '<div class="score-cell-v26 combo">'
       +'<div class="sc-name-v26" title="'+escapeHtml(m.name)+'">'+escapeHtml(m.name)+'</div>'
-      +scoreValueV26(shown,fin!==null?max:null)
-      +subGridV26(rawShown,tgt,finalOnlyGroupV62(m.subjects))
+      +scoreValueV26(shown,fin!==null?max:rawMax)
+      +subGridV26(rawShown,tgt,finalOnlyGroupV62(m.subjects),fin!==null&&differentMax?rawMax:null)
       +rank
       +'</div>';
   }

@@ -72,6 +72,7 @@ stage('pending', 0);
 assert(html.includes(emptyText) && pos('old') === -1);
 stage('history');
 assert(!html.includes(emptyText) && pos('old') >= 0);
+assert(!html.includes('data-eg-new'));
 stage('all');
 ctx.state.allExams = exams.concat({ id: 'plan', pending: true, grade_level: '高二' });
 ctx.renderPage();

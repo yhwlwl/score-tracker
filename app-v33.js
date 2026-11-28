@@ -327,10 +327,12 @@ function renderHomeCard(mount){
     if(cw){
       var startX=0,startY=0,startScroll=0,moved=false,dragging=false,pointerId=null;
       cw.addEventListener('pointerdown',function(e){
-        startX=e.clientX;startY=e.clientY;startScroll=cw.scrollLeft;moved=false;dragging=false;pointerId=e.pointerId;
+        startX=e.clientX;startY=e.clientY;startScroll=cw.scrollLeft;moved=false;dragging=false;
+        // Touch uses native inertial scrolling; mouse/pen use the drag handler.
+        pointerId=e.pointerType==='touch'?null:e.pointerId;
       });
       cw.addEventListener('pointermove',function(e){
-        if(pointerId!==null&&e.pointerId!==pointerId)return;
+        if(pointerId===null||e.pointerId!==pointerId)return;
         var dx=e.clientX-startX,dy=e.clientY-startY;
         if(!dragging&&Math.abs(dx)>6&&Math.abs(dx)>Math.abs(dy)*1.08){
           dragging=true;moved=true;
@@ -343,7 +345,7 @@ function renderHomeCard(mount){
         }
       },{passive:false});
       function endDrag(e){
-        if(pointerId!==null&&e.pointerId!==undefined&&e.pointerId!==pointerId)return;
+        if(pointerId===null||(e.pointerId!==undefined&&e.pointerId!==pointerId))return;
         try{if(pointerId!==null&&cw.hasPointerCapture&&cw.hasPointerCapture(pointerId))cw.releasePointerCapture(pointerId)}catch(_){}
         pointerId=null;dragging=false;
       }
