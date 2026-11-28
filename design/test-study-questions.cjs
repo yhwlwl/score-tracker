@@ -433,6 +433,15 @@ async function checkAgentCompleteness(snapshot) {
   assert.match(mixed.answer,/下次物理的得分率大概是 66%/);
   assert.match(mixed.answer,/历史粗略参考/);
   assert.ok(mixed.evidence.some(f=>f.label==='物理'));
+  let dedupCalls=0;
+  const dedup=await explore(rich,'看下我的物理，最近如何，预测下下一次',[],async messages=>{
+    if(dedupCalls++===0)return {tool:'trajectory',scopes:['s:物理'],metric:'score'};
+    const {results}=JSON.parse(messages.at(-1).content);
+    const estimate=results[0].facts.find(f=>f.kind==='estimate');
+    return {answer:'物理近期有变化。\n\n下次预测：'+estimate.value+'。这是个人历史粗略参考。',refs:[estimate.id,results[1].facts[0].id]};
+  });
+  assert.equal((dedup.answer.match(/66%/g)||[]).length,1,'do not duplicate an already complete forecast');
+  assert.match(dedup.answer,/物理近期有变化/);
   let broadCalls=0;
   const broad=await explore(rich,'分析最近学习状态，哪些科目进步，哪些科目拖后腿？预测下一次考试表现，接下来如何分配精力？',[],async messages=>{
     if(broadCalls++===0)return {queries:[{tool:'trajectory',scopes:['total'],metric:'score'},{tool:'results',scopes:['s:数学']}]};
