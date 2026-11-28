@@ -34,8 +34,13 @@ async function testDom(){
   w.eval(js);await delay();
   assert(!doc.querySelector('.st-centenary-dialog'));assert(!doc.querySelector('.st-centenary-entry'));assert(!requests.some(x=>x.action==='centenary_seen'));
   fail=true;await force();assert(!doc.querySelector('.st-centenary-dialog'));fail=false;
-  published=true;await force();
-  let dialog=doc.querySelector('.st-centenary-dialog[open]');assert(dialog);let shadow=dialog.firstChild.shadowRoot;
+  published=true;
+  w.state.onboarding={kind:'new-account'};
+  await force();
+  assert(w.ScoreModalGuard.occupied());assert(!doc.querySelector('.st-centenary-dialog'));
+  w.state.onboarding=null;
+  await force();
+  let dialog=doc.querySelector('.st-centenary-dialog[open]');assert(dialog);assert(w.ScoreModalGuard.occupied());let shadow=dialog.firstChild.shadowRoot;
   assert.equal(shadow.getElementById('title').textContent,'三百纪念');
   assert.equal(shadow.getElementById('position').textContent,'42');
   assert(!shadow.getElementById('title').textContent.includes('42'));
