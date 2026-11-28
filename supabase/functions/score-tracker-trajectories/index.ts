@@ -1,3 +1,4 @@
+import { captureAchievementPrediction } from "./achievement-snapshot.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {auth:{persistSession:false,autoRefreshToken:false}});
 const headers = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type, authorization, apikey','Access-Control-Allow-Methods':'POST, OPTIONS','Content-Type':'application/json','Cache-Control':'private, no-store'};
@@ -20,7 +21,7 @@ Deno.serve(async (req:Request) => {
     if(raw.length>8192) return out({error:'请求内容过长'},413);
     const body = JSON.parse(raw);
     if(!body||typeof body!=='object'||Array.isArray(body)) return out({error:'请求内容不正确'},400);
-    if(body.action==='release_capabilities') return out({privacy_status_version:1});
+    if(body.action==='release_capabilities') return out({privacy_status_version:1,achievement_prediction_version:1});
     if(typeof body.token!=='string'||!body.token||body.token.length>512) return out({error:'请先登录'},401);
     const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(body.token)))].map(x=>x.toString(16).padStart(2,'0')).join('');
     const {data:user,error:authError} = await db.from('score_tracker_users').select('id,session_expires_at').eq('session_token_hash',hash).maybeSingle();
@@ -71,6 +72,7 @@ Deno.serve(async (req:Request) => {
         p_reference_limit:referenceLimit
       });
       if(error) throw error;
+      try{await captureAchievementPrediction(db,user.id,body,data,mode)}catch(e){console.warn('achievement_prediction_capture_failed',(e as any)?.code||'internal')}
       return out(data);
     }
     // Larger ensembles are opt-in so deployed older clients still receive three.
@@ -82,6 +84,7 @@ Deno.serve(async (req:Request) => {
       ? await db.rpc('score_tracker_trajectory_match',parameters)
       : await db.rpc('score_tracker_trajectory_match_adaptive',{...parameters,p_match_mode:mode});
     if(error) throw error;
+    try{await captureAchievementPrediction(db,user.id,body,data,mode)}catch(e){console.warn('achievement_prediction_capture_failed',(e as any)?.code||'internal')}
     return out(data);
   } catch(error) {
     if(error instanceof SyntaxError) return out({error:'请求内容不正确'},400);

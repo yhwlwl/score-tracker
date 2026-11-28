@@ -6,12 +6,16 @@ const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..");
 const OUT = path.join(ROOT, "deploy");
-if(process.env.CF_PAGES_BRANCH==='main')require('node:child_process').execFileSync(process.execPath,[path.join(ROOT,'tools/check-ai-release-backend.mjs')],{cwd:ROOT,stdio:'inherit'});
+if(process.env.CF_PAGES_BRANCH==='main'){for(const check of ['check-ai-release-backend.mjs','check-achievement-release-backend.mjs'])require('node:child_process').execFileSync(process.execPath,[path.join(ROOT,'tools',check)],{cwd:ROOT,stdio:'inherit'});}
 const FILES = [
   "first-run-setup.css",
   "first-run-setup.js",
   "setup-preferences-guide.js",
   "index.html",
+  "achievement-ui.js",
+  "achievement-ui.css",
+  "achievement-app.js",
+  "supabase/functions/_shared/achievement-catalog.js",
   "styles.css",
   "appearance-studio.css",
   "appearance-studio.js",
