@@ -228,7 +228,7 @@ export async function explore(snapshot:any, question:string, history:any[], comp
       const saysUnavailable = /数据不足|(?:成绩|排名|数据).{0,5}(?:空白|是空的)|(?:无法|没法|不能)(?:给出|做出|进行|直接)?(?:预测|估计)|没有(?:可用的|生成)?(?:估计|预测)/.test(answer);
       const claimsNoRecords = /(?:没有|不存在|未录入任何|没有录入任何)(?:任何|可用的|已录入的)?(?:成绩|排名|考试)数据|(?:成绩|排名|数据).{0,5}(?:都是空|为空|是空的|空白)/.test(answer);
       const estimates = primary?.facts.filter(fact => fact.kind === 'estimate') || [];
-      const componentSpecs=(Array.isArray(data.components)?data.components:[]).slice(0,4);
+      const componentSpecs=(Array.isArray(data.components)?data.components:[]).slice(0,4).sort((a:any,b:any)=>Number(b?.type==='forecast')-Number(a?.type==='forecast'));
       const getForecastSeries=(spec:any)=>[...new Set<number>(Array.isArray(spec?.series)?spec.series.filter((id:any)=>Number.isInteger(id)&&id>0):[])].slice(0,6).flatMap(id=>tools.chart({type:'line',series:[id]},'')?.series.filter(s=>s.id===id&&s.points.some(p=>p.forecast&&Number.isFinite(p.value)))||[]);
       const selectedForecasts=componentSpecs.filter((spec:any)=>spec?.type==='forecast').flatMap(getForecastSeries);
       const cardCoversEstimate=(f:any)=>selectedForecasts.some(s=>s.label===f.label.split('下次')[0]&&s.metric===(f.label.includes('排名')?'rank':'rate'));
@@ -314,6 +314,14 @@ export async function explore(snapshot:any, question:string, history:any[], comp
       if (refs.some(id => !Number.isInteger(id) || !tools.facts[id - 1])) throw Error('invalid_reference');
       // Cross-check explicit current-exam extrema with the program's ordered subject list.
       const violations:string[]=[];
+      // Correct only unambiguous numerical comparisons; leave interpretive statements to the model.
+      answer=answer.replace(/(\d+(?:\.\d+)?)%(\s*[，,]?\s*)(高于|低于|大于|小于|超过)(\s*(?:此前|历史|个人|过去|本次|上次)?(?:的)?(?:中位数|中位|均值|平均值|平均|常态|水平)?\s*)(\d+(?:\.\d+)?)%/g,(whole,left,sep,word,mid,right)=>{
+        const a=Number(left),b=Number(right);
+        if(a===b)return left+'%'+sep+'与'+mid+right+'%持平';
+        if(a>b&&['低于','小于'].includes(word))return left+'%'+sep+'高于'+mid+right+'%';
+        if(a<b&&['高于','大于','超过'].includes(word))return left+'%'+sep+'低于'+mid+right+'%';
+        return whole;
+      });
       const currentSorts=['本场得分率排序','本场年级位置排序'].map(label=>tools.facts.findLast(f=>f.label===label)).filter((f):f is NonNullable<typeof f>=>Boolean(f));
       for(const fact of currentSorts){
         const isRank=fact.label.includes('位置');
@@ -397,7 +405,7 @@ export async function explore(snapshot:any, question:string, history:any[], comp
         }
         if(spec.type==='baseline'||spec.type==='change'||spec.type==='goal'){
           const ids=validFactIds(spec.refs);
-          const rows=ids.flatMap(id=>{
+          const rows=ids.flatMap<any>(id=>{
             const f=tools.facts[id-1];
             if(spec.type==='goal'){
               const m=f.value.match(/^目标 (\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?) 分 · 差 (\d+(?:\.\d+)?) 分$/);
@@ -451,6 +459,14 @@ export async function explore(snapshot:any, question:string, history:any[], comp
           widgets.push({type:spec.type,items,after:positionFor(spec.after)});
           refs=[...new Set([...refs,...ids])].slice(0,12);
         }
+      }
+      // Remove exact duplicate action bullet lines, but preserve reasoning and nuanced advice.
+      const actionItems=widgets.filter(w=>w.type==='actions').flatMap(w=>w.items||[]);
+      if(actionItems.length){
+        const normalize=(v:string)=>v.replace(/[\s*：:，,。；;、！!？?]/g,'');
+        const exact=new Set(actionItems.flatMap((i:any)=>[i.detail,i.label+i.detail].filter((v:any)=>typeof v==='string'&&normalize(v).length>=8).map(normalize)));
+        // Keep paragraph indices stable: only remove redundant lines when another line remains.
+        answer=answer.split(/\n\s*\n/).map(p=>{const lines=p.split('\n');const remaining=lines.filter(line=>!/^\s*(?:[-•]|\d+[.、])\s*/.test(line)||!exact.has(normalize(line.replace(/^\s*(?:[-•]|\d+[.、])\s*/,''))));return remaining.some(l=>l.trim())?remaining.join('\n'):p;}).join('\n\n');
       }
       if(aggregateResults.length&&!widgets.some(w=>w.type==='aggregate'||w.type==='bars')&&widgets.length<4&&aggregateResults[0].rows.length>1)widgets.push({...aggregateResults[0],after:1});
       return { answer, takeaway: tools.facts.length && !widgets.some(w=>w.type==='actions') ? shortText(data.takeaway, 240) : '',
