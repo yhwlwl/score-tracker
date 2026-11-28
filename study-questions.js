@@ -324,8 +324,7 @@
         if (done) throw Error('incomplete_stream');
       }
     } finally {
-      // Cancellation must not delay returning an already received terminal frame.
-      reader.cancel().catch(()=>{});
+      await reader.cancel().catch(()=>{});
       reader.releaseLock();
     }
   }
@@ -672,17 +671,9 @@
     status.textContent='正在发送…';
     controls();
     const active=()=>s===session && pending===s.pending && current()===s.token;
-    let sawProgress=false, timedOut=false;
-    const slow=setTimeout(()=>{
-      if(active()&&!sawProgress)status.textContent='连接较慢，正在等待服务响应…';
-    },8000);
-    const deadline=setTimeout(()=>{
-      timedOut=true;pending.controller?.abort();
-    },110000);
     try {
       const reply=await request(s,{action:'study_question',...pending.payload},progress=>{
         if (!active()) return;
-        sawProgress=true;
         const label=progressMessage(progress);
         if (label && label!==status.textContent) status.textContent=label;
       },pending.controller.signal);
@@ -697,10 +688,9 @@
       if (!active()) return;
       if (error.code==='retry' || error.code==='study_failed') pending.payload.requestId=crypto.randomUUID();
       feedback.classList.remove('is-working');
-      status.textContent=timedOut?'等待响应超时，可重新获取这条回答':error.code==='pending'?'这条回答仍在处理中，可以稍后重新获取':error.shown?error.message:'连接断开了，可以重试';
-      if (error.code!=='UNAUTHORIZED') feedback.append(button(error.code==='pending'||timedOut?'重新获取':'重试','sq-retry',()=>send(s,pending)));
+      status.textContent=error.shown?error.message:'连接断开了，可以重试';
+      if (error.code!=='UNAUTHORIZED') feedback.append(button('重试','sq-retry',()=>send(s,pending)));
     } finally {
-      clearTimeout(slow);clearTimeout(deadline);
       pending.running=false;
       pending.controller=null;
       if (s===session) controls();

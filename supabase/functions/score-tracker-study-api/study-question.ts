@@ -565,26 +565,6 @@ export async function directLatestScore(snapshot:any,question:string){
   }
   return null;
 }
-// Buffer the non-streaming model response inside a real deadline, including its body.
- // The metering helper sees a thrown timeout and settles the uncertain provider call.
-export async function boundedStudyFetch(url:string, init:RequestInit, send:typeof fetch=fetch, maxMs=45000):Promise<Response>{
-  const controller=new AbortController();
-  const parent=init.signal;
-  let timer:ReturnType<typeof setTimeout>|undefined;
-  let rejectDeadline:(reason:unknown)=>void=()=>{};
-  const deadline=new Promise<never>((_,reject)=>{rejectDeadline=reject;});
-  const abort=()=>{controller.abort();rejectDeadline(new Error('study_provider_timeout'));};
-  if(parent?.aborted)throw new Error('study_provider_timeout');
-  parent?.addEventListener('abort',abort,{once:true});
-  timer=setTimeout(abort,maxMs);
-  try{
-    return await Promise.race([deadline,(async()=>{
-      const response=await send(url,{...init,signal:controller.signal});
-      const bytes=await response.arrayBuffer();
-      return new Response(response.status===204||response.status===205||response.status===304?null:bytes,{status:response.status,statusText:response.statusText,headers:response.headers});
-    })()]);
-  }finally{clearTimeout(timer);parent?.removeEventListener('abort',abort);}
-}
 export async function studyQuestion(db:any, user:string, body:any, load:()=>Promise<any>, loadTrajectory?:TrajectoryLoader, progress?:ProgressListener, enableCache=true) {
   const fail = (status:number,error:string,code='') => ({status,data:{error,code}});
   const id = body.requestId, parent = body.previous || null, question = typeof body.question==='string' ? body.question.trim() : '';
@@ -665,7 +645,7 @@ export async function studyQuestion(db:any, user:string, body:any, load:()=>Prom
           body:JSON.stringify({model:cfg.model,messages:attempt ? [...messages,{role:'user',content:'上次未生成完整 JSON。请直接返回完整、简洁的 JSON 对象；不要输出推理过程。'}] : messages,
             max_tokens:maxTokens,response_format:{type:'json_object'},stream:false,
             ...(deepseek ? {thinking:{type:quick?'disabled':'enabled'}} : {})})
-        },(url:string,init:RequestInit)=>boundedStudyFetch(url,init,fetch,planning?30000:45000),credits=>{spent+=credits;},providerSession);
+        },fetch,credits=>{spent+=credits;},providerSession);
         if (!response.ok) throw Error('provider_unavailable');
         try {
           const payload = await response.json();
@@ -699,6 +679,6 @@ export async function studyQuestion(db:any, user:string, body:any, load:()=>Prom
       return fail(e.status,copy[e.code] || 'AI 额度暂时不可用',e.code);
     }
     console.error('study_question_failed',id,e instanceof Error ? e.name : 'unknown');
-    return fail(503,e instanceof Error&&e.message==='study_provider_timeout'?'模型响应超时，请再试一次':'回答暂时没加载出来，再试一次',started?'study_failed':'');
+    return fail(503,'回答暂时没加载出来，再试一次',started?'study_failed':'');
   }
 }

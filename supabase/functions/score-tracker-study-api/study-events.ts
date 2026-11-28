@@ -23,8 +23,6 @@ export function studyEventResponse(
         if (running) controller.enqueue(encoder.encode(frame));
       };
       const event = (name: string, data: unknown) => write('event: ' + name + '\ndata: ' + JSON.stringify(data) + '\n\n');
-      // Flush an initial SSE frame before loading history or calling the provider.
-      write(': connected\n\n');
       heartbeat = setInterval(() => {
         if ((controller.desiredSize ?? 0) > 0) write(': keepalive\n\n');
       }, 12000);
