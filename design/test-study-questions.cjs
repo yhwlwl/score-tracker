@@ -178,10 +178,10 @@ async function roundTrip(snapshot) {
     };
     const repeat=async(owner,data=snapshot)=>studyQuestion(db,owner,{requestId:crypto.randomUUID(),question:'数学历史成绩如何变化？'},async()=>data);
     assert.equal((await repeat('cache-owner')).status,200);assert.equal(sent,2);
-    assert.equal((await repeat('cache-owner')).data.cached,true);assert.equal(sent,2);
-    assert.equal((await repeat('another-owner')).data.cached,undefined);assert.equal(sent,4);
+    assert.equal((await repeat('cache-owner')).data.cached,undefined);assert.equal(sent,4,'open analysis should be generated again');
+    assert.equal((await repeat('another-owner')).data.cached,undefined);assert.equal(sent,6);
     const changed={...snapshot,exams:snapshot.exams.map((exam,i)=>i?exam:{...exam,name:'已修改的考试'})};
-    assert.equal((await repeat('cache-owner',changed)).data.cached,undefined);assert.equal(sent,6);
+    assert.equal((await repeat('cache-owner',changed)).data.cached,undefined);assert.equal(sent,8);
   } finally {global.fetch=old;delete global.Deno;}
 }
 async function checkOtherData(snapshot) {
@@ -424,12 +424,27 @@ async function checkAgentCompleteness(snapshot) {
     const {results}=JSON.parse(messages.at(-1).content);
     assert.equal(results[0].tool,'trajectory');
     assert.equal(results[1].tool,'results');
-    return {answer:'近期得分上升。',analysis:'物理近期的实际得分有所提升。',refs:[results[1].facts[0].id]};
+    return {answer:'物理近期的实际得分有所提升。\n\n建议先复盘最近一场，再保持稳定练习。',refs:[results[1].facts[0].id],takeaway:'先复盘最近一场'};
   });
   assert.match(mixed.answer,/物理近期的实际得分有所提升/);
+  assert.match(mixed.answer,/建议先复盘最近一场/);
+  assert.equal(mixed.takeaway,'先复盘最近一场');
+  assert.doesNotMatch(mixed.answer,/得分率对照：|年级位置对照：/);
   assert.match(mixed.answer,/下次物理的得分率大概是 66%/);
   assert.match(mixed.answer,/历史粗略参考/);
   assert.ok(mixed.evidence.some(f=>f.label==='物理'));
+  let broadCalls=0;
+  const broad=await explore(rich,'分析最近学习状态，哪些科目进步，哪些科目拖后腿？预测下一次考试表现，接下来如何分配精力？',[],async messages=>{
+    if(broadCalls++===0)return {queries:[{tool:'trajectory',scopes:['total'],metric:'score'},{tool:'results',scopes:['s:数学']}]};
+    const {results}=JSON.parse(messages.at(-1).content);
+    const recent=results.find(r=>r.tool==='results');
+    assert.ok(recent.facts.some(f=>f.label==='数学'));
+    assert.ok(recent.facts.some(f=>f.label==='物理'),'broad analysis must not omit other subjects');
+    return {answer:'数学近期进步，物理值得优先复盘。\n\n建议把新增复习时间用于物理，数学维持练习。',refs:recent.facts.slice(0,2).map(f=>f.id)};
+  });
+  assert.match(broad.answer,/数学近期进步/);
+  assert.match(broad.answer,/建议把新增复习时间用于物理/);
+  assert.doesNotMatch(broad.answer,/得分率对照：|年级位置对照：/);
 }
 
 async function main() {
