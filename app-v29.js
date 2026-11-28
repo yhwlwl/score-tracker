@@ -145,9 +145,7 @@
     '.module-delete-v18{background:var(--chip-bg,#fff)}',
     '.module-subject-v18{background:var(--chip-bg,#fff);color:var(--muted)}',
     /* ---- 图例可点击的可见暗示 ---- */
-    '.legend:not(.sv31-nopalette) span::after,.overview-legend:not(.sv31-nopalette) .overview-pill::after,.rank-legend-v7:not(.sv31-nopalette) span::after{content:"🎨";font-size:9px;margin-left:4px;opacity:.45;transition:opacity .15s ease}',
-    '.legend span:hover::after,.overview-legend .overview-pill:hover::after,.rank-legend-v7 span:hover::after{opacity:1}',
-    '.lg-custom-v29::after{content:"✎";font-size:9px;color:var(--muted);margin-left:2px;opacity:.95}'
+    '.lg-custom-v29{font-weight:600}'
   ].join('\n');
 
   function injectStylesV29(){
@@ -439,12 +437,15 @@
       if(!lg)return;
       if(lg.classList&&lg.classList.contains('sv31-nopalette'))return; /* 固定语义图例(矩阵圆点):不换色不显隐 */
       var groups=groupSvgSeriesV29(svg);
-      var items=Array.prototype.filter.call(lg.children,function(n){return String(n.tagName||'').toUpperCase()==='SPAN';});
+      var items=Array.prototype.filter.call(lg.children,function(n){return String(n.tagName||'').toUpperCase()==='SPAN'&&!!n.querySelector('i');});
+      lg.toggleAttribute('data-lg-adjustable-v29',items.length>0);
       items.forEach(function(item,idx){
         var label=(item.textContent||'').replace('✎','').replace('🎨','').trim();
         item.title='点击更换颜色 / 显示';
         var c=CUSTOM_V29[label];
-        var i=item.querySelector('i');
+        var i=item.querySelector('i'),series=groups[idx];
+        item.classList.toggle('lg-line-v29',!!series);
+        item.classList.toggle('lg-dashed-v29',!!(series&&series.line.getAttribute('stroke-dasharray')&&series.line.getAttribute('stroke-dasharray')!=='none'));
         if(c){
           item.classList.add('lg-custom-v29');
           if(i){
@@ -550,7 +551,7 @@
     bindPickerV29.done=true;
     document.addEventListener('click',function(e){
       var hit=e.target.closest('.legend:not(.sv31-nopalette) > *,.overview-legend:not(.sv31-nopalette) > *,.rank-legend-v7:not(.sv31-nopalette) > *');
-      if(!hit)return;
+      if(!hit||!hit.querySelector('i'))return;
       var label=(hit.textContent||'').replace('✎','').trim();
       if(label)openPickerV29(hit,label);
     });

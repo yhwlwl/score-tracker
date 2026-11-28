@@ -931,16 +931,16 @@ function hallHtmlV32(f,mode){
   });
   if(!rows.length)return "";
   var body=rows.map(function(r){
-    return "<tr><td>"+esc32(r.name)+"</td><td>"+sparkSvg32(r.vals)+"</td>"
-      +'<td class="num" style="font-weight:800">'+r.bestTxt+"</td><td class='num'>"+r.score+"</td>"
-      +'<td style="color:var(--muted)">'+esc32(shortName32(r.at))+"</td>"
-      +'<td class="num">'+r.gapTxt+"</td>"
-      +"<td>"+r.pill+"</td></tr>";
+    return '<tr><td data-hall-field="subject">'+esc32(r.name)+'</td><td data-hall-field="spark">'+sparkSvg32(r.vals)+'</td>'
+      +'<td data-hall-field="rank" data-label="最佳排名 / 参考" class="num" style="font-weight:800">'+r.bestTxt+'</td><td data-hall-field="score" data-label="最佳得分" class="num">'+r.score+'</td>'
+      +'<td data-hall-field="exam" data-label="考到于" style="color:var(--muted)">'+esc32(shortName32(r.at))+'</td>'
+      +'<td data-hall-field="gap" data-label="现在差" class="num">'+r.gapTxt+'</td>'
+      +'<td data-hall-field="status">'+r.pill+'</td></tr>';
   }).join("");
   return '<div class="card"><div class="card-title-row"><div><h3 class="card-title">⑤ 个人最佳殿堂</h3>'
     +'<p class="card-sub">满分不同时按最高得分率展示；分数仅供参考。</p></div>'
     +lockTagV32(mode)+"</div>"
-    +'<div class="sv31-scroll"><table><thead><tr><th>科目</th><th>历次小走势</th><th style="text-align:right">最佳排名 / 参考</th><th>最佳得分</th><th>考到于</th><th style="text-align:right">现在差</th><th>状态</th></tr></thead><tbody>'
+    +'<div class="sv31-scroll hall-scroll-v32"><table class="hall-table-v32"><thead><tr><th>科目</th><th>历次小走势</th><th style="text-align:right">最佳排名 / 参考</th><th>最佳得分</th><th>考到于</th><th style="text-align:right">现在差</th><th>状态</th></tr></thead><tbody>'
     +body+"</tbody></table></div></div>";
 }
 /* ---------- ⑥ 目标校准 ---------- */
@@ -1323,7 +1323,9 @@ function injectStylesV32(){
     "html[data-theme='night'] .i-risk .ico{background:rgba(217,92,92,.18);color:#f0a3a3}",
     ".sv31-pane{display:none}.sv31-pane.on{display:block}",
     ".sv31-tabs{margin-left:0}",
-    ".sv31-scroll{overflow-x:auto}.sv31-scroll table{min-width:430px}",
+    ".sv31-scroll{max-width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;overscroll-behavior-x:contain}.sv31-scroll table{min-width:430px}",
+    "#content .sv31-scroll table:not(.sv31-heat):not(.hall-table-v32){min-width:max(560px,100%);table-layout:auto}#content .sv31-scroll table:not(.sv31-heat):not(.hall-table-v32) :is(th,td){word-break:normal;overflow-wrap:normal;min-width:72px}#content .sv31-scroll table:not(.sv31-heat):not(.hall-table-v32) :is(th,td):last-child{min-width:120px}",
+    "@media(max-width:620px){#content .sv31-kpi{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}#content .sv31-stat{padding:11px;min-width:0;overflow-wrap:anywhere}#content .sv31-stat .lb{word-break:normal;line-height:1.4}#content .sv31-stat .v{margin:5px 0 3px}#content .sv31-stat .d{border-radius:6px;padding:3px 5px;line-height:1.4;white-space:normal}#content .hall-scroll-v32{overflow:visible}#content .hall-table-v32{display:block;width:100%;min-width:0!important;table-layout:auto}#content .hall-table-v32 thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}#content .hall-table-v32 tbody{display:grid;gap:8px;width:100%}#content .hall-table-v32 tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px;padding:10px 11px;border:1px solid var(--line);border-radius:11px;min-width:0}#content .hall-table-v32 td{display:block;padding:0;border:0;text-align:left!important;min-width:0;white-space:normal!important;word-break:normal;overflow-wrap:anywhere}#content .hall-table-v32 td[data-label]::before{content:attr(data-label);display:block;color:var(--muted);font-size:var(--ui-caption,11px);font-weight:400;margin-bottom:2px}#content .hall-table-v32 td[data-hall-field=subject]{order:0;font-weight:650;font-size:var(--ui-small,13px);align-self:center}#content .hall-table-v32 td[data-hall-field=status]{order:1;text-align:right!important;align-self:center}#content .hall-table-v32 td[data-hall-field=rank]{order:2}#content .hall-table-v32 td[data-hall-field=score]{order:3}#content .hall-table-v32 td[data-hall-field=exam]{order:4}#content .hall-table-v32 td[data-hall-field=gap]{order:5}#content .hall-table-v32 td[data-hall-field=spark]{order:6;grid-column:1/-1}#content .hall-table-v32 td[data-hall-field=status] .pill{white-space:normal;line-height:1.4}#content .hall-table-v32[data-ad-compact] [data-ad-extra-col]{display:none!important}}",
     ".sv31-page .pill{display:inline-block;font-size:10px;font-weight:700;border-radius:999px;padding:3px 9px;white-space:nowrap}",
     ".sv31-page .pill.ok{background:var(--green-soft,#e9f8f2);color:var(--green,#32a77a)}",
     ".sv31-page .pill.acc{background:var(--accent-soft,#eef1ff);color:var(--accent,#5d72e8)}",

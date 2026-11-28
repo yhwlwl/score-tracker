@@ -1265,3 +1265,17 @@ html[data-st-look="study-shore"] :is(.st-collection-banner h3,.st-banner-link){c
 [data-scene="butter-daisy"]{--scene-image:url("./assets/themes/art/butter-daisy.webp");--scene-size:cover;--scene-position:right 58%}
 [data-scene="lotus-pond"]{--scene-image:url("./assets/themes/art/lotus-pond.webp");--scene-size:cover;--scene-position:center}
 html:is([data-st-look="woolly-meadow"],[data-st-look="summer-float"],[data-st-look="butter-daisy"],[data-st-look="lotus-pond"]) .primary{background:var(--accent);color:#fff;box-shadow:0 5px 15px color-mix(in srgb,var(--accent) 13%,transparent)}
+
+/* Card headings reserve the actual compact ornament footprint, not the configured full-size square. */
+.st-decorated:not(.hero-main):has(>.card-title-row:first-child){--st-heading-deco-size:min(var(--st-deco-size,40px),56px)}
+.st-decorated:not(.hero-main):has(>.card-title-row:first-child)>.st-ornament{width:var(--st-heading-deco-size);height:var(--st-heading-deco-size);top:8px}
+.st-decorated:not(.hero-main):has(>.card-title-row:first-child)>.st-ornament[data-style="simple"]{height:calc(var(--st-heading-deco-size)*2/3)}
+.st-decorated:not(.hero-main):has(>.card-title-row:first-child)>.card-title-row:first-child{min-height:34px;padding-right:calc(var(--st-heading-deco-size) + 10px);align-items:center;margin-bottom:12px;box-sizing:border-box;min-width:0}
+.st-decorated:not(.hero-main):has(>.st-ornament[data-position="left"]):has(>.card-title-row:first-child)>.card-title-row:first-child{padding-left:calc(var(--st-heading-deco-size) + 10px);padding-right:0}
+.st-decorated:not(.hero-main):has(>.trend-collapse-v36):has(>.st-ornament[data-position="right"])>.card-title-row:first-child{padding-right:calc(var(--st-heading-deco-size) + 48px)}
+.st-decorated:not(.hero-main):has(>.card-title-row:first-child)>.card-title-row:first-child:has(>.fold-toggle-v38[aria-expanded="false"]){margin-bottom:0}
+@media(max-width:620px){
+ .st-decorated:not(.hero-main):has(>.card-title-row:first-child){--st-heading-deco-size:min(var(--st-deco-size,40px),44px)}
+ .st-decorated:not(.hero-main):has(>.card-title-row:first-child)>.card-title-row:first-child{min-height:32px;margin-bottom:10px;flex-wrap:wrap}
+ .st-decorated:not(.hero-main):has(>.card-title-row:first-child)>.card-title-row:first-child>.pd-shortcut{flex:none;white-space:nowrap}
+}

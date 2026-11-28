@@ -82,7 +82,16 @@ function injectStylesV31(){
       '.chart-card :is(.overview-legend,.rank-legend-v7,.trend-legend-row-v25 .legend)>span>i{flex:none}' +
       '.chart-card :is(.overview-legend,.rank-legend-v7,.trend-legend-row-v25 .legend)>span::after{flex:none}' +
       '.chart-card .trend-legend-row-v25 .trend-scroll-hint-v19{margin:4px 0 0;text-align:right}' +
-    '}'
+    '}',
+    '#content :is(.legend,.overview-legend,.rank-legend-v7,.radar-legend,.ad-legend){align-items:center;justify-content:flex-start;gap:4px 12px;font-size:var(--ui-caption,12px);line-height:1.45;color:var(--muted);min-width:0;max-width:100%}',
+    '#content :is(.legend,.overview-legend,.rank-legend-v7,.radar-legend)>span:not(.lg-hint-v31){display:inline-flex;align-items:center;gap:5px;min-height:26px;padding:3px 2px;background:transparent;border:0;border-radius:5px;font:inherit;color:inherit;box-sizing:border-box;white-space:normal;overflow-wrap:anywhere}',
+    '#content :is(.legend,.overview-legend,.rank-legend-v7,.radar-legend)>span>i{flex:none;margin:0;width:8px;height:8px;border-radius:50%}',
+    '#content :is(.legend,.overview-legend,.rank-legend-v7)>span:is(.lg-line-v29,.comp-dashed-v32)>i,#content .comp-legend-v32>span>i{width:18px;height:3px;border-radius:2px}',
+    '#content :is(.legend,.overview-legend,.rank-legend-v7)>span:is(.lg-dashed-v29,.comp-dashed-v32)>i{mask-image:repeating-linear-gradient(to right,#000 0 5px,transparent 5px 8px);-webkit-mask-image:repeating-linear-gradient(to right,#000 0 5px,transparent 5px 8px)}',
+    '#content [data-lg-adjustable-v29]:not(.comp-legend-v32)::after{content:"点按图例调整";font-size:var(--ui-caption,11px);color:var(--muted);white-space:nowrap;flex:none;opacity:.8}',
+    '#content :is(.legend,.overview-legend,.rank-legend-v7,.radar-legend) .lg-hint-v31{display:none!important}',
+    '#content [data-lg-adjustable-v29]>span:hover{background:var(--accent-soft)}#content [data-lg-adjustable-v29]>span.lg-hide-v29{opacity:.4;text-decoration:line-through}',
+    '@media(max-width:720px){#content .chart-card :is(.overview-legend,.rank-legend-v7,.trend-legend-row-v25 .legend)>span{flex:none;white-space:nowrap;overflow-wrap:normal}}'
   ].join('\n');
   var st=document.createElement('style');
   st.id='app-v31-style';
@@ -94,12 +103,8 @@ function injectStylesV31(){
 function injectLegendHintsV31(){
   var sel='.legend:not(.sv31-nopalette),.overview-legend:not(.sv31-nopalette),.rank-legend-v7:not(.sv31-nopalette)';
   document.querySelectorAll(sel+',#autoLegendV29').forEach(function(lg){
-    if(lg.querySelector('.lg-hint-v31'))return;
-    if(!lg.children.length&&!lg.textContent.trim())return;
-    var hint=document.createElement('span');
-    hint.className='lg-hint-v31';
-    hint.textContent='点击可换颜色';
-    lg.appendChild(hint);
+    lg.querySelectorAll('.lg-hint-v31').forEach(function(h){h.remove();});
+    if(lg.querySelector(':scope > span > i'))lg.setAttribute('data-lg-adjustable-v29','');
   });
 }
 
@@ -112,7 +117,7 @@ function installTrackingV31(){
   /* 打开取色器：点击任意图例项 */
   document.addEventListener('click',function(e){
     var hit=e.target.closest('.legend:not(.sv31-nopalette) > *,.overview-legend:not(.sv31-nopalette) > *,.rank-legend-v7:not(.sv31-nopalette) > *,#autoLegendV29 > *');
-    if(!hit)return;
+    if(!hit||!hit.querySelector('i'))return;
     var label=(hit.textContent||'').replace(/[🎨✎]/g,'').replace('点击可换颜色','').trim();
     window.__stTrack('legend_color_open',{subject:label});
   },true);

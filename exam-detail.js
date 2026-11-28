@@ -213,7 +213,7 @@
     return '<section class="ed-section" id="ed-scores" tabindex="-1"><div class="ed-section-head"><div><span class="ed-eyebrow">01 / 成绩</span><h2>各科得分与排名</h2><p>已录入的分数、排名、目标和参考成绩。</p></div></div>' +
       (m.rows.length ? '<div class="ed-table-wrap"><table class="ed-table"><thead><tr>' + ['科目','最终分 / 满分','得分率','目标 / 差值','年级排名','班级排名'].concat(hasAverages ? ['参考成绩'] : []).map(function (s) { return '<th scope="col">' + s + '</th>'; }).join('') + '</tr></thead><tbody>' + m.rows.map(function (r) {
         return '<tr><th scope="row">' + esc(r.name) + (r.excluded ? '<small>统计项 · 不计总分</small>' : '') + '</th>' +
-          cell('最终分', '<b>' + fmt(r.actual) + '</b> / ' + fmt(r.max) + (r.fallback && !finalOnlySubjectV62(r.name) ? '<small>同满分原始分</small>' : '') + (r.raw!==null?'<small>原始分 '+esc(String(r.raw))+' / '+esc(String(r.rawMax??'—'))+'</small>':'')) +
+          cell('最终分', '<b>' + fmt(r.actual) + '</b> / ' + fmt(r.max) + (r.fallback && !finalOnlySubjectV62(r.name) ? '<small>同满分原始分</small>' : '') + (r.raw!==null?'<small>原始分 '+esc(String(r.raw))+(finalOnlySubjectV62(r.name)||(r.rawMax>0&&r.rawMax!==r.max)?' / '+esc(String(r.rawMax??'—')):'')+'</small>':'')) +
           cell('得分率', r.rate === null ? '—' : fmt(r.rate) + '%') +
           cell('目标', goalSummary(exam,'s:'+r.name,r)) +
           cell('年级排名', rankCell(r.year)) + cell('班级排名', rankCell(r.class)) + (hasAverages ? cell('参考成绩', referenceSummary(exam,r.name) || '—') : '') + '</tr>';

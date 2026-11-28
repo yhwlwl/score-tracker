@@ -5840,8 +5840,8 @@ saveExam=async function saveExamV21(id,modal){
     var ranks=rankMetricV26(year,'年级')+rankMetricV26(cls,'班级');
     return ranks?'<div class="record-rankgrid-v26">'+ranks+'</div>':'';
   }
-  function subGridV26(raw,target,single){
-    var metrics=(!single&&presentV26(raw)?metricV26('原始',formatScore(raw),null):'')+(presentV26(target)?metricV26('目标',formatScore(target),null):'');
+  function subGridV26(raw,target,single,rawMax){
+    var metrics=(!single&&presentV26(raw)?metricV26('原始',formatScore(raw),presentV26(rawMax)&&rawMax>0?formatScore(rawMax):null):'')+(presentV26(target)?metricV26('目标',formatScore(target),null):'');
     return metrics?'<div class="record-subgrid-v26">'+metrics+'</div>':'';
   }
   function scoreValueV26(value,max){
@@ -5855,11 +5855,13 @@ saveExam=async function saveExamV21(id,modal){
     var year=rankInfoByScopeV16(exam,name,'year'),cls=rankInfoByScopeV16(exam,name,'class');
     var rank=rankPairV26(year,cls);
     if(eff===null&&raw===null&&t===null&&!rank)return '';
-    var single=finalOnlySubjectV62(name),rawShown=raw!==null&&(a===null||Number(raw)!==Number(a))?raw:null;
+    var single=finalOnlySubjectV62(name),finalMax=num(row.max),rawMax=num(row.rawMax)??finalMax;
+    var differentMax=finalMax!==null&&rawMax!==null&&finalMax>0&&rawMax>0&&finalMax!==rawMax;
+    var rawShown=raw!==null&&(a===null||Number(raw)!==Number(a)||differentMax)?raw:null;
     return '<div class="score-cell-v26">'
       +'<div class="sc-name-v26" title="'+escapeHtml(name)+'">'+escapeHtml(name)+(row.excludeFromTotal?'<span class="stat-badge-v17">统计项</span>':'')+'</div>'
-      +scoreValueV26(eff,a===null?(num(row.rawMax)??num(row.max)):num(row.max))
-      +subGridV26(rawShown,t,single)
+      +scoreValueV26(eff,a===null?rawMax:finalMax)
+      +subGridV26(rawShown,t,single,a!==null&&differentMax?rawMax:null)
       +rank
       +'</div>';
   }
@@ -5867,17 +5869,18 @@ saveExam=async function saveExamV21(id,modal){
     var fin=examScore(exam,m.name,'actual');
     var raw=(typeof examRawScoreV13==='function')?examRawScoreV13(exam,m.name):null;
     var tgt=examScore(exam,m.name,'target');
-    var max=examMax(exam,m.name);
+    var max=examMax(exam,m.name),rawMax=typeof rawMaxV14==='function'?rawMaxV14(exam,m.name):null;
+    var differentMax=presentV26(max)&&presentV26(rawMax)&&Number(max)>0&&Number(rawMax)>0&&Number(max)!==Number(rawMax);
     var r=(ranksMap&&ranksMap[String(m.id)])||{};
     var yr=num(r.yearRank),yp=num(r.yearParticipants),cr=num(r.classRank),cp=num(r.classParticipants);
     if(fin===null&&raw===null&&tgt===null&&yr===null&&cr===null)return '';
     var shown=fin!==null?fin:raw;
-    var rawShown=raw!==null&&(fin===null||Number(raw)!==Number(fin))?raw:null;
+    var rawShown=raw!==null&&(fin===null||Number(raw)!==Number(fin)||differentMax)?raw:null;
     var rank=rankPairV26({rank:yr,participants:yp},{rank:cr,participants:cp});
     return '<div class="score-cell-v26 combo">'
       +'<div class="sc-name-v26" title="'+escapeHtml(m.name)+'">'+escapeHtml(m.name)+'</div>'
-      +scoreValueV26(shown,fin!==null?max:null)
-      +subGridV26(rawShown,tgt,finalOnlyGroupV62(m.subjects))
+      +scoreValueV26(shown,fin!==null?max:rawMax)
+      +subGridV26(rawShown,tgt,finalOnlyGroupV62(m.subjects),fin!==null&&differentMax?rawMax:null)
       +rank
       +'</div>';
   }
@@ -6232,9 +6235,7 @@ saveExam=async function saveExamV21(id,modal){
     '.module-delete-v18{background:var(--chip-bg,#fff)}',
     '.module-subject-v18{background:var(--chip-bg,#fff);color:var(--muted)}',
     /* ---- 图例可点击的可见暗示 ---- */
-    '.legend:not(.sv31-nopalette) span::after,.overview-legend:not(.sv31-nopalette) .overview-pill::after,.rank-legend-v7:not(.sv31-nopalette) span::after{content:"🎨";font-size:9px;margin-left:4px;opacity:.45;transition:opacity .15s ease}',
-    '.legend span:hover::after,.overview-legend .overview-pill:hover::after,.rank-legend-v7 span:hover::after{opacity:1}',
-    '.lg-custom-v29::after{content:"✎";font-size:9px;color:var(--muted);margin-left:2px;opacity:.95}'
+    '.lg-custom-v29{font-weight:600}'
   ].join('\n');
 
   function injectStylesV29(){
@@ -6526,12 +6527,15 @@ saveExam=async function saveExamV21(id,modal){
       if(!lg)return;
       if(lg.classList&&lg.classList.contains('sv31-nopalette'))return; /* 固定语义图例(矩阵圆点):不换色不显隐 */
       var groups=groupSvgSeriesV29(svg);
-      var items=Array.prototype.filter.call(lg.children,function(n){return String(n.tagName||'').toUpperCase()==='SPAN';});
+      var items=Array.prototype.filter.call(lg.children,function(n){return String(n.tagName||'').toUpperCase()==='SPAN'&&!!n.querySelector('i');});
+      lg.toggleAttribute('data-lg-adjustable-v29',items.length>0);
       items.forEach(function(item,idx){
         var label=(item.textContent||'').replace('✎','').replace('🎨','').trim();
         item.title='点击更换颜色 / 显示';
         var c=CUSTOM_V29[label];
-        var i=item.querySelector('i');
+        var i=item.querySelector('i'),series=groups[idx];
+        item.classList.toggle('lg-line-v29',!!series);
+        item.classList.toggle('lg-dashed-v29',!!(series&&series.line.getAttribute('stroke-dasharray')&&series.line.getAttribute('stroke-dasharray')!=='none'));
         if(c){
           item.classList.add('lg-custom-v29');
           if(i){
@@ -6637,7 +6641,7 @@ saveExam=async function saveExamV21(id,modal){
     bindPickerV29.done=true;
     document.addEventListener('click',function(e){
       var hit=e.target.closest('.legend:not(.sv31-nopalette) > *,.overview-legend:not(.sv31-nopalette) > *,.rank-legend-v7:not(.sv31-nopalette) > *');
-      if(!hit)return;
+      if(!hit||!hit.querySelector('i'))return;
       var label=(hit.textContent||'').replace('✎','').trim();
       if(label)openPickerV29(hit,label);
     });
@@ -7589,7 +7593,16 @@ function injectStylesV31(){
       '.chart-card :is(.overview-legend,.rank-legend-v7,.trend-legend-row-v25 .legend)>span>i{flex:none}' +
       '.chart-card :is(.overview-legend,.rank-legend-v7,.trend-legend-row-v25 .legend)>span::after{flex:none}' +
       '.chart-card .trend-legend-row-v25 .trend-scroll-hint-v19{margin:4px 0 0;text-align:right}' +
-    '}'
+    '}',
+    '#content :is(.legend,.overview-legend,.rank-legend-v7,.radar-legend,.ad-legend){align-items:center;justify-content:flex-start;gap:4px 12px;font-size:var(--ui-caption,12px);line-height:1.45;color:var(--muted);min-width:0;max-width:100%}',
+    '#content :is(.legend,.overview-legend,.rank-legend-v7,.radar-legend)>span:not(.lg-hint-v31){display:inline-flex;align-items:center;gap:5px;min-height:26px;padding:3px 2px;background:transparent;border:0;border-radius:5px;font:inherit;color:inherit;box-sizing:border-box;white-space:normal;overflow-wrap:anywhere}',
+    '#content :is(.legend,.overview-legend,.rank-legend-v7,.radar-legend)>span>i{flex:none;margin:0;width:8px;height:8px;border-radius:50%}',
+    '#content :is(.legend,.overview-legend,.rank-legend-v7)>span:is(.lg-line-v29,.comp-dashed-v32)>i,#content .comp-legend-v32>span>i{width:18px;height:3px;border-radius:2px}',
+    '#content :is(.legend,.overview-legend,.rank-legend-v7)>span:is(.lg-dashed-v29,.comp-dashed-v32)>i{mask-image:repeating-linear-gradient(to right,#000 0 5px,transparent 5px 8px);-webkit-mask-image:repeating-linear-gradient(to right,#000 0 5px,transparent 5px 8px)}',
+    '#content [data-lg-adjustable-v29]:not(.comp-legend-v32)::after{content:"点按图例调整";font-size:var(--ui-caption,11px);color:var(--muted);white-space:nowrap;flex:none;opacity:.8}',
+    '#content :is(.legend,.overview-legend,.rank-legend-v7,.radar-legend) .lg-hint-v31{display:none!important}',
+    '#content [data-lg-adjustable-v29]>span:hover{background:var(--accent-soft)}#content [data-lg-adjustable-v29]>span.lg-hide-v29{opacity:.4;text-decoration:line-through}',
+    '@media(max-width:720px){#content .chart-card :is(.overview-legend,.rank-legend-v7,.trend-legend-row-v25 .legend)>span{flex:none;white-space:nowrap;overflow-wrap:normal}}'
   ].join('\n');
   var st=document.createElement('style');
   st.id='app-v31-style';
@@ -7601,12 +7614,8 @@ function injectStylesV31(){
 function injectLegendHintsV31(){
   var sel='.legend:not(.sv31-nopalette),.overview-legend:not(.sv31-nopalette),.rank-legend-v7:not(.sv31-nopalette)';
   document.querySelectorAll(sel+',#autoLegendV29').forEach(function(lg){
-    if(lg.querySelector('.lg-hint-v31'))return;
-    if(!lg.children.length&&!lg.textContent.trim())return;
-    var hint=document.createElement('span');
-    hint.className='lg-hint-v31';
-    hint.textContent='点击可换颜色';
-    lg.appendChild(hint);
+    lg.querySelectorAll('.lg-hint-v31').forEach(function(h){h.remove();});
+    if(lg.querySelector(':scope > span > i'))lg.setAttribute('data-lg-adjustable-v29','');
   });
 }
 
@@ -7619,7 +7628,7 @@ function installTrackingV31(){
   /* 打开取色器：点击任意图例项 */
   document.addEventListener('click',function(e){
     var hit=e.target.closest('.legend:not(.sv31-nopalette) > *,.overview-legend:not(.sv31-nopalette) > *,.rank-legend-v7:not(.sv31-nopalette) > *,#autoLegendV29 > *');
-    if(!hit)return;
+    if(!hit||!hit.querySelector('i'))return;
     var label=(hit.textContent||'').replace(/[🎨✎]/g,'').replace('点击可换颜色','').trim();
     window.__stTrack('legend_color_open',{subject:label});
   },true);
@@ -8650,16 +8659,16 @@ function hallHtmlV32(f,mode){
   });
   if(!rows.length)return "";
   var body=rows.map(function(r){
-    return "<tr><td>"+esc32(r.name)+"</td><td>"+sparkSvg32(r.vals)+"</td>"
-      +'<td class="num" style="font-weight:800">'+r.bestTxt+"</td><td class='num'>"+r.score+"</td>"
-      +'<td style="color:var(--muted)">'+esc32(shortName32(r.at))+"</td>"
-      +'<td class="num">'+r.gapTxt+"</td>"
-      +"<td>"+r.pill+"</td></tr>";
+    return '<tr><td data-hall-field="subject">'+esc32(r.name)+'</td><td data-hall-field="spark">'+sparkSvg32(r.vals)+'</td>'
+      +'<td data-hall-field="rank" data-label="最佳排名 / 参考" class="num" style="font-weight:800">'+r.bestTxt+'</td><td data-hall-field="score" data-label="最佳得分" class="num">'+r.score+'</td>'
+      +'<td data-hall-field="exam" data-label="考到于" style="color:var(--muted)">'+esc32(shortName32(r.at))+'</td>'
+      +'<td data-hall-field="gap" data-label="现在差" class="num">'+r.gapTxt+'</td>'
+      +'<td data-hall-field="status">'+r.pill+'</td></tr>';
   }).join("");
   return '<div class="card"><div class="card-title-row"><div><h3 class="card-title">⑤ 个人最佳殿堂</h3>'
     +'<p class="card-sub">满分不同时按最高得分率展示；分数仅供参考。</p></div>'
     +lockTagV32(mode)+"</div>"
-    +'<div class="sv31-scroll"><table><thead><tr><th>科目</th><th>历次小走势</th><th style="text-align:right">最佳排名 / 参考</th><th>最佳得分</th><th>考到于</th><th style="text-align:right">现在差</th><th>状态</th></tr></thead><tbody>'
+    +'<div class="sv31-scroll hall-scroll-v32"><table class="hall-table-v32"><thead><tr><th>科目</th><th>历次小走势</th><th style="text-align:right">最佳排名 / 参考</th><th>最佳得分</th><th>考到于</th><th style="text-align:right">现在差</th><th>状态</th></tr></thead><tbody>'
     +body+"</tbody></table></div></div>";
 }
 /* ---------- ⑥ 目标校准 ---------- */
@@ -9042,7 +9051,9 @@ function injectStylesV32(){
     "html[data-theme='night'] .i-risk .ico{background:rgba(217,92,92,.18);color:#f0a3a3}",
     ".sv31-pane{display:none}.sv31-pane.on{display:block}",
     ".sv31-tabs{margin-left:0}",
-    ".sv31-scroll{overflow-x:auto}.sv31-scroll table{min-width:430px}",
+    ".sv31-scroll{max-width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;overscroll-behavior-x:contain}.sv31-scroll table{min-width:430px}",
+    "#content .sv31-scroll table:not(.sv31-heat):not(.hall-table-v32){min-width:max(560px,100%);table-layout:auto}#content .sv31-scroll table:not(.sv31-heat):not(.hall-table-v32) :is(th,td){word-break:normal;overflow-wrap:normal;min-width:72px}#content .sv31-scroll table:not(.sv31-heat):not(.hall-table-v32) :is(th,td):last-child{min-width:120px}",
+    "@media(max-width:620px){#content .sv31-kpi{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}#content .sv31-stat{padding:11px;min-width:0;overflow-wrap:anywhere}#content .sv31-stat .lb{word-break:normal;line-height:1.4}#content .sv31-stat .v{margin:5px 0 3px}#content .sv31-stat .d{border-radius:6px;padding:3px 5px;line-height:1.4;white-space:normal}#content .hall-scroll-v32{overflow:visible}#content .hall-table-v32{display:block;width:100%;min-width:0!important;table-layout:auto}#content .hall-table-v32 thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}#content .hall-table-v32 tbody{display:grid;gap:8px;width:100%}#content .hall-table-v32 tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px;padding:10px 11px;border:1px solid var(--line);border-radius:11px;min-width:0}#content .hall-table-v32 td{display:block;padding:0;border:0;text-align:left!important;min-width:0;white-space:normal!important;word-break:normal;overflow-wrap:anywhere}#content .hall-table-v32 td[data-label]::before{content:attr(data-label);display:block;color:var(--muted);font-size:var(--ui-caption,11px);font-weight:400;margin-bottom:2px}#content .hall-table-v32 td[data-hall-field=subject]{order:0;font-weight:650;font-size:var(--ui-small,13px);align-self:center}#content .hall-table-v32 td[data-hall-field=status]{order:1;text-align:right!important;align-self:center}#content .hall-table-v32 td[data-hall-field=rank]{order:2}#content .hall-table-v32 td[data-hall-field=score]{order:3}#content .hall-table-v32 td[data-hall-field=exam]{order:4}#content .hall-table-v32 td[data-hall-field=gap]{order:5}#content .hall-table-v32 td[data-hall-field=spark]{order:6;grid-column:1/-1}#content .hall-table-v32 td[data-hall-field=status] .pill{white-space:normal;line-height:1.4}#content .hall-table-v32[data-ad-compact] [data-ad-extra-col]{display:none!important}}",
     ".sv31-page .pill{display:inline-block;font-size:10px;font-weight:700;border-radius:999px;padding:3px 9px;white-space:nowrap}",
     ".sv31-page .pill.ok{background:var(--green-soft,#e9f8f2);color:var(--green,#32a77a)}",
     ".sv31-page .pill.acc{background:var(--accent-soft,#eef1ff);color:var(--accent,#5d72e8)}",
@@ -9719,10 +9730,12 @@ function renderHomeCard(mount){
     if(cw){
       var startX=0,startY=0,startScroll=0,moved=false,dragging=false,pointerId=null;
       cw.addEventListener('pointerdown',function(e){
-        startX=e.clientX;startY=e.clientY;startScroll=cw.scrollLeft;moved=false;dragging=false;pointerId=e.pointerId;
+        startX=e.clientX;startY=e.clientY;startScroll=cw.scrollLeft;moved=false;dragging=false;
+        // Touch uses native inertial scrolling; mouse/pen use the drag handler.
+        pointerId=e.pointerType==='touch'?null:e.pointerId;
       });
       cw.addEventListener('pointermove',function(e){
-        if(pointerId!==null&&e.pointerId!==pointerId)return;
+        if(pointerId===null||e.pointerId!==pointerId)return;
         var dx=e.clientX-startX,dy=e.clientY-startY;
         if(!dragging&&Math.abs(dx)>6&&Math.abs(dx)>Math.abs(dy)*1.08){
           dragging=true;moved=true;
@@ -9735,7 +9748,7 @@ function renderHomeCard(mount){
         }
       },{passive:false});
       function endDrag(e){
-        if(pointerId!==null&&e.pointerId!==undefined&&e.pointerId!==pointerId)return;
+        if(pointerId===null||(e.pointerId!==undefined&&e.pointerId!==pointerId))return;
         try{if(pointerId!==null&&cw.hasPointerCapture&&cw.hasPointerCapture(pointerId))cw.releasePointerCapture(pointerId)}catch(_){}
         pointerId=null;dragging=false;
       }
@@ -12795,7 +12808,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     };});
   };
 
-  var style=document.createElement('style');style.id='app-v35-style';style.textContent='.grade-filter-v61{align-items:center}.grade-filter-v61 .label{white-space:nowrap}.draft-note-v61{border:1px solid var(--line,#e5e9ef);background:var(--cell,#f7f9fc);color:var(--muted,#687386);border-radius:11px;padding:9px 11px;margin-bottom:12px;font-size:11px;line-height:1.6}.draft-clear-v61{margin-right:auto}.gh-chips{touch-action:pan-y!important}';document.head.appendChild(style);
+  var style=document.createElement('style');style.id='app-v35-style';style.textContent='.grade-filter-v61{align-items:center}.grade-filter-v61 .label{white-space:nowrap}.draft-note-v61{border:1px solid var(--line,#e5e9ef);background:var(--cell,#f7f9fc);color:var(--muted,#687386);border-radius:11px;padding:9px 11px;margin-bottom:12px;font-size:11px;line-height:1.6}.draft-clear-v61{margin-right:auto}.gh-chips{touch-action:pan-x pan-y!important}';document.head.appendChild(style);
   window.__v61={captureDraft:captureExam61,readDraft:readDraft61,clearDraft:clearDraft61,filters:function(){return(state.gradeFiltersV61||[]).slice();},normalizeHomeCategories:normalizeHomeCategories61,homeScopeHtml:homeScopeHtml61};
 })();
 
@@ -15332,7 +15345,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     return '<section class="ed-section" id="ed-scores" tabindex="-1"><div class="ed-section-head"><div><span class="ed-eyebrow">01 / 成绩</span><h2>各科得分与排名</h2><p>已录入的分数、排名、目标和参考成绩。</p></div></div>' +
       (m.rows.length ? '<div class="ed-table-wrap"><table class="ed-table"><thead><tr>' + ['科目','最终分 / 满分','得分率','目标 / 差值','年级排名','班级排名'].concat(hasAverages ? ['参考成绩'] : []).map(function (s) { return '<th scope="col">' + s + '</th>'; }).join('') + '</tr></thead><tbody>' + m.rows.map(function (r) {
         return '<tr><th scope="row">' + esc(r.name) + (r.excluded ? '<small>统计项 · 不计总分</small>' : '') + '</th>' +
-          cell('最终分', '<b>' + fmt(r.actual) + '</b> / ' + fmt(r.max) + (r.fallback && !finalOnlySubjectV62(r.name) ? '<small>同满分原始分</small>' : '') + (r.raw!==null?'<small>原始分 '+esc(String(r.raw))+' / '+esc(String(r.rawMax??'—'))+'</small>':'')) +
+          cell('最终分', '<b>' + fmt(r.actual) + '</b> / ' + fmt(r.max) + (r.fallback && !finalOnlySubjectV62(r.name) ? '<small>同满分原始分</small>' : '') + (r.raw!==null?'<small>原始分 '+esc(String(r.raw))+(finalOnlySubjectV62(r.name)||(r.rawMax>0&&r.rawMax!==r.max)?' / '+esc(String(r.rawMax??'—')):'')+'</small>':'')) +
           cell('得分率', r.rate === null ? '—' : fmt(r.rate) + '%') +
           cell('目标', goalSummary(exam,'s:'+r.name,r)) +
           cell('年级排名', rankCell(r.year)) + cell('班级排名', rankCell(r.class)) + (hasAverages ? cell('参考成绩', referenceSummary(exam,r.name) || '—') : '') + '</tr>';
