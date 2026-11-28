@@ -124,7 +124,7 @@ export async function proxyApi(request, options = {}) {
 
   try {
     // Buffer neither images nor credentials; forward the existing request body unchanged.
-    const upstream = await (options.fetch || fetch)(UPSTREAM_ROOT + endpoint, {
+    const upstream = await (options.fetch || fetch)(UPSTREAM_ROOT + (studyQuestion ? 'score-tracker-study-preview-v6' : endpoint), {
       method: 'POST', headers: upstreamHeaders, body: request.body,
       signal: controller.signal, redirect: 'manual', duplex: 'half',
     });
