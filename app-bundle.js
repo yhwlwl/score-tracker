@@ -14830,7 +14830,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       if (block) block.remove();
       block = document.createElement('details'); block.className = 'exam-averages'; block.dataset.averageKey = key;
       var summary=document.createElement('summary'),heading=document.createElement('span'),excerpt=document.createElement('small'),fields=document.createElement('div');
-      heading.textContent='参考分数（选填）';summary.append(heading,excerpt);block.append(summary,fields);fields.className='reference-fields';
+      heading.textContent='参考分数（选填：平均分，最高分，特控线，本科线）';summary.append(heading,excerpt);block.append(summary,fields);fields.className='reference-fields';
       var labels={class:'班级均分',year:'年级均分',classMax:'班级最高分',yearMax:'年级最高分',undergraduate:'本科线',specialCutoff:'特控线'};
       function updateSummary(){var draft=modal._averageDraft[key]||{};excerpt.textContent=['classMax','yearMax','class','year','undergraduate','specialCutoff'].filter(function(s){return number(draft[s])!==null;}).map(function(s){return labels[s]+' '+draft[s];}).join(' · ');}
       updateSummary();
