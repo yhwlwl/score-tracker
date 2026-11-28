@@ -42,8 +42,8 @@ applyGradeFilterV13=function applyCategoryFilterV14(){
   state.radarSelection=(state.radarSelection||[]).filter(id=>state.exams.some(e=>e.id===id)); ensureRadarSelection();
 };
 
-loadExams=async function loadExamsV14(){
-  const data=await dataApiV7('list_exams');
+loadExams=async function loadExamsV14(snapshot){
+  const data=await dataApiV7('list_exams',snapshot?{_savedExamSnapshot:snapshot}:undefined);
   state.allExams=data.exams||[]; state.subjectConfigs=data.subjects||[];
   state.classification=data.classification||state.classification||{label:'年级',options:['高一','高二','高三']};
   state.unfilteredVisibleExamsV13=state.allExams.filter(e=>!e.is_hidden);

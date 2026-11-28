@@ -79,7 +79,7 @@ if(typeof applyExamSubjectsV10==='function'){
   applyExamSubjectsV10=function applyExamSubjectsV18(exams,templates){applyExamSubjectsBeforeV18(exams,templates);appendModulesV18();};
 }
 var loadExamsBeforeV18=loadExams;
-loadExams=async function loadExamsV18(){await loadExamsBeforeV18();await loadModulesV18();if(typeof applyExamSubjectsV10==='function')applyExamSubjectsV10(state.exams||[],state.subjectConfigs||[]);else appendModulesV18();};
+loadExams=async function loadExamsV18(){await loadExamsBeforeV18.apply(this,arguments);await loadModulesV18();if(typeof applyExamSubjectsV10==='function')applyExamSubjectsV10(state.exams||[],state.subjectConfigs||[]);else appendModulesV18();};
 
 function moduleCompleteSumV18(exam,module,key,reader){
   if(!module||!Array.isArray(module.subjects)||module.subjects.length<2)return null;
