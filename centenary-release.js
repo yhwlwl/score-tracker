@@ -12,7 +12,7 @@ const date=(v,dayOnly=false)=>{if(!v)return'—';const d=instant(v);return Numbe
 function user(){try{return state.user&&state.token&&state.user.id&&state.user.id!=='guest'?{id:String(state.user.id),token:state.token}:null}catch(_){return null}}
 function key(u){return u?u.id+':'+u.token:''}
 let owner='',data=null,dialog=null,entry=null,inflight=false,last=0,shown=false,generation=0,seenPending=false,controller=null,ackPending=false,updateOpenDialog=null;
-function track(event,meta={}){try{(g.__scoreTrackerTrack||g.__stTrack)?.(event,{notice_id:NOTICE_ID,...meta})}catch(_){}}
+function track(){} // Preview activity must not enter production telemetry.
 function current(k){return !!k&&key(user())===k&&owner===k}
 async function api(action,u,signal){
  const c=new AbortController(),timer=setTimeout(()=>c.abort(),10000);
@@ -28,7 +28,7 @@ function mount(){if(!eligible(data)){entry?.remove();entry=null;return}
  if(!card){entry?.remove();entry=null;return}
  if(!entry||!entry.isConnected){entry=document.createElement('button');entry.type='button';entry.className='st-centenary-entry';entry.textContent='三百纪念 · 查看我的纪念';entry.style.cssText='width:100%;margin-top:10px;padding:10px;border:1px solid var(--line,#dce3ef);border-radius:10px;color:var(--accent,#6079b3);background:var(--cell,transparent);font:inherit;cursor:pointer';entry.onclick=()=>{if(!blocked())open(true)};card.append(entry)}
 }
-async function acknowledge(u,k,gen){if(!current(k)||!eligible(data)||data.seen_at||ackPending)return;ackPending=true;try{const d=await api('centenary_seen',u);if(current(k)&&gen===generation&&d.ok===true){data={...data,seen_at:new Date().toISOString()};seenPending=false}}catch(_){}finally{if(gen===generation)ackPending=false}}
+async function acknowledge(u,k,gen){if(current(k)&&gen===generation){data={...data,seen_at:new Date().toISOString()};seenPending=false}}
 function open(manual=false){const u=user(),k=key(u),gen=generation;if(!current(k)||!eligible(data)||dialog||blocked()||(!manual&&!shouldPrompt(data,shown)))return;
  const d=data,host=document.createElement('div'),el=document.createElement('dialog');el.className='st-centenary-dialog';el.setAttribute('aria-label','Score Tracker 三百纪念');el.style.cssText='padding:0;border:0;border-radius:24px;background:transparent;max-width:calc(100vw - 24px);max-height:96dvh;overflow:hidden;box-shadow:0 24px 100px #23365345';
  const shadow=host.attachShadow({mode:'open'});if(document.documentElement.dataset.theme==='dark'||document.body.classList.contains('dark')||document.documentElement.classList.contains('dark')||matchMedia('(prefers-color-scheme: dark)').matches)host.classList.add('dark');
@@ -83,23 +83,24 @@ function open(manual=false){const u=user(),k=key(u),gen=generation;if(!current(k
    const res=await fetch('/api/score-tracker-data-api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'achievement_overview',token:u.token,achievement_release:2}),signal:ac.signal,cache:'no-store'});
    const overview=await res.json();if(!current(k)||!el.isConnected)return;
    const awards=Array.isArray(overview.awards)?overview.awards:[];
-   const award=awards.find(a=>a.badge_id==='triple');
+   const award=awards.find(a=>a.badge_id==='triple')||{badge_id:'triple',rule_version:1,awarded_at:d.published_at,evidence:{kind:'event',source:'centenary',verified:true,achievedDate:new Date(instant(d.published_at).getTime()+28800000).toISOString().slice(0,10),dateBasis:'event',registrationPosition:d.registration_position}};
    if(!res.ok||overview.enabled!==true||!award)throw Error('award unavailable');
    track('centenary_badge_view');finish();
-   achievementUI.show(badge,award,{stats:overview.stats,play:true,autoFlip:true,centenaryLive:{...d},onGallery:()=>{if(current(k))achievementUI.openGallery(awards,{stats:overview.stats,favorites:overview.favorites})}});
+   const stats=overview.stats?{...overview.stats,counts:{...overview.stats.counts,triple:overview.stats.total},version_counts:{...overview.stats.version_counts,'triple:1':overview.stats.total}}:undefined;
+   achievementUI.show(badge,award,{stats,play:true,autoFlip:true,centenaryLive:{...d},onGallery:()=>{if(current(k))achievementUI.openGallery([...awards.filter(a=>a.badge_id!=='triple'),award],{stats,favorites:overview.favorites})}});
   }catch(_){if(current(k)&&el.isConnected){status.hidden=false;track('centenary_badge_failed');status.textContent='暂时无法读取纪念徽章，请重试。';button.disabled=false}}
   finally{clearTimeout(timeout)}
  };
  el.addEventListener('cancel',e=>{e.preventDefault();track('centenary_dismiss',{source:'cancel'});finish()});
- $('discussion').onclick=async()=>{if(!current(k))return;const openDiscussion=g.__releaseNotices?.openCentenaryDiscussion;if(!openDiscussion)return;track('centenary_discussion_open');finish();try{await openDiscussion()}catch(_){}};
+ $('discussion').onclick=async()=>{if(!current(k))return;const openDiscussion=g.__releaseNotices?.openCentenaryDiscussion;if(!openDiscussion)return;track('centenary_discussion_open');if(!data?.preview||data?.published_at&&data?.published_at===data?.actual_published_at){finish();try{await openDiscussion()}catch(_){}}else{alert('纪念留言将在正式发布后开放。')}};
  $('discussion').hidden=typeof g.__releaseNotices?.openCentenaryDiscussion!=='function';
- document.body.append(el);dialog=el;
+ document.body.append(el);dialog=el;el.title='三百纪念 · 发布预览（不会发放徽章）';
  try{el.showModal();$('modal').focus({preventScroll:true});$('modal').classList.add('launch');if(!manual&&!d.seen_at)animateNumbers();
  if(typeof IntersectionObserver==='function'&&!matchMedia('(prefers-reduced-motion: reduce)').matches){const observer=new IntersectionObserver(entries=>{for(const item of entries)if(item.isIntersecting){item.target.classList.add('in-view');observer.unobserve(item.target)}},{root:$('scroll'),threshold:.12});for(const section of shadow.querySelectorAll('.journey,.letter,.wall')){section.classList.add('scroll-reveal');observer.observe(section)}el.addEventListener('close',()=>observer.disconnect(),{once:true})}
  shown=true;track('centenary_view',{source:manual?'account':'automatic'});seenPending=!d.seen_at;acknowledge(u,k,gen)}catch(_){close();return}
 }
 async function refresh(u,k){if(inflight||!current(k)||document.visibilityState!=='visible')return;inflight=true;last=Date.now();const gen=generation,ac=new AbortController();controller=ac;
- try{const d=await api('centenary_status',u,ac.signal);if(!current(k)||gen!==generation)return;data=d;if(!eligible(d)){if(g.ScoreAchievementUI?.centenaryOpen?.())g.ScoreAchievementUI.close();close();entry?.remove();entry=null;seenPending=false;return}if(updateOpenDialog)updateOpenDialog(d);mount();if(seenPending)acknowledge(u,k,gen);if(shouldPrompt(d,shown)&&!blocked())open()}
+ try{const raw=await api('centenary_preview',u,ac.signal);const ready=!!(raw.day_at&&raw.account_hit_at&&raw.event_hit_at&&instant(raw.day_at).getTime()<=Date.now());const d={...raw,actual_published_at:raw.published_at,published:ready,eligible:ready,paused:false,published_at:raw.published_at||new Date().toISOString(),seen_at:data?.seen_at||null};if(!current(k)||gen!==generation)return;data=d;if(!eligible(d)){if(g.ScoreAchievementUI?.centenaryOpen?.())g.ScoreAchievementUI.close();close();entry?.remove();entry=null;seenPending=false;return}if(updateOpenDialog)updateOpenDialog(d);mount();if(seenPending)acknowledge(u,k,gen);if(shouldPrompt(d,shown)&&!blocked())open()}
  catch(_){}finally{if(gen===generation){inflight=false;controller=null}}
 }
 function tick(force=false){const u=user(),k=key(u);if(k!==owner)reset(k);if(!u||document.visibilityState!=='visible')return;mount();if(shouldPrompt(data,shown)&&!blocked())open();if(force||Date.now()-last>=(dialog||g.ScoreAchievementUI?.centenaryOpen?.()?LIVE_PERIOD:PERIOD))refresh(u,k)}
