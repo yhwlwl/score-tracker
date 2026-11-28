@@ -2,7 +2,6 @@
 (function () {
   'use strict';
   const api = '/api/score-tracker-study-api';
-  const starters = ['最近两场，哪科变化最大？', '画出我的得分率和排名走势', '下一场大概能排到哪里？'];
   const stages = {
     records:'正在查看考试记录…', planning:'正在找相关数据…', analysis:'正在整理分析…',
   };
@@ -51,19 +50,97 @@
     return el;
   }
   function records() { return Array.isArray(state.allExams)?state.allExams:(Array.isArray(state.exams)?state.exams:[]); }
+  const scoreNumber=v=>v!=null && v!=='' && Number.isFinite(Number(v))?Number(v):null;
   function hasScore(e) {
-    return Object.values(e?.scores||{}).some(s=>s?.actual!=null && s.actual!=='' && Number.isFinite(Number(s.actual))) ||
-      (e?.total_score!=null && e.total_score!=='' && Number.isFinite(Number(e.total_score)));
+    return Object.values(e?.scores||{}).some(s=>scoreNumber(s?.actual)!==null||scoreNumber(s?.raw)!==null) ||
+      scoreNumber(e?.total_actual_score??e?.total_score)!==null;
   }
-  function homePrompts() {
-    const exams=records().filter(hasScore).sort((a,b)=>String(b.exam_date||'').localeCompare(String(a.exam_date||'')));
-    if(!exams.length)return [];
-    if(exams.length===1)return ['这次考试表现如何？','我的优势科目是什么？'];
-    const a=exams[0],b=exams[1];
-    const same=Object.keys(a.scores||{}).filter(k=>[a,b].every(e=>e.scores?.[k]?.actual!=null && e.scores[k].actual!=='' && Number.isFinite(Number(e.scores[k].actual)) && Number(e.scores[k].max)>0));
-    const moves=same.map(k=>({k,d:100*(Number(a.scores[k].actual)/Number(a.scores[k].max)-Number(b.scores[k].actual)/Number(b.scores[k].max))})).sort((x,y)=>Math.abs(y.d)-Math.abs(x.d));
-    const top=moves.find(x=>/^[\u4e00-\u9fa5]{1,5}$/.test(x.k) && Math.abs(x.d)>=5);
-    return [top?('最近'+top.k+'有什么变化？'):'最近进步了吗？',exams.length>=3?'下一场表现预测':'哪科最值得关注？'];
+  function rateOf(e,k){
+    const s=e.scores?.[k];if(!s)return null;
+    const actual=scoreNumber(s.actual),raw=scoreNumber(s.raw);
+    const v=actual??raw,max=scoreNumber(actual!==null?s.max:(s.rawMax??s.max));
+    return v!==null&&max>0&&v>=0&&v<=max?v/max*100:null;
+  }
+  function rankOf(e,k,scope='year'){
+    try{
+      if(typeof rankInfoByScopeV16==='function'){
+        const r=rankInfoByScopeV16(e,k,scope),p=scoreNumber(r?.positionPercent),n=scoreNumber(r?.rank),count=scoreNumber(r?.participants);
+        return r?.directPercent&&p!==null&&p>=0&&p<=100?p:n>=1&&count>=n?n/count*100:null;
+      }
+    }catch(_){}
+    return null;
+  }
+  function questionPool(){
+    const exams=records().filter(e=>hasScore(e)&&!e.is_hidden).slice().sort((a,b)=>String(b.exam_date||'').localeCompare(String(a.exam_date||'')));
+    const pool=[],seen=new Set();
+    const add=(group,priority,...questions)=>questions.forEach(q=>{if(!seen.has(q)){seen.add(q);pool.push({q,group,priority});}});
+    if(!exams.length){
+      add('start',3,'录入哪些成绩后可以开始分析？','怎样记录排名才方便比较？','只有一次考试，可以分析什么？','怎样设置适合自己的成绩目标？','不同满分的成绩怎么比较？','我应该记录哪些考试信息？');
+      return {pool,hasRecords:false};
+    }
+    const latest=exams[0],subjects=[...new Set(exams.flatMap(e=>Object.keys(e.scores||{})))].filter(k=>/^[\u4e00-\u9fa5]{1,5}$/.test(k)&&k!=='总分'&&exams.some(e=>rateOf(e,k)!==null));
+    const latestSubjects=subjects.filter(k=>rateOf(latest,k)!==null);
+    const same=subjects.filter(k=>exams.length>=2&&rateOf(latest,k)!==null&&rateOf(exams[1],k)!==null);
+    const moves=same.map(k=>({k,d:rateOf(latest,k)-rateOf(exams[1],k)})).sort((a,b)=>Math.abs(b.d)-Math.abs(a.d));
+    const ranked=subjects.filter(k=>exams.some(e=>rankOf(e,k)!==null));
+    const totalRanks=exams.filter(e=>rankOf(e,'总分')!==null).length;
+    add('exam',3,'最近一次考试有哪些值得关注的地方？','怎样复盘最近一次考试？','这次考试的成绩结构怎么样？');
+    if(latestSubjects.length>=2)add('structure',3,'这次各科表现有什么差异？','哪些科目值得重点关注？','各科成绩应该怎样分析？');
+    for(const k of latestSubjects.slice(0,9))add('subject',2,'分析一下我最近的'+k+'成绩。');
+    for(const {k,d} of moves.slice(0,4)){
+      add('change',Math.abs(d)>=5?5:3,'最近'+k+'有什么变化？');
+      if(Math.abs(d)>=5)add('change',4,'结合历史记录，怎么看'+k+'这次的'+(d>0?'回升':'波动')+'？');
+    }
+    if(exams.length>=2){
+      add('trend',3,'最近两场，哪科变化最大？','最近的成绩趋势怎么样？','和上一次考试相比，我有哪些变化？');
+      if(same.length>=2)add('structure',3,'哪科近期的得分率变化最大？','哪些科目保持得比较稳定？');
+    }
+    if(exams.length>=3){
+      add('trend',3,'我的成绩波动主要体现在哪些科目？','画出我的近期得分率趋势。','哪些变化可能只是单场波动？');
+      for(const k of subjects.filter(k=>exams.filter(e=>rateOf(e,k)!==null).length>=3).slice(0,6))add('stability',3,k+'最近的表现稳定吗？');
+    }
+    if(totalRanks>=1||ranked.length){
+      add('rank',3,'结合分数和排名，我该怎样看最近的成绩？','我的相对排名表现如何？');
+      if(totalRanks>=2)add('rank',4,'画出我的总分排名走势。','排名变化和分数变化一致吗？');
+      for(const k of ranked.slice(0,6)){
+        const comparisons=exams.filter(e=>rankOf(e,k)!==null&&rateOf(e,k)!==null);
+        if(comparisons.length>=2)add('difficulty',3,k+'的分数变化和排名变化一致吗？');
+      }
+    }
+    if(totalRanks>=3)add('forecast',3,'下一场大概能排到哪里？','下一场排名预测的参考范围有多大？');
+    if(ranked.some(k=>exams.filter(e=>rankOf(e,k)!==null).length>=3))add('forecast',3,'哪些科目已有足够记录用于预测？');
+    const goals=exams.some(e=>Object.values(e.scores||{}).some(s=>scoreNumber(s?.target)!==null)||Object.keys(e.exam_goals?.items||{}).length);
+    if(goals)add('goal',4,'我最近的目标达成情况怎么样？','哪些目标可以根据近期成绩调整？','怎样让下一场考试的目标更合理？');
+    return {pool,hasRecords:true};
+  }
+  function selectPrompts(pool,count,previous=[]){
+    // Shuffle within priority, then diversify topics; prefer new questions over recent ones.
+    const old=new Set(previous),used=new Set(),picked=[];
+    const ranked=pool.map(item=>({...item,weight:item.priority+Math.random()*3-(old.has(item.q)?20:0)})).sort((a,b)=>b.weight-a.weight);
+    for(const item of ranked){
+      if(used.has(item.group))continue;
+      used.add(item.group);picked.push(item.q);if(picked.length===count)return picked;
+    }
+    for(const item of ranked){if(!picked.includes(item.q))picked.push(item.q);if(picked.length===count)break;}
+    return picked;
+  }
+  function homePrompts(){
+    const {pool,hasRecords}=questionPool();
+    if(!hasRecords)return [];
+    const signature=pool.map(x=>x.q).join('|');
+    if(session.homeSignature!==signature||!session.homeQuestions){
+      session.homeQuestions=selectPrompts(pool,2,session.homeQuestions);
+      session.homeSignature=signature;
+    }
+    return session.homeQuestions;
+  }
+  function refreshWelcome(){
+    const choices=dialog?.querySelector('.sq-welcome .sq-choices');
+    if(!choices)return;
+    const {pool}=questionPool();
+    const questions=selectPrompts(pool,3,session.welcomeQuestions||session.homeQuestions||[]);
+    session.welcomeQuestions=questions;
+    choices.replaceChildren(...questions.map(q=>button(q,'sq-choice',()=>pick(q))));
   }
   function entryButton(label, cls, surface, question) {
     const b=button('',cls,()=>open(surface,typeof question==='function'?question():question));
@@ -169,7 +246,11 @@
       if(nav)nav.before(b);else top.append(b);
       track('study_entry_mounted','global');
     }
-    if(page==='home')homeEntry(content);
+    if(page==='home'){
+      if(session.lastPage!==page){session.homeSignature=null;}
+      homeEntry(content);
+    }
+    session.lastPage=page;
     if(page==='stats'){
       const analysis=content.querySelector('.an-layout');
       attach(analysis,analysis?.querySelector(':scope > .an-navigation'));
@@ -670,13 +751,12 @@
       const welcomeIcon=sparkle();welcomeIcon.classList.add('sq-welcome-icon');
       welcome.append(welcomeIcon,element('h3','','想了解什么？'),element('p','sq-welcome-sub','从你的成绩记录出发，聊聊趋势、排名和目标。'));
       const choices=element('div','sq-choices');
-      const recommended=homePrompts();
-      [...new Set([...recommended,...starters])].slice(0,3).forEach(q=>choices.append(button(q,'sq-choice',()=>pick(q))));
       welcome.append(choices);
       dialog.querySelector('.sq-thread').append(welcome);
       controls();
     }
     if (!dialog.open) {
+      refreshWelcome();
       dialog.showModal();
       dialog.querySelector('#sq-title').focus({preventScroll:true});
     }
