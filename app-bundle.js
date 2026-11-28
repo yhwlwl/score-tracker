@@ -12724,6 +12724,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
       is_hidden:(modal.querySelector('#examHiddenV16')||{}).value==='1',moduleIds:[].slice.call(modal._moduleIdsV21||[]),scores:{},moduleRanks:{},
       total_actual_score:(modal.querySelector('.total-actual-override-v24')||{}).value||'',total_raw_score:(modal.querySelector('.total-raw-override-v24')||{}).value||''
     };
+    var reflection=modal.querySelector('[data-entry-reflection]');if(reflection)exam.reflection=reflection.value;
     var city=cityDraft61(modal);for(var k in city)exam[k]=city[k];
     if(mode==='rank'){
       exam.total_rank=(modal.querySelector('#totalRankV16')||{}).value||'';exam.total_participants=(modal.querySelector('#totalParticipantsV16')||{}).value||'';
@@ -14938,7 +14939,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
 /* Private exam notes: local draft, cloud CAS, explicit conflict resolution. */
 (function () {
   'use strict';
-  var current = null;
+  var current = null, entryMemory = new Map();
   function sameOwner(c) { return !c.disposed && c.options.owns(); }
   function valid(data) { return data && typeof data.reflection === 'string' && Number.isSafeInteger(data.reflection_revision) && data.reflection_revision >= 0; }
   function dirty(c) { return c.text !== c.base || !!(c.saving && c.text !== c.sent); }
@@ -15032,13 +15033,39 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     } catch (e) { if (sameOwner(c)) c.error = e.name === 'AbortError' ? '读取超时，请重试' : e.message || '读取失败，请重试'; }
     finally { c.loading = false; paint(c); if (sameOwner(c) && !c.error) schedule(c); }
   }
+  function entrySnapshot(userId, id, exam) {
+    var base = typeof exam.reflection === 'string' ? exam.reflection : '', revision = Number.isSafeInteger(exam.reflection_revision) ? exam.reflection_revision : 0;
+    if (!id) return {id:null,text:base,base:'',revision:0};
+    var key = 'st_exam_reflection_v1_' + userId + '_' + id, pending = entryMemory.get(key);
+    try { pending = pending || JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) {}
+    if (current && current.key === key && sameOwner(current) && dirty(current)) pending = {text:current.text,base:current.base,revision:current.revision};
+    if (pending && typeof pending.text === 'string' && typeof pending.base === 'string' && Number.isSafeInteger(pending.revision)) return {id:id,text:pending.text,base:pending.base,revision:pending.revision};
+    return {id:id,text:base,base:base,revision:revision};
+  }
+  async function saveEntry(options, snapshot, text) {
+    if (!options.owns()) return {ok:false,local:false};
+    var key = 'st_exam_reflection_v1_' + options.userId + '_' + options.examId;
+    // Invalidate an older detail editor before staging the new draft so its in-flight request cannot clear it.
+    if (current && current.key === key) { clearTimeout(current.timer); current.disposed=true; if(current.abort)current.abort.abort(); current=null; }
+    var c={key:key,options:options,text:text,base:snapshot.base,revision:snapshot.revision,local:true};
+    var staged={text:text,base:c.base,revision:c.revision,at:Date.now()};
+    entryMemory.set(key,staged);draft(c);
+    try {
+      var data=await request(c,'save_exam_reflection',{text:text,revision:c.revision});
+      if (!sameOwner(c)) return {ok:false,local:c.local};
+      c.base=data.reflection;c.revision=data.reflection_revision;c.updated=data.reflection_updated_at;
+      updateExam(c,data);entryMemory.delete(key);draft(c);
+      try { if(window.__scoreTrackerTrack)window.__scoreTrackerTrack('exam_reflection_saved',{source:'score_entry',nonempty:!!data.reflection.trim(),became_nonempty:!snapshot.base.trim()&&!!data.reflection.trim()}); } catch (_) {}
+      return {ok:true,local:c.local};
+    } catch (_) { return {ok:false,local:c.local}; }
+  }
   function mount(host, options) {
     var key = 'st_exam_reflection_v1_' + options.userId + '_' + options.examId, c = current;
     if (!c || c.key !== key || c.options.token !== options.token || !sameOwner(c)) {
       if (c) { clearTimeout(c.timer); c.disposed = true; if (c.abort) c.abort.abort(); }
       c = { key: key, options: options, text: '', base: '', revision: 0, updated: null, local: true, ready: false };
-      try { var saved = JSON.parse(localStorage.getItem(key) || 'null'); if (saved && typeof saved.text === 'string' && typeof saved.base === 'string' && Number.isSafeInteger(saved.revision)) { c.text = saved.text; c.base = saved.base; c.revision = saved.revision; c.restored = true; } } catch (_) { c.local = false; }
-      current = c;
+      try { var saved = entryMemory.get(key) || JSON.parse(localStorage.getItem(key) || 'null'); if (saved && typeof saved.text === 'string' && typeof saved.base === 'string' && Number.isSafeInteger(saved.revision)) { c.text = saved.text; c.base = saved.base; c.revision = saved.revision; c.restored = true; } } catch (_) { c.local = false; var mem=entryMemory.get(key); if(mem){c.text=mem.text;c.base=mem.base;c.revision=mem.revision;c.restored=true;} }
+      entryMemory.delete(key); current = c;
     }
     c.options = options; c.host = host;
     host.innerHTML = '<div class="ed-section-head"><div><span class="ed-eyebrow">04 / 复盘</span><h2 id="ed-reflection-title">考后反思</h2><p id="ed-reflection-hint">记下这次做得好的地方、卡住的原因，或下次想尝试的方法。</p></div><span class="ed-reflection-private">个人记录</span></div>' +
@@ -15083,7 +15110,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   window.addEventListener('beforeunload', function (e) { if (current && sameOwner(current) && dirty(current)) { draft(current); if (!current.local) { e.preventDefault(); e.returnValue = ''; } } });
   window.addEventListener('online', function () { if (current && sameOwner(current)) { if (current.ready) save(current); else load(current); } });
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden' && current) save(current); });
-  window.ScoreExamReflection = { mount: mount, leave: leave };
+  window.ScoreExamReflection = { mount: mount, leave: leave, entrySnapshot: entrySnapshot, saveEntry: saveEntry };
 })();
 
 /* ===== exam-detail.js ===== */
@@ -15553,32 +15580,47 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     });
   };
   window.ScoreExamDetail = { open: open, openReflection: function (id, source) { open(id, source || 'exam_detail'); }, observeReflection: observeReflection };
-  // Only a successful, newly created exam from the actual score-entry modal can trigger this optional toast.
-  var reflectionPending = new WeakMap(), reflectionApi = dataApiV7, reflectionSave = saveExam;
-  dataApiV7 = async function (action, payload) {
-    var modal = state.modal, user = owner(), token = state.token;
-    var result = await reflectionApi.apply(this, arguments);
-    if (action === 'save_exam' && modal && payload && payload.exam && !payload.exam.id && result && result.created && !result.planned && result.id && owner() === user && state.token === token) {
-      reflectionPending.set(modal, { id: result.id, user: user, token: token });
-    }
+  // Reflect while entering scores, before the existing save button. No post-save call to action.
+  var entryOpen = openExam, entryApi = dataApiV7, entrySave = saveExam, entryWarnings = new WeakMap();
+  openExam = function (exam) {
+    var result = entryOpen.apply(this, arguments), modal = state.modal;
+    if (!modal || !modal.querySelector('#examName') || modal.querySelector('[data-entry-reflection]')) return result;
+    var actions = modal.querySelector('.modal-actions'); if (!actions) return result;
+    var source = exam || modal._restoredExamV61 || {}, id = source.id || null;
+    var snapshot = window.ScoreExamReflection.entrySnapshot(owner(), id, source);
+    var section = document.createElement('section'); section.className = 'ed-entry-reflection';
+    section.innerHTML = '<div class="ed-entry-reflection-heading"><span class="ed-entry-reflection-icon">'+reflectionIcon()+'</span><div><label for="edEntryReflection">考后反思 <small>选填</small></label><p>记录这次考试的收获、失分原因或下次的计划。</p></div></div><textarea id="edEntryReflection" data-entry-reflection rows="3" maxlength="10000" placeholder="随手记几句，也可以留空…"></textarea>';
+    var field = section.querySelector('textarea'); field.value = snapshot.text;
+    modal._entryReflection = snapshot; actions.before(section);
+    observeReflection(section, 'score_entry');
+    field.addEventListener('focus', function () { if (!field.dataset.tracked) { field.dataset.tracked='1'; track('exam_reflection_entry_clicked',{source:'score_entry'}); } });
     return result;
   };
-  saveExam = async function (id, modal) {
-    var page = state.page, result = await reflectionSave.apply(this, arguments), pending = modal && reflectionPending.get(modal);
-    if (modal) reflectionPending.delete(modal);
-    if (!id && pending && !modal.isConnected && owner() === pending.user && state.token === pending.token && allExams().some(function (e) { return e.id === pending.id; })) {
-      var t = document.querySelector('.toast');
-      if (t && t.classList.contains('show') && t.textContent === '考试已记录') {
-        var b = document.createElement('button'); b.type = 'button'; b.className = 'ed-reflection-toast-action'; b.textContent = '写反思';
-        b.onclick = function () { if (owner() !== pending.user || state.token !== pending.token || state.modal || state.page !== page) return; t.classList.remove('show'); b.remove(); open(pending.id, 'save_success'); };
-        t.appendChild(b); clearTimeout(toast._t); toast._t = setTimeout(function () { t.classList.remove('show'); b.remove(); }, 8000);
-        track('exam_reflection_entry_shown', { source: 'save_success' });
+  dataApiV7 = async function (action, payload) {
+    var modal = state.modal, user = owner(), token = state.token;
+    var field = action === 'save_exam' && modal && payload && payload.exam && modal.querySelector('[data-entry-reflection]');
+    var snapshot = field && modal._entryReflection, value = field && field.value;
+    // Do not attach a note from an unrelated dialog to another exam.
+    var eligible = snapshot && (snapshot.id || null) === (payload.exam.id || null);
+    if (eligible) field.disabled = true;
+    try {
+      var result = await entryApi.apply(this, arguments);
+      if (eligible && result && result.ok && result.id && !result.planned && owner() === user && state.token === token && value !== snapshot.base) {
+        var saved = await window.ScoreExamReflection.saveEntry({userId:user,token:token,examId:result.id,owns:function(){return owner()===user&&state.token===token;}},snapshot,value);
+        if (!saved.ok) entryWarnings.set(modal,saved.local?'成绩已保存，反思草稿已保留，可在考试详情继续同步':'成绩已保存，反思暂未同步，请在详情中重试（暂存于当前页面）');
       }
-    }
+      return result;
+    } finally { if (eligible) field.disabled = false; }
+  };
+  saveExam = async function (id, modal) {
+    var user=owner(),token=state.token,result = await entrySave.apply(this, arguments), warning = modal && entryWarnings.get(modal);
+    if (modal) entryWarnings.delete(modal);
+    if (warning && !modal.isConnected && owner()===user && state.token===token) toast(warning);
     return result;
   };
   var style = document.createElement('style'); style.textContent = `
-.ed-reflection-prompts{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 12px}.ed-reflection-prompts button{font:inherit;font-size:12px;color:var(--accent);border:0;background:var(--accent-soft);border-radius:999px;padding:8px 12px;min-height:36px;cursor:pointer}.ed-reflection-prompts button:disabled{opacity:.5;cursor:default}.ed-reflection-quick{display:inline-flex!important;align-items:center;gap:5px;color:var(--accent)!important;font-weight:600!important;min-height:36px}.ed-reflection-quick svg{width:15px;height:15px;flex:none}.ed-nav .ed-reflection-nav{font-weight:650;border:1px solid var(--accent)!important}.toast:has(.ed-reflection-toast-action){pointer-events:auto;display:flex;align-items:center;gap:14px;max-width:calc(100vw - 28px)}.ed-reflection-toast-action{border:0;border-radius:9px;background:rgba(255,255,255,.15);color:inherit;font:inherit;font-weight:650;cursor:pointer;min-height:36px;padding:5px 10px;white-space:nowrap}.ed-reflection-quick:focus-visible,.ed-reflection-toast-action:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ed-reflection-prompts{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 12px}.ed-reflection-prompts button{font:inherit;font-size:12px;color:var(--accent);border:0;background:var(--accent-soft);border-radius:999px;padding:8px 12px;min-height:36px;cursor:pointer}.ed-reflection-prompts button:disabled{opacity:.5;cursor:default}.ed-reflection-quick{display:inline-flex!important;align-items:center;gap:5px;color:var(--accent)!important;font-weight:600!important;min-height:36px}.ed-reflection-quick svg{width:15px;height:15px;flex:none}.ed-nav .ed-reflection-nav{font-weight:650;border:1px solid var(--accent)!important}.ed-reflection-quick:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.ed-entry-reflection{margin:20px 0 14px;padding:14px 0 0;border-top:1px solid var(--line);min-width:0}.ed-entry-reflection-heading{display:flex;align-items:center;gap:10px;margin-bottom:10px}.ed-entry-reflection-icon{display:grid;place-items:center;width:36px;height:36px;flex:none;background:var(--accent-soft);color:var(--accent);border-radius:11px}.ed-entry-reflection-icon svg{width:20px;height:20px}.ed-entry-reflection-heading label{font-size:15px;font-weight:650;color:var(--text)}.ed-entry-reflection-heading label small{font-size:12px;font-weight:400;color:var(--muted);margin-left:6px}.ed-entry-reflection-heading p{font-size:12px;color:var(--muted);margin:3px 0 0;line-height:1.5}.ed-entry-reflection textarea{box-sizing:border-box;width:100%;min-height:84px;max-height:320px;resize:vertical;border:1px solid var(--line);border-radius:12px;background:var(--panel-solid);color:var(--text);padding:11px 12px;font:inherit;font-size:16px;line-height:1.55}.ed-entry-reflection textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+
 
 .ed-page{max-width:1160px;margin:0 auto 64px;color:var(--text)}.ed-top{display:flex;justify-content:space-between;gap:10px;margin-bottom:24px}.ed-button,.ed-scope button,.ed-point-list button{font:inherit;font-size:13px;cursor:pointer;min-height:38px;padding:8px 13px;color:var(--text);border:1px solid var(--line);background:var(--panel-solid,#fff);border-radius:9px}.ed-primary,.ed-view-button{color:var(--accent)!important;background:var(--accent-soft)!important;border-color:transparent!important;font-weight:650}.ed-button:disabled{opacity:.55;cursor:wait}.ed-page button:focus-visible,.ed-quadrant g:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.ed-heading{margin-bottom:25px}.ed-eyebrow{font-size:11px;font-weight:700;letter-spacing:.12em;color:var(--muted)}.ed-heading h1{font-size:30px;line-height:1.4;margin:8px 0;overflow-wrap:anywhere}.ed-heading p,.ed-section-head p{color:var(--muted);font-size:13px;line-height:1.75;margin:6px 0}.ed-overview{background:var(--panel-solid,#fff);border:1px solid var(--line);border-radius:18px;padding:25px;margin-bottom:28px}.ed-metrics{display:grid;grid-template-columns:1.15fr 1fr 1fr 1fr;gap:24px}.ed-metric{display:flex;flex-direction:column;gap:9px;min-width:0}.ed-metric>span{font-size:13px;color:var(--muted)}.ed-metric strong{font-size:28px;letter-spacing:-.04em;line-height:1.4;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.ed-metric:first-child strong{font-size:38px;line-height:1.03;color:var(--accent)}.ed-metric small{font-size:11px;line-height:1.6;color:var(--muted)}.ed-context{display:flex;gap:10px 25px;flex-wrap:wrap;font-size:12px;padding-top:22px;color:var(--muted)}.ed-nav{border-top:1px solid var(--line);display:flex;gap:9px;flex-wrap:wrap;margin-top:23px;padding-top:18px}.ed-nav .ed-button{border:0;background:var(--accent-soft);color:var(--accent)}.ed-section{background:var(--panel-solid,#fff);border:1px solid var(--line);border-radius:17px;padding:25px;margin:22px 0;scroll-margin-top:22px;min-width:0}.ed-section-head{display:flex;justify-content:space-between;align-items:center;gap:18px;margin-bottom:22px}.ed-section h2{font-size:21px;line-height:1.5;margin:6px 0}.ed-table-wrap{overflow-x:auto}.ed-table{width:100%;border-collapse:collapse;font-size:13px}.ed-table th,.ed-table td{padding:16px 10px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;min-width:70px}.ed-table thead th{font-size:11px;font-weight:500;color:var(--muted);white-space:nowrap;background:var(--cell,#f8f9fc)}.ed-table tbody th{min-width:80px;font-size:14px;font-weight:650}.ed-table td b{font-size:16px}.ed-table small{display:block;font-size:11px;font-weight:400;color:var(--muted);line-height:1.6;margin-top:5px}.ed-combinations{margin-top:22px}.ed-combinations summary,.ed-missing summary{font-size:13px;cursor:pointer}.ed-combinations summary span{margin-left:8px;color:var(--muted)}.ed-combo-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}.ed-combo-grid article{border:1px solid var(--line);border-radius:12px;padding:16px}.ed-combo-grid h3{font-size:14px;margin:0}.ed-combo-grid p,.ed-combo-grid small{font-size:12px;line-height:1.6;color:var(--muted)}.ed-combo-grid small{display:block}.ed-scope{display:flex;flex:none;padding:3px;border:1px solid var(--line);border-radius:10px}.ed-scope button{background:transparent;border:0;padding:7px 12px}.ed-scope [aria-pressed=true]{color:var(--accent);background:var(--accent-soft);font-weight:650}.ed-chart-layout{display:grid;grid-template-columns:minmax(0,1fr) 210px;gap:24px;align-items:center}.ed-quadrant{display:block;width:100%;height:auto;overflow:visible}.ed-quadrant text{font-family:inherit;font-size:11px;fill:var(--muted)}.ed-quadrant .ed-quadrant-title{font-size:13px;font-weight:650;fill:var(--text)}.ed-quadrant .ed-dot-number{fill:#fff;font-size:11px;font-weight:700;pointer-events:none}.ed-quadrant g{cursor:pointer}.ed-grid-line{stroke:var(--line);stroke-width:.65;stroke-dasharray:3 5}.ed-axis{stroke:var(--muted);stroke-width:1;stroke-dasharray:4 4;fill:none}.ed-point-list{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin:14px 0}.ed-point-list button{display:flex;align-items:center;gap:7px;font-size:12px;padding:6px 10px;min-height:36px}.ed-point-list i{display:grid;place-items:center;font-size:10px;font-style:normal;width:19px;height:19px;border-radius:50%;color:#fff}.ed-point-list [aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent)}.ed-inspect{padding:22px 18px;background:var(--cell,#f7f9fc);border-radius:14px;min-width:0}.ed-inspect h3{font-size:24px;margin:9px 0 14px;overflow-wrap:anywhere}.ed-tag{display:inline-block;font-size:12px;font-weight:650;padding:4px 8px;border-radius:6px;background:var(--accent-soft);color:var(--accent)}.ed-inspect dl{margin:20px 0}.ed-inspect dl>div{display:flex;justify-content:space-between;gap:10px;margin:12px 0;font-size:12px}.ed-inspect dt{color:var(--muted)}.ed-inspect dd{font-variant-numeric:tabular-nums;margin:0;text-align:right}.ed-inspect p{font-size:13px;line-height:1.7}.ed-inspect small{font-size:11px;color:var(--muted)}.ed-quadrant-groups{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px;border-top:1px solid var(--line);padding-top:20px;margin-top:17px}.ed-quadrant-groups h3{font-size:13px;margin:0 0 12px;display:flex;align-items:center;gap:7px}.ed-quadrant-groups i{width:7px;height:7px;border-radius:50%;flex:none}.ed-quadrant-groups b{font-size:14px;overflow-wrap:anywhere}.ed-quadrant-groups p,.ed-method,.ed-missing{font-size:12px;color:var(--muted);line-height:1.8}.ed-method{margin:18px 0 0}.ed-missing{margin-top:16px}.ed-missing ul{padding-left:20px}.ed-empty{padding:28px 15px;color:var(--muted);text-align:center;font-size:13px;line-height:1.8}.ed-empty h3{font-size:17px;color:var(--text)}.ed-paper-tools{display:flex;justify-content:space-between;gap:12px;align-items:end;margin-bottom:18px}.ed-paper-tools label{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--muted)}.ed-paper-tools select{font:inherit;font-size:13px;color:var(--text);background:var(--panel-solid,#fff);border:1px solid var(--line);padding:9px;border-radius:9px;max-width:200px}.ed-paper-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.ed-paper{border:1px solid var(--line);border-radius:13px;padding:18px;display:flex;flex-direction:column;min-width:0}.ed-paper>div{display:flex;justify-content:space-between;gap:8px;align-items:center}.ed-status{font-size:11px;color:var(--muted)}.ed-paper h3{font-size:17px;line-height:1.6;margin:14px 0 7px;overflow-wrap:anywhere}.ed-paper p{font-size:12px;color:var(--muted);line-height:1.6}.ed-paper footer{display:flex;flex-wrap:wrap;gap:7px;padding-top:15px;margin-top:auto}.ed-paper-status{font-size:13px;color:var(--danger);margin:12px 0}.ed-reader .pr-main{max-width:900px}.ed-reader .pr-tabs{display:none}.ed-reader .pr-head h2{font-size:21px}.record-actions.record-actions-v10:has(.ed-view-button){flex-wrap:wrap!important}
 @media(max-width:900px){.ed-chart-layout{grid-template-columns:minmax(0,1fr)}.ed-inspect{display:block}.ed-inspect dl{display:flex;gap:25px;flex-wrap:wrap;margin:10px 0}.ed-inspect dl>div{gap:12px;margin:6px 0}.ed-inspect h3{font-size:20px;display:inline-block;margin-right:10px}.ed-inspect>.ed-eyebrow{display:block}.ed-quadrant-groups{grid-template-columns:repeat(2,minmax(0,1fr))}.ed-paper-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ed-metrics{gap:18px}.ed-metric strong{font-size:23px}}

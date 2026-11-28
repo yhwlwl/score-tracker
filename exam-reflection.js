@@ -1,7 +1,7 @@
 /* Private exam notes: local draft, cloud CAS, explicit conflict resolution. */
 (function () {
   'use strict';
-  var current = null;
+  var current = null, entryMemory = new Map();
   function sameOwner(c) { return !c.disposed && c.options.owns(); }
   function valid(data) { return data && typeof data.reflection === 'string' && Number.isSafeInteger(data.reflection_revision) && data.reflection_revision >= 0; }
   function dirty(c) { return c.text !== c.base || !!(c.saving && c.text !== c.sent); }
@@ -95,13 +95,39 @@
     } catch (e) { if (sameOwner(c)) c.error = e.name === 'AbortError' ? '读取超时，请重试' : e.message || '读取失败，请重试'; }
     finally { c.loading = false; paint(c); if (sameOwner(c) && !c.error) schedule(c); }
   }
+  function entrySnapshot(userId, id, exam) {
+    var base = typeof exam.reflection === 'string' ? exam.reflection : '', revision = Number.isSafeInteger(exam.reflection_revision) ? exam.reflection_revision : 0;
+    if (!id) return {id:null,text:base,base:'',revision:0};
+    var key = 'st_exam_reflection_v1_' + userId + '_' + id, pending = entryMemory.get(key);
+    try { pending = pending || JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) {}
+    if (current && current.key === key && sameOwner(current) && dirty(current)) pending = {text:current.text,base:current.base,revision:current.revision};
+    if (pending && typeof pending.text === 'string' && typeof pending.base === 'string' && Number.isSafeInteger(pending.revision)) return {id:id,text:pending.text,base:pending.base,revision:pending.revision};
+    return {id:id,text:base,base:base,revision:revision};
+  }
+  async function saveEntry(options, snapshot, text) {
+    if (!options.owns()) return {ok:false,local:false};
+    var key = 'st_exam_reflection_v1_' + options.userId + '_' + options.examId;
+    // Invalidate an older detail editor before staging the new draft so its in-flight request cannot clear it.
+    if (current && current.key === key) { clearTimeout(current.timer); current.disposed=true; if(current.abort)current.abort.abort(); current=null; }
+    var c={key:key,options:options,text:text,base:snapshot.base,revision:snapshot.revision,local:true};
+    var staged={text:text,base:c.base,revision:c.revision,at:Date.now()};
+    entryMemory.set(key,staged);draft(c);
+    try {
+      var data=await request(c,'save_exam_reflection',{text:text,revision:c.revision});
+      if (!sameOwner(c)) return {ok:false,local:c.local};
+      c.base=data.reflection;c.revision=data.reflection_revision;c.updated=data.reflection_updated_at;
+      updateExam(c,data);entryMemory.delete(key);draft(c);
+      try { if(window.__scoreTrackerTrack)window.__scoreTrackerTrack('exam_reflection_saved',{source:'score_entry',nonempty:!!data.reflection.trim(),became_nonempty:!snapshot.base.trim()&&!!data.reflection.trim()}); } catch (_) {}
+      return {ok:true,local:c.local};
+    } catch (_) { return {ok:false,local:c.local}; }
+  }
   function mount(host, options) {
     var key = 'st_exam_reflection_v1_' + options.userId + '_' + options.examId, c = current;
     if (!c || c.key !== key || c.options.token !== options.token || !sameOwner(c)) {
       if (c) { clearTimeout(c.timer); c.disposed = true; if (c.abort) c.abort.abort(); }
       c = { key: key, options: options, text: '', base: '', revision: 0, updated: null, local: true, ready: false };
-      try { var saved = JSON.parse(localStorage.getItem(key) || 'null'); if (saved && typeof saved.text === 'string' && typeof saved.base === 'string' && Number.isSafeInteger(saved.revision)) { c.text = saved.text; c.base = saved.base; c.revision = saved.revision; c.restored = true; } } catch (_) { c.local = false; }
-      current = c;
+      try { var saved = entryMemory.get(key) || JSON.parse(localStorage.getItem(key) || 'null'); if (saved && typeof saved.text === 'string' && typeof saved.base === 'string' && Number.isSafeInteger(saved.revision)) { c.text = saved.text; c.base = saved.base; c.revision = saved.revision; c.restored = true; } } catch (_) { c.local = false; var mem=entryMemory.get(key); if(mem){c.text=mem.text;c.base=mem.base;c.revision=mem.revision;c.restored=true;} }
+      entryMemory.delete(key); current = c;
     }
     c.options = options; c.host = host;
     host.innerHTML = '<div class="ed-section-head"><div><span class="ed-eyebrow">04 / 复盘</span><h2 id="ed-reflection-title">考后反思</h2><p id="ed-reflection-hint">记下这次做得好的地方、卡住的原因，或下次想尝试的方法。</p></div><span class="ed-reflection-private">个人记录</span></div>' +
@@ -146,5 +172,5 @@
   window.addEventListener('beforeunload', function (e) { if (current && sameOwner(current) && dirty(current)) { draft(current); if (!current.local) { e.preventDefault(); e.returnValue = ''; } } });
   window.addEventListener('online', function () { if (current && sameOwner(current)) { if (current.ready) save(current); else load(current); } });
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden' && current) save(current); });
-  window.ScoreExamReflection = { mount: mount, leave: leave };
+  window.ScoreExamReflection = { mount: mount, leave: leave, entrySnapshot: entrySnapshot, saveEntry: saveEntry };
 })();

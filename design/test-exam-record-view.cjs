@@ -39,6 +39,12 @@ const tick = () => new Promise(resolve => setTimeout(resolve, 35));
     w.render();
     assert.equal(d.querySelectorAll('[data-exam-detail]').length, 2); assert.equal(d.querySelectorAll('[data-edit]').length, 2);
     assert.equal(d.querySelectorAll('[data-hidden-toggle]').length, 2);
+    w.openExam(exam); var entryModal=w.state.modal, entryField=entryModal.querySelector('[data-entry-reflection]');
+    assert(entryField); assert.equal(entryField.value,'旧反思');
+    assert.equal(entryModal.querySelector('.ed-entry-reflection').nextElementSibling.className,'modal-actions');
+    entryField.value='表单反思草稿';assert.equal(w.__v61.captureDraft(entryModal).reflection,'表单反思草稿');
+    entryModal.querySelector('.close-btn').click();
+
     d.querySelector('[data-exam-detail="exam-one"]').click(); await tick();
     assert(events.some(e => e.type === 'exam_detail_opened'));
     assert.equal(d.querySelector('.ed-heading h1').textContent, exam.name); assert(!d.querySelector('.ed-heading script'));
