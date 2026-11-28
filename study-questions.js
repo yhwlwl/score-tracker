@@ -101,13 +101,17 @@
     if(host?.dataset.key===key)return;
     host?.remove();
     host=element('section','sq-home-entry');host.dataset.sqEntry='home';host.dataset.key=key;
-    const heading=element('div','sq-home-heading');
-    heading.append(sparkle(),element('strong','','AI 学情助手'));
-    const start=button('','sq-home-input',()=>open('home'));
-    start.append(element('span','','关于成绩，想问点什么？'),element('span','sq-home-arrow','↑'));
+    const start=button('','sq-home-heading',()=>open('home'));
+    const copy=element('span','sq-home-copy');
+    copy.append(element('strong','','AI 学情助手'),element('small','','关于成绩，想问点什么？'));
+    start.append(sparkle(),copy,element('span','sq-home-chevron','›'));
     const suggestions=element('div','sq-home-suggestions');
-    prompts.forEach(q=>{const b=button(q,'sq-home-prompt',()=>open('home_suggestion',q));suggestions.append(b);});
-    host.append(heading,start,suggestions);
+    prompts.forEach(q=>{
+      const b=button('','sq-home-prompt',()=>open('home_suggestion',q));
+      b.append(element('span','sq-prompt-text',q),element('span','sq-prompt-arrow','↗'));
+      suggestions.append(b);
+    });
+    host.append(start,suggestions);
     const hero=content.querySelector(':scope > .hero');
     if(hero)hero.after(host);else content.prepend(host);
     track('study_entry_mounted','home');
@@ -129,14 +133,24 @@
   function chartEntries(page) {
     if(!page)return;
     for(const card of page.querySelectorAll(':scope > .card, :scope > section.card')) {
-      const title=card.querySelector('.card-title,.dsb-head > span,.dsb-head');
+      const title=card.querySelector('.card-title,.dsb-head > span');
       if(!title||card.querySelector('[data-sq-entry="chart"]'))continue;
       const titleText=title.textContent.trim();
       const match=chartPrompts.find(([rx])=>rx.test(titleText));
       if(!match)continue;
       const b=entryButton('解读','sq-chart-entry','chart',()=>chartQuestion(card,match[1]));
       b.setAttribute('aria-label','AI 解读 '+titleText);
-      title.after(b);
+      b.title='AI 解读';
+      b.lastElementChild.classList.add('sq-chart-label');
+      // Deep prediction already has a flex header. Keep its direct title child
+      // intact; other cards get a title/action row, leaving filters and fold controls alone.
+      if(title.parentElement?.classList.contains('dsb-head')){
+        title.after(b);
+      } else {
+        const row=element('div','sq-chart-title-row');
+        title.before(row);
+        row.append(title,b);
+      }
     }
   }
   function syncEntries() {
@@ -256,11 +270,11 @@
     anchor.after(launcher);
     track('study_entry_mounted','stats');
   }
-  function pick(text) {
+  function pick(text, focus=true) {
     const input = dialog.querySelector('textarea');
     input.value=text;
     resizeComposer(input);
-    input.focus();
+    if(focus)input.focus({preventScroll:true});
     controls();
   }
   function resizeComposer(input){input.style.height='auto';input.style.height=Math.min(112,Math.max(44,input.scrollHeight))+'px';}
@@ -636,7 +650,8 @@
     if (!dialog) {
       dialog=element('dialog','sq-dialog');
       dialog.setAttribute('aria-labelledby','sq-title');
-      dialog.innerHTML='<header class="sq-header"><div><span class="sq-spark" aria-hidden="true">✦</span><h2 id="sq-title">问成绩</h2></div><button type="button" aria-label="关闭">×</button></header><div class="sq-thread"></div><form class="sq-composer"><label class="sq-sr-only" for="sq-input">你的问题</label><div class="sq-input-row"><textarea id="sq-input" rows="1" maxlength="300" placeholder="想问问哪科成绩？"></textarea><button type="submit">提问</button></div><footer><label class="sq-thinking" hidden><span>思考</span><select aria-label="思考强度"><option value="low">低</option><option value="standard">标准</option><option value="high">高</option></select></label><small class="sq-cap"></small></footer></form>';
+      dialog.innerHTML='<header class="sq-header"><div class="sq-header-identity"><h2 id="sq-title" tabindex="-1" autofocus>AI 学情助手</h2></div><button class="sq-close" type="button" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button></header><div class="sq-thread"></div><form class="sq-composer"><label class="sq-sr-only" for="sq-input">你的问题</label><div class="sq-input-row"><textarea id="sq-input" rows="1" maxlength="300" placeholder="想问问哪科成绩？"></textarea><button type="submit" aria-label="提问" title="提问"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button></div><footer><label class="sq-thinking" hidden><span>思考</span><select aria-label="思考强度"><option value="low">低</option><option value="standard">标准</option><option value="high">高</option></select></label><small class="sq-cap"></small></footer></form>';
+      dialog.querySelector('.sq-header-identity').prepend(sparkle());
       dialog.querySelector('header button').onclick=()=>dialog.close();
       const thinking=dialog.querySelector('.sq-thinking'),select=thinking.querySelector('select');
       if(session.thinkingModes){
@@ -652,7 +667,8 @@
       dialog.querySelector('form').addEventListener('submit',ask);
       document.body.append(dialog);
       const welcome=element('section','sq-welcome');
-      welcome.append(element('h3','','想聊哪门成绩？'));
+      const welcomeIcon=sparkle();welcomeIcon.classList.add('sq-welcome-icon');
+      welcome.append(welcomeIcon,element('h3','','想了解什么？'),element('p','sq-welcome-sub','从你的成绩记录出发，聊聊趋势、排名和目标。'));
       const choices=element('div','sq-choices');
       const recommended=homePrompts();
       [...new Set([...recommended,...starters])].slice(0,3).forEach(q=>choices.append(button(q,'sq-choice',()=>pick(q))));
@@ -660,8 +676,11 @@
       dialog.querySelector('.sq-thread').append(welcome);
       controls();
     }
-    if (!dialog.open) dialog.showModal();
-    if(question && !session.pending?.running)pick(String(question).slice(0,300));
+    if (!dialog.open) {
+      dialog.showModal();
+      dialog.querySelector('#sq-title').focus({preventScroll:true});
+    }
+    if(question && !session.pending?.running)pick(String(question).slice(0,300),false);
     track('study_question_open',surface);
   }
   window.ScoreStudyQuestions={attach,open};

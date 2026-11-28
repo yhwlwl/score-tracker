@@ -56,6 +56,8 @@ async function main(){
         render();
       });
       await page.getByRole('button',{name:'问成绩',exact:true}).click({timeout:6000});
+      assert.equal(await page.locator('#sq-title').textContent(),'AI 学情助手');
+      assert.equal(await page.evaluate(()=>document.activeElement.id),'sq-title');
       await page.getByRole('button',{name:'最近两场，哪科变化最大？'}).click();
       const queued=once(requests,'question');
       await page.getByRole('button',{name:'提问',exact:true}).click();
@@ -131,7 +133,7 @@ async function main(){
         takeaway:el.querySelector('.sq-takeaway').textContent}));
       assert.ok(box.content<=box.width && box.width<=box.viewport,JSON.stringify(box));
       assert.equal(box.input,'物理也有变化吗？');assert.match(box.takeaway,/题型/);
-      assert.match(box.launcher,/linear-gradient/);
+      assert.equal(box.launcher,'none'); // a quiet solid surface, no decorative gradient
       await page.getByRole('button',{name:'关闭',exact:true}).click();
       await page.getByRole('button',{name:'问成绩',exact:true}).click();
       assert.equal(await page.locator('.sq-turn').count(),1);
