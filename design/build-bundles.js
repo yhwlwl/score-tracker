@@ -38,6 +38,7 @@ html = html.replace(/(href="\.\/pwa-install\.css)\?v=[^"\s]+/g, (match, prefix) 
 html = html.replace(/(href="\.\/appearance-studio\.css)\?v=[^"\s]+/g, '$1?v=' + crypto.createHash('md5').update(fs.readFileSync(path.join(ROOT,'appearance-studio.css'))).digest('hex').slice(0,10));
 html = html.replace(/(href="\.\/page-display-goals\.css)\?v=[^"\s]+/g, '$1?v=' + crypto.createHash('md5').update(fs.readFileSync(path.join(ROOT,'page-display-goals.css'))).digest('hex').slice(0,10));
 html = html.replace(/(href="\.\/first-run-setup\.css)\?v=[^"\s]+/g, '$1?v=' + crypto.createHash('md5').update(fs.readFileSync(path.join(ROOT,'first-run-setup.css'))).digest('hex').slice(0,10));
+html = html.replace(/(href="\.\/layout-cohesion\.css)\?v=[^"\s]+/g, '$1?v=' + crypto.createHash('md5').update(fs.readFileSync(path.join(ROOT,'layout-cohesion.css'))).digest('hex').slice(0,10));
 const typeHash = crypto.createHash('md5').update(fs.readFileSync(path.join(ROOT, 'typography.css'))).digest('hex').slice(0, 10);
 html = html.replace(/(href="\.\/typography\.css)\?v=[^"\s]+/g, '$1?v=' + typeHash);
 const adminPath = path.join(ROOT, 'api/mg-ui.js');

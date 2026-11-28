@@ -67,6 +67,9 @@ const stage = (value, detail = 1) => {
   assert.deepEqual(focused, detail === 0 ? ['.eg-record-tabs button[aria-pressed="true"]'] : []);
 };
 assert(html.includes(emptyText));
+assert.match(html, /<div class="record-page-tools st-surface">[\s\S]*?class="page-head"[\s\S]*?class="exam-record-tools-v1"[\s\S]*?class="eg-record-tabs"/);
+assert.match(html, /<section class="record-plan-group is-empty"[\s\S]*?data-eg-new[\s\S]*?role="status"/);
+assert.match(html, /<div class="card records-card"><div class="eg-section-head eg-record-section-head"><h3>历史考试<\/h3>/);
 assert(html.indexOf(emptyText) < html.indexOf('<h3>历史考试</h3>'));
 stage('pending', 0);
 assert(html.includes(emptyText) && pos('old') === -1);

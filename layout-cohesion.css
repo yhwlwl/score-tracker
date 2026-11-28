@@ -1,0 +1,130 @@
+/* Page groups, not a blanket card overlay. Use the active theme's surfaces. */
+#content {
+  --st-page-gap: 16px;
+  --st-group-gap: 10px;
+  --st-group-padding: 16px;
+}
+#content .record-page-tools,
+#content .record-plan-group {
+  min-width: 0;
+  margin: 0 0 var(--st-page-gap);
+}
+#content .record-page-tools,
+#content .record-plan-group.is-empty {
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-radius: var(--radius, 18px);
+  padding: var(--st-group-padding);
+}
+html[data-st-card="clean"] #content :is(.record-page-tools,.record-plan-group.is-empty) { border-radius:18px; box-shadow:none; }
+html[data-st-card="soft"] #content :is(.record-page-tools,.record-plan-group.is-empty) { border-radius:22px; box-shadow:0 8px 28px color-mix(in srgb,var(--accent) 8%,transparent); }
+html[data-st-card="outline"] #content :is(.record-page-tools,.record-plan-group.is-empty) { border-radius:14px; border-color:color-mix(in srgb,var(--accent) 25%,var(--line)); box-shadow:none; }
+html[data-st-card="paper"] #content :is(.record-page-tools,.record-plan-group.is-empty) { border-radius:8px; box-shadow:3px 4px 0 var(--bg),4px 5px 0 var(--line); }
+#content .record-page-tools > .page-head {
+  align-items: center;
+  margin: 0 0 var(--st-group-gap);
+  padding: 0;
+  background: transparent !important;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+#content .record-page-tools > .page-head h2 { margin: 0; }
+#content .record-page-tools > .page-head > button { flex-shrink: 0; }
+#content .record-page-tools .exam-record-tools-v1 {
+  margin: 0 0 var(--st-group-gap);
+  padding: 0;
+  gap: 4px 12px;
+}
+#content .record-page-tools .eg-record-tabs {
+  margin: 0;
+  max-width: none;
+  width: 100%;
+}
+#content .record-plan-group .eg-record-section-head,
+#content .exam-record-list-v1 .records-card > .eg-record-section-head {
+  margin: 0;
+  min-width: 0;
+}
+#content .record-plan-group .eg-record-section-head [data-eg-new] {
+  flex-shrink: 0;
+  min-height: 36px;
+}
+#content .record-plan-group.is-empty .eg-record-empty {
+  background: transparent;
+  border: 0;
+  margin: 2px 0 0;
+  padding: 0;
+  text-align: left;
+}
+#content .record-plan-group.has-plans > .eg-record-section-head {
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 3px 12px;
+}
+#content .record-plan-group .eg-pending-grid { margin: 8px 0 0; }
+#content .exam-record-list-v1 .records-card > .eg-record-section-head {
+  padding: 8px 0 10px;
+  border-bottom: 1px solid var(--line);
+}
+#content .exam-record-list-v1 { margin-top: 0; }
+/* Analysis navigation stays sticky on mobile and a side rail on desktop. */
+#content .sv31-page > .page-head {
+  margin: 0 0 var(--st-group-gap);
+  align-items: center;
+}
+#content .sv31-page > .sv31-controls {
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 10px;
+  margin: 0 0 var(--st-page-gap);
+  gap: 8px;
+}
+#content .sv31-page > .sv31-controls > select { min-width: 0; max-width: 100%; }
+#content .an-layout > .an-notice {
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 12px;
+  margin: 0 0 var(--st-group-gap);
+}
+/* Harmonize the gaps between home modules and account groups, not inner charts. */
+#content .hero.pd-top { gap: var(--st-page-gap); margin-bottom: var(--st-page-gap); }
+#content .grid-main.pd-unified,
+#content .account-grid { gap: var(--st-page-gap); }
+#content .goal-bar-v33,
+#content .goal-hero-v33 { margin: 0 0 var(--st-page-gap); }
+#content .grade-filter-v13 { margin-bottom: var(--st-group-gap); }
+@media (max-width: 880px) {
+  #content .an-layout > .page-head {
+    background: var(--panel-solid) !important;
+    border: 1px solid var(--line);
+    border-bottom: 0;
+    border-radius: 16px 16px 0 0;
+    padding: 12px 12px 8px;
+    margin: 0;
+  }
+  #content .an-layout > .an-navigation {
+    border-radius: 0 0 12px 12px;
+    margin: 0 0 var(--st-group-gap);
+    padding: 4px 6px;
+  }
+}
+@media (max-width: 620px) {
+  #content { --st-page-gap: 12px; --st-group-gap: 8px; --st-group-padding: 12px; }
+  #content .record-page-tools .exam-record-controls-v1 { gap: 4px; max-width: 100%; }
+  #content .record-page-tools .exam-record-controls-v1 select { max-width: 42vw; }
+  #content .record-page-tools .eg-record-tabs button { min-height: 40px; }
+  #content .record-plan-group .eg-record-section-head { gap: 5px; }
+  #content .record-plan-group .eg-record-section-head h3 { min-width: 0; }
+  #content .record-plan-group .eg-record-section-head [data-eg-new] { white-space: nowrap; }
+  #content .sv31-page > .sv31-controls > select { flex: 1 1 110px; }
+}
+/* High zoom / very narrow viewports: wrap rather than clip labels or buttons. */
+@media (max-width: 360px) {
+  #content .record-page-tools > .page-head,
+  #content .record-plan-group .eg-record-section-head { flex-wrap: wrap; }
+}
