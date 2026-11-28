@@ -122,7 +122,10 @@ async function isVisionBetaUser(username: unknown) {
 
 async function visionQuota(userId: string, consume = false) {
   const account=await creditRpc(db,'score_tracker_ai_account',{p_user:userId});
-  return {service_enabled:account.enabled,allowed:account.enabled&&account.credits.available>=13&&account.budget_status!=='paused',remaining:account.credits.available,limit:account.credits.monthly||account.credits.welcome,unit:'credits',period:'month',global_remaining:account.budget_status==='paused'?0:1,account};
+  const paidAvailable=Number(account.credits.paid_available||0);
+  const freeAvailable=Number(account.credits.free_available??account.credits.available??0);
+  const canUsePaidBypass=account.budget_status==='paused'&&paidAvailable>=13;
+  return {service_enabled:account.enabled,allowed:account.enabled&&(canUsePaidBypass||(account.credits.available>=13&&account.budget_status!=='paused')),remaining:account.credits.available,free_remaining:freeAvailable,paid_remaining:paidAvailable,limit:account.credits.monthly||account.credits.welcome,unit:'credits',period:'month',global_remaining:account.budget_status==='paused'&&!canUsePaidBypass?0:1,budget_paused:account.budget_status==='paused',topup:account.topup||null,account};
 }
 
 function cleanText(value: unknown, max = 80) {

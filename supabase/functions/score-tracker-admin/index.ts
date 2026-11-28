@@ -104,13 +104,26 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
   const admin=await auth(req.headers.get('x-score-token')||'');if(!admin)return json({error:'unauthorized'},401);if(action==='ping')return json({ok:true});
   if(action==='ai_budget'&&req.method==='GET'){
     const period=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit'}).format(new Date())+'-01';
-    const [p,b,c]=await Promise.all([db.from('score_tracker_ai_policy').select('*').eq('id',true).single(),db.from('score_tracker_ai_budgets').select('*').eq('period',period).maybeSingle(),db.from('score_tracker_ai_calls').select('id,task_id,period,model,status,reserved_cny,provider_request_id,http_status,created_at').in('status',['unknown','reserved']).order('created_at',{ascending:false}).limit(100)]);
+    const [p,b,c,packs]=await Promise.all([
+      db.from('score_tracker_ai_policy').select('*').eq('id',true).single(),
+      db.from('score_tracker_ai_budgets').select('*').eq('period',period).maybeSingle(),
+      db.from('score_tracker_ai_calls').select('id,task_id,period,model,status,reserved_cny,provider_request_id,http_status,created_at').in('status',['unknown','reserved']).order('created_at',{ascending:false}).limit(100),
+      db.from('score_tracker_ai_topup_packs').select('*').order('sort_order',{ascending:true}),
+    ]);
     if(p.error||b.error||c.error)throw p.error||b.error||c.error;
-    return json({policy:p.data,budget:b.data||{period,spent_cny:0,reserved_cny:0},opening_required:!p.data.activated_at&&(period!==p.data.starts_period||!b.data?.opening_recorded),unresolved:c.data||[]});
+    return json({policy:p.data,budget:b.data||{period,spent_cny:0,reserved_cny:0},opening_required:!p.data.activated_at&&(period!==p.data.starts_period||!b.data?.opening_recorded),unresolved:c.data||[],topup_packs:packs.error?[]:(packs.data||[])});
   }
   if(action==='ai_budget_save'&&req.method==='POST'){
     const b=await req.json(),warning=Number(b.warning_cny),limit=Number(b.hard_limit_cny),factor=Number(b.cost_multiplier);
     if(typeof b.enabled!=='boolean'||!Number.isFinite(warning)||!Number.isFinite(limit)||warning<0||limit<=0||warning>limit||!Number.isFinite(factor)||factor<1||factor>100)return json({error:'月预算须为大于 0 的有限金额，预警须在 0 与上限之间；成本倍率为 1–100'},400);
+    const patch:Record<string,unknown>={enabled:b.enabled,warning_cny:warning,hard_limit_cny:limit,cost_multiplier:factor,analysis_enabled:false};
+    if(typeof b.topup_enabled==='boolean')patch.topup_enabled=b.topup_enabled;
+    if(b.topup_shop_url!==undefined){
+      const shopUrl=String(b.topup_shop_url||'').trim().slice(0,300);
+      if(shopUrl&&!/^https:\/\/[^\s]+$/i.test(shopUrl))return json({error:'商品链接须以 https:// 开头，或留空'},400);
+      patch.topup_shop_url=shopUrl;
+    }
+    if(b.topup_notice!==undefined)patch.topup_notice=String(b.topup_notice||'').trim().slice(0,300);
     const period=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit'}).format(new Date())+'-01';
     const current=await db.from('score_tracker_ai_policy').select('starts_period,enabled,activated_at').eq('id',true).single();if(current.error)throw current.error;
     if(!current.data.activated_at){
@@ -120,7 +133,104 @@ Deno.serve(async req=>{const q=new URL(req.url),action=q.searchParams.get('actio
         const seeded=await db.rpc('score_tracker_ai_opening_budget',{p_actor:admin.id,p_amount:Number(b.opening_cny)});if(seeded.error)throw seeded.error;
       }
     }
-    const r=await db.from('score_tracker_ai_policy').update({enabled:b.enabled,warning_cny:warning,hard_limit_cny:limit,cost_multiplier:factor,analysis_enabled:false,activated_at:b.enabled?current.data.activated_at||new Date().toISOString():current.data.activated_at}).eq('id',true);if(r.error)throw r.error;return json({ok:true});
+    patch.activated_at=b.enabled?current.data.activated_at||new Date().toISOString():current.data.activated_at;
+    const r=await db.from('score_tracker_ai_policy').update(patch).eq('id',true);if(r.error)throw r.error;return json({ok:true});
+  }
+  if(action==='ai_redeem_codes'&&req.method==='GET'){
+    const [codesRes,ordersRes,packsRes]=await Promise.all([
+      db.from('score_tracker_ai_redeem_codes').select('code_hash,code_prefix,pack_code,credits,amount_cny,batch_id,batch_note,max_uses,used_count,disabled,expires_at,created_at').order('created_at',{ascending:false}).limit(200),
+      db.from('score_tracker_ai_topup_orders').select('id,user_id,channel,pack_code,credits,amount_cny,note,created_at').order('created_at',{ascending:false}).limit(50),
+      db.from('score_tracker_ai_topup_packs').select('*').order('sort_order',{ascending:true}),
+    ]);
+    if(codesRes.error||ordersRes.error||packsRes.error)throw codesRes.error||ordersRes.error||packsRes.error;
+    const userIds=[...new Set((ordersRes.data||[]).map((x:any)=>x.user_id).filter(Boolean))];
+    const userMap=new Map<string,string>();
+    if(userIds.length){
+      const uRes=await db.from('score_tracker_users').select('id,username').in('id',userIds);
+      if(!uRes.error)(uRes.data||[]).forEach((u:any)=>userMap.set(u.id,u.username));
+    }
+    const orders=(ordersRes.data||[]).map((o:any)=>({...o,username:userMap.get(o.user_id)||''}));
+    return json({codes:codesRes.data||[],orders,packs:packsRes.data||[]});
+  }
+  if(action==='ai_redeem_generate'&&req.method==='POST'){
+    const b=await req.json();
+    const count=Math.trunc(Number(b.count||0));
+    if(!Number.isInteger(count)||count<1||count>200)return json({error:'单次生成数量须为 1–200'},400);
+    const maxUses=b.max_uses==null?1:Math.trunc(Number(b.max_uses));
+    if(!Number.isInteger(maxUses)||maxUses<1||maxUses>1000)return json({error:'单码可用次数须为 1–1000'},400);
+    let packCode:string|null=b.pack_code?String(b.pack_code).trim():null;
+    let credits=Math.trunc(Number(b.credits||0));
+    let amountCny=Number(b.amount_cny||0);
+    if(packCode){
+      const pk=await db.from('score_tracker_ai_topup_packs').select('*').eq('code',packCode).maybeSingle();
+      if(pk.error)throw pk.error;
+      if(!pk.data)return json({error:'套餐不存在'},400);
+      credits=Number(pk.data.credits);
+      amountCny=Number(pk.data.price_cny);
+    }else{
+      if(!Number.isInteger(credits)||credits<1||credits>1000000)return json({error:'自定义积分数须为 1–1,000,000 的整数'},400);
+      if(!Number.isFinite(amountCny)||amountCny<0||amountCny>100000)return json({error:'金额格式不正确'},400);
+    }
+    const batchNote=String(b.batch_note||'').trim().slice(0,80);
+    const expDays=b.expires_days==null||b.expires_days===''?null:Math.trunc(Number(b.expires_days));
+    if(expDays!==null&&(!Number.isInteger(expDays)||expDays<1||expDays>3650))return json({error:'有效期天数须为 1–3650'},400);
+    const expiresAt=expDays?new Date(Date.now()+expDays*86400000).toISOString():null;
+    const batchId=crypto.randomUUID();
+    const alphabet='23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const makeCode=()=>{const bytes=new Uint8Array(12);crypto.getRandomValues(bytes);const s=[...bytes].map(x=>alphabet[x&31]).join('');return `ST-${s.slice(0,4)}-${s.slice(4,8)}-${s.slice(8,12)}`;};
+    const plainCodes:string[]=[];
+    const rows:any[]=[];
+    const seen=new Set<string>();
+    while(plainCodes.length<count){
+      const code=makeCode();
+      if(seen.has(code))continue;
+      seen.add(code);
+      const codeHash=await sha(code.replace(/[^A-Z0-9]/g,''));
+      plainCodes.push(code);
+      rows.push({code_hash:codeHash,code_prefix:code.slice(0,7),pack_code:packCode,credits,amount_cny:amountCny,batch_id:batchId,batch_note:batchNote,max_uses:maxUses,expires_at:expiresAt,created_by:admin.id});
+    }
+    const ins=await db.from('score_tracker_ai_redeem_codes').insert(rows);
+    if(ins.error)throw ins.error;
+    return json({ok:true,batch_id:batchId,pack_code:packCode,credits,amount_cny:amountCny,count:plainCodes.length,codes:plainCodes});
+  }
+  if(action==='ai_redeem_toggle'&&req.method==='POST'){
+    const b=await req.json();
+    const disabled=!!b.disabled;
+    if(b.code_hash&&/^[0-9a-f]{64}$/.test(String(b.code_hash))){
+      const r=await db.from('score_tracker_ai_redeem_codes').update({disabled}).eq('code_hash',String(b.code_hash));
+      if(r.error)throw r.error;
+      return json({ok:true});
+    }
+    if(b.batch_id&&/^[0-9a-f-]{36}$/i.test(String(b.batch_id))){
+      const r=await db.from('score_tracker_ai_redeem_codes').update({disabled}).eq('batch_id',String(b.batch_id));
+      if(r.error)throw r.error;
+      return json({ok:true});
+    }
+    return json({error:'需要指定兑换码或批次编号'},400);
+  }
+  if(action==='ai_paid_grant'&&req.method==='POST'){
+    const b=await req.json();
+    const credits=Math.trunc(Number(b.credits||0));
+    if(!Number.isInteger(credits)||credits===0||Math.abs(credits)>1000000)return json({error:'积分数须为非零整数（绝对值不超过 1,000,000）'},400);
+    const username=String(b.username||'').trim();
+    let userId=String(b.user_id||'').trim();
+    if(!userId&&username){
+      const u=await db.from('score_tracker_users').select('id,username').ilike('username',username).limit(2);
+      if(u.error)throw u.error;
+      const exact=(u.data||[]).find((x:any)=>x.username.toLowerCase()===username.toLowerCase());
+      if(!exact)return json({error:'未找到该用户名对应的账号'},404);
+      userId=exact.id;
+    }
+    if(!/^[0-9a-f-]{36}$/i.test(userId))return json({error:'请填写正确的用户名或用户编号'},400);
+    const note=String(b.note||'').trim().slice(0,200);
+    const orderNo='admin:'+crypto.randomUUID();
+    const r=await db.rpc('score_tracker_ai_credit_topup',{p_user:userId,p_channel:'admin_grant',p_external_order_no:orderNo,p_credits:credits,p_amount_cny:0,p_pack_code:null,p_note:note,p_actor:admin.id});
+    if(r.error){
+      const msg=String(r.error.message||'');
+      if(msg.includes('insufficient_paid_balance'))return json({error:'扣减失败：该账号可用补充积分不足'},400);
+      throw r.error;
+    }
+    return json(r.data);
   }
   if(action==='ai_usage_reconcile'&&req.method==='POST'){
     const b=await req.json(),call=await db.from('score_tracker_ai_calls').select('task_id').eq('id',String(b.call_id||'')).maybeSingle();if(call.error)throw call.error;if(!call.data)return json({error:'调用记录不存在'},404);

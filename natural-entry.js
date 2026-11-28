@@ -874,7 +874,7 @@
       '</div>' +
       '<div class="modal-body">' +
       '<section class="nl-entry-pane nl-entry-image-pane" data-entry-pane="image" hidden>' +
-      '<div class="nl-entry-quota"><div class="nl-entry-quota-head"><strong class="nl-entry-quota-count" role="status">正在读取今日额度…</strong><button class="secondary nl-entry-quota-refresh" type="button">刷新额度</button></div><p class="nl-entry-quota-note"></p><details class="nl-entry-quota-details" hidden><summary>额度规则与下一档</summary><div class="nl-entry-quota-rules"></div></details></div>' +
+      '<div class="nl-entry-quota"><div class="nl-entry-quota-head"><strong class="nl-entry-quota-count" role="status">正在读取今日额度…</strong><div class="nl-entry-quota-actions"><button class="secondary nl-entry-quota-topup" type="button" hidden>补充积分</button><button class="secondary nl-entry-quota-refresh" type="button">刷新额度</button></div></div><p class="nl-entry-quota-note"></p><details class="nl-entry-quota-details" hidden><summary>额度规则与下一档</summary><div class="nl-entry-quota-rules"></div></details></div>' +
       '<div class="nl-entry-upload-card"><label class="nl-entry-file-button"><span aria-hidden="true">选择成绩单图片</span><small aria-hidden="true">支持多选，最多 6 张</small><input class="nl-entry-files" type="file" accept="image/*" multiple aria-label="选择成绩单图片，最多6张"></label><p>可按成绩单顺序选择多张截图，系统会合并识别同一次考试。长图会自动分段，保留小字细节。</p><details class="nl-entry-picker-help"><summary>无法选择图片？</summary><div class="nl-entry-picker-options"><label class="nl-entry-native-label">兼容模式（每次选择一张）<input class="nl-entry-single-file" type="file" accept="image/*" aria-label="兼容模式选择单张图片"></label><button class="secondary nl-entry-paste-image" type="button" hidden>从剪贴板粘贴图片</button><p>支持时可直接粘贴截图。若主屏幕应用仍无法打开相册，请用普通浏览器访问网站后选择图片。</p></div></details><details class="nl-entry-help"><summary>图片及识别结果留存说明</summary><p>成功识别的图片及结果会留存，供管理员核验；请勿上传无关个人信息。</p></details></div>' +
       '<div class="nl-entry-image-list" aria-live="polite"><span class="nl-entry-empty">还没有选择图片</span></div>' +
       '<div class="nl-entry-progress" hidden aria-live="polite"><div class="nl-entry-progress-head"><span>识别进度 · 总计</span><strong class="nl-entry-elapsed">0.0s</strong></div><ol class="nl-entry-progress-steps"><li class="nl-entry-progress-step" data-progress-step="0"><span class="nl-entry-progress-dot">1</span><span class="nl-entry-progress-step-label">检查登录与额度</span><strong class="nl-entry-progress-step-time" data-progress-time="0">—</strong></li><li class="nl-entry-progress-step" data-progress-step="1"><span class="nl-entry-progress-dot">2</span><span class="nl-entry-progress-step-label">测试识别服务连通性</span><strong class="nl-entry-progress-step-time" data-progress-time="1">—</strong></li><li class="nl-entry-progress-step" data-progress-step="2"><span class="nl-entry-progress-dot">3</span><span class="nl-entry-progress-step-label">准备清晰图片</span><strong class="nl-entry-progress-step-time" data-progress-time="2">—</strong></li><li class="nl-entry-progress-step" data-progress-step="3"><span class="nl-entry-progress-dot">4</span><span class="nl-entry-progress-step-label">上传并识别图片</span><strong class="nl-entry-progress-step-time" data-progress-time="3">—</strong></li><li class="nl-entry-progress-step" data-progress-step="4"><span class="nl-entry-progress-dot">5</span><span class="nl-entry-progress-step-label">读取识别结果</span><strong class="nl-entry-progress-step-time" data-progress-time="4">—</strong></li><li class="nl-entry-progress-step" data-progress-step="5"><span class="nl-entry-progress-dot">6</span><span class="nl-entry-progress-step-label">整理可编辑结果</span><strong class="nl-entry-progress-step-time" data-progress-time="5">—</strong></li></ol></div>' +
@@ -975,6 +975,7 @@
     var quotaDetails = backdrop.querySelector('.nl-entry-quota-details');
     var quotaRules = backdrop.querySelector('.nl-entry-quota-rules');
     var quotaRefresh = backdrop.querySelector('.nl-entry-quota-refresh');
+    var quotaTopup = backdrop.querySelector('.nl-entry-quota-topup');
     function quotaBlocked() {
       return !quotaState || !quotaState.enabled || !quotaState.eligible || !quotaState.quota.service_enabled ||
         quotaState.quota.remaining < (quotaState.quota.unit==='credits'?13:1) || quotaState.quota.global_remaining <= 0 || Date.now() < quotaRetryAt;
@@ -987,12 +988,34 @@
       if (!backdrop.isConnected || !quotaState) return;
       var q = quotaState.quota;
       if(q.unit==='credits'){
-        quotaCount.textContent='可用 '+Math.floor(q.remaining)+' AI 积分';
-        quotaNote.textContent=(!quotaState.enabled||!q.service_enabled?'识图暂未启用。':q.global_remaining<=0?'本月 AI 预算不足。':'')+'约 13 分 / 次，按实际用量扣分，失败不扣。';
-        quotaRules.textContent='开始需 13 可用积分，提交时最多预留 '+Math.min(150,Math.floor(q.remaining))+' 分，完成后释放余量。确认填入免费。';
+        var rem=Math.max(0,Math.floor(Number(q.remaining||0)));
+        var paidRem=Math.max(0,Math.floor(Number(q.paid_remaining||0)));
+        var topupEnabled=!!(q.topup&&q.topup.enabled&&window.ScoreAccountBenefits&&typeof window.ScoreAccountBenefits.openTopupModal==='function');
+        var lowCredits=rem<13;
+        var budgetBlocked=q.global_remaining<=0;
+        quotaCount.textContent='可用 '+rem+' AI 积分'+(paidRem>0?'（含补充 '+paidRem+' 分）':'');
+        quotaNote.classList.toggle('is-warn',!(!quotaState.enabled||!q.service_enabled)&&(lowCredits||budgetBlocked));
+        if(!quotaState.enabled||!q.service_enabled){
+          quotaNote.textContent='识图暂未启用。约 11～13 分 / 次，按实际用量扣分，失败不扣。';
+        }else if(budgetBlocked){
+          quotaNote.textContent='本月共享 AI 预算暂已用完，未扣积分。'+(topupEnabled?'补充积分可独立使用，不受免费预算限制。':'手动录入与成绩分析永久免费。');
+        }else if(lowCredits){
+          quotaNote.textContent='可用积分不足（开始识图需至少 13 分）。'+(topupEnabled?'可点击右上角“补充积分”兑换，或使用免费的手动 / 自然语言录入。':'手动录入、自然语言录入与成绩分析永久免费。');
+        }else if(q.budget_paused&&paidRem>=13){
+          quotaNote.textContent='本月共享免费预算暂已用完，当前使用补充积分继续识图。约 11～13 分 / 次，失败不扣。';
+        }else{
+          quotaNote.textContent='约 11～13 分 / 次，按实际用量扣分，失败不扣。';
+        }
+        if(quotaTopup){
+          quotaTopup.hidden=!topupEnabled;
+          quotaTopup.classList.toggle('is-emphasis',topupEnabled&&(lowCredits||budgetBlocked));
+        }
+        quotaRules.textContent='开始需 13 可用积分，提交时最多预留 '+Math.min(150,rem)+' 分，完成后释放余量。优先扣除免费积分，确认填入免费。';
         quotaDetails.querySelector('summary').textContent='如何扣分';
         quotaDetails.hidden=false;syncVisionButton();return;
       }
+      if(quotaTopup)quotaTopup.hidden=true;
+      quotaNote.classList.remove('is-warn');
       var period = q.period || 'day';
       var prefixes = {lifetime:'体验',month:'本月',week:'本周',day:'今日'};
       var units = {lifetime:'次（一次性）',month:'次/月',week:'次/周',day:'次/日'};
@@ -1064,6 +1087,16 @@
       }
     }
     quotaRefresh.onclick = loadQuota;
+    if (quotaTopup) quotaTopup.onclick = function () {
+      if (!window.ScoreAccountBenefits || typeof window.ScoreAccountBenefits.openTopupModal !== 'function') return;
+      var q = quotaState && quotaState.quota ? quotaState.quota : null;
+      window.ScoreAccountBenefits.openTopupModal({
+        source: 'vision_modal',
+        account: q && q.account ? q.account : null,
+        topup: q && q.topup ? q.topup : null,
+        onRedeemed: function () { loadQuota(); }
+      });
+    };
 
     if (promptBox) promptBox.textContent = promptText;
     if (copyButton) copyButton.onclick = async function () {
@@ -1616,8 +1649,8 @@
     '.nl-entry-tab.is-active{background:var(--panel-solid,#fff);color:var(--accent,#5d72e8);border-color:#98a6f2;box-shadow:0 -2px 0 #98a6f2 inset}',
     '.nl-entry-pane{padding-top:2px}',
     '.nl-entry-quota{border:1px solid var(--line,#e8ebf0);border-radius:12px;padding:12px;margin-bottom:12px;background:var(--cell,#f7f9fc);font-size:11px;line-height:1.6}',
-    '.nl-entry-quota-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.nl-entry-quota-count{color:var(--accent,#5d72e8);font-size:12px}.nl-entry-quota-refresh{padding:5px 8px;font-size:10px;white-space:nowrap}',
-    '.nl-entry-quota-note{margin:7px 0 0;color:var(--muted,#788392)}.nl-entry-quota-details{margin-top:8px;color:var(--text,#18212f)}.nl-entry-quota-details summary{cursor:pointer}.nl-entry-quota-rules p{margin:6px 0 0}',
+    '.nl-entry-quota-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.nl-entry-quota-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.nl-entry-quota-count{color:var(--accent,#5d72e8);font-size:12px}.nl-entry-quota-refresh,.nl-entry-quota-topup{padding:5px 8px;font-size:10px;white-space:nowrap}.nl-entry-quota-topup.is-emphasis{background:var(--accent,#5d72e8);color:var(--on-surface,#fff);border-color:transparent;font-weight:700}',
+    '.nl-entry-quota-note{margin:7px 0 0;color:var(--muted,#788392)}.nl-entry-quota-note.is-warn{color:var(--warn,#b45309);font-weight:600}.nl-entry-quota-details{margin-top:8px;color:var(--text,#18212f)}.nl-entry-quota-details summary{cursor:pointer}.nl-entry-quota-rules p{margin:6px 0 0}',
     '.nl-entry-upload-card{border:1px dashed #9aa9ec;border-radius:14px;background:linear-gradient(135deg,#f6f7ff,#fbfcff);padding:18px;text-align:center}',
     '.nl-entry-file-button{position:relative;display:flex;min-height:52px;flex-direction:column;justify-content:center;align-items:center;gap:4px;cursor:pointer;color:var(--accent,#5d72e8);font-weight:750;font-size:13px;overflow:hidden;border-radius:8px}.nl-entry-file-button:focus-within{outline:2px solid var(--accent,#5d72e8);outline-offset:2px}',
     '.nl-entry-file-button small{font-size:10px;color:var(--muted,#788392);font-weight:500}',

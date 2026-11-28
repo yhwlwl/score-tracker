@@ -861,7 +861,22 @@ Deno.serve(async (req: Request) => {
       const r=await db.rpc('score_tracker_ai_account',{p_user:user.id});if(r.error)return out({error:'成长与AI额度服务暂不可用',code:'account_benefits_unavailable'},503);return out({account:r.data});
     }
     if(action==='account_usage'){
-      const r=await db.from('score_tracker_ai_tasks').select('id,feature,status,charged_credits,created_at,finished_at').eq('user_id',user.id).order('created_at',{ascending:false}).limit(20);if(r.error)throw r.error;return out({usage:r.data||[]});
+      const r=await db.from('score_tracker_ai_tasks').select('id,feature,status,charged_credits,charged_free,charged_paid,created_at,finished_at').eq('user_id',user.id).order('created_at',{ascending:false}).limit(20);if(r.error)throw r.error;return out({usage:r.data||[]});
+    }
+    if(action==='account_topups'){
+      const r=await db.from('score_tracker_ai_topup_orders').select('id,channel,pack_code,credits,amount_cny,note,created_at').eq('user_id',user.id).order('created_at',{ascending:false}).limit(30);if(r.error)throw r.error;return out({topups:r.data||[]});
+    }
+    if(action==='redeem_ai_code'){
+      const normalized=String(body.code??'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+      if(normalized.length<8||normalized.length>40)return out({error:'请输入有效的兑换码',code:'invalid_code'},400);
+      const codeHash=await sha(normalized);
+      const r=await db.rpc('score_tracker_ai_redeem_code',{p_user:user.id,p_code_hash:codeHash});
+      if(r.error)return out({error:'兑换服务暂不可用，请稍后重试',code:'redeem_unavailable'},503);
+      if(!r.data?.ok){
+        const st=r.data?.code==='rate_limited'?429:400;
+        return out({error:r.data?.error||'兑换失败，请核对后重试',code:r.data?.code||'redeem_failed'},st);
+      }
+      return out(r.data);
     }
     if (action === "reference_scores_capability") return out({ reference_scores_version: 1 });
     if (action === "get_exam_reflection" || action === "save_exam_reflection") {
