@@ -311,20 +311,6 @@ function setFace(f){stopFlip();mode=f;deck.classList.toggle('st-ach-flipped',f==
 
 let centenaryLive=null;
 function centenaryOpen(){return !!(dialog?.open&&shown?.id==='triple'&&centenaryLive)}
-function paintCentenaryLive(){
- if(!centenaryOpen())return;
- const d=centenaryLive,n=d.live_award_count==null?NaN:Number(d.live_award_count),total=d.account_count==null?NaN:Number(d.account_count),valid=Number.isFinite(n)&&Number.isFinite(total)&&total>0&&n>=0&&n<=total;
- const rate=deck.querySelector('.st-ach-rate'),label=rate?.nextElementSibling;if(rate)rate.textContent=valid?(100*n/total).toFixed(2)+'%':'—';if(label)label.textContent=valid?'实际获得率':'获得率暂未获取';
- let detail=deck.querySelector('.st-ach-centenary-live');
- if(!detail){detail=document.createElement('div');detail.className='st-ach-centenary-live';deck.querySelector('.st-ach-back')?.append(detail)}
- const stamp=d.measured_at&&Number.isFinite(Date.parse(d.measured_at))?new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).format(new Date(d.measured_at)):'';
- const fmt=x=>x==null?'—':Number(x).toLocaleString('zh-CN');
- detail.replaceChildren();const heading=document.createElement('h3');heading.textContent='此刻的三百纪念';detail.append(heading);
- for(const [name,value] of [['当前注册账户',fmt(d.account_count)],['累计交互',fmt(d.event_count)],['实际已发放',valid?fmt(n):'—']]){const row=document.createElement('p');row.textContent=name+' · '+value;detail.append(row)}
- const foot=document.createElement('small');foot.textContent=stamp?'统计于 '+stamp+' · 北京时间':'等待最新统计';detail.append(foot);
-}
-function updateCentenaryLive(d){if(!centenaryOpen()||!d)return;Object.assign(centenaryLive,d);paintCentenaryLive()}
-
 function renderCard(b,a,opt={}){
  stopFlip();shown=b;centenaryLive=b.id==='triple'&&opt.centenaryLive?opt.centenaryLive:null;opt={...opt,award:a};const earned=!!a,preview=!!opt.demo,locked=!earned&&b.hidden&&!opt.reveal,source=a?.evidence?.source;
  const publicRate=rateInfo(b,opt);
@@ -337,7 +323,6 @@ function renderCard(b,a,opt={}){
  const replay=controls.querySelector('[data-replay]');if(replay)replay.onclick=()=>{stopTour();renderCard(b,a,{...opt,tour:null,play:true})};
  const stop=controls.querySelector('[data-tour-stop]');if(stop)stop.onclick=()=>{stopTour();stop.remove()};
  const gallery=controls.querySelector('[data-gallery]');if(gallery)gallery.onclick=()=>{stopTour();if(!ackSent&&ack){ackSent=true;ack()}ack=null;if(dialog.open)dialog.close();opt.onGallery()};
- if(centenaryLive)paintCentenaryLive();
  setFace('front');
  // A single, cancellable flip for an actual reveal; ordinary detail browsing never auto-flips.
  if(opt.autoFlip&&opt.play&&earned&&!opt.demo&&!tour&&!reduced()&&!document.hidden){
@@ -439,5 +424,5 @@ function openGallery(awards,opt={}){
  if(!collectionDialog){collectionDialog=document.createElement('dialog');collectionDialog.className='st-ach-collection-dialog';collectionDialog.setAttribute('aria-label','成就馆');collectionDialog.innerHTML='<div class="st-ach-collection-header"><button type="button" aria-label="返回账号页">‹ 返回</button><strong>成就馆</strong><small>Score Tracker</small></div><div class="st-ach-collection-body"></div>';document.body.append(collectionDialog);collectionDialog.querySelector('button').onclick=()=>collectionDialog.close()}
  if(dialog?.open)dialog.close();const body=collectionDialog.querySelector('.st-ach-collection-body');body.replaceChildren();const r=document.createElement('section');body.append(r);gallery(r,awards,false,opt);if(!collectionDialog.open)collectionDialog.showModal();
 }
-g.ScoreAchievementUI={centenaryOpen,updateCentenaryLive,emblem,gallery,show,autoplay,openGallery,close,rate,rateDetails,demoEvidence,conditionRows,summaries,awardDay,evidenceDay,dateLabel,rateInfo,actualRateInfo,favoriteIds,entryHTML};
+g.ScoreAchievementUI={centenaryOpen,emblem,gallery,show,autoplay,openGallery,close,rate,rateDetails,demoEvidence,conditionRows,summaries,awardDay,evidenceDay,dateLabel,rateInfo,actualRateInfo,favoriteIds,entryHTML};
 })(window);

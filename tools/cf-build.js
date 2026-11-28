@@ -15,6 +15,7 @@ const FILES = [
   "achievement-ui.js",
   "achievement-ui.css",
   "achievement-app.js",
+  "centenary-release.js",
   "supabase/functions/_shared/achievement-catalog.js",
   "styles.css",
   "appearance-studio.css",

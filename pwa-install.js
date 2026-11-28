@@ -9,6 +9,8 @@
   const save = next => { try { localStorage.setItem(KEY, JSON.stringify({...read(), ...next})); } catch (_) {} };
   const track = (event, meta = {}) => { try { window.__scoreTrackerTrack?.(event, {platform, source, native_available:!!deferred, ...meta}); } catch (_) {} };
   const blocked = () => {
+
+    if(window.ScoreModalGuard)return window.ScoreModalGuard.occupied()||window.ScoreModalGuard.centenaryPending();
     try { if (state.onboarding) return true; } catch (_) {}
     return document.visibilityState !== 'visible' || !!document.querySelector('.modal-backdrop,.rn-back,.fv36-back,.st-fb-back,.school-back,.gmodal-backdrop.open');
   };
