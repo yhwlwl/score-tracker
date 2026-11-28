@@ -884,75 +884,48 @@ function structureHtmlV32(f,mode){
 /* ---------- ⑤ 个人最佳殿堂 ---------- */
 function hallHtmlV32(f,mode){
   var rows=[];
-  function valid(v){return v!==null&&v!==undefined&&Number.isFinite(Number(v));}
-  function examNote(x){
+  function valid(v){return v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));}
+  function examNote(x,latest){
     var e=x&&f.exams[x.i];if(!e)return '';
-    return '<small class="best-exam-v60 hall-exam-v32">'+esc32(e.name||'未命名考试')+(e.exam_date?' · '+esc32(e.exam_date):'')+'</small>';
+    var name=e.name||'未命名考试',date=e.exam_date||'';
+    return '<small class="hall-exam-v32'+(latest?' hall-recent-exam-v32':'')+'"><span>'+esc32(name)+'</span>'+(date?'<time>'+esc32(date)+'</time>':'')+'</small>';
   }
-  function metric(label,value,entry){
-    return '<div class="hall-metric-v32">'+(label?'<small class="hall-metric-label-v32">'+esc32(label)+'</small>':'')+'<b>'+value+'</b>'+examNote(entry)+'</div>';
+  function scoreText(x){return '<b>'+r32(x.actual)+'</b>'+(x.max>0?'<small class="hall-max-v32">/'+r32(x.max)+'</small>':'<small class="hall-max-v32">分</small>');}
+  function delta(series,key,lower,unit,latest){
+    var before=series.filter(function(x){return x.i<latest.i;});
+    if(!before.length)return '<small class="hall-delta-v32">首次记录</small>';
+    var previous=before.reduce(function(x,y){return (lower?y[key]<x[key]:y[key]>x[key])?y:x;});
+    var diff=r32(lower?previous[key]-latest[key]:latest[key]-previous[key]);
+    if(diff>0)return '<small class="hall-delta-v32 hall-record-v32">↑ 刷新纪录</small>';
+    if(diff===0)return '<small class="hall-delta-v32 hall-record-v32">✓ 持平最佳</small>';
+    return '<small class="hall-delta-v32">↓ '+Math.abs(diff)+(unit==='分'?' 分':' 个百分点')+'</small>';
   }
-  function scoreText(x){
-    return r32(x.actual)+(x.max>0?'/'+r32(x.max):'分');
+  function metric(label,best,latest,trend,labelTrend,color){
+    return {label:label,best:best,latest:latest,trend:trend,trendLabel:labelTrend,color:color};
   }
-  function scoreInfo(series){
-    var a=series.filter(function(x){return valid(x.actual);});if(!a.length)return null;
-    var mixed=new Set(a.map(function(x){return x.max;})).size>1||!(a[0].max>0);
-    var comparable=a.filter(function(x){return valid(x.rate);});
-    var basis=mixed&&comparable.length?'rate':'actual';
-    var candidates=basis==='rate'?comparable:a;
-    var best=candidates.reduce(function(x,y){return y[basis]>x[basis]?y:x;}),last=candidates[candidates.length-1];
-    return {best:best,last:last,latestActual:a[a.length-1],basis:basis,comparable:comparable,mixed:mixed};
-  }
-  function rankInfo(series,key,label){
+  function ranking(series,key,label,color){
     var a=series.filter(function(x){return valid(x[key]);});if(!a.length)return null;
     var best=a.reduce(function(x,y){return y[key]<x[key]?y:x;}),last=a[a.length-1];
-    return {label:label,key:key,best:best,last:last,gap:Math.max(0,r32(last[key]-best[key])),series:a};
+    function val(x){return '<b>'+fmtPos32(x[key])+'</b>';}
+    return metric(label,val(best)+examNote(best,false),val(last)+delta(a,key,true,'个百分点',last)+examNote(last,true),a.map(function(x){return 100-x[key];}),label+'走势',color);
   }
-  function rankMetric(info,entry){
-    // Label and value are kept together so class and grade records cannot be mistaken for one another.
-    return metric('',esc32(info.label)+' '+fmtPos32(entry[info.key]),entry);
-  }
-  function gapMetric(info){
-    return metric(info.label,info.gap<=0.05?'已持平':'差 '+info.gap+' 个百分点',null);
+  function scoring(series){
+    var a=series.filter(function(x){return valid(x.actual);});if(!a.length)return null;
+    var comparable=a.filter(function(x){return valid(x.max)&&x.max>0&&x.actual>=0&&x.actual<=x.max;}).map(function(x){return Object.assign({},x,{hallRate:r32(x.actual/x.max*100)});});
+    var same=comparable.length&&new Set(comparable.map(function(x){return Number(x.max);})).size===1;
+    var basis=same?'actual':'hallRate',c=comparable.length?comparable:a;
+    var best=c.reduce(function(x,y){return y[comparable.length?basis:'actual']>x[comparable.length?basis:'actual']?y:x;});
+    var last=a[a.length-1],lastComparable=comparable.find(function(x){return x.i===last.i;});
+    var note=comparable.length&&!same?' <small class="hall-rate-v32">('+best.hallRate+'%)</small>':'';
+    var lastNote=lastComparable&&!same?' <small class="hall-rate-v32">('+lastComparable.hallRate+'%)</small>':'';
+    var bestHtml=scoreText(best)+note+examNote(best,false);
+    if(!comparable.length)bestHtml+='<small class="hall-delta-v32">分数参考 · 满分未知</small>';
+    var latestHtml=scoreText(last)+lastNote+(lastComparable?delta(comparable,basis,false,same?'分':'个百分点',lastComparable):'<small class="hall-delta-v32">满分未知或无效 · 未比较</small>')+examNote(last,true);
+    return metric('得分',bestHtml,latestHtml,c.map(function(x){return x[comparable.length?basis:'actual'];}),comparable.length&&!same?'得分率走势':'得分走势'+(!comparable.length?'（参考）':''),'var(--accent,#5d72e8)');
   }
   function push(name,yearSeries,classSeries,scoreSeries){
-    var year=rankInfo(yearSeries,'pos','年级排名'),cls=rankInfo(classSeries,'cls','班排'),score=scoreInfo(scoreSeries);
-    if(!year&&!cls&&!score)return;
-    var ranks=[year,cls].filter(Boolean),primary=year||cls;
-    var bestRank=ranks.map(function(info){return rankMetric(info,info.best);}).join('')||'<small class="hall-metric-label-v32">未记录排名</small>';
-    var bestScore=score?metric('',scoreText(score.best)+(score.basis==='rate'?' <small>('+r32(score.best.rate)+'%)</small>':''),score.best):'<small class="hall-metric-label-v32">未记录得分</small>';
-    var latest=ranks.map(function(info){return rankMetric(info,info.last);}).join('');
-    var gaps=ranks.map(gapMetric).join('');
-    var trend=[],status='',tone='flat',trendLabel='';
-    if(primary){
-      trend=primary.series.map(function(x){return 100-x[primary.key];});
-      trendLabel=primary.label+'走势';
-      if(primary.gap<=0.05){status='排名达到历史最佳';tone='ok';}
-      else if(primary.gap<=1){status='排名接近历史最佳';tone='ok';}
-      else{status='与最佳排名有差距';tone='acc';
-        var streak=0;for(var k=primary.series.length-1;k>=0;k--){if(primary.series[k][primary.key]-primary.best[primary.key]>5)streak++;else break;}
-        if(streak>=2){status='连续'+streak+'场距最佳排名较远';tone='warn';}
-      }
-      if(score)latest+=metric('最近得分',scoreText(score.latestActual),score.latestActual);
-    }else if(score){
-      latest=metric('最近得分',scoreText(score.latestActual),score.latestActual);
-      var rr=score.comparable;
-      if(rr.length){
-        var rb=rr.reduce(function(x,y){return y.rate>x.rate?y:x;}),rl=rr[rr.length-1],rg=Math.max(0,r32(rb.rate-rl.rate));
-        trend=rr.map(function(x){return x.rate;});trendLabel='得分率走势';
-        if(rl.i!==score.latestActual.i)latest+=metric('最近可比得分率',r32(rl.rate)+'%',rl);
-        gaps=metric('得分率参考',rg<=0.05?'已持平':'差 '+rg+' 个百分点',null);
-      }else{
-        trend=scoreSeries.filter(function(x){return valid(x.actual);}).map(function(x){return x.actual;});trendLabel='分数走势（满分未知）';
-        gaps='<small class="hall-metric-label-v32">暂无可比满分</small>';
-      }
-      status='仅分数参考';
-    }
-    // When both ranking scopes exist, the status describes the grade ranking only.
-    if(primary&&year&&cls)status=status.replace('排名','年级排名');
-    else if(primary&&cls&&!year)status=status.replace('排名','班级排名');
-    rows.push({name:name,bestRank:bestRank,bestScore:bestScore,latest:latest,gaps:gaps,trend:trend,trendLabel:trendLabel,status:status,tone:tone});
+    var metrics=[scoring(scoreSeries),ranking(yearSeries,'pos','年级排名','var(--green,#32a77a)'),ranking(classSeries,'cls','班级排名','var(--warn,#b77a3c)')].filter(Boolean);
+    if(metrics.length)rows.push({name:name,metrics:metrics});
   }
   var totalScores=f.exams.map(function(e,i){return Object.assign({i:i},scopedScoreV60(e,f));});
   var totalClass=f.exams.map(function(e,i){return {i:i,cls:scopedClassV60(e,f)};});
@@ -963,17 +936,11 @@ function hallHtmlV32(f,mode){
   });
   if(!rows.length)return '';
   var body=rows.map(function(r){
-    return '<tr><td data-hall-field="subject">'+esc32(r.name)+'</td><td data-hall-field="spark"><small class="hall-metric-label-v32">'+esc32(r.trendLabel)+'</small>'+sparkSvg32(r.trend)+'</td>'
-      +'<td data-hall-field="rank" data-label="历史最佳排名">'+r.bestRank+'</td><td data-hall-field="score" data-label="历史最佳得分">'+r.bestScore+'</td>'
-      +'<td data-hall-field="exam" data-label="最近可比记录">'+r.latest+'</td>'
-      +'<td data-hall-field="gap" data-label="距离历史最佳">'+r.gaps+'</td>'
-      +'<td data-hall-field="status"><span class="pill '+r.tone+'">'+esc32(r.status)+'</span></td></tr>';
+    return '<section class="hall-subject-v32"><h4>'+esc32(r.name)+'</h4><table class="hall-table-v32"><thead><tr><th scope="col">指标</th><th scope="col">历史最佳</th><th scope="col">最近表现</th></tr></thead><tbody>'
+      +r.metrics.map(function(m){return '<tr><th scope="row">'+esc32(m.label)+'</th><td>'+m.best+'</td><td>'+m.latest+'</td></tr>';}).join('')
+      +'</tbody></table><div class="hall-trends-v32">'+r.metrics.map(function(m){return '<div class="hall-trend-v32"><span>'+esc32(m.trendLabel)+'</span>'+(m.trend.length>1?sparkSvg32(m.trend,m.color):'<small>仅1场记录</small>')+'</div>';}).join('')+'</div></section>';
   }).join('');
-  return '<div class="card"><div class="card-title-row"><div><h3 class="card-title">⑤ 个人最佳殿堂</h3>'
-    +'<p class="card-sub">分别记录历史最佳排名与得分；各自对应的考试可能不同。满分不同时按得分率比较。</p></div>'
-    +lockTagV32(mode)+'</div>'
-    +'<div class="sv31-scroll hall-scroll-v32"><table class="hall-table-v32"><thead><tr><th>科目</th><th>历次小走势</th><th>历史最佳排名</th><th>历史最佳得分</th><th>最近可比记录</th><th>距离历史最佳</th><th>状态</th></tr></thead><tbody>'
-    +body+'</tbody></table></div></div>';
+  return '<div class="card"><div class="card-title-row"><div><h3 class="card-title">⑤ 个人最佳殿堂</h3><p class="card-sub">得分与排名独立比较，满分不同时比较得分率；箭头表示距历史最佳的差距。</p></div></div><div class="sv31-scroll hall-scroll-v32"><div class="hall-grid-v32">'+body+'</div></div></div>';
 }
 /* ---------- ⑥ 目标校准 ---------- */
 function calibHtmlV32(f,mode){
@@ -1320,7 +1287,7 @@ function injectStylesV32(){
     ".sv31-tot{outline:2px solid var(--accent-soft,#eef1ff);outline-offset:-2px;border-radius:6px}",
     ".sv31-controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}",
     ".sv31-scroll-x{overflow-x:auto;max-width:100%;scrollbar-width:none}.sv31-scroll-x::-webkit-scrollbar{display:none}",
-    "#content .hall-table-v32{min-width:760px;table-layout:auto}#content .hall-table-v32 :is(td,th){text-align:left;vertical-align:top;overflow-wrap:normal;word-break:normal}#content .hall-table-v32 td[data-hall-field=rank],#content .hall-table-v32 td[data-hall-field=score],#content .hall-table-v32 td[data-hall-field=exam]{min-width:132px}#content .hall-table-v32 td[data-hall-field=gap]{min-width:104px}#content .hall-metric-v32{display:flex;flex-direction:column;gap:2px;min-width:0;text-align:left}#content .hall-metric-v32+.hall-metric-v32{margin-top:7px}#content .hall-metric-v32 b{font-size:var(--ui-small,13px);font-weight:650;line-height:1.45;overflow-wrap:anywhere}#content .hall-metric-label-v32,#content .hall-exam-v32{display:block;font-size:var(--ui-caption,11px);font-weight:400;color:var(--muted);line-height:1.45;white-space:normal;overflow-wrap:anywhere;margin:0}#content .hall-table-v32 td[data-hall-field=status] .pill{white-space:normal;line-height:1.4}#content .hall-table-v32 td[data-hall-field=spark] .hall-metric-label-v32{margin-bottom:4px}@media(max-width:620px){#content .hall-table-v32 td[data-hall-field=rank],#content .hall-table-v32 td[data-hall-field=score],#content .hall-table-v32 td[data-hall-field=exam],#content .hall-table-v32 td[data-hall-field=gap]{min-width:0;padding-top:7px;border-top:1px solid var(--line)}#content .hall-table-v32 td[data-hall-field=status]{font-size:var(--ui-caption,11px)}#content .hall-table-v32 td[data-hall-field=status] .pill{display:inline-block;max-width:100%;box-sizing:border-box}#content .hall-table-v32 td[data-label]::before{font-weight:600;margin-bottom:5px}}",
+    ".hall-scroll-v32{overflow:visible;min-width:0}.hall-grid-v32{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:10px;align-items:start}.hall-subject-v32{border:1px solid var(--line);border-radius:12px;padding:12px;min-width:0;background:var(--panel-solid);break-inside:avoid}.hall-subject-v32 h4{margin:0 0 8px;font-size:var(--ui-small,14px);font-weight:700;color:var(--text)}#content .hall-table-v32{width:100%;min-width:0!important;table-layout:fixed;border-collapse:collapse}#content .hall-table-v32 :is(th,td){padding:8px 4px;text-align:left;vertical-align:top;min-width:0;white-space:normal;word-break:normal;overflow-wrap:anywhere;font-size:var(--ui-small,13px);line-height:1.45}#content .hall-table-v32 thead th{font-size:var(--ui-caption,11px);color:var(--muted);font-weight:500}#content .hall-table-v32 th:first-child{width:23%}#content .hall-table-v32 tbody th{font-weight:500;color:var(--muted)}#content .hall-table-v32 td>b{font-size:var(--ui-small,14px);font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}#content .hall-max-v32,#content .hall-rate-v32{font-size:var(--ui-caption,11px);font-weight:400;color:var(--muted);font-variant-numeric:tabular-nums}.hall-exam-v32,.hall-delta-v32{display:block;color:var(--muted);font-size:var(--ui-caption,11px);line-height:1.4;font-weight:400;margin-top:3px;overflow-wrap:anywhere}.hall-exam-v32 span,.hall-exam-v32 time{display:block}.hall-recent-exam-v32{opacity:.85}.hall-delta-v32.hall-record-v32{color:var(--green,#32a77a);font-weight:550}.hall-trends-v32{display:grid;gap:4px;padding-top:8px;border-top:1px solid var(--line);margin-top:6px}.hall-trend-v32{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:26px;font-size:var(--ui-caption,11px);color:var(--muted)}.hall-trend-v32 svg{flex:none;max-width:42%;height:26px}.hall-trend-v32 small{font-size:inherit}@media(max-width:620px){.hall-grid-v32{grid-template-columns:minmax(0,1fr);gap:8px}.hall-subject-v32{padding:10px}#content .hall-table-v32 :is(td,th){padding:7px 3px}#content .hall-table-v32 th:first-child{width:22%}}",
     ".sv31-seg{display:flex;background:var(--panel-solid,#fff);border:1px solid var(--line,#e8ebf0);border-radius:12px;padding:4px;gap:4px;margin-left:auto;flex:none}",
     ".sv31-seg button{border:0;background:transparent;color:var(--muted,#788392);padding:8px 14px;border-radius:9px;font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:600}",
     ".sv31-seg button.active{background:var(--accent,#5d72e8);color:#fff}",
@@ -1358,7 +1325,7 @@ function injectStylesV32(){
     ".sv31-tabs{margin-left:0}",
     ".sv31-scroll{max-width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;overscroll-behavior-x:contain}.sv31-scroll table{min-width:430px}",
     "#content .sv31-scroll table:not(.sv31-heat):not(.hall-table-v32){min-width:max(560px,100%);table-layout:auto}#content .sv31-scroll table:not(.sv31-heat):not(.hall-table-v32) :is(th,td){word-break:normal;overflow-wrap:normal;min-width:72px}#content .sv31-scroll table:not(.sv31-heat):not(.hall-table-v32) :is(th,td):last-child{min-width:120px}",
-    "@media(max-width:620px){#content .sv31-kpi{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}#content .sv31-stat{padding:11px;min-width:0;overflow-wrap:anywhere}#content .sv31-stat .lb{word-break:normal;line-height:1.4}#content .sv31-stat .v{margin:5px 0 3px}#content .sv31-stat .d{border-radius:6px;padding:3px 5px;line-height:1.4;white-space:normal}#content .hall-scroll-v32{overflow:visible}#content .hall-table-v32{display:block;width:100%;min-width:0!important;table-layout:auto}#content .hall-table-v32 thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}#content .hall-table-v32 tbody{display:grid;gap:8px;width:100%}#content .hall-table-v32 tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px;padding:10px 11px;border:1px solid var(--line);border-radius:11px;min-width:0}#content .hall-table-v32 td{display:block;padding:0;border:0;text-align:left!important;min-width:0;white-space:normal!important;word-break:normal;overflow-wrap:anywhere}#content .hall-table-v32 td[data-label]::before{content:attr(data-label);display:block;color:var(--muted);font-size:var(--ui-caption,11px);font-weight:400;margin-bottom:2px}#content .hall-table-v32 td[data-hall-field=subject]{order:0;font-weight:650;font-size:var(--ui-small,13px);align-self:center}#content .hall-table-v32 td[data-hall-field=status]{order:1;text-align:right!important;align-self:center}#content .hall-table-v32 td[data-hall-field=rank]{order:2}#content .hall-table-v32 td[data-hall-field=score]{order:3}#content .hall-table-v32 td[data-hall-field=exam]{order:4}#content .hall-table-v32 td[data-hall-field=gap]{order:5}#content .hall-table-v32 td[data-hall-field=spark]{order:6;grid-column:1/-1}#content .hall-table-v32 td[data-hall-field=status] .pill{white-space:normal;line-height:1.4}#content .hall-table-v32[data-ad-compact] [data-ad-extra-col]{display:none!important}}",
+    "@media(max-width:620px){#content .sv31-kpi{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}#content .sv31-stat{padding:11px;min-width:0;overflow-wrap:anywhere}#content .sv31-stat .lb{word-break:normal;line-height:1.4}#content .sv31-stat .v{margin:5px 0 3px}#content .sv31-stat .d{border-radius:6px;padding:3px 5px;line-height:1.4;white-space:normal}}",
     ".sv31-page .pill{display:inline-block;font-size:10px;font-weight:700;border-radius:999px;padding:3px 9px;white-space:nowrap}",
     ".sv31-page .pill.ok{background:var(--green-soft,#e9f8f2);color:var(--green,#32a77a)}",
     ".sv31-page .pill.acc{background:var(--accent-soft,#eef1ff);color:var(--accent,#5d72e8)}",
