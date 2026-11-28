@@ -20,7 +20,7 @@ async function testDom(){
  w.HTMLDialogElement.prototype.close=function(){this.removeAttribute('open')};
  w.HTMLElement.prototype.getClientRects=function(){return this.hasAttribute('hidden')?[]:[{}]};
  w.setInterval=fn=>{check=fn;return 1};
- w.__releaseNotices={openCentenaryDiscussion:async()=>requests.push({action:'open-discussion'})};
+ w.__releaseNotices={mountCentenaryDiscussion:async(container,panel)=>{assert(container.isConnected);assert(panel);container.textContent='内嵌纪念留言';requests.push({action:'open-discussion'})}};
  w.fetch=async(url,opt)=>{
   const b=JSON.parse(opt.body);requests.push(b);if(b.action==='achievement_overview'){assert.equal(url,'/api/score-tracker-data-api');return {ok:true,json:async()=>({enabled:true,awards:[{badge_id:'triple',awarded_at:ready.published_at}],stats:{total:10000,counts:{triple:10000}}})}}assert.equal(url,'/api/score-tracker-notices');
   if(fail)return {ok:false,json:async()=>({error:'test failure'})};
@@ -53,7 +53,7 @@ async function testDom(){
   shadow.getElementById('done').click();await delay();assert(requests.some(x=>x.action==='show-award'&&x.badge==='triple'&&x.autoFlip));assert(!doc.querySelector('.st-centenary-dialog'));assert(doc.querySelector('.st-centenary-entry'));
   await force();check();assert(!doc.querySelector('.st-centenary-dialog'));assert.equal(requests.filter(x=>x.action==='centenary_seen').length,1);
   doc.querySelector('.st-centenary-entry').click();dialog=doc.querySelector('.st-centenary-dialog[open]');assert(dialog);
-  dialog.firstChild.shadowRoot.getElementById('discussion').click();await delay();assert(requests.some(x=>x.action==='open-discussion'));assert(!doc.querySelector('.st-centenary-dialog'));
+  assert.equal(dialog.firstChild.shadowRoot.getElementById('discussion').textContent,'内嵌纪念留言');assert(requests.some(x=>x.action==='open-discussion'));dialog.firstChild.shadowRoot.getElementById('close').click();await delay();assert(!doc.querySelector('.st-centenary-dialog'));
   w.state={user:{id:'user-b'},token:'token-b',page:'account'};check();await delay();assert(doc.querySelector('.st-centenary-entry'));const newDialog=doc.querySelector('.st-centenary-dialog[open]');assert(newDialog);assert.equal(newDialog.firstChild.shadowRoot.getElementById('done').textContent,'开始我的记录');newDialog.firstChild.shadowRoot.getElementById('done').click();await delay();assert(!doc.querySelector('.st-centenary-dialog'));assert.equal(requests.filter(x=>x.action==='centenary_seen'&&x.token==='token-b').length,1);
   w.state={user:{id:'user-a'},token:'token-a',page:'account'};check();await delay();assert(doc.querySelector('.st-centenary-entry'));assert(!doc.querySelector('.st-centenary-dialog'));
   paused=true;await force();assert(!doc.querySelector('.st-centenary-entry'));assert(!doc.querySelector('.st-centenary-dialog'));
