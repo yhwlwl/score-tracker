@@ -35,7 +35,10 @@ async function run(){
   // The same comments renderer is mounted inside the centenary shadow DOM.
   const cid='63656e74656e617279323032',inline=harness({blocking:'modal-backdrop',config:{announcement_id:cid,announcement_enabled:true,announcement_title:'三百纪念',announcement_content:'纪念',announcement_comments_enabled:true,announcement_comment_title:'纪念留言'}});
   const host=inline.d.createElement('div');inline.d.body.append(host);const shadow=host.attachShadow({mode:'open'}),panel=inline.d.createElement('div'),container=inline.d.createElement('div');panel.append(container);shadow.append(panel);
+  inline.shared.comments=Array.from({length:8},(_,i)=>({id:'existing'+i,sequence:8-i,author:'示例用户',content:'历史留言'+i,created_at:new Date().toISOString()}));
   await inline.w.__releaseNotices.mountCentenaryDiscussion(container,panel);await sleep(20);
+  assert.equal(container.querySelectorAll('.rn-comment-list .rn-comment').length,5);
+  const more=container.querySelector('.rn-more');assert(!more.hidden);more.click();assert.equal(container.querySelectorAll('.rn-comment-list .rn-comment').length,8);assert(more.hidden);
   const textarea=container.querySelector('textarea'),form=container.querySelector('form');assert(textarea&&form);textarea.value='纪念留言测试';form.dispatchEvent(new inline.w.Event('submit',{bubbles:true,cancelable:true}));await sleep(30);
   assert(container.querySelector('.rn-comment-text').textContent.includes('纪念留言测试'));assert(!inline.d.querySelector('.rn-back'));assert(inline.shared.requests.some(x=>x.action==='announcement_comment_add'&&x.notice_id===cid));assert.deepEqual(inline.errors,[]);inline.close();
   let structured=harness({structured:true,current:'v10.0',config:{version:'v10.0',title:'让记录更简单，让进步更清晰',content:fs.readFileSync(path.join(root,'design/release-v10.0-notice.md'),'utf8')}});await initial(structured);assert.equal(structured.d.querySelectorAll('#rnContent .nl-featured').length,3);assert(structured.d.querySelector('#rnContent').textContent.includes('网站目前仍然完全免费'));assert.deepEqual(structured.errors,[]);structured.close();
