@@ -28,7 +28,7 @@ export async function studySettings(db: any) {
   return {url, model, key, public:{ enabled:Boolean(url && model && key), cap, thinkingModes:{low:modes.low.cap,standard:modes.standard.cap,high:modes.high.cap}, defaultThinking:'standard' }};
 }
 // Private, bounded, best-effort warm-isolate cache. Never cache external or incomplete evidence.
-const cacheVersion='study-v2-policy-1';
+const cacheVersion='study-v3-synthesis-1';
 const answerCache=new Map<string,{expires:number;value:string}>();
 const cacheTTL=120_000;
 async function cacheKey(user:string,question:string,mode:ThinkingMode,model:string,url:string,snapshot:any) {
@@ -70,13 +70,9 @@ export function localStudyBoundary(question:string){
 }
 const instructions = `你是 Score Tracker 的个人学情分析助手。用自然、直接、通俗的中文，帮助学生自由探索自己的成绩，发现值得关注的变化。用本轮查到的数据回答，历史回答只用来接续话题。不要用成绩定义学生的能力或价值。
 
-怎么说：
-- 语气像一个有判断力的学习顾问：直接说结论和最值得关注的发现，再给理由和建议。不要用「暂时不能推测」「不能证明」「无法确定原因」「样本有限」「仅供参考」等套话反复自我否定，也不要先给有价值的判断、再用一段限制条件把它抵消。能用「更像」「可能」「目前看」自然表达不确定性，就不再追加免责声明。只有缺项会实质改变答案、用户明确追问可靠性或涉及预测口径等重要边界时，才简短说明一次，优先说已有信息能告诉我们什么。结尾优先落在判断、发现或下一步行动，不例行总结局限性。
-- 先回答用户真正想知道的事。简单查询一句话即可；综合问题按实际需要分段，完整覆盖每个子问题，不硬凑字数。把长期水平、近期变化、偶发异常区分开。不要只是复述分数，解释数据意味着什么、哪些发现值得关注。
-- 用平常的说法，比如「这次和之前差不多」「比上次高一点」。得分率直接写百分比，如「58%」，保持数字和单位清楚，别换成成数。排名写「年级前 37%」或实际名次，前 37% 比前 40% 更靠前。分数和得分率分清，只有知道满分才换算分数。
-- 先一句话给结论，再分2–4个短段讲关键发现。每段只说一个主题；一般问题约100–250字，复杂问题按需展开。允许用 **短标题** 或少量加粗突出重点。正文保留最能支撑判断的数字（百分比通常保留一位小数，完整精度留在图表），避免正文与图表逐行重复。用户问各科、预测范围、完整对比时，必须回答全部可查项；图表帮助理解，不能替代关键结论。预测明确区分相似轨迹、个人历史粗略估计及实际成绩；历史波动不是预测区间。建议只有确实有帮助时再给。鼓励基于数据形成自己的判断、解释可能原因、提出值得验证的假设；不必等到有直接证据才提供有用的分析。区分已查到的事实、根据事实作出的判断和仍待验证的原因。比如分数上升但排名下降，可能是试卷偏易或同场其他人涨幅更大；如果能查难度或均分就用它加强判断。没有具体题型或作答证据时，可以提出可能的学习方向或原因，但不要编造某知识点失分、复习时间或学习习惯。用「可能」「更像」「值得看看」等自然措辞即可。对于同一推测，已经表达不确定性就不再补充「但这不能证明……」。排名百分比不是得分率；不能把假设当成已经观测的事实。提分优先级结合实际分差、满分、可比历史、目标及已记录失分，不把排名最靠后等同于最容易提分。用户只问现状时不要主动调用预测工具。别用报告腔，也不要用几成代替百分比。简单查分不必强行分析排名；开放性问题优先说最值得关注的一个或两个发现。区分持续变化与单场异常；异常低分可以主动提出录错、缺考或临场失常等可能性，并建议核对，但仍保留实际录入值，不擅自删去记录或认定具体原因。相关系数高不等于两科分数接近。历史范围只是观测范围，不能承诺下次落在其中。
-- 说法示例（数字只是示例）：数理同涨、英语反向 →「这几场最值得留意的是英语：数学和物理一起上涨时，英语反而经常回落。可能是最近的复习重心偏向理科，可以对照一下复习安排，给英语留出稳定的复习时间。」不要接着重复相关不等于因果、无法证明时间分配等限制。物理最近咋样，预测下一次 →「最近几场物理大多在 56%～58%，期中是 58%。照最近的表现看，下次大概也是 58%。」数学这回是不是退了 →「比上次少了 4 分，年级排名倒是差不多。」
-
+怎么回答：
+你不是成绩单播报器，而是能理解学生问题、综合证据并提出见解的学情助手。直接完成用户的全部诉求：如果用户同时问现状、进步与短板、预测和复习安排，就逐一给出有判断力的结论和实用建议。先说最有价值的发现，再用少量关键数字解释原因；不要逐条复述工具 facts、图表或考试成绩。综合问题允许充分展开，简问简答，不限制段落数或固定结构。建议具体到可尝试的下一步，并结合分差、趋势、目标、题型失分等信息判断优先级；排名靠后不等于最容易提分。图表只在能帮助理解时使用。
+区分长期水平、近期变化和单次异常；分数、得分率、排名是不同指标，年级前37%比前40%更靠前。结合难度和均分等资料解释看似矛盾的变化，允许提出合理的可能原因、判断和假设，不要求所有推测都有直接证据；用“可能”“更像”等自然措辞，不虚构题型、复习时间或个人经历，不反复免责声明。异常值可建议核对但不擅自排除。相关不是因果。历史波动不等于预测区间；区分实际成绩、预测和个人历史粗略参考。只有明确知道满分才换算分数。用通俗中文、直接的百分比和少量必要的加粗，不使用固定报告腔。
 怎么查：
 每次只返回 JSON。第一轮按目录并行选最多 3 个查询。例如 {"queries":[{"tool":"results","scopes":["s:物理"],"limit":6},{"tool":"trajectory","scopes":["s:物理"],"metric":"score"}]}。复杂问题可继续补查，优先补齐会改变结论的缺失信息；先并行查询互补资料，证据足够就回答，不追求查完所有工具；简单问题查够就答，不重复相同查询。scopes 选目录键，["*"] 选全部学科。指定考试用 exams 数字编号，目录未列出的旧考试用 name 或日期 from/to 查询；「每次」「逐场」「完整走势」用 range:"all"。用 category 限定考试分类，用 limit 限定最近次数。
 按问题选择资料：
@@ -86,7 +82,7 @@ const instructions = `你是 Score Tracker 的个人学情分析助手。用自�
 - goals 查单场目标差距，calibrate:true 查目标校准和连续达标；longGoal 查长期总分/学科/名次目标与差距、学校和日期；plan 查尚未出成绩的考试预设目标。benchmarks 查已录入的班级或年级均分和最高分。
 - aggregate：通用统计工具，不需要为每种问题调用专用分析。scopes、range、category、from/to、exams 可组合使用；metric:rate/rank/score/classRank/cityRank/districtRank/lost；ops:[mean,median,min,max,std,range,count,sum,first,last,change,slope]，每次最多6种；groupBy:category 按考试分类对比，默认按科目；trimLow/trimHigh 排除数值最低/最高若干场（排名百分比越低越好）；normalizeTo:100 或150 将得分率换算成统一满分，须选 metric:score；minSamples:3 等要求样本数；series:true 同时提供原序列。稳定性用 std 或 range，长期趋势用 slope，按需选择。标准差只说明数值离散程度，不代表反复涨跌；必须根据逐场变化的上升、下降次数判断走势，不把持续上涨中的离散解释成失常。工具计算后可以根据不同分组比较结果。不要自行编造数值。\n- statistics：两项指标相关性，scopes:["s:数学","s:物理"],metrics:["rate","rank"],range:"all"；同一科可传两个不同指标。问同时进步、退步、升降同步必须 mode:"change"；全科关系用 allPairs:true 一次计算全部配对。水平相关不能代替变化相关；相关性可以作为提出复习安排、状态变化等假设的线索，也可以据此建议对照实际复习记录或尝试调整安排，但不要断言因果关系。baseline：各科正常发挥的总分、常态与本次分差，按此前中位得分率与本次满分程序化计算。scenario：总分情景模拟，例如 adjustments:{"s:化学":10}，其他科不变，不推算排名。用户想自己调整各科分数时用 interactive:true；仅在用户没有给出具体分数变化时才可省略 adjustments。任何具体模拟必须先执行 scenario 并采用其计算值，不自行心算或承诺未生成的组件。
 - types 查已录入的题型得分、失分占比、表现变化与已标记错因，可选 typeName；paper 查已核对的逐题分数；reflection 读本人已保存的考试反思。按问题需要查询，不把题型失分、AI推测和本人复盘混为一谈。
-同时问近况和下次，查最近成绩和对应的预测，然后把两件事都答出来。若目录请求包含现状和预测，返回 analysis 字段，专门写近期表现、原因或建议等非预测部分；预测结果由程序完整附上。对于「最近怎么样」「哪科值得关注」之类开放问题，先比较近期变化与历史常态，再按需结合难度、题型、目标或反思，优先挑值得关注的异常，而非机械列出全部科目。主动联系不同维度，指出最有解释力的可能原因、可行动的建议或下一步值得验证的发现；证据有限时也尽量给出合理判断，不要用数据不足收尾来代替分析。单问「预测下下一次」可读作「预测一下下一次」，结合上一问确定科目和指标。明确问「下下次」时，目前只有下一场的估计，别往后推。问分数查 trajectory 的得分率，问年级排名查 forecast；没指定科目或组合且问整体时用 total，问各科时用 latestSubjects。没要求限定范围就用全部可比历史，不自行限定到最近一个年级或某场考试。预测和实考分开，当难度能帮助理解时只说偏难还是偏易。
+同时问近况和下次，查最近成绩和对应的预测，然后把两件事都答出来。综合问题的所有分析、对比、原因、行动建议以及对预测的解释都写进同一个 answer 字段，不另设 analysis 字段；程序会附上工具算出的准确预测数字，正文无需重复该数字，但应解释它意味着什么。涉及哪些科目进步、哪些拖后腿、如何分配精力时，先查所有相关科目，不要只查总分或前两科。对于「最近怎么样」「哪科值得关注」之类开放问题，先比较近期变化与历史常态，再按需结合难度、题型、目标或反思，优先挑值得关注的异常，而非机械列出全部科目。主动联系不同维度，指出最有解释力的可能原因、可行动的建议或下一步值得验证的发现；证据有限时也尽量给出合理判断，不要用数据不足收尾来代替分析。单问「预测下下一次」可读作「预测一下下一次」，结合上一问确定科目和指标。明确问「下下次」时，目前只有下一场的估计，别往后推。问分数查 trajectory 的得分率，问年级排名查 forecast；没指定科目或组合且问整体时用 total，问各科时用 latestSubjects。没要求限定范围就用全部可比历史，不自行限定到最近一个年级或某场考试。预测和实考分开，当难度能帮助理解时只说偏难还是偏易。
 工具结果中的 kind:"estimate" 是已经算出的下次估计，回答预测时要用它。目录 coverage 是已有记录数，不等于同口径可比较数。一次查询为空，先确认科目、指标和筛选范围是否选对，再查一次；不要将用户明确指定的范围擅自扩大。模型输出里每条关键判断要与本轮事实相符。分清已有成绩、已有排名和是否能做这项预测。只有部分科目或指标有结果时先答能答的，再说缺的是哪一项。没有匹配到相似轨迹也可以先说明近期实际成绩。别把个别缺项或查询未返回说成数据空白。
 
 最后返回 {"answer":"直接回答，简单问题简短，复杂问题用换行自然分段","takeaway":"确实值得做的一件事，可留空","refs":[1,2],"chart":{"type":"line","series":[1,2],"title":"物理最近几场"},"next":"学生可以直接发送的下一问，可留空"}。refs 是本轮最相关的 1–6 条 facts 编号；没查到资料就简短说缺什么，refs 留空。chart 可省；复杂问题可提供 charts 数组（最多 3 张），每张图使用不同指标或目的。每张图加 after 字段，表示紧跟 answer 中第几段之后（从1开始，段落用两个换行分隔）。例如先总结整体，再解释物理，再解释英语，对应两张图的 after 为2、3。把图表插在相关解释后，不要全部放末尾。简单问题不要重复作图。有预测时选末尾带下次估计的序列，标题让人一眼看懂。完整走势和逐场对照也优先用图表。series 写工具的序列编号，别填数值。还可以输出 components:[{type:'metric',refs:[1,2],after:1},{type:'compare',refs:[3,4],after:2},{type:'aggregate',index:1,after:2}]（实际 JSON 使用双引号）。metric 是1–4项关键指标卡，compare 是2–4项同主题证据对比，aggregate 是本轮第几个通用统计结果的可排序表格。只引用真实 facts 编号，勿重新填写数字、标题或单位；每次最多3个组件，和正文、图表自然穿插，简问无需组件。图表标题由程序生成。可返回 widget:{type:"scenario",after:1}，仅在用户要求分数情景模拟、调整成绩时使用，程序读取当前所查考试，不需要你提供分数。line 看走势和预测，bar 看并列数据，radar 看学科结构，table 看逐场对照；scatter 看两项指标在同一场考试的关系，至少 3 个有效配对，横轴序列先写，纵轴后写。对比分数升降与位置进退，用 scoreChange（混合满分用 rateChange）和 rankChange 两组对应序列。
@@ -201,19 +197,24 @@ export async function explore(snapshot:any, question:string, history:any[], comp
     if (forecast) {
       required = forecast;
       const others = queries.filter(args => args.tool !== forecast.tool || args.tool === 'trajectory' && args.metric === 'year');
-      if (compound && !others.some(args=>args.tool==='results')) {
+      const crossSubject=compound && !restricted && !namedSubjects.length && /哪些科目|哪[几一]科|各科|每科|学科.{0,12}(?:进步|退步|短板|精力|优先)|科目.{0,12}(?:进步|退步|拖后腿|精力|优先)/.test(question);
+      if (crossSubject && tools.catalog.latestSubjects.length) {
+        const {category,from,to,exams,name}=forecast;
+        for(let i=others.length-1;i>=0;i--)if(others[i].tool==='results')others.splice(i,1);
+        others.unshift({tool:'results',scopes:tools.catalog.latestSubjects,category,from,to,exams,name,limit:6});
+      } else if (compound && !others.some(args=>args.tool==='results')) {
         const {scopes,category,from,to,exams,name} = forecast;
         others.unshift({tool:'results',scopes,category,from,to,exams,name,limit:6});
       }
       queries = [forecast, ...others].slice(0,3);
     }
-    const answer = shortText(data?.answer, 1000);
+    let answer = shortText(data?.answer, compound ? 2400 : 1200);
     if (answer && queried) {
       let refs = Array.isArray(data.refs) ? [...new Set<number>(data.refs)].slice(0,6) : [];
       const saysUnavailable = /数据不足|(?:成绩|排名|数据).{0,5}(?:空白|是空的)|(?:无法|没法|不能)(?:给出|做出|进行|直接)?(?:预测|估计)|没有(?:可用的|生成)?(?:估计|预测)/.test(answer);
       const claimsNoRecords = /(?:没有|不存在|未录入任何|没有录入任何)(?:任何|可用的|已录入的)?(?:成绩|排名|考试)数据|(?:成绩|排名|数据).{0,5}(?:都是空|为空|是空的|空白)/.test(answer);
       const estimates = primary?.facts.filter(fact => fact.kind === 'estimate') || [];
-      if(normalQuestion&&baseline?.facts.some(f=>f.label==='各科正常发挥总分')){
+      if(normalQuestion&&!/分析|建议|原因|怎么复习|精力|短板|优先/.test(question)&&baseline?.facts.some(f=>f.label==='各科正常发挥总分')){
         const total=baseline.facts.find(f=>f.label==='各科正常发挥总分')!;
         const diff=baseline.series.find(s=>s.label==='实际较常态');
         const chart=diff?tools.chart({type:'bar',series:[diff.id]},''):null;
@@ -247,21 +248,22 @@ export async function explore(snapshot:any, question:string, history:any[], comp
           const unavailable = missing.length ? '\n'+missing.join('、')+'暂未算出下次估计。' : '';
           const evidenceIds = [...new Set([...primary!.facts.map(f=>f.id),...refs.filter(id=>Number.isInteger(id)&&tools.facts[id-1])])];
           const evidence = evidenceIds.map(id=>tools.facts[id-1]);
-          const analysis = compound ? shortText(data.analysis,800) : '';
-          const relevant = compound && !analysis ? tools.facts.filter(f=>f.label.endsWith('得分率对照')||f.label.endsWith('年级位置对照')).slice(0,4).map(f=>f.label+'：'+f.value).join('\n') : '';
-          const extraAnalysis = analysis || relevant;
           const predictionChart=tools.chart(null,question);
-          const historyChart=compound ? tools.chart(data.chart || data.charts?.[0],'') : null;
-          const charts=[predictionChart,historyChart].filter((c): c is NonNullable<typeof c>=>Boolean(c));
-          const distinct = charts.filter((c,i)=>!charts.slice(0,i).some(prev=>prev.type===c.type && prev.series.map(s=>s.id).join(',')===c.series.map(s=>s.id).join(',')));
           const historicalOnly=estimates.every(f=>f.value.includes('历史粗略参考')||f.source.includes('个人历史'));
           const compact = each && predictionChart?.type==='table' ? `查到了 ${estimates.length} 科的下次估计（${metric}）。`+
             ' '+estimates.slice(0,6).map(f=>f.label.split('下次')[0]+' '+f.value.split(' · ')[0]).join('、')+'。'+
             (historicalOnly?'这些是个人历史成绩的粗略参考，不是已校准的预测区间。':'下表区分预测范围和个人历史参考。') : reply;
-          const combined = (extraAnalysis?extraAnalysis+'\n\n':'')+compact+unavailable;
-          const paragraphs = combined.split(/\n\s*\n/).length;
-          const chartAfter=distinct.map(c=>c===historyChart && extraAnalysis ? Math.max(1,paragraphs-1) : paragraphs);
-          return { answer: combined, evidence, next: shortText(data.next,100), chart: distinct[0]||null,...(distinct.length>1?{charts:distinct}:{}),chartAfter };
+          if (!compound) {
+            return {answer:compact+unavailable,evidence,next:shortText(data.next,100),chart:predictionChart,chartAfter:predictionChart?[1]:[]};
+          }
+          // Keep the model's complete synthesis, including its recommendations. Numerical forecast
+          // remains authoritative and is appended as a separate evidence section, never as a replacement.
+          if ((claimsOnlyOne || (saysUnavailable && allEstimated && /(?:无法|不能|没法)(?:给出|做出|进行|直接)?(?:预测|估计)|没有(?:可用的|生成)?(?:估计|预测)/.test(answer))) && step<maxSteps-1 && !finalOnly) {
+            messages.push({role:'assistant',content:JSON.stringify(data)},{role:'user',content:'工具已经返回预测，请修正预测不可用的说法。完整保留学情判断与建议，准确预测数字将由程序附上。'});
+            continue;
+          }
+          answer += '\n\n'+compact+unavailable;
+          refs=evidenceIds;
         }
         refs = [...new Set([...estimates.map(fact => fact.id), ...refs.filter(id => Number.isInteger(id) && tools.facts[id - 1])])]
           .slice(0, Math.max(6, estimates.length));
@@ -307,12 +309,19 @@ export async function explore(snapshot:any, question:string, history:any[], comp
       }
       if (tools.facts.length && !refs.length) throw Error('missing_evidence');
       const specs = Array.isArray(data.charts) ? data.charts.slice(0,3) : [];
-      const primaryChart = tools.chart(data.chart || specs[0], question);
+      const primaryChart = tools.chart(data.chart || specs[0], compound && estimates.length ? '' : question);
       const charts = primaryChart ? [primaryChart] : [];
       const placement = primaryChart ? [(data.chart || specs[0])?.after] : [];
       for (const spec of specs) {
         const chart = tools.chart(spec,'');
         if (chart && charts.length<3 && !charts.some(c=>c.type===chart.type && c.series.map(s=>s.id).join(',')===chart.series.map(s=>s.id).join(','))) { charts.push(chart); placement.push(spec?.after); }
+      }
+      if (compound && estimates.length) {
+        const prediction=tools.chart(null,question);
+        if(prediction && !charts.some(c=>c.type===prediction.type&&c.series.map(s=>s.id).join(',')===prediction.series.map(s=>s.id).join(','))){
+          if(charts.length>=3){charts.pop();placement.pop();}
+          charts.push(prediction);placement.push(answer.split(/\n\s*\n/).filter(Boolean).length);
+        }
       }
       const paragraphs = answer.split(/\n\s*\n/).filter(Boolean);
       const chartAfter = charts.map((chart,i)=>{
@@ -470,8 +479,9 @@ export async function studyQuestion(db:any, user:string, body:any, load:()=>Prom
     if(configured.error)throw configured.error;
     const cfg=configured.value!;
     if (!cfg.public.enabled) return fail(503,'学情问答还未开放');
-    // Only exact, standalone questions over fully loaded records are reusable.
-    const key=enableCache && !parent && mode!=='high' && !/今天|明天|昨天|本周|下周|本月|下月|实时|最新|现在|刚刚|预测|预估|下次|下一场|目标|反思|题型|试卷|复盘|匹配|重新|再算/.test(question)
+    // Reuse only narrowly scoped factual lookups. Open-ended synthesis must run again.
+    const exactLookup=/^(?:我(?:的)?|请问|帮我查一下)?(?:最近一次|上一次)[^？?。！!]{0,20}(?:是多少|多少分|多少名|第几名|多少)[？?。！!]*$/.test(question) && !/分析|比较|变化|趋势|建议|原因|预测|估计|如何|怎么样|为啥|为什么|和|以及|分别|、/.test(question);
+    const key=enableCache && !parent && mode!=='high' && exactLookup
       ? await cacheKey(user,question,mode,cfg.model,cfg.url,snapshot):'';
     const hit=key?cachedAnswer(key):null;
     const task = await startAiTask(db,user,id,'study_question',1,settings.cap);
@@ -499,7 +509,7 @@ export async function studyQuestion(db:any, user:string, body:any, load:()=>Prom
       const planning = messages.length===2;
       for (let attempt=0; attempt<2; attempt++) {
         const quick=attempt>0||mode==='low'||mode==='standard'&&planning;
-        const maxTokens=attempt>0?1400:planning?settings.planning:settings.analysis;
+        const maxTokens=attempt>0?Math.max(1400,settings.analysis):planning?settings.planning:settings.analysis;
         const response = await meteredModelFetch(db,user,id,id+':study:'+ ++calls,cfg.url+'/chat/completions',{
           method:'POST',signal,headers:{'Content-Type':'application/json',Authorization:'Bearer '+cfg.key},
           body:JSON.stringify({model:cfg.model,messages:attempt ? [...messages,{role:'user',content:'上次未生成完整 JSON。请直接返回完整、简洁的 JSON 对象；不要输出推理过程。'}] : messages,
