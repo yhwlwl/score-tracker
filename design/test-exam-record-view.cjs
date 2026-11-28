@@ -12,7 +12,7 @@ const tick = () => new Promise(resolve => setTimeout(resolve, 35));
   w.scrollTo = () => {}; w.HTMLElement.prototype.scrollIntoView = function () {};
   w.requestAnimationFrame = cb => w.setTimeout(() => cb(w.performance.now()), 16); w.cancelAnimationFrame = id => w.clearTimeout(id);
   w.setInterval = () => 1; w.confirm = () => true; w.AbortController = AbortController;
-  w.fetch = async (url, opts) => { calls.push({ url: String(url), body: JSON.parse(opts?.body || '{}') }); return new Response(JSON.stringify({ ok: true, exams: [], subjects: [], modules: [], enabled: false })); };
+  w.fetch = async (url, opts) => { calls.push({ url: String(url), body: JSON.parse(opts?.body || '{}') }); const body=JSON.parse(opts?.body || '{}'); if(body.action==='get_exam_reflection') return new Response(JSON.stringify({reflection:body.examId==='exam-one'?'旧反思':'',reflection_revision:1,reflection_updated_at:null})); if(body.action==='save_exam_reflection') return new Response(JSON.stringify({reflection:body.text,reflection_revision:2,reflection_updated_at:new Date().toISOString()})); return new Response(JSON.stringify({ ok: true, exams: [], subjects: [], modules: [], enabled: false })); };
   try {
     w.eval(read('app-bundle.js') + '\nwindow.state=state;');
     // Production loads the shared goal model and single-exam review after the bundle.
@@ -21,7 +21,7 @@ const tick = () => new Promise(resolve => setTimeout(resolve, 35));
     for (const file of ['app-v36.js','app-v37.js','app-v38.js']) w.eval(read(file));
     w.__scoreTrackerTrack = (type, data) => events.push({ type, data }); w.__stTrack = w.__scoreTrackerTrack;
     await tick(); delete w.ScorePaperReview;
-    const exam = { id: 'exam-one', name: '期中 <script>bad()</script>', exam_date: '2026-10-20', is_hidden: true,
+    const exam = { id: 'exam-one', name: '期中 <script>bad()</script>', exam_date: '2026-10-20', is_hidden: true, reflection:'旧反思',
       total_rank: 25, total_participants: 500, total_class_rank: 3, total_class_participants: 50,
       scores: { 数学: { actual: 135, raw: 120, max: 150, rawMax: 150, target: 140, rank: 10, participants: 500 },
         语文: { actual: 120, max: 150, target: 115, rank: 300, participants: 500 },
@@ -60,6 +60,17 @@ const tick = () => new Promise(resolve => setTimeout(resolve, 35));
     d.querySelector('[data-ed="back"]').click();
     assert(events.some(e => e.type === 'exam_detail_closed' && e.data.reason === 'back'));
     assert(!d.querySelector('.ed-page')); assert.equal(d.activeElement.dataset.examDetail, 'exam-one');
+    assert.equal(d.querySelector('[data-exam-reflection="exam-one"]').textContent,'查看反思');
+    assert.equal(d.querySelector('[data-exam-reflection="exam-two"]').textContent,'写反思');
+    d.querySelector('[data-exam-reflection="exam-one"]').click(); await tick();
+    assert.equal(d.activeElement.id,'ed-reflection');
+    assert(events.some(e=>e.type==='exam_reflection_entry_clicked'&&e.data.source==='records'));
+    const field=d.querySelector('#ed-reflection textarea'), prompt=d.querySelector('[data-reflection-prompt="时间分配"]');
+    assert.equal(field.value,'旧反思'); prompt.click(); assert.equal(field.value,'旧反思\n时间分配：');
+    prompt.click(); assert.equal(field.value,'旧反思\n时间分配：');
+    d.querySelector('[data-reflection-save]').click(); await tick();
+    assert(events.some(e=>e.type==='exam_reflection_saved'&&e.data.source==='records'));
+    d.querySelector('[data-ed="back"]').click(); assert.equal(d.activeElement.dataset.examReflection,'exam-one');
     w.ScoreExamDetail.open('exam-two');
     assert.equal(d.querySelector('.ed-metric strong').textContent, '160'); assert(d.querySelector('.ed-metric').textContent.includes('小计'));
     assert.equal(d.querySelectorAll('.ed-metric strong')[1].textContent, '—');

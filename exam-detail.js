@@ -1,7 +1,17 @@
 /* One exam, one place to read its scores, ranks and saved papers. */
 (function () {
   'use strict';
-  var view = null, editor = null, generation = 0;
+  var view = null, editor = null, generation = 0, exposureOwner = '', exposureSeen = new Set(), exposureObserver = null, exposureNodes = new Set();
+  function observeReflection(node, source) {
+    if (!node || !owner()) return;
+    var key = owner() + ':' + state.token;
+    if (key !== exposureOwner) { exposureOwner = key; exposureSeen.clear(); exposureNodes.clear(); if (exposureObserver) exposureObserver.disconnect(); exposureObserver = null; }
+    if (exposureSeen.has(source)) return;
+    if (!window.IntersectionObserver) return;
+    if (!exposureObserver) exposureObserver = new IntersectionObserver(function (entries) { entries.forEach(function (entry) { if (!entry.isIntersecting || !entry.target.isConnected || exposureOwner !== owner() + ':' + state.token) return; var src=entry.target.dataset.reflectionExposure; if (!src || exposureSeen.has(src)) return; exposureSeen.add(src); track('exam_reflection_entry_shown',{source:src}); exposureNodes.forEach(function (n) { if (n.dataset.reflectionExposure === src || !n.isConnected) { exposureObserver.unobserve(n); exposureNodes.delete(n); } }); }); }, {threshold:.5});
+    exposureNodes.forEach(function (n) { if (!n.isConnected) { exposureObserver.unobserve(n); exposureNodes.delete(n); } });
+    node.dataset.reflectionExposure=source; exposureNodes.add(node); exposureObserver.observe(node);
+  }
   var esc = function (v) { return escapeHtml(v == null ? '' : String(v)); };
   function number(v) { return v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v); }
   function fmt(v) { return v == null ? '—' : String(Math.round(v * 10) / 10); }
@@ -132,7 +142,7 @@
   function changeText(point, recent) { return Math.abs(point.x) < 0.005 ? '基本持平' : (point.x > 0 ? '进步 ' : '退步 ') + fmtChange(Math.abs(point.x)) + (recent ? ' 个百分点 / 场' : ' 个百分点'); }
   function metric(label, value, sub) { return '<div class="ed-metric"><span>' + esc(label) + '</span><strong>' + esc(value) + '</strong><small>' + esc(sub || '') + '</small></div>'; }
   function header(exam) {
-    return '<div class="ed-top">' + button('← 返回考试记录', 'back') + button('编辑 / 补录', 'edit') + '</div><header class="ed-heading"><span class="ed-eyebrow">单次考试详情</span><h1 tabindex="-1">' + esc(exam.name) + '</h1><p>' + esc(fmtYearDate(exam.exam_date) + (exam.end_date && exam.end_date !== exam.exam_date ? ' — ' + fmtYearDate(exam.end_date) : '') + ' · ' + (exam.grade_level || '未分类')) + (exam.is_hidden ? ' · 已从趋势图隐藏，仍可查看完整记录' : '') + '</p></header>';
+    return '<div class="ed-top">' + button(view && view.originPage === 'home' ? '← 返回首页' : '← 返回考试记录', 'back') + button('编辑 / 补录', 'edit') + '</div><header class="ed-heading"><span class="ed-eyebrow">单次考试详情</span><h1 tabindex="-1">' + esc(exam.name) + '</h1><p>' + esc(fmtYearDate(exam.exam_date) + (exam.end_date && exam.end_date !== exam.exam_date ? ' — ' + fmtYearDate(exam.end_date) : '') + ' · ' + (exam.grade_level || '未分类')) + (exam.is_hidden ? ' · 已从趋势图隐藏，仍可查看完整记录' : '') + '</p></header>';
   }
   function overview(exam, m) {
     var totalLabel = m.manual ? '已录入总分' : m.complete ? '本次总分' : '已录入科目小计';
@@ -148,7 +158,7 @@
       metric(totalLabel, fmt(m.total), totalSub) + metric('总得分率', m.rate === null ? '—' : fmt(m.rate) + '%', rateSub) +
       metric('年级排名', rankText(m.year), rankSub(m.year)) + metric('班级排名', rankText(m.class), rankSub(m.class)) +
       '</div>' + (targetText || extra || explicit ? '<div class="ed-context">' + (targetText ? '<span>' + targetText + '</span>' : '') + (explicit?goalSummary(exam,'total',null):'')+extra + '</div>' : '') +
-      '<nav class="ed-nav" aria-label="考试详情目录">' + button('各科成绩', 'jump:scores') + button('本场变化', 'jump:changes') + button('强弱科四象限', 'jump:quadrants') + button('考后反思', 'jump:reflection') + (paperReviewAvailable() ? button('已录入试题', 'jump:papers') : '') + '</nav></section>';
+      '<nav class="ed-nav" aria-label="考试详情目录">' + button('各科成绩', 'jump:scores') + button('本场变化', 'jump:changes') + button('强弱科四象限', 'jump:quadrants') + button('考后反思', 'jump:reflection', 'ed-reflection-nav') + (paperReviewAvailable() ? button('已录入试题', 'jump:papers') : '') + '</nav></section>';
   }
   function cell(label, text) { return '<td data-label="' + label + '">' + text + '</td>'; }
   function rankCell(r) { return '<span>' + esc(rankText(r)) + '</span><small>' + esc(rankSub(r)) + '</small>'; }
@@ -394,14 +404,14 @@
       if (action === 'back') {
         if (!leave()) return;
         track('exam_detail_closed', { reason: 'back' });
-        var scroll = v.scroll; view = null; render(); window.scrollTo(0, scroll);
-        var original = Array.from(document.querySelectorAll('[data-exam-detail]')).find(function (b) { return b.dataset.examDetail === exam.id; }); if (original) original.focus({ preventScroll: true });
+        var scroll = v.scroll; state.page = v.originPage === 'home' ? 'home' : 'records'; view = null; render(); window.scrollTo(0, scroll);
+        var original = v.originPage === 'home' ? document.querySelector('[data-home-reflection]') : Array.from(document.querySelectorAll(v.reflectionSource === 'records' ? '[data-exam-reflection]' : '[data-exam-detail]')).find(function (b) { return (b.dataset.examDetail || b.dataset.examReflection) === exam.id; }); if (original) original.focus({ preventScroll: true });
       } else if (action === 'edit') {
         track('exam_detail_edit_opened');
         if (editor) { if (!leave()) return; v.report = null; renderPage(); }
         openExam(currentExam());
       }
-      else if (action.startsWith('jump:')) { var sectionName = action.slice(5), section = document.getElementById('ed-' + sectionName); if (section) { track('exam_detail_section_jumped', { section: sectionName }); section.focus({ preventScroll: true }); if (section.scrollIntoView) section.scrollIntoView({ block: 'start' }); } }
+      else if (action.startsWith('jump:')) { var sectionName = action.slice(5), section = document.getElementById('ed-' + sectionName); if (section) { track('exam_detail_section_jumped', { section: sectionName }); if (sectionName === 'reflection') { v.reflectionSource = 'exam_detail'; jumpReflection('exam_detail'); return; } section.focus({ preventScroll: true }); if (section.scrollIntoView) section.scrollIntoView({ block: 'start' }); } }
       else if (action === 'refresh-papers' || action === 'more-papers') { track('exam_detail_papers_action', { action: action === 'more-papers' ? 'load_more' : 'refresh' }); loadPapers(v, action === 'more-papers'); }
       else if (action.startsWith('paper:') || action.startsWith('report:')) {
         var r = v.papers.find(function (p) { return p.request_id === action.slice(action.indexOf(':') + 1); });
@@ -415,21 +425,29 @@
         closeLabel: '← 返回本次考试详情', isActive: function () { return active(v) && view.report === r; },
         onClose: function () { editor = null; v.report = null; v.papers = null; renderPage(); } };
       window.ScorePaperReview.mount(editor, r.subject, null);
-    } else { drawChanges(exam); bindQuadrants(exam, m); window.ScoreExamReflection.mount(document.getElementById('ed-reflection'), { userId: v.user, token: v.token, examId: v.id, owns: function () { return v.user === owner() && v.token === state.token; } }); if (v.papers) drawPapers(v); else loadPapers(v, false); }
+    } else { observeReflection(content.querySelector('.ed-reflection-nav'), 'exam_detail'); drawChanges(exam); bindQuadrants(exam, m); window.ScoreExamReflection.mount(document.getElementById('ed-reflection'), { userId: v.user, token: v.token, examId: v.id, source: function () { return v.reflectionSource; }, owns: function () { return v.user === owner() && v.token === state.token; } }); if (v.papers) drawPapers(v); else loadPapers(v, false); }
   }
-  function open(id) {
+  function reflectionIcon() { return '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6M14 15l-4 1 1-4 8-8a2.1 2.1 0 0 1 3 3z"/></svg>'; }
+  function reflectionLabel(exam) { return typeof exam.reflection === 'string' && exam.reflection.trim() ? '查看反思' : '写反思'; }
+  function jumpReflection(source) {
+    var section = document.getElementById('ed-reflection'); if (!section) return;
+    track('exam_reflection_entry_clicked', { source: source });
+    section.focus({ preventScroll: true });
+    if (section.scrollIntoView) section.scrollIntoView({ block: 'start' });
+  }
+  function open(id, source) {
     var exam = allExams().find(function (e) { return e.id === id; }); if (!exam || !leave()) return;
-    view = { id: id, user: owner(), token: state.token, scroll: window.scrollY || 0, papers: null, offset: 0, more: false, loading: false, subject: '', chartMode: 'movement', trendWindow: 'previous', sameCategory: false };
-    track('exam_detail_opened', { source: 'records' });
+    view = { id: id, user: owner(), token: state.token, originPage: state.page, reflectionSource: source || 'exam_detail', scroll: window.scrollY || 0, papers: null, offset: 0, more: false, loading: false, subject: '', chartMode: 'movement', trendWindow: 'previous', sameCategory: false };
+    track('exam_detail_opened', { source: source || 'records' });
     state.page = 'records'; render(); window.scrollTo(0, 0);
-    var heading = document.querySelector('.ed-heading h1'); if (heading) heading.focus({ preventScroll: true });
+    if (source) jumpReflection(source); else { var heading = document.querySelector('.ed-heading h1'); if (heading) heading.focus({ preventScroll: true }); }
   }
   var recordBefore = recordHtml;
   recordHtml = function (exam) {
-    return recordBefore.apply(this, arguments).replace(/(<div class="record-actions[^\"]*">)/, '$1<button type="button" class="record-action-btn-v10 ed-view-button" data-exam-detail="' + esc(exam.id) + '">查看详情</button>');
+    return recordBefore.apply(this, arguments).replace(/(<div class="record-actions[^"]*">)/, '$1<button type="button" class="record-action-btn-v10 ed-view-button" data-exam-detail="' + esc(exam.id) + '">查看详情</button><button type="button" class="record-action-btn-v10 ed-reflection-quick" data-exam-reflection="' + esc(exam.id) + '">' + reflectionIcon() + reflectionLabel(exam) + '</button>');
   };
   var bindBefore = bindPage;
-  bindPage = function () { bindBefore.apply(this, arguments); document.querySelectorAll('[data-exam-detail]').forEach(function (b) { b.onclick = function () { open(b.dataset.examDetail); }; }); };
+  bindPage = function () { bindBefore.apply(this, arguments); document.querySelectorAll('[data-exam-detail]').forEach(function (b) { b.onclick = function () { open(b.dataset.examDetail); }; }); document.querySelectorAll('[data-exam-reflection]').forEach(function (b) { b.onclick = function () { open(b.dataset.examReflection, 'records'); }; observeReflection(b, 'records'); }); };
   var renderBefore = renderPage;
   renderPage = function () {
     if (view && active(view)) {
@@ -445,8 +463,34 @@
       var previous = b.onclick; b.onclick = function (event) { if (!leave()) return; if (view && active(view)) track('exam_detail_closed', { reason: 'navigation' }); view = null; if (previous) previous.call(this, event); };
     });
   };
-  window.ScoreExamDetail = { open: open };
+  window.ScoreExamDetail = { open: open, openReflection: function (id, source) { open(id, source || 'exam_detail'); }, observeReflection: observeReflection };
+  // Only a successful, newly created exam from the actual score-entry modal can trigger this optional toast.
+  var reflectionPending = new WeakMap(), reflectionApi = dataApiV7, reflectionSave = saveExam;
+  dataApiV7 = async function (action, payload) {
+    var modal = state.modal, user = owner(), token = state.token;
+    var result = await reflectionApi.apply(this, arguments);
+    if (action === 'save_exam' && modal && payload && payload.exam && !payload.exam.id && result && result.created && !result.planned && result.id && owner() === user && state.token === token) {
+      reflectionPending.set(modal, { id: result.id, user: user, token: token });
+    }
+    return result;
+  };
+  saveExam = async function (id, modal) {
+    var page = state.page, result = await reflectionSave.apply(this, arguments), pending = modal && reflectionPending.get(modal);
+    if (modal) reflectionPending.delete(modal);
+    if (!id && pending && !modal.isConnected && owner() === pending.user && state.token === pending.token && allExams().some(function (e) { return e.id === pending.id; })) {
+      var t = document.querySelector('.toast');
+      if (t && t.classList.contains('show') && t.textContent === '考试已记录') {
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'ed-reflection-toast-action'; b.textContent = '写反思';
+        b.onclick = function () { if (owner() !== pending.user || state.token !== pending.token || state.modal || state.page !== page) return; t.classList.remove('show'); b.remove(); open(pending.id, 'save_success'); };
+        t.appendChild(b); clearTimeout(toast._t); toast._t = setTimeout(function () { t.classList.remove('show'); b.remove(); }, 8000);
+        track('exam_reflection_entry_shown', { source: 'save_success' });
+      }
+    }
+    return result;
+  };
   var style = document.createElement('style'); style.textContent = `
+.ed-reflection-prompts{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 12px}.ed-reflection-prompts button{font:inherit;font-size:12px;color:var(--accent);border:0;background:var(--accent-soft);border-radius:999px;padding:8px 12px;min-height:36px;cursor:pointer}.ed-reflection-prompts button:disabled{opacity:.5;cursor:default}.ed-reflection-quick{display:inline-flex!important;align-items:center;gap:5px;color:var(--accent)!important;font-weight:600!important;min-height:36px}.ed-reflection-quick svg{width:15px;height:15px;flex:none}.ed-nav .ed-reflection-nav{font-weight:650;border:1px solid var(--accent)!important}.toast:has(.ed-reflection-toast-action){pointer-events:auto;display:flex;align-items:center;gap:14px;max-width:calc(100vw - 28px)}.ed-reflection-toast-action{border:0;border-radius:9px;background:rgba(255,255,255,.15);color:inherit;font:inherit;font-weight:650;cursor:pointer;min-height:36px;padding:5px 10px;white-space:nowrap}.ed-reflection-quick:focus-visible,.ed-reflection-toast-action:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
 .ed-page{max-width:1160px;margin:0 auto 64px;color:var(--text)}.ed-top{display:flex;justify-content:space-between;gap:10px;margin-bottom:24px}.ed-button,.ed-scope button,.ed-point-list button{font:inherit;font-size:13px;cursor:pointer;min-height:38px;padding:8px 13px;color:var(--text);border:1px solid var(--line);background:var(--panel-solid,#fff);border-radius:9px}.ed-primary,.ed-view-button{color:var(--accent)!important;background:var(--accent-soft)!important;border-color:transparent!important;font-weight:650}.ed-button:disabled{opacity:.55;cursor:wait}.ed-page button:focus-visible,.ed-quadrant g:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.ed-heading{margin-bottom:25px}.ed-eyebrow{font-size:11px;font-weight:700;letter-spacing:.12em;color:var(--muted)}.ed-heading h1{font-size:30px;line-height:1.4;margin:8px 0;overflow-wrap:anywhere}.ed-heading p,.ed-section-head p{color:var(--muted);font-size:13px;line-height:1.75;margin:6px 0}.ed-overview{background:var(--panel-solid,#fff);border:1px solid var(--line);border-radius:18px;padding:25px;margin-bottom:28px}.ed-metrics{display:grid;grid-template-columns:1.15fr 1fr 1fr 1fr;gap:24px}.ed-metric{display:flex;flex-direction:column;gap:9px;min-width:0}.ed-metric>span{font-size:13px;color:var(--muted)}.ed-metric strong{font-size:28px;letter-spacing:-.04em;line-height:1.4;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.ed-metric:first-child strong{font-size:38px;line-height:1.03;color:var(--accent)}.ed-metric small{font-size:11px;line-height:1.6;color:var(--muted)}.ed-context{display:flex;gap:10px 25px;flex-wrap:wrap;font-size:12px;padding-top:22px;color:var(--muted)}.ed-nav{border-top:1px solid var(--line);display:flex;gap:9px;flex-wrap:wrap;margin-top:23px;padding-top:18px}.ed-nav .ed-button{border:0;background:var(--accent-soft);color:var(--accent)}.ed-section{background:var(--panel-solid,#fff);border:1px solid var(--line);border-radius:17px;padding:25px;margin:22px 0;scroll-margin-top:22px;min-width:0}.ed-section-head{display:flex;justify-content:space-between;align-items:center;gap:18px;margin-bottom:22px}.ed-section h2{font-size:21px;line-height:1.5;margin:6px 0}.ed-table-wrap{overflow-x:auto}.ed-table{width:100%;border-collapse:collapse;font-size:13px}.ed-table th,.ed-table td{padding:16px 10px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;min-width:70px}.ed-table thead th{font-size:11px;font-weight:500;color:var(--muted);white-space:nowrap;background:var(--cell,#f8f9fc)}.ed-table tbody th{min-width:80px;font-size:14px;font-weight:650}.ed-table td b{font-size:16px}.ed-table small{display:block;font-size:11px;font-weight:400;color:var(--muted);line-height:1.6;margin-top:5px}.ed-combinations{margin-top:22px}.ed-combinations summary,.ed-missing summary{font-size:13px;cursor:pointer}.ed-combinations summary span{margin-left:8px;color:var(--muted)}.ed-combo-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}.ed-combo-grid article{border:1px solid var(--line);border-radius:12px;padding:16px}.ed-combo-grid h3{font-size:14px;margin:0}.ed-combo-grid p,.ed-combo-grid small{font-size:12px;line-height:1.6;color:var(--muted)}.ed-combo-grid small{display:block}.ed-scope{display:flex;flex:none;padding:3px;border:1px solid var(--line);border-radius:10px}.ed-scope button{background:transparent;border:0;padding:7px 12px}.ed-scope [aria-pressed=true]{color:var(--accent);background:var(--accent-soft);font-weight:650}.ed-chart-layout{display:grid;grid-template-columns:minmax(0,1fr) 210px;gap:24px;align-items:center}.ed-quadrant{display:block;width:100%;height:auto;overflow:visible}.ed-quadrant text{font-family:inherit;font-size:11px;fill:var(--muted)}.ed-quadrant .ed-quadrant-title{font-size:13px;font-weight:650;fill:var(--text)}.ed-quadrant .ed-dot-number{fill:#fff;font-size:11px;font-weight:700;pointer-events:none}.ed-quadrant g{cursor:pointer}.ed-grid-line{stroke:var(--line);stroke-width:.65;stroke-dasharray:3 5}.ed-axis{stroke:var(--muted);stroke-width:1;stroke-dasharray:4 4;fill:none}.ed-point-list{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin:14px 0}.ed-point-list button{display:flex;align-items:center;gap:7px;font-size:12px;padding:6px 10px;min-height:36px}.ed-point-list i{display:grid;place-items:center;font-size:10px;font-style:normal;width:19px;height:19px;border-radius:50%;color:#fff}.ed-point-list [aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent)}.ed-inspect{padding:22px 18px;background:var(--cell,#f7f9fc);border-radius:14px;min-width:0}.ed-inspect h3{font-size:24px;margin:9px 0 14px;overflow-wrap:anywhere}.ed-tag{display:inline-block;font-size:12px;font-weight:650;padding:4px 8px;border-radius:6px;background:var(--accent-soft);color:var(--accent)}.ed-inspect dl{margin:20px 0}.ed-inspect dl>div{display:flex;justify-content:space-between;gap:10px;margin:12px 0;font-size:12px}.ed-inspect dt{color:var(--muted)}.ed-inspect dd{font-variant-numeric:tabular-nums;margin:0;text-align:right}.ed-inspect p{font-size:13px;line-height:1.7}.ed-inspect small{font-size:11px;color:var(--muted)}.ed-quadrant-groups{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px;border-top:1px solid var(--line);padding-top:20px;margin-top:17px}.ed-quadrant-groups h3{font-size:13px;margin:0 0 12px;display:flex;align-items:center;gap:7px}.ed-quadrant-groups i{width:7px;height:7px;border-radius:50%;flex:none}.ed-quadrant-groups b{font-size:14px;overflow-wrap:anywhere}.ed-quadrant-groups p,.ed-method,.ed-missing{font-size:12px;color:var(--muted);line-height:1.8}.ed-method{margin:18px 0 0}.ed-missing{margin-top:16px}.ed-missing ul{padding-left:20px}.ed-empty{padding:28px 15px;color:var(--muted);text-align:center;font-size:13px;line-height:1.8}.ed-empty h3{font-size:17px;color:var(--text)}.ed-paper-tools{display:flex;justify-content:space-between;gap:12px;align-items:end;margin-bottom:18px}.ed-paper-tools label{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--muted)}.ed-paper-tools select{font:inherit;font-size:13px;color:var(--text);background:var(--panel-solid,#fff);border:1px solid var(--line);padding:9px;border-radius:9px;max-width:200px}.ed-paper-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.ed-paper{border:1px solid var(--line);border-radius:13px;padding:18px;display:flex;flex-direction:column;min-width:0}.ed-paper>div{display:flex;justify-content:space-between;gap:8px;align-items:center}.ed-status{font-size:11px;color:var(--muted)}.ed-paper h3{font-size:17px;line-height:1.6;margin:14px 0 7px;overflow-wrap:anywhere}.ed-paper p{font-size:12px;color:var(--muted);line-height:1.6}.ed-paper footer{display:flex;flex-wrap:wrap;gap:7px;padding-top:15px;margin-top:auto}.ed-paper-status{font-size:13px;color:var(--danger);margin:12px 0}.ed-reader .pr-main{max-width:900px}.ed-reader .pr-tabs{display:none}.ed-reader .pr-head h2{font-size:21px}.record-actions.record-actions-v10:has(.ed-view-button){flex-wrap:wrap!important}
 @media(max-width:900px){.ed-chart-layout{grid-template-columns:minmax(0,1fr)}.ed-inspect{display:block}.ed-inspect dl{display:flex;gap:25px;flex-wrap:wrap;margin:10px 0}.ed-inspect dl>div{gap:12px;margin:6px 0}.ed-inspect h3{font-size:20px;display:inline-block;margin-right:10px}.ed-inspect>.ed-eyebrow{display:block}.ed-quadrant-groups{grid-template-columns:repeat(2,minmax(0,1fr))}.ed-paper-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ed-metrics{gap:18px}.ed-metric strong{font-size:23px}}
 @media(max-width:620px){.ed-heading h1{font-size:25px}.ed-heading p{font-size:12px}.ed-overview,.ed-section{padding:18px 15px}.ed-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 14px}.ed-metric:first-child strong{font-size:34px}.ed-section-head{flex-direction:column;align-items:flex-start}.ed-section h2{font-size:19px}.ed-scope{align-self:flex-start}.ed-nav{gap:5px}.ed-nav .ed-button{padding:8px;font-size:12px}.ed-table,.ed-table tbody{display:block}.ed-table thead{display:none}.ed-table tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 16px;border:1px solid var(--line);border-radius:12px;padding:16px;margin:12px 0}.ed-table tbody th{grid-column:1/-1;font-size:17px;border-bottom:1px solid var(--line);padding:0 0 12px}.ed-table td{display:block;border:0;min-width:0;padding:0;font-size:13px}.ed-table td:before{content:attr(data-label);display:block;font-size:11px;color:var(--muted);margin-bottom:6px}.ed-table small{font-size:11px}.ed-table-wrap{overflow:visible}.ed-paper-grid,.ed-combo-grid{grid-template-columns:1fr}.ed-quadrant-groups{gap:18px 12px}.ed-chart-layout{gap:12px}.ed-quadrant{width:calc(100% + 16px);margin-left:-8px}.ed-reader .pr-head{flex-wrap:wrap}.ed-reader .pr-main{min-width:0}.ed-inspect{padding:17px}.ed-inspect dl{gap:8px 20px}.ed-inspect dl>div{flex-direction:column}.ed-inspect dd{text-align:left}.ed-top{margin-bottom:20px}.ed-page{margin-bottom:80px}}

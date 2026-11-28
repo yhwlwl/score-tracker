@@ -112,3 +112,5 @@ assert.ok(p.previewArt('stats-comp').includes('stroke-dasharray'));
   assert.deepEqual(p.rankChartScope(f,'物理').totalSeries,[]);
   console.log('PASS: independent chart scopes, missing subjects, true subject rankings and unchanged base data');
 })();
+
+metric.exam.id='fixture-exam'; metric.exam.reflection='<img src=x>\n私人笔记'; markup=p.recentHtml(metric,model,api); assert(markup.includes('data-home-reflection="fixture-exam"')); assert(markup.includes('&lt;img src=x&gt; 私人笔记')); assert(!markup.includes('<img src=x>')); metric.exam.reflection=' '; assert(p.recentHtml(metric,model,api).includes('写反思')); console.log('PASS: reflection entry, escaped preview and empty state');

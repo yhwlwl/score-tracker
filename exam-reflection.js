@@ -29,6 +29,7 @@
     var field = c.host.querySelector('textarea');
     if (!field) return;
     field.disabled = c.loading || (!c.ready && !c.restored);
+    c.host.querySelectorAll('[data-reflection-prompt]').forEach(function (b) { b.disabled = field.disabled; });
     if (field.value !== c.text) field.value = c.text;
     var live = c.host.querySelector('[data-reflection-status]');
     live.textContent = status(c); live.classList.toggle('ed-reflection-error', !!c.error || !!c.conflict || (!c.local && dirty(c)));
@@ -63,13 +64,13 @@
   async function save(c) {
     clearTimeout(c.timer);
     if (!sameOwner(c) || !c.ready || c.saving || c.loading || c.composing || c.conflict || !dirty(c)) return;
-    var sent = c.text; c.sent = sent; c.saving = true; c.error = ''; draft(c); paint(c);
+    var sent = c.text, wasEmpty = !c.base.trim(); c.sent = sent; c.saving = true; c.error = ''; draft(c); paint(c);
     try {
       var data = await request(c, 'save_exam_reflection', { text: sent, revision: c.revision });
       if (!sameOwner(c)) return;
       c.base = data.reflection; c.revision = data.reflection_revision; c.updated = data.reflection_updated_at;
       updateExam(c, data); draft(c);
-      try { if (window.__scoreTrackerTrack) window.__scoreTrackerTrack('exam_reflection_saved', { source: 'exam_detail' }); } catch (_) {}
+      try { if (window.__scoreTrackerTrack) window.__scoreTrackerTrack('exam_reflection_saved', { source: typeof c.options.source === 'function' ? c.options.source() : 'exam_detail', nonempty: !!data.reflection.trim(), became_nonempty: wasEmpty && !!data.reflection.trim() }); } catch (_) {}
     } catch (e) {
       if (!sameOwner(c)) return;
       if (e.status === 409 && valid(e.current)) c.conflict = e.current;
@@ -102,12 +103,25 @@
       try { var saved = JSON.parse(localStorage.getItem(key) || 'null'); if (saved && typeof saved.text === 'string' && typeof saved.base === 'string' && Number.isSafeInteger(saved.revision)) { c.text = saved.text; c.base = saved.base; c.revision = saved.revision; c.restored = true; } } catch (_) { c.local = false; }
       current = c;
     }
-    c.host = host;
+    c.options = options; c.host = host;
     host.innerHTML = '<div class="ed-section-head"><div><span class="ed-eyebrow">04 / 复盘</span><h2 id="ed-reflection-title">考后反思</h2><p id="ed-reflection-hint">记下这次做得好的地方、卡住的原因，或下次想尝试的方法。</p></div><span class="ed-reflection-private">个人记录</span></div>' +
+      '<div class="ed-reflection-prompts" aria-label="反思思路">'+['做得好的地方','失分原因','时间分配','下次的计划'].map(function(p){return '<button type="button" data-reflection-prompt="'+p+'">'+p+'</button>';}).join('')+'</div>' +
       '<textarea aria-labelledby="ed-reflection-title" aria-describedby="ed-reflection-hint" maxlength="10000" rows="5" placeholder="比如：数学最后两题没来得及做，下次想先把有把握的题做完。\n英语这次先看问题再读文章，感觉更顺了。" disabled></textarea>' +
       '<div class="ed-reflection-footer"><span data-reflection-status role="status" aria-live="polite"></span><span data-reflection-count></span><button type="button" class="ed-button" data-reflection-save hidden>立即保存</button></div>' +
       '<div class="ed-reflection-conflict" data-reflection-conflict hidden><strong>另一处保存的内容</strong><p></p><div><button type="button" class="ed-button" data-reflection-cloud>使用云端内容</button><button type="button" class="ed-button" data-reflection-mine>保留我的修改</button></div><small>上方输入框保留着你的修改，也可以先合并两段内容。</small></div>';
     var field = host.querySelector('textarea');
+    host.querySelectorAll('[data-reflection-prompt]').forEach(function (b) {
+      b.onclick = function () {
+        if (field.disabled || c.composing) return;
+        var prefix = b.dataset.reflectionPrompt + '：';
+        if (field.value.includes(prefix)) { field.focus(); var pos=field.value.indexOf(prefix)+prefix.length; field.setSelectionRange(pos,pos); return; }
+        var addition = (field.value.trim() && !field.value.endsWith('\n') ? '\n' : '') + prefix;
+        if (field.value.length + addition.length > field.maxLength) return;
+        // A prompt is a writing aid, not an answer; append without replacing text.
+        field.value += addition; field.focus(); field.setSelectionRange(field.value.length,field.value.length);
+        field.dispatchEvent(new Event('input',{bubbles:true}));
+      };
+    });
     field.addEventListener('input', function () { c.text = field.value; c.error = ''; draft(c); paint(c); schedule(c); });
     field.addEventListener('compositionstart', function () { c.composing = true; clearTimeout(c.timer); });
     field.addEventListener('compositionend', function () { c.composing = false; c.text = field.value; draft(c); schedule(c); });
