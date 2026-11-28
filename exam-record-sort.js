@@ -93,11 +93,13 @@
       + '<div class="exam-record-controls-v1"><label><span>' + escapeHtml(categoryLabel) + '</span><select id="examRecordCategoryV1" aria-label="' + escapeHtml(categoryLabel) + '">' + optionsHtml(options, category) + '</select></label>'
       + '<label><span>排序</span><select id="examRecordSortV1" aria-label="排序">' + optionsHtml(modes, mode) + '</select></label></div></div>';
     var stageBar=lifecycle?'<div class="eg-record-tabs" role="group" aria-label="考试状态">'+[['all','全部'],['pending','待完成'],['history','历史考试']].map(function(p){return '<button type="button" data-eg-stage="'+p[0]+'" class="'+(stage===p[0]?'active':'')+'" aria-pressed="'+(stage===p[0])+'">'+p[1]+'</button>';}).join('')+'</div>':'';
-    var plan=lifecycle?'<div class="eg-section-head eg-record-section-head"><h3>'+(stage==='history'?'历史考试':'待完成考试'+(pending.length?' · '+pending.length:''))+'</h3>'+(stage==='history'?'':'<button type="button" class="secondary" data-eg-new>＋ 设置考试目标</button>')+'</div>'+(stage!=='history'?(pending.length?'<div class="eg-pending-grid">'+pending.map(lifecycle.pendingCard).join('')+'</div>':'<div class="eg-record-empty" role="status">暂时还没有待完成的考试</div>'):'')+(stage==='all'?'<div class="eg-section-head eg-record-section-head"><h3>历史考试</h3></div>':''):'';
+    var pendingHead='<div class="eg-section-head eg-record-section-head"><h3>待完成考试'+(pending.length?' · '+pending.length:'')+'</h3><button type="button" class="secondary" data-eg-new>＋ 设置考试目标</button></div>';
+    var plan=lifecycle&&stage!=='history'?'<section class="record-plan-group'+(pending.length?' has-plans':' is-empty')+'" aria-label="待完成考试">'+pendingHead+(pending.length?'<div class="eg-pending-grid">'+pending.map(lifecycle.pendingCard).join('')+'</div>':'<div class="eg-record-empty" role="status">暂时还没有待完成的考试</div>')+'</section>':'';
+    var historyHead=lifecycle?'<div class="eg-section-head eg-record-section-head"><h3>历史考试</h3></div>':'';
     var list = history.length ? history.map(recordWithCreated).join('') : '<div class="empty-chart" style="height:260px"><div>' +
       (exams.length ? '此分类暂无考试<button class="secondary" id="examRecordResetV1" style="display:block;margin:14px auto 0">查看全部考试</button>' :
         '还没有考试记录<br><button class="secondary" id="emptyAdd" style="margin-top:14px">记录第一场考试</button>') + '</div></div>';
-    return head + toolbar + stageBar + plan + (stage==='pending'&&lifecycle?'':'<section class="grade-section-v13 exam-record-list-v1"><div class="card records-card">' + list + '</div></section>');
+    return '<div class="record-page-tools st-surface">' + head + toolbar + stageBar + '</div>' + plan + (stage==='pending'&&lifecycle?'':'<section class="grade-section-v13 exam-record-list-v1"><div class="card records-card">' + historyHead + list + '</div></section>');
   };
   function refresh(id) {
     renderPage();
