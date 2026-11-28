@@ -16,7 +16,7 @@
     },
     {
       "source": "/api/score-tracker-study-api",
-      "destination": "https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-study-api"
+      "destination": "https://kdwpmcdxapwecbfrvqtm.supabase.co/functions/v1/score-tracker-study-preview-v5"
     },
     {
       "source": "/api/score-tracker-modules-api",
