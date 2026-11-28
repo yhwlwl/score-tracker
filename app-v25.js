@@ -375,7 +375,7 @@
     points.forEach(function(p){extra.forEach(function(s){var v=s.value(p.exam);if(v!==null)vals.push(v);});});
     if(!vals.length)return '<div class="empty-chart"><div><div class="empty-icon">⌁</div>这个科目还没有成绩数据</div></div>';
     // 动态纵轴，与主成绩图同算法（v3 chartHtml）
-    var axis=fullTrendAxisV25(vals,'scoreFinal');
+    var axis=fullTrendAxisV25(vals,'rate');
     var W=760,H=300,L=46,R=18,T=20,B=46;
     var cw=W-L-R,ch=H-T-B;
     var x=function(i){return points.length===1?L+cw/2:L+(i/(points.length-1))*cw;};
@@ -562,9 +562,9 @@
     if(!nums.length)return{min:0,max:100,ticks:5};
     var min=Math.min.apply(null,nums),max=Math.max.apply(null,nums),pad;
     if(kind==='scoreFinal'){
-      pad=Math.max(10,(max-min)*0.18);
-      max=Math.ceil((max+pad)/10)*10;
-      min=Math.max(0,Math.floor((min-pad)/10)*10);
+      pad=Math.max(7.5,(max-min)*0.18);
+      max=Math.ceil((max+pad)/5)*5;
+      min=Math.max(0,Math.floor((min-pad)/5)*5);
       if(max===min)max=min+100;
       return{min:min,max:max,ticks:5};
     }
@@ -581,6 +581,7 @@
         ?calcDynamicAxisRangeV6(nums,{minLimit:0,maxLimit:100,step:5,minSpan:20,padRatio:.16})
         :{min:0,max:100,ticks:5};
     }
+    if(kind==='rankPercent')return dynamicRangeV7(nums);
     if(kind==='rankRaw'){
       return (typeof rawRankAxisV11==='function')?rawRankAxisV11(nums):{min:Math.min.apply(null,nums),max:Math.max.apply(null,nums),ticks:5};
     }
@@ -643,7 +644,7 @@
     var points=exams.map(function(e){return{exam:e,values:visible.map(function(s){return s.value(e);})};});
     var flat=[];
     points.forEach(function(p){p.values.forEach(function(v){if(v!==null)flat.push(v);});});
-    var axisKind = scorePercent?'scoreFinal':(subject==='总览'
+    var axisKind = scorePercent?'rate':(subject==='总览'
       ? (isRawRank?'rankRaw':(isPercent?'rankPercent':'rate'))
       : (isRawRank?'rankRaw':(isPercent?'rankPercent':(basis==='raw'?'scoreRaw':'scoreFinal'))));
     var axis=fullTrendAxisV25(flat,axisKind);

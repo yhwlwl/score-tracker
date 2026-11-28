@@ -751,9 +751,9 @@ function chartHtml() {
   const vals = points.flatMap((p) => [p.actual, p.target, ...extra.map((s) => s.value(p.exam))]).filter((v) => v !== null);
   if (!vals.length) return `<div class="empty-chart"><div><div class="empty-icon">⌁</div>这个科目还没有成绩数据</div></div>`;
   let max = Math.max(...vals), min = Math.min(...vals);
-  const pad = Math.max(10, (max - min) * 0.18);
-  max = Math.ceil((max + pad) / 10) * 10;
-  min = Math.max(0, Math.floor((min - pad) / 10) * 10);
+  const pad = Math.max(7.5, (max - min) * 0.18);
+  max = Math.ceil((max + pad) / 5) * 5;
+  min = Math.max(0, Math.floor((min - pad) / 5) * 5);
   if (max === min) max = min + 100;
   const W = 760, H = 300, L = 46, R = 18, T = 20, B = 46;
   const cw = W - L - R, ch = H - T - B;
@@ -5004,7 +5004,7 @@ saveExam=async function saveExamV21(id,modal){
     points.forEach(function(p){extra.forEach(function(s){var v=s.value(p.exam);if(v!==null)vals.push(v);});});
     if(!vals.length)return '<div class="empty-chart"><div><div class="empty-icon">⌁</div>这个科目还没有成绩数据</div></div>';
     // 动态纵轴，与主成绩图同算法（v3 chartHtml）
-    var axis=fullTrendAxisV25(vals,'scoreFinal');
+    var axis=fullTrendAxisV25(vals,'rate');
     var W=760,H=300,L=46,R=18,T=20,B=46;
     var cw=W-L-R,ch=H-T-B;
     var x=function(i){return points.length===1?L+cw/2:L+(i/(points.length-1))*cw;};
@@ -5191,9 +5191,9 @@ saveExam=async function saveExamV21(id,modal){
     if(!nums.length)return{min:0,max:100,ticks:5};
     var min=Math.min.apply(null,nums),max=Math.max.apply(null,nums),pad;
     if(kind==='scoreFinal'){
-      pad=Math.max(10,(max-min)*0.18);
-      max=Math.ceil((max+pad)/10)*10;
-      min=Math.max(0,Math.floor((min-pad)/10)*10);
+      pad=Math.max(7.5,(max-min)*0.18);
+      max=Math.ceil((max+pad)/5)*5;
+      min=Math.max(0,Math.floor((min-pad)/5)*5);
       if(max===min)max=min+100;
       return{min:min,max:max,ticks:5};
     }
@@ -5210,6 +5210,7 @@ saveExam=async function saveExamV21(id,modal){
         ?calcDynamicAxisRangeV6(nums,{minLimit:0,maxLimit:100,step:5,minSpan:20,padRatio:.16})
         :{min:0,max:100,ticks:5};
     }
+    if(kind==='rankPercent')return dynamicRangeV7(nums);
     if(kind==='rankRaw'){
       return (typeof rawRankAxisV11==='function')?rawRankAxisV11(nums):{min:Math.min.apply(null,nums),max:Math.max.apply(null,nums),ticks:5};
     }
@@ -5272,7 +5273,7 @@ saveExam=async function saveExamV21(id,modal){
     var points=exams.map(function(e){return{exam:e,values:visible.map(function(s){return s.value(e);})};});
     var flat=[];
     points.forEach(function(p){p.values.forEach(function(v){if(v!==null)flat.push(v);});});
-    var axisKind = scorePercent?'scoreFinal':(subject==='总览'
+    var axisKind = scorePercent?'rate':(subject==='总览'
       ? (isRawRank?'rankRaw':(isPercent?'rankPercent':'rate'))
       : (isRawRank?'rankRaw':(isPercent?'rankPercent':(basis==='raw'?'scoreRaw':'scoreFinal'))));
     var axis=fullTrendAxisV25(flat,axisKind);
@@ -7552,6 +7553,14 @@ function injectStylesV31(){
       '.rank-legend-v7{display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;padding:0 0 6px;scrollbar-width:none;-webkit-overflow-scrolling:touch;touch-action:pan-x;overscroll-behavior-x:contain}' +
       '.rank-legend-v7::-webkit-scrollbar{display:none}' +
       '.rank-legend-v7 .label{margin-left:14px}' +
+      /* Keep mobile trend legends on one row; only the legend itself scrolls. */
+      '.chart-card .trend-legend-row-v25{display:block;overflow:visible;padding:0;cursor:auto}' +
+      '.chart-card :is(.overview-legend,.rank-legend-v7,.trend-legend-row-v25 .legend){display:flex;flex-wrap:nowrap;gap:6px;max-width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;padding-bottom:2px;scrollbar-width:none;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y}' +
+      '.chart-card :is(.overview-legend,.rank-legend-v7,.trend-legend-row-v25 .legend)>span{flex:0 0 auto;white-space:nowrap;word-break:keep-all;overflow-wrap:normal}' +
+      '.chart-card :is(.overview-legend .overview-pill,.rank-legend-v7 span:not(.lg-hint-v31)){display:inline-flex;align-items:center;gap:5px;padding:5px 8px;line-height:1.4;min-height:28px;box-sizing:border-box}' +
+      '.chart-card :is(.overview-legend,.rank-legend-v7,.trend-legend-row-v25 .legend)>span>i{flex:none}' +
+      '.chart-card :is(.overview-legend,.rank-legend-v7,.trend-legend-row-v25 .legend)>span::after{flex:none}' +
+      '.chart-card .trend-legend-row-v25 .trend-scroll-hint-v19{margin:4px 0 0;text-align:right}' +
     '}'
   ].join('\n');
   var st=document.createElement('style');
