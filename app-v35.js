@@ -68,6 +68,7 @@
       is_hidden:(modal.querySelector('#examHiddenV16')||{}).value==='1',moduleIds:[].slice.call(modal._moduleIdsV21||[]),scores:{},moduleRanks:{},
       total_actual_score:(modal.querySelector('.total-actual-override-v24')||{}).value||'',total_raw_score:(modal.querySelector('.total-raw-override-v24')||{}).value||''
     };
+    var reflection=modal.querySelector('[data-entry-reflection]');if(reflection)exam.reflection=reflection.value;
     var city=cityDraft61(modal);for(var k in city)exam[k]=city[k];
     if(mode==='rank'){
       exam.total_rank=(modal.querySelector('#totalRankV16')||{}).value||'';exam.total_participants=(modal.querySelector('#totalParticipantsV16')||{}).value||'';
