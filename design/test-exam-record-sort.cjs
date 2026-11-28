@@ -22,7 +22,7 @@ assert.equal(validMode('invalid'), 'date-desc');
 assert.equal(JSON.stringify(exams), original);
 
 const handlers = {}, storage = new Map();
-let html = '';
+let html = '', focused = [];
 const ctx = {
   window: { ExamGoalLifecycle: { pending: e => e.pending === true, pendingCard: e => '<div data-pending-id="' + e.id + '"></div>' } },
   recordsHtml: () => '',
@@ -37,7 +37,8 @@ const ctx = {
     addEventListener: (type, f) => { handlers[type] = f; },
     createElement: () => ({}),
     head: { appendChild: () => {} },
-    getElementById: () => ({ focus: () => {} })
+    getElementById: id => ({ focus: () => focused.push(id) }),
+    querySelector: selector => ({ focus: () => focused.push(selector) })
   }
 };
 vm.runInNewContext(source, ctx);
@@ -60,10 +61,14 @@ ctx.state.user = { id: 'u1' }; ctx.renderPage();
 assert(pos('old') < pos('tie'));
 assert.equal(JSON.stringify(exams), original);
 const emptyText = '暂时还没有待完成的考试';
-const stage = value => handlers.click({ target: { closest: () => ({ dataset: { egStage: value } }) } });
+const stage = (value, detail = 1) => {
+  focused.length = 0;
+  handlers.click({ detail, target: { closest: () => ({ dataset: { egStage: value } }) } });
+  assert.deepEqual(focused, detail === 0 ? ['.eg-record-tabs button[aria-pressed="true"]'] : []);
+};
 assert(html.includes(emptyText));
 assert(html.indexOf(emptyText) < html.indexOf('<h3>历史考试</h3>'));
-stage('pending');
+stage('pending', 0);
 assert(html.includes(emptyText) && pos('old') === -1);
 stage('history');
 assert(!html.includes(emptyText) && pos('old') >= 0);

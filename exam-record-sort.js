@@ -116,9 +116,18 @@
     }
   });
   document.addEventListener('click', function (event) {
-    if(state.page==='records'&&event.target.closest('[data-eg-stage]')){syncOwner();stage=event.target.closest('[data-eg-stage]').dataset.egStage;refresh('examRecordCategoryV1');return;}
+    if(state.page==='records'&&event.target.closest('[data-eg-stage]')){
+      syncOwner(); stage=event.target.closest('[data-eg-stage]').dataset.egStage;
+      renderPage();
+      // Restore keyboard focus to the selected tab, never open an unrelated native select on touch.
+      if(event.detail===0){
+        var tab=document.querySelector('.eg-record-tabs button[aria-pressed="true"]');
+        if(tab)tab.focus({preventScroll:true});
+      }
+      return;
+    }
     if (state.page === 'records' && event.target.id === 'examRecordResetV1') {
-      syncOwner(); category = 'all'; refresh('examRecordCategoryV1');
+      syncOwner(); category = 'all'; renderPage();
     }
   });
   var style = document.createElement('style');
