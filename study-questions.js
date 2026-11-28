@@ -116,9 +116,11 @@
   function pick(text) {
     const input = dialog.querySelector('textarea');
     input.value=text;
+    resizeComposer(input);
     input.focus();
     controls();
   }
+  function resizeComposer(input){input.style.height='auto';input.style.height=Math.min(112,Math.max(44,input.scrollHeight))+'px';}
   function controls() {
     const input=dialog.querySelector('textarea');
     dialog.querySelector('[type=submit]').disabled=!!session.pending?.running || !input.value.trim();
@@ -230,6 +232,73 @@
   const miniMetrics={score:['分数','分'],rate:['得分率','%'],rank:['年级位置','%'],classRank:['班级位置','%'],cityRank:['市排名位置','%'],districtRank:['区排名位置','%'],scoreChange:['分数变化','分'],rateChange:['得分率变化','个百分点'],rankChange:['年级位置变化','个百分点'],difficulty:['难度','/100'],averageGap:['较年级均分','分'],count:['场数','场'],lost:['失分','分']};
   const rankMetric=m=>['rank','classRank','cityRank','districtRank'].includes(m);
   const miniFormat=(m,v)=>!Number.isFinite(v)?'—':(rankMetric(m)?'前 ':m==='rankChange'?(v>0?'前进 ':v<0?'后退 ':''):m.endsWith('Change')&&v>0?'+':'')+Math.round((m==='rankChange'?Math.abs(v):v)*100)/100+miniMetrics[m][1];
+  function richerWidget(spec){
+    if(!['baseline','change','goal','forecast'].includes(spec?.type))return null;
+    const frame=element('section','sq-compact sq-rich-'+spec.type);
+    if(spec.title)frame.append(element('strong','sq-compact-title',String(spec.title).slice(0,32)));
+    const pct=n=>Math.max(0,Math.min(100,n))+'%';
+    const fmt=n=>String(Math.round(n*100)/100);
+    const legend=(text)=>element('small','sq-rich-legend',text);
+    if(spec.type==='forecast'){
+      const cards=(Array.isArray(spec.cards)?spec.cards:[]).filter(c=>c&&['rate','rank'].includes(c.metric)&&Number.isFinite(c.value)&&c.value>=0&&c.value<=100).slice(0,6);
+      if(!cards.length)return null;
+      const grid=element('div','sq-forecast-grid');
+      for(const c of cards){
+        const card=element('div','sq-forecast-card'),rank=c.metric==='rank',hasMax=!rank&&Number.isFinite(c.scoreMax)&&c.scoreMax>0;
+        card.append(element('small','',String(c.label)+' · '+(rank?'年级位置':'预计成绩')));
+        card.append(element('b','sq-forecast-value',hasMax?fmt(c.value*c.scoreMax/100)+' / '+c.scoreMax:miniFormat(c.metric,c.value)));
+        if(hasMax)card.append(legend('预计得分率 '+fmt(c.value)+'%'));
+        if(Number.isFinite(c.low)&&Number.isFinite(c.high)&&c.low>=0&&c.high<=100&&c.low<=c.high){
+          const track=element('div','sq-range-track'),band=element('span','sq-range-band'),dot=element('i','sq-range-dot');
+          band.style.left=pct(c.low);band.style.width=pct(c.high-c.low);dot.style.left=pct(c.value);track.append(band,dot);
+          track.setAttribute('role','img');track.setAttribute('aria-label','参考范围 '+miniFormat(c.metric,c.low)+' 至 '+miniFormat(c.metric,c.high));
+          const labels=element('div','sq-range-labels');labels.append(element('span','',miniFormat(c.metric,c.low)),element('span','',miniFormat(c.metric,c.high)));
+          card.append(track,labels,legend('预测参考范围'));
+        }else card.append(legend('未提供预测区间'));
+        if(Number.isFinite(c.recent))card.append(legend('最近记录 '+miniFormat(c.metric,c.recent)));
+        if(c.source)card.append(legend(String(c.source).slice(0,160)));
+        grid.append(card);
+      }
+      frame.append(grid);
+      const charts=(Array.isArray(spec.charts)?spec.charts:[]).filter(Boolean).slice(0,6);
+      if(charts.length){
+        const details=element('details','sq-rich-details');details.append(element('summary','','展开完整预测趋势'));
+        details.addEventListener('toggle',()=>{if(!details.open||details.dataset.loaded)return;details.dataset.loaded='1';for(const spec of charts){const chart=window.ScoreStudyChart?.render(spec);if(chart){details.append(chart.figure);session.charts.push(chart.dispose);}}});
+        frame.append(details);
+      }
+    }else{
+      const items=(Array.isArray(spec.items)?spec.items:[]).slice(0,6);
+      let valid=0;
+      if(spec.type==='baseline')frame.append(legend('色条：本次 · 竖线：历史中位数（0–100%）'));
+      for(const i of items){
+        if(!i||typeof i.label!=='string'||!Number.isFinite(i.current))continue;
+        const row=element('div','sq-rich-row'),head=element('div','sq-rich-row-head');
+        head.append(element('b','',i.label));
+        if(spec.type==='goal'){
+          if(!Number.isFinite(i.target)||i.target<=0||i.current<0||i.current>i.target)continue;
+          head.append(element('span','',fmt(i.current)+' / '+fmt(i.target)+' 分'));
+          const track=element('div','sq-rich-track'),fill=element('span','sq-rich-fill');fill.style.width=pct(i.current/i.target*100);track.append(fill);
+          row.append(head,track,legend('距目标 '+fmt(i.target-i.current)+' 分'));
+        }else{
+          if(!['rate','rank'].includes(i.metric)||!Number.isFinite(i.previous)||i.current<0||i.current>100||i.previous<0||i.previous>100)continue;
+          const delta=Math.round((i.metric==='rank'?i.previous-i.current:i.current-i.previous)*100)/100;
+          head.append(element('span','sq-rich-delta'+(delta>0?' is-up':delta<0?' is-down':''),(delta>0?'+':'')+fmt(delta)+' 个百分点'));
+          if(spec.type==='change'){
+            const numbers=element('div','sq-change-numbers');numbers.append(element('span','',miniFormat(i.metric,i.previous)),element('span','sq-change-arrow','→'),element('b','',miniFormat(i.metric,i.current)));
+            row.append(head,numbers,legend('此前中位数 → 本次'));
+          }else{
+            const track=element('div','sq-rich-track'),fill=element('span','sq-rich-fill'),marker=element('i','sq-rich-marker');
+            fill.style.width=pct(i.current);marker.style.left=pct(i.previous);track.append(fill,marker);
+            row.append(head,track,legend('本次 '+miniFormat(i.metric,i.current)+' · 历史 '+miniFormat(i.metric,i.previous)+(i.metric==='rank'?'（越低越靠前）':'')));
+          }
+        }
+        frame.append(row);valid++;
+      }
+      if(!valid)return null;
+    }
+    if(spec.caption)frame.append(element('p','sq-compact-caption',String(spec.caption).slice(0,120)));
+    return frame;
+  }
   function compactWidget(spec){
     if(!['sparkline','bars','actions'].includes(spec?.type))return null;
     const frame=element('section','sq-compact sq-compact-'+spec.type);
@@ -271,7 +340,8 @@
       if(!grid.childElementCount)return null;frame.append(grid);
     }else{
       const s=series[0],points=pointsFor(s).filter(p=>Number.isFinite(p.value));if(points.length<2)return null;
-      const min=Math.min(0,...points.map(p=>p.value)),max=Math.max(0,...points.map(p=>p.value)),span=max-min||1,zero=-min/span*100;
+      const bounded=['rate','rank','classRank','cityRank','districtRank','difficulty'].includes(s.metric)&&points.every(p=>p.value>=0&&p.value<=100);
+      const min=bounded?0:Math.min(0,...points.map(p=>p.value)),max=bounded?100:Math.max(0,...points.map(p=>p.value)),span=max-min||1,zero=-min/span*100;
       const bars=element('div','sq-mini-bars');bars.append(element('small','sq-bars-unit',s.label+' · '+miniMetrics[s.metric][0]));
       for(const p of points){const row=element('div','sq-bar-row'),track=element('div','sq-bar-track'),fill=element('span','sq-bar-fill'+(p.value<0?' is-negative':''));
         fill.style.left=Math.min(zero,(p.value-min)/span*100)+'%';fill.style.width=Math.abs(p.value)/span*100+'%';
@@ -285,22 +355,34 @@
   function showAnswer(article, turn) {
     article.querySelector('.sq-feedback').remove();
     const specs=Array.isArray(turn.charts)&&turn.charts.length ? turn.charts.slice(0,3) : [turn.chart];
-    const appendText=text=>{
-      const p=element('p','sq-answer');
-      // Only paired bold markers are supported. No HTML interpretation.
-      const parts=String(text||'').split(/(\*\*[^*\n]+\*\*)/g);
-      for(const part of parts) {
-        if(part.startsWith('**')&&part.endsWith('**')&&part.length>4) p.append(element('strong','',part.slice(2,-2)));
-        else p.append(document.createTextNode(part));
+    const inline=(node,text)=>{
+      for(const part of String(text||'').split(/(\*\*[^*\n]+\*\*)/g)){
+        if(part.startsWith('**')&&part.endsWith('**')&&part.length>4)node.append(element('strong','',part.slice(2,-2)));
+        else node.append(document.createTextNode(part));
       }
-      article.append(p);
+      return node;
+    };
+    const appendText=text=>{
+      const lines=String(text||'').split(/\r?\n/);
+      let list=null,paragraph=[];
+      const flush=()=>{if(paragraph.length)article.append(inline(element('p','sq-answer'),paragraph.join('\n')));paragraph=[];};
+      for(const line of lines){
+        const heading=line.match(/^#{2,3}\s+(.+)$/);
+        const bullet=line.match(/^\s*(?:[-•]\s*|(\d+)[.、]\s+)(.+)$/);
+        if(heading){flush();list=null;article.append(inline(element('h3','sq-answer-heading'),heading[1]));}
+        else if(bullet){flush();const tag=bullet[1]?'ol':'ul';if(!list||list.tagName.toLowerCase()!==tag){list=element(tag,'sq-answer-list');article.append(list);}list.append(inline(element('li',''),bullet[2]));}
+        else if(/^>\s?/.test(line)){flush();list=null;article.append(inline(element('blockquote','sq-answer-quote'),line.replace(/^>\s?/,'')));}
+        else if(!line.trim()){flush();list=null;}
+        else{list=null;paragraph.push(line);}
+      }
+      flush();
     };
     const appendChart=spec=>{
       const chart=window.ScoreStudyChart?.render(spec);
       if(chart){article.append(chart.figure);session.charts.push(chart.dispose);}
     };
     const widgets=Array.isArray(turn.widgets)?turn.widgets.slice(0,4):[];
-    const appendWidgets=i=>widgets.filter(w=>Math.max(1,Number(w.after)||1)===i).forEach(w=>{const node=w.type==='relations'?relationsWidget(w):w.type==='aggregate'?aggregateWidget(w):['metric','compare'].includes(w.type)?metricWidget(w):['sparkline','bars','actions'].includes(w.type)?compactWidget(w):scenarioWidget(w);if(node)article.append(node);});
+    const appendWidgets=i=>widgets.filter(w=>Math.max(1,Number(w.after)||1)===i).forEach(w=>{const node=w.type==='relations'?relationsWidget(w):w.type==='aggregate'?aggregateWidget(w):['metric','compare'].includes(w.type)?metricWidget(w):['sparkline','bars','actions'].includes(w.type)?compactWidget(w):['baseline','change','goal','forecast'].includes(w.type)?richerWidget(w):scenarioWidget(w);if(node)article.append(node);});
     if(Array.isArray(turn.chartAfter)&&turn.chartAfter.length===specs.length || widgets.length) {
       const paragraphs=String(turn.answer||'').split(/\n\s*\n/).filter(p=>p.trim());
       const positions=specs.map((_,i)=>Number.isInteger(turn.chartAfter?.[i])?Math.max(1,Math.min(paragraphs.length,turn.chartAfter[i])):paragraphs.length);
@@ -383,6 +465,7 @@
     const input=dialog.querySelector('textarea'), question=input.value.trim();
     if (!question) return;
     input.value='';
+    resizeComposer(input);
     input.placeholder='继续问…';
     if (s.pending?.payload.question===question && (s.pending.payload.thinking??'standard')===s.thinking) {
       send(s,s.pending);
@@ -408,7 +491,7 @@
     if (!dialog) {
       dialog=element('dialog','sq-dialog');
       dialog.setAttribute('aria-labelledby','sq-title');
-      dialog.innerHTML='<header class="sq-header"><div><span class="sq-spark" aria-hidden="true">✦</span><h2 id="sq-title">问成绩</h2></div><button type="button" aria-label="关闭">×</button></header><div class="sq-thread"></div><form class="sq-composer"><label class="sq-sr-only" for="sq-input">你的问题</label><div class="sq-input-row"><textarea id="sq-input" rows="2" maxlength="300" placeholder="想问问哪科成绩？"></textarea><button type="submit">提问</button></div><footer><label class="sq-thinking" hidden><span>思考</span><select aria-label="思考强度"><option value="low">低</option><option value="standard">标准</option><option value="high">高</option></select></label><small class="sq-cap"></small></footer></form>';
+      dialog.innerHTML='<header class="sq-header"><div><span class="sq-spark" aria-hidden="true">✦</span><h2 id="sq-title">问成绩</h2></div><button type="button" aria-label="关闭">×</button></header><div class="sq-thread"></div><form class="sq-composer"><label class="sq-sr-only" for="sq-input">你的问题</label><div class="sq-input-row"><textarea id="sq-input" rows="1" maxlength="300" placeholder="想问问哪科成绩？"></textarea><button type="submit">提问</button></div><footer><label class="sq-thinking" hidden><span>思考</span><select aria-label="思考强度"><option value="low">低</option><option value="standard">标准</option><option value="high">高</option></select></label><small class="sq-cap"></small></footer></form>';
       dialog.querySelector('header button').onclick=()=>dialog.close();
       const thinking=dialog.querySelector('.sq-thinking'),select=thinking.querySelector('select');
       if(session.thinkingModes){
@@ -420,7 +503,7 @@
           controls();
         });
       }
-      dialog.querySelector('textarea').addEventListener('input',controls);
+      dialog.querySelector('textarea').addEventListener('input',event=>{resizeComposer(event.currentTarget);controls();});
       dialog.querySelector('form').addEventListener('submit',ask);
       document.body.append(dialog);
       const welcome=element('section','sq-welcome');
