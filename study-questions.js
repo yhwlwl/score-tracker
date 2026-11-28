@@ -227,6 +227,61 @@
     };
     draw();return frame;
   }
+  const miniMetrics={score:['分数','分'],rate:['得分率','%'],rank:['年级位置','%'],classRank:['班级位置','%'],cityRank:['市排名位置','%'],districtRank:['区排名位置','%'],scoreChange:['分数变化','分'],rateChange:['得分率变化','个百分点'],rankChange:['年级位置变化','个百分点'],difficulty:['难度','/100'],averageGap:['较年级均分','分'],count:['场数','场'],lost:['失分','分']};
+  const rankMetric=m=>['rank','classRank','cityRank','districtRank'].includes(m);
+  const miniFormat=(m,v)=>!Number.isFinite(v)?'—':(rankMetric(m)?'前 ':m==='rankChange'?(v>0?'前进 ':v<0?'后退 ':''):m.endsWith('Change')&&v>0?'+':'')+Math.round((m==='rankChange'?Math.abs(v):v)*100)/100+miniMetrics[m][1];
+  function compactWidget(spec){
+    if(!['sparkline','bars','actions'].includes(spec?.type))return null;
+    const frame=element('section','sq-compact sq-compact-'+spec.type);
+    if(spec.title)frame.append(element('strong','sq-compact-title',String(spec.title).slice(0,32)));
+    if(spec.type==='actions'){
+      const items=(Array.isArray(spec.items)?spec.items:[]).slice(0,4).filter(i=>i&&typeof i.label==='string'&&i.label.trim());
+      if(!items.length)return null;
+      const list=element('ol','sq-action-list');
+      items.forEach((i,k)=>{const li=element('li','sq-action-item'),n=element('span','sq-action-number',String(k+1)),copy=element('div','sq-action-copy');
+        copy.append(element('b','',i.label.slice(0,48)));if(i.detail)copy.append(element('span','',String(i.detail).slice(0,160)));li.append(n,copy);list.append(li);});
+      frame.append(list);return frame;
+    }
+    const series=(Array.isArray(spec.series)?spec.series:[]).slice(0,6).filter(s=>s&&Object.hasOwn(miniMetrics,s.metric)&&typeof s.label==='string'&&Array.isArray(s.points)&&s.points.filter(p=>p&&Number.isFinite(p.value)&&!p.forecast).length>=2);
+    if(!series.length)return null;
+    const pointsFor=s=>s.points.filter(p=>p&&!p.forecast).slice(-12);
+    const dataRows=(s,points)=>{
+      const details=element('details','sq-mini-data');details.append(element('summary','','查看数据'));
+      const list=element('div','sq-mini-values');points.forEach(p=>{const row=element('div','sq-mini-value');row.append(element('span','',String(p.label||p.key||'').slice(0,48)),element('b','',miniFormat(s.metric,p.value)));list.append(row);});details.append(list);return details;
+    };
+    if(spec.type==='sparkline'){
+      const grid=element('div','sq-spark-grid');
+      const ns='http://www.w3.org/2000/svg';
+      const svgEl=(tag,attrs)=>{const el=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,String(v)));return el;};
+      for(const s of series){
+        const points=pointsFor(s),valid=points.filter(p=>Number.isFinite(p.value));
+        if(valid.length<2)continue;
+        const first=valid[0],last=valid.at(-1),values=valid.map(p=>p.value),min=Math.min(...values),max=Math.max(...values),span=max-min||1;
+        const card=element('div','sq-mini-card'),head=element('div','sq-mini-heading');
+        head.append(element('small','',s.label+' · '+miniMetrics[s.metric][0]),element('b','',miniFormat(s.metric,last.value)));
+        const svg=svgEl('svg',{viewBox:'0 0 150 48',role:'img','aria-label':s.label+'近期走势：'+miniFormat(s.metric,first.value)+' 至 '+miniFormat(s.metric,last.value)});
+        svg.append(svgEl('path',{d:'M4 44 H146',class:'sq-mini-axis'}));
+        const y=v=>max===min?24:4+(rankMetric(s.metric)?v-min:max-v)/span*38;
+        let path='',pen=false;points.forEach((p,j)=>{if(!Number.isFinite(p.value)){pen=false;return;}const x=4+j*142/Math.max(1,points.length-1);path+=(pen?' L':' M')+x.toFixed(2)+' '+y(p.value).toFixed(2);pen=true;});
+        svg.append(svgEl('path',{d:path.trim(),class:'sq-mini-line','fill':'none'}));
+        const lastIndex=points.lastIndexOf(last);svg.append(svgEl('circle',{cx:4+lastIndex*142/Math.max(1,points.length-1),cy:y(last.value),r:3,class:'sq-mini-dot'}));
+        const foot=element('div','sq-mini-foot');foot.append(element('span','',String(first.label||'').slice(0,18)),element('span','',String(last.label||'').slice(0,18)));
+        card.append(head,svg,foot,dataRows(s,points));grid.append(card);
+      }
+      if(!grid.childElementCount)return null;frame.append(grid);
+    }else{
+      const s=series[0],points=pointsFor(s).filter(p=>Number.isFinite(p.value));if(points.length<2)return null;
+      const min=Math.min(0,...points.map(p=>p.value)),max=Math.max(0,...points.map(p=>p.value)),span=max-min||1,zero=-min/span*100;
+      const bars=element('div','sq-mini-bars');bars.append(element('small','sq-bars-unit',s.label+' · '+miniMetrics[s.metric][0]));
+      for(const p of points){const row=element('div','sq-bar-row'),track=element('div','sq-bar-track'),fill=element('span','sq-bar-fill'+(p.value<0?' is-negative':''));
+        fill.style.left=Math.min(zero,(p.value-min)/span*100)+'%';fill.style.width=Math.abs(p.value)/span*100+'%';
+        if(min<0&&max>0){const axis=element('i','sq-bar-zero');axis.style.left=zero+'%';track.append(axis);}track.append(fill);
+        row.append(element('span','sq-bar-label',String(p.label||p.key||'').slice(0,48)),track,element('b','sq-bar-value',miniFormat(s.metric,p.value)));bars.append(row);}
+      frame.append(bars);
+    }
+    if(spec.caption)frame.append(element('p','sq-compact-caption',String(spec.caption).slice(0,120)));
+    return frame;
+  }
   function showAnswer(article, turn) {
     article.querySelector('.sq-feedback').remove();
     const specs=Array.isArray(turn.charts)&&turn.charts.length ? turn.charts.slice(0,3) : [turn.chart];
@@ -244,8 +299,8 @@
       const chart=window.ScoreStudyChart?.render(spec);
       if(chart){article.append(chart.figure);session.charts.push(chart.dispose);}
     };
-    const widgets=Array.isArray(turn.widgets)?turn.widgets.slice(0,3):[];
-    const appendWidgets=i=>widgets.filter(w=>Math.max(1,Number(w.after)||1)===i).forEach(w=>{const node=w.type==='relations'?relationsWidget(w):w.type==='aggregate'?aggregateWidget(w):['metric','compare'].includes(w.type)?metricWidget(w):scenarioWidget(w);if(node)article.append(node);});
+    const widgets=Array.isArray(turn.widgets)?turn.widgets.slice(0,4):[];
+    const appendWidgets=i=>widgets.filter(w=>Math.max(1,Number(w.after)||1)===i).forEach(w=>{const node=w.type==='relations'?relationsWidget(w):w.type==='aggregate'?aggregateWidget(w):['metric','compare'].includes(w.type)?metricWidget(w):['sparkline','bars','actions'].includes(w.type)?compactWidget(w):scenarioWidget(w);if(node)article.append(node);});
     if(Array.isArray(turn.chartAfter)&&turn.chartAfter.length===specs.length || widgets.length) {
       const paragraphs=String(turn.answer||'').split(/\n\s*\n/).filter(p=>p.trim());
       const positions=specs.map((_,i)=>Number.isInteger(turn.chartAfter?.[i])?Math.max(1,Math.min(paragraphs.length,turn.chartAfter[i])):paragraphs.length);
