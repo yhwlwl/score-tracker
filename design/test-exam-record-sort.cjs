@@ -24,6 +24,7 @@ assert.equal(JSON.stringify(exams), original);
 const handlers = {}, storage = new Map();
 let html = '';
 const ctx = {
+  window: { ExamGoalLifecycle: { pending: e => e.pending === true, pendingCard: e => '<div data-pending-id="' + e.id + '"></div>' } },
   recordsHtml: () => '',
   renderPage: () => { html = ctx.recordsHtml(); },
   state: { allExams: exams, exams: exams.filter(e => !e.is_hidden), page: 'records', user: { id: 'u1' } },
@@ -48,14 +49,31 @@ change('examRecordSortV1', 'created-desc');
 assert(pos('old') >= 0 && pos('old') < pos('tie') && html.includes('录入于'));
 assert.equal(storage.get('st_exam_record_sort_v1:u1'), 'created-desc');
 change('examRecordCategoryV1', 'category:高二');
-assert(pos('old') === -1 && pos('new') >= 0 && html.includes('共 3 场考试'));
+assert(pos('old') === -1 && pos('new') >= 0 && html.includes('共 3 场已记录'));
 change('examRecordCategoryV1', 'category:高三');
 assert(html.includes('examRecordResetV1'));
-handlers.click({ target: { id: 'examRecordResetV1' } });
+handlers.click({ target: { id: 'examRecordResetV1', closest: () => null } });
 assert(pos('old') >= 0);
 ctx.state.user = { id: 'u2' }; ctx.renderPage();
 assert(pos('tie') < pos('old'));
 ctx.state.user = { id: 'u1' }; ctx.renderPage();
 assert(pos('old') < pos('tie'));
 assert.equal(JSON.stringify(exams), original);
+const emptyText = '暂时还没有待完成的考试';
+const stage = value => handlers.click({ target: { closest: () => ({ dataset: { egStage: value } }) } });
+assert(html.includes(emptyText));
+assert(html.indexOf(emptyText) < html.indexOf('<h3>历史考试</h3>'));
+stage('pending');
+assert(html.includes(emptyText) && pos('old') === -1);
+stage('history');
+assert(!html.includes(emptyText) && pos('old') >= 0);
+stage('all');
+ctx.state.allExams = exams.concat({ id: 'plan', pending: true, grade_level: '高二' });
+ctx.renderPage();
+assert(!html.includes(emptyText) && html.includes('data-pending-id="plan"'));
+assert(pos('old') >= 0 && pos('plan') === -1);
+stage('pending');
+assert(html.includes('data-pending-id="plan"') && pos('old') === -1);
+stage('history');
+assert(!html.includes('data-pending-id="plan"') && pos('old') >= 0);
 console.log('PASS: record ordering, category filtering, hidden exams, saved preference and immutable data');

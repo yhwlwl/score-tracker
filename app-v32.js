@@ -995,7 +995,7 @@ function compHtmlV32(f,mode){
   var diffStat="",diffCard="";
   if(lastCls!==null&&f.overallLatest!==null){
     var d=r32(f.overallLatest-lastCls),dAbs=Math.abs(d);
-    diffStat='<span style="margin-left:auto;font-weight:700;color:var(--text,#18212f)">班里比年级'+(d>=0?"靠前":"靠后")+" "+dAbs+" 个百分点</span>";
+    diffStat='<div class="comp-reading-v32"><div class="comp-reading-label-v32">'+(d===0?"班级与年级排名持平":"班级排名比年级"+(d>0?"靠前":"靠后"))+'</div><div class="comp-reading-value-v32"><strong>'+dAbs+'</strong><span>个百分点</span></div></div>';
     diffCard=d>2?'<div class="sv31-insight i-info"><div class="ico">'+ICON32.shield+"</div><div><b>你的主要对手在外班</b><p>班里的名次一直比全年级更靠前——班内你已是头部,真正拉开差距的是外班同学。</p></div></div>"
       :(d<-2?'<div class="sv31-insight i-warn"><div class="ico">'+ICON32.shield+'</div><div><b>班内竞争更激烈</b><p>全年级里你的位置比班里更靠前——同班同学整体更强。先把班内名次提上来,年级位次自然会跟着走。</p></div></div>'
       :'<div class="sv31-insight i-info"><div class="ico">'+ICON32.search+'</div><div><b>班里家外基本同步</b><p>班级与年级的相对位置接近,说明班级整体水平与年级差距不大。</p></div></div>');
@@ -1022,8 +1022,8 @@ function compHtmlV32(f,mode){
     +'<p class="card-sub">你在班里和全年级各排多少 · 哪科最能打</p></div>'
     +lockTagV32(mode)+"</div>"
     +'<div class="sv31-g2"><div>'
-    +'<div class="legend" style="margin-bottom:8px"><span><i style="background:var(--accent,#5d72e8)"></i>年级排名</span>'
-    +(hasCls?'<span><i style="background:var(--green,#32a77a)"></i>班级排名</span>':"")+diffStat+"</div>"
+    +diffStat+'<div class="comp-legend-row-v32"><div class="legend comp-legend-v32"><span><i style="background:var(--accent,#5d72e8)"></i>年级排名</span>'
+    +(hasCls?'<span class="comp-dashed-v32"><i style="background:var(--green,#32a77a)"></i>班级排名</span>':"")+'</div><small>点按图例调整</small></div>'
     +'<div class="sv31-chart" id="sv31Scissor">'+chart+"</div>"+diffCard+"</div>"
     +"<div><b style=\"font-size:13px\">哪科最能打? <span style=\"color:var(--muted);font-weight:600\">(比你的六科典型水平)</span></b>"
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">'+chipHtml+"</div></div></div></div>";
@@ -1341,6 +1341,8 @@ function injectStylesV32(){
     ".sv31-legend-t:hover{background:var(--chip-bg,#f1f3f8)}",
     ".sv31-legend-t.lg-hide-v29{text-decoration:line-through}",
     ".sv31-evib[hidden],.sv31-evbody[hidden]{display:none!important}",
+    ".comp-reading-v32{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin:0 0 12px}.comp-reading-label-v32{font-size:var(--ui-small,12px);color:var(--muted);line-height:1.5}.comp-reading-value-v32{display:flex;align-items:baseline;gap:5px;color:var(--muted);font-size:var(--ui-small,12px)}.comp-reading-value-v32 strong{font-size:1.8em;line-height:1.15;color:var(--text);font-weight:700;font-variant-numeric:tabular-nums}",
+    ".comp-legend-row-v32{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:2px 12px;margin:0 0 8px}.comp-legend-row-v32 small{font-size:var(--ui-caption,11px);color:var(--muted);white-space:nowrap}.comp-legend-row-v32 .legend.comp-legend-v32{margin:0;gap:6px 14px}.comp-legend-v32>span{display:inline-flex;align-items:center;white-space:nowrap;min-height:28px}.legend.comp-legend-v32:not(.sv31-nopalette) span::after{content:none}.comp-legend-v32>span>i{width:18px;height:3px;border-radius:2px;margin-right:6px;flex:none}.comp-legend-v32>span.comp-dashed-v32>i{mask-image:repeating-linear-gradient(to right,#000 0 5px,transparent 5px 8px);-webkit-mask-image:repeating-linear-gradient(to right,#000 0 5px,transparent 5px 8px)}.comp-legend-v32 .lg-hint-v31{display:none}",
     ".sv31-g2{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}.sv31-g2>div{min-width:0}@media(min-width:900px){.sv31-g2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}",
     ".sv31-ext-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}@media(min-width:760px){.sv31-ext-grid{grid-template-columns:repeat(4,1fr)}}",
     ".sv31-ext{border:1px solid var(--line,#e8ebf0);border-radius:14px;padding:13px;background:var(--panel-solid,#fff)}",

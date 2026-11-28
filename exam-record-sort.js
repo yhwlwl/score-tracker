@@ -2,9 +2,9 @@
 (function () {
   'use strict';
   var modes = [
-    ['date-desc', '考试日期 · 最新优先'],
-    ['created-desc', '最近录入优先'],
-    ['date-asc', '考试日期 · 最早优先']
+    ['date-desc', '最新考试'],
+    ['created-desc', '最近录入'],
+    ['date-asc', '最早考试']
   ];
   function validMode(value) {
     return modes.some(function (m) { return m[0] === value; }) ? value : 'date-desc';
@@ -88,11 +88,12 @@
     var hidden = history.filter(function (e) { return e.is_hidden; }).length;
     var categoryLabel = typeof categoryLabelV14 === 'function' ? categoryLabelV14() : '分类';
     var head = '<div class="page-head"><div><h2>考试记录</h2></div><button class="primary" id="addExam">＋ 记录成绩</button></div>';
+    options = options.map(function(item){return item[0]==='all'?['all','全部'+categoryLabel]:item;});
     var toolbar = '<div class="exam-record-tools-v1"><span class="exam-record-count-v1">共 ' + history.length + ' 场已记录' + (pending.length?' · '+pending.length+' 场待完成':'') + (hidden ? ' · ' + hidden + ' 场已隐藏' : '') + '</span>'
-      + '<div class="exam-record-controls-v1"><label><span>' + escapeHtml(categoryLabel) + '</span><select id="examRecordCategoryV1">' + optionsHtml(options, category) + '</select></label>'
-      + '<label><span>排序</span><select id="examRecordSortV1">' + optionsHtml(modes, mode) + '</select></label></div></div>';
+      + '<div class="exam-record-controls-v1"><label><span>' + escapeHtml(categoryLabel) + '</span><select id="examRecordCategoryV1" aria-label="' + escapeHtml(categoryLabel) + '">' + optionsHtml(options, category) + '</select></label>'
+      + '<label><span>排序</span><select id="examRecordSortV1" aria-label="排序">' + optionsHtml(modes, mode) + '</select></label></div></div>';
     var stageBar=lifecycle?'<div class="eg-record-tabs" role="group" aria-label="考试状态">'+[['all','全部'],['pending','待完成'],['history','历史考试']].map(function(p){return '<button type="button" data-eg-stage="'+p[0]+'" class="'+(stage===p[0]?'active':'')+'" aria-pressed="'+(stage===p[0])+'">'+p[1]+'</button>';}).join('')+'</div>':'';
-    var plan=lifecycle?'<div class="eg-section-head"><h3>'+(stage==='history'?'历史考试':'待完成考试'+(pending.length?' · '+pending.length:''))+'</h3><button type="button" class="secondary" data-eg-new>＋ 设置考试目标</button></div>'+(stage!=='history'?(pending.length?'<div class="eg-pending-grid">'+pending.map(lifecycle.pendingCard).join('')+'</div>':stage==='pending'?'<div class="eg-record-empty">暂无待完成考试</div>':''):'')+(stage==='all'?'<div class="eg-section-head"><h3>历史考试</h3></div>':''):'';
+    var plan=lifecycle?'<div class="eg-section-head eg-record-section-head"><h3>'+(stage==='history'?'历史考试':'待完成考试'+(pending.length?' · '+pending.length:''))+'</h3><button type="button" class="secondary" data-eg-new>＋ 设置考试目标</button></div>'+(stage!=='history'?(pending.length?'<div class="eg-pending-grid">'+pending.map(lifecycle.pendingCard).join('')+'</div>':'<div class="eg-record-empty" role="status">暂时还没有待完成的考试</div>'):'')+(stage==='all'?'<div class="eg-section-head eg-record-section-head"><h3>历史考试</h3></div>':''):'';
     var list = history.length ? history.map(recordWithCreated).join('') : '<div class="empty-chart" style="height:260px"><div>' +
       (exams.length ? '此分类暂无考试<button class="secondary" id="examRecordResetV1" style="display:block;margin:14px auto 0">查看全部考试</button>' :
         '还没有考试记录<br><button class="secondary" id="emptyAdd" style="margin-top:14px">记录第一场考试</button>') + '</div></div>';
@@ -122,16 +123,20 @@
   });
   var style = document.createElement('style');
   style.textContent = [
-    '.exam-record-tools-v1{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px 16px;margin:0 0 14px;color:var(--muted);font-size:13px}',
-    '.exam-record-count-v1{font-variant-numeric:tabular-nums}',
-    '.exam-record-controls-v1{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;min-width:0}',
-    '.exam-record-controls-v1 label{display:flex;gap:6px;align-items:center;min-width:0;margin:0;color:var(--muted);font-size:12px}',
-    '.exam-record-controls-v1 select{min-width:0;max-width:100%;font:inherit;font-size:13px;color:var(--text);background:var(--panel-solid,#fff);border:1px solid var(--line);border-radius:9px;padding:9px 8px;min-height:38px}',
+    '.exam-record-tools-v1{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px 12px;margin:0 0 10px;color:var(--muted);font-size:13px}',
+    '.exam-record-count-v1{font-variant-numeric:tabular-nums;line-height:1.5}',
+    '.exam-record-controls-v1{display:flex;gap:4px;align-items:center;min-width:0;margin-left:auto}',
+    '.exam-record-controls-v1 label{display:flex;align-items:center;min-width:0;margin:0;position:relative}',
+    '.exam-record-controls-v1 label>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}',
+    '.exam-record-controls-v1 select{width:auto;min-width:0;max-width:100%;font:inherit;font-size:13px;color:var(--text);background:transparent;border:0;border-radius:8px;padding:6px 4px;min-height:36px}',
+    '.exam-record-controls-v1 label+label{border-left:1px solid var(--line);padding-left:4px}',
     '.exam-record-controls-v1 select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}',
     '.exam-record-list-v1{margin-top:0}',
-    '.eg-record-tabs{display:flex;gap:5px;align-items:center;margin:4px 0 10px}.eg-record-tabs button{background:var(--panel-solid,#fff);border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12px;color:var(--muted);padding:7px 12px;cursor:pointer}.eg-record-tabs button.active{color:var(--accent);background:var(--accent-soft,#eef1ff);font-weight:650}.eg-record-empty{padding:20px;text-align:center;border:1px dashed var(--line);border-radius:10px;color:var(--muted);font-size:13px}',
+    '.eg-record-tabs{display:flex;gap:3px;align-items:center;padding:3px;background:var(--cell,var(--chip-bg,#f1f3f8));border:1px solid var(--line);border-radius:12px;margin:0 0 16px;max-width:460px}.eg-record-tabs button{flex:1;min-width:0;background:transparent;border:1px solid transparent;border-radius:9px;font:inherit;font-size:13px;color:var(--muted);padding:8px 4px;min-height:36px;cursor:pointer;white-space:nowrap}.eg-record-tabs button.active{color:var(--text);background:var(--panel-solid,#fff);border-color:var(--line);font-weight:650;box-shadow:0 1px 3px rgba(0,0,0,.05)}',
+    '.eg-record-section-head{margin:16px 0 8px}.eg-record-section-head h3{margin:0}.eg-record-section-head [data-eg-new]{background:transparent;border:0;box-shadow:none;color:var(--accent);font-size:13px;padding:8px 0 8px 8px;min-height:36px}',
+    '.eg-record-empty{padding:15px 12px;text-align:center;border:1px solid var(--line);border-radius:12px;background:var(--panel-solid,#fff);color:var(--muted);font-size:13px;line-height:1.5;margin:0 0 20px}',
     '.exam-record-created-v1{display:block;margin-top:5px;font-size:11px;font-weight:400;color:var(--muted);line-height:1.5}',
-    '@media(max-width:620px){.exam-record-controls-v1{width:100%;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);gap:8px}.exam-record-controls-v1 label{display:grid;gap:4px}.exam-record-controls-v1 select{width:100%;min-height:42px;font-size:13px}}'
+    '@media(max-width:620px){.exam-record-controls-v1{flex-wrap:wrap;max-width:100%}.exam-record-controls-v1 select{max-width:44vw}.eg-record-tabs{max-width:none}}'
   ].join('\n');
   document.head.appendChild(style);
 })();
