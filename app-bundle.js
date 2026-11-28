@@ -450,7 +450,7 @@ const state = {
 };
 
 const $ = (s, root = document) => root.querySelector(s);
-const $$ = (s, root = document) => [...root.querySelectorAll(s)];
+const $ = (s, root = document) => [...root.querySelectorAll(s)];
 
 injectExtraStyles();
 
@@ -701,7 +701,7 @@ function bottomButton(p, label) {
   return `<button class="${state.page === p ? 'active' : ''}" data-page="${p}" aria-label="${label}" ${state.page === p ? 'aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true">${navIcon(p)}</span><span>${label}</span></button>`;
 }
 function bindNav() {
-  $$('[data-page]').forEach((b) => {
+  $('[data-page]').forEach((b) => {
     b.onclick = () => {
       state.page = b.dataset.page;
       render();
@@ -751,9 +751,9 @@ function chartHtml() {
   const vals = points.flatMap((p) => [p.actual, p.target, ...extra.map((s) => s.value(p.exam))]).filter((v) => v !== null);
   if (!vals.length) return `<div class="empty-chart"><div><div class="empty-icon">⌁</div>这个科目还没有成绩数据</div></div>`;
   let max = Math.max(...vals), min = Math.min(...vals);
-  const pad = Math.max(10, (max - min) * 0.18);
-  max = Math.ceil((max + pad) / 10) * 10;
-  min = Math.max(0, Math.floor((min - pad) / 10) * 10);
+  const pad = Math.max(7.5, (max - min) * 0.18);
+  max = Math.ceil((max + pad) / 5) * 5;
+  min = Math.max(0, Math.floor((min - pad) / 5) * 5);
   if (max === min) max = min + 100;
   const W = 760, H = 300, L = 46, R = 18, T = 20, B = 46;
   const cw = W - L - R, ch = H - T - B;
@@ -885,7 +885,7 @@ function accountHtml() {
 }
 
 function bindPage() {
-  $$('[data-page]').forEach((b) => {
+  $('[data-page]').forEach((b) => {
     b.onclick = () => {
       state.page = b.dataset.page;
       render();
@@ -894,10 +894,10 @@ function bindPage() {
   $('#addExamHome')?.addEventListener('click', () => openExam());
   $('#addExam')?.addEventListener('click', () => openExam());
   $('#emptyAdd')?.addEventListener('click', () => openExam());
-  $$('[data-edit]').forEach((b) => b.onclick = () => openExam(state.exams.find((e) => e.id === b.dataset.edit)));
-  $$('[data-delete]').forEach((b) => b.onclick = () => deleteExam(b.dataset.delete));
-  $$('[data-subject]').forEach((b) => b.onclick = () => { state.subject = b.dataset.subject; render(); });
-  $$('[data-copy]').forEach((b) => b.onclick = async () => {
+  $('[data-edit]').forEach((b) => b.onclick = () => openExam(state.exams.find((e) => e.id === b.dataset.edit)));
+  $('[data-delete]').forEach((b) => b.onclick = () => deleteExam(b.dataset.delete));
+  $('[data-subject]').forEach((b) => b.onclick = () => { state.subject = b.dataset.subject; render(); });
+  $('[data-copy]').forEach((b) => b.onclick = async () => {
     try {
       await navigator.clipboard.writeText(b.dataset.copy);
       toast('已复制');
@@ -905,16 +905,16 @@ function bindPage() {
       toast('复制失败，请手动选择');
     }
   });
-  $$('[data-radar-mode]').forEach((b) => b.onclick = () => {
+  $('[data-radar-mode]').forEach((b) => b.onclick = () => {
     state.radarMode = b.dataset.radarMode;
     ensureRadarSelection();
     render();
   });
-  $$('[data-radar-exam]').forEach((b) => b.onclick = () => toggleRadarExam(b.dataset.radarExam));
+  $('[data-radar-exam]').forEach((b) => b.onclick = () => toggleRadarExam(b.dataset.radarExam));
   $('#logoutBtn')?.addEventListener('click', logout);
   const chart = $('#chart');
   if (chart) {
-    $$('[data-tip]', chart).forEach((p) => {
+    $('[data-tip]', chart).forEach((p) => {
       const show = () => {
         const tip = $('#chartTip');
         tip.textContent = p.dataset.tip;
@@ -978,7 +978,7 @@ function validateExam(exam) {
 async function saveExam(id, modal) {
   const btn = $('.save-btn', modal);
   const exam = { id, name: $('#examName', modal).value.trim(), exam_date: $('#examDate', modal).value, scores: {} };
-  $$('[data-score-row]', modal).forEach((r) => {
+  $('[data-score-row]', modal).forEach((r) => {
     exam.scores[r.dataset.scoreRow] = {
       target: $('.target-input', r).value,
       actual: $('.actual-input', r).value,
@@ -1029,7 +1029,7 @@ function showOnboarding() {
   modal.className = 'modal-backdrop';
   modal.innerHTML = `<div class="modal onboard"><div class="big-icon">✓</div><h2>账号已经准备好了</h2><p>以后换手机或清除浏览器数据时，可以用下面的用户名和密码重新登录。</p><div class="credential"><small>用户名</small><div class="credential-row"><code>${escapeHtml(d.username)}</code><button class="copy-btn" data-copy="${escapeHtml(d.username)}">复制</button></div></div><div class="credential"><small>密码</small><div class="credential-row"><code>${escapeHtml(d.password)}</code><button class="copy-btn" data-copy="${escapeHtml(d.password)}">复制</button></div></div><div class="save-warning"><span class="i">i</span><div><b>请现在截图保存。</b><br>为了安全，密码关闭此窗口后将不会再次显示，我们也无法从服务器取回原密码。</div></div><button class="primary full" id="savedBtn">我已截图保存，开始记录</button></div>`;
   document.body.appendChild(modal);
-  $$('[data-copy]', modal).forEach((b) => b.onclick = async () => {
+  $('[data-copy]', modal).forEach((b) => b.onclick = async () => {
     await navigator.clipboard.writeText(b.dataset.copy);
     toast('已复制');
   });
@@ -5004,7 +5004,7 @@ saveExam=async function saveExamV21(id,modal){
     points.forEach(function(p){extra.forEach(function(s){var v=s.value(p.exam);if(v!==null)vals.push(v);});});
     if(!vals.length)return '<div class="empty-chart"><div><div class="empty-icon">⌁</div>这个科目还没有成绩数据</div></div>';
     // 动态纵轴，与主成绩图同算法（v3 chartHtml）
-    var axis=fullTrendAxisV25(vals,'scoreFinal');
+    var axis=fullTrendAxisV25(vals,'rate');
     var W=760,H=300,L=46,R=18,T=20,B=46;
     var cw=W-L-R,ch=H-T-B;
     var x=function(i){return points.length===1?L+cw/2:L+(i/(points.length-1))*cw;};
@@ -5191,9 +5191,9 @@ saveExam=async function saveExamV21(id,modal){
     if(!nums.length)return{min:0,max:100,ticks:5};
     var min=Math.min.apply(null,nums),max=Math.max.apply(null,nums),pad;
     if(kind==='scoreFinal'){
-      pad=Math.max(10,(max-min)*0.18);
-      max=Math.ceil((max+pad)/10)*10;
-      min=Math.max(0,Math.floor((min-pad)/10)*10);
+      pad=Math.max(7.5,(max-min)*0.18);
+      max=Math.ceil((max+pad)/5)*5;
+      min=Math.max(0,Math.floor((min-pad)/5)*5);
       if(max===min)max=min+100;
       return{min:min,max:max,ticks:5};
     }
@@ -5210,6 +5210,7 @@ saveExam=async function saveExamV21(id,modal){
         ?calcDynamicAxisRangeV6(nums,{minLimit:0,maxLimit:100,step:5,minSpan:20,padRatio:.16})
         :{min:0,max:100,ticks:5};
     }
+    if(kind==='rankPercent')return dynamicRangeV7(nums);
     if(kind==='rankRaw'){
       return (typeof rawRankAxisV11==='function')?rawRankAxisV11(nums):{min:Math.min.apply(null,nums),max:Math.max.apply(null,nums),ticks:5};
     }
@@ -5272,7 +5273,7 @@ saveExam=async function saveExamV21(id,modal){
     var points=exams.map(function(e){return{exam:e,values:visible.map(function(s){return s.value(e);})};});
     var flat=[];
     points.forEach(function(p){p.values.forEach(function(v){if(v!==null)flat.push(v);});});
-    var axisKind = scorePercent?'scoreFinal':(subject==='总览'
+    var axisKind = scorePercent?'rate':(subject==='总览'
       ? (isRawRank?'rankRaw':(isPercent?'rankPercent':'rate'))
       : (isRawRank?'rankRaw':(isPercent?'rankPercent':(basis==='raw'?'scoreRaw':'scoreFinal'))));
     var axis=fullTrendAxisV25(flat,axisKind);
@@ -5650,11 +5651,11 @@ saveExam=async function saveExamV21(id,modal){
     // 图例移到图表下方，与「左右滑动查看全部考试」同行
     moveLegendBelowChartV25();
     // 查看：分数/百分比
-    $$('[data-score-view-v25]').forEach(function(b){b.onclick=function(){state.scoreViewV25=b.dataset.scoreViewV25;render();};});
+    $('[data-score-view-v25]').forEach(function(b){b.onclick=function(){state.scoreViewV25=b.dataset.scoreViewV25;render();};});
     // 雷达图：选择考试/移除所选
     var pick=document.getElementById('radarPickV25');
     if(pick)pick.onclick=openRadarPickerV25;
-    $$('[data-radar-unpick]').forEach(function(c){c.onclick=function(){state.radarSelection=(state.radarSelection||[]).filter(function(id){return id!==c.dataset.radarUnpick;});render();};});
+    $('[data-radar-unpick]').forEach(function(c){c.onclick=function(){state.radarSelection=(state.radarSelection||[]).filter(function(id){return id!==c.dataset.radarUnpick;});render();};});
     // 完整趋势 / 保存图片
     var full=document.getElementById('trendFullV25');
     if(full)full.onclick=openFullTrendV25;
