@@ -3,7 +3,10 @@
  if(!window.ScoreAchievementUI||!window.ScoreAchievements||typeof bindPage!=='function')return;
  const UI=window.ScoreAchievementUI,C=window.ScoreAchievements;
  let session='',cache=null,enabled=null,inFlight=null,refreshTimer=null,revealTimer=null,dirty=false,checked=false,entry=null,adminEntry=null,generation=0,cooldownRetry=false,failures=0,lastRefresh=0,followupTimer=null;
- const presented=new Set();let favorites=null,stats=null;
+ const presented=new Set();let favorites=null,stats=null,ackInFlight=null;
+ const receiptKey=()=> 'st-ach-presented:'+String(state.user.id||state.user.username);
+ function restorePresented(){try{for(const id of JSON.parse(localStorage.getItem(receiptKey())||'[]'))if(C.badges.some(b=>b.id===id))presented.add(id)}catch(_){}}
+ function rememberPresented(ids){restorePresented();ids.forEach(id=>presented.add(id));try{localStorage.setItem(receiptKey(),JSON.stringify([...presented]))}catch(_){}}
  function galleryOptions(){const owner=session;return {favorites,stats,onFavorites:async ids=>{if(key()!==owner)throw Error('account changed');const r=await call('achievement_favorites',{badgeIds:ids});if(key()!==owner||!r.ok)throw Error('save failed');favorites=r.favorites;mount()}}}
  let openingCollection=false;
  async function openCollection(){
@@ -17,7 +20,7 @@
  const key=()=>{try{return state?.user&&state?.token?String(state.user.id||state.user.username)+':'+state.token:''}catch(_){return ''}};
  function sync(){
   const current=key();if(current!==session){
-   generation++;cooldownRetry=false;failures=0;lastRefresh=0;clearTimeout(followupTimer);followupTimer=null;presented.clear();favorites=null;stats=null;session=current;cache=null;enabled=null;dirty=false;checked=false;inFlight=null;clearTimeout(refreshTimer);clearTimeout(revealTimer);refreshTimer=null;revealTimer=null;
+   generation++;cooldownRetry=false;failures=0;lastRefresh=0;clearTimeout(followupTimer);followupTimer=null;presented.clear();ackInFlight=null;if(current)restorePresented();favorites=null;stats=null;session=current;cache=null;enabled=null;dirty=false;checked=false;inFlight=null;clearTimeout(refreshTimer);clearTimeout(revealTimer);refreshTimer=null;revealTimer=null;
    UI.close();entry?.remove();entry=null;adminEntry?.remove();adminEntry=null;
   }
   return current;
@@ -58,16 +61,21 @@
   form.onsubmit=async e=>{e.preventDefault();if(key()!==owner)return;submit.disabled=true;try{const r=await call('achievement_admin_grant',{username:username.value.trim(),badgeId:badge.value,eventDate:date.value,confirmed:confirm.checked});if(!r.ok)throw Error();status.textContent='发放成功（已有徽章不会重复发放）';confirm.checked=false;queue()}catch(_){status.textContent='发放失败，请核对账号、日期和管理员权限。'}finally{submit.disabled=false}};
   dialog.showModal();
  }
- function acknowledge(ids,owner){
-  if(key()!==owner)return;call('achievement_ack',{badgeIds:ids}).then(()=>{if(key()!==owner)return;const set=new Set(ids);cache=(cache||[]).map(a=>set.has(a.badge_id)?{...a,seen_at:new Date().toISOString()}:a);mount()}).catch(()=>{});
+ function acknowledge(){
+  if(ackInFlight)return;
+  const owner=session,ids=(cache||[]).filter(a=>a.badge_id!=='triple'&&!a.seen_at&&presented.has(a.badge_id)).map(a=>a.badge_id);
+  if(!ids.length||key()!==owner)return;
+  const request=call('achievement_ack',{badgeIds:ids});ackInFlight=request;
+  request.then(r=>{if(key()!==owner||!r.ok)return;const set=new Set(ids);cache=(cache||[]).map(a=>set.has(a.badge_id)?{...a,seen_at:a.seen_at||new Date().toISOString()}:a);mount()}).catch(()=>{}).finally(()=>{if(ackInFlight===request)ackInFlight=null});
  }
  function reveal(){
   clearTimeout(revealTimer);revealTimer=null;if(!sync()||enabled!==true||document.hidden)return;
+  restorePresented();acknowledge();
   const fresh=(cache||[]).filter(a=>a.badge_id!=='triple'&&!a.seen_at&&!presented.has(a.badge_id)&&C.badges.some(b=>b.id===a.badge_id));if(!fresh.length)return;
   if(blocked()){revealTimer=setTimeout(reveal,1800);return}
   const owner=session,badges=new Map(C.badges.map(b=>[b.id,b]));
   const ordered=[...fresh].sort((a,b)=>tierOrder.indexOf(badges.get(b.badge_id).tier)-tierOrder.indexOf(badges.get(a.badge_id).tier));
-  const first=ordered[0];fresh.forEach(a=>presented.add(a.badge_id));UI.show(badges.get(first.badge_id),first,{stats,play:true,autoFlip:true,batch:fresh.length,ack:()=>acknowledge(fresh.map(x=>x.badge_id),owner),onGallery:()=>{if(key()===owner)openCollection()}});
+  const first=ordered[0];UI.show(badges.get(first.badge_id),first,{stats,play:true,autoFlip:true,batch:fresh.length,ack:()=>{if(key()===owner)acknowledge()},onGallery:()=>{if(key()===owner)openCollection()}});rememberPresented(fresh.map(a=>a.badge_id));acknowledge();
  }
  function queue(delay=700){if(!sync()||enabled===false)return;cooldownRetry=false;dirty=true;clearTimeout(refreshTimer);refreshTimer=setTimeout(refresh,delay)}
  async function refresh(){
