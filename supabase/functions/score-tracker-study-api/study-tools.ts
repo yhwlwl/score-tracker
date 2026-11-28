@@ -29,7 +29,7 @@ type Axis = { key: string; label: string; detail?: string };
 type Row = { id: number; exam: any; actual: any; axis: Axis };
 type Point = Axis & { value: number | null; low?: number; high?: number; forecast?: true; scoreMax?: number };
 type Series = { id: number; label: string; metric: Metric; points: Point[]; dimension: Dimension };
-type Chart = { type: 'line' | 'bar' | 'table' | 'radar' | 'scatter' | 'heatmap'; title: string; series: Series[] };
+type Chart = { type: 'line' | 'bar' | 'table' | 'radar' | 'scatter' | 'heatmap'; title: string; series: Series[]; defaultMetric?: Metric };
 type Snapshot = {
   exams: any[]; modules: any[]; plans?: any[];
   details?: (kind: 'reflection' | 'types' | 'paper', ids: string[], subjects: string[]) => Promise<any[]>;
@@ -947,7 +947,8 @@ export function studyTools({ exams, modules, plans = [], details, longGoal }: Sn
     const honestTitle=forecastSeries ? forecastSeries.label+(forecastSeries.metric==='rank'?'下次年级排名估计':'下次成绩估计') :
       anchor.dimension==='subjects' ? (subjects.length>1?subjects.slice(0,3).join('与')+'：':'各科')+labels+suffix :
       (subjects.length>4?'多科':subjects.join('、'))+'：'+labels+suffix;
-    return { type, title: honestTitle, series: input };
+    const chosen=input.find(s=>s.metric===spec?.metric)?.metric;
+    return { type, title: honestTitle, series: input, ...(forecastSeries?{defaultMetric:forecastSeries.metric}:chosen?{defaultMetric:chosen}:{}) };
   }
 
   // Client-side calculator is derived from actual exam records, not arbitrary model values.
