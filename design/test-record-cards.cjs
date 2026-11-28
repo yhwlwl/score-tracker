@@ -26,6 +26,18 @@ function check(source,citySource,run){
   assert.ok(rankOnly.includes('市级排名')&&rankOnly.includes('<strong>77</strong><small>/100</small>'));
   const empty=env.recordHtml({id:'e',name:'空记录',scores:{}});
   assert.ok(empty.includes('尚未填写分数或排名')&&!empty.includes('record-total-ranks-v26'));
+  const compact=env.recordHtml({id:'compact',name:'精简',scores:{数学:{actual:0,max:150},化学:{actual:70},物理:{target:0},历史:{},英语:{actual:95}},total:0,ranks:{化学:{year:{rank:3,participants:40}},历史:{class:{directPercent:true,positionPercent:0}}}});
+  assert.ok(!compact.includes('—')&&!compact.includes('record-metric-empty-v26'));
+  assert.equal((compact.match(/class="record-subgrid-v26"/g)||[]).length,1);
+  assert.equal((compact.match(/class="record-rankgrid-v26"/g)||[]).length,2);
+  assert.equal((compact.match(/>目标</g)||[]).length,1);
+  assert.ok(compact.includes('<strong>0</strong>')&&compact.includes('<span>0</span><small>/150</small>')&&compact.includes('前 0%'));
+  assert.ok(!compact.includes('>原始<')&&!compact.includes('班级排名'));
+  const noRanks=env.recordHtml({id:'none',name:'只填分',scores:{数学:{actual:80}},total:80});
+  assert.ok(!noRanks.includes('record-rankgrid-v26')&&!noRanks.includes('record-total-ranks-v26')&&!noRanks.includes('record-subgrid-v26'));
+  assert.ok(!rankOnly.includes('—')&&!rankOnly.includes('class="t-big"'));
+  const comboMissing=env.recordHtml({id:'combo',name:'组合缺项',scores:{},moduleIds:['m'],moduleRanks:{m:{yearRank:2,yearParticipants:20}},combo:{actual:0,max:450}});
+  assert.ok(comboMissing.includes('<span>0</span><small>/450</small>')&&comboMissing.includes('<strong>2</strong><small>/20</small>')&&!comboMissing.includes('—')&&!comboMissing.includes('record-subgrid-v26')&&!comboMissing.includes('班级排名'));
   const unordered=env.recordHtml({id:'order',name:'顺序',scores:{化学:{actual:92},地理:{actual:93},数学:{actual:133},物理:{actual:91},英语:{actual:135},语文:{actual:132},政治:{actual:88},生物:{actual:90},历史:{actual:89}}});
   const orderIdx=['语文','数学','英语','物理','历史','化学','生物','地理','政治'].map(s=>unordered.indexOf('>'+s+'<'));
   assert.ok(orderIdx.every((pos,i)=>pos>0&&(i===0||pos>orderIdx[i-1])),'record subjects must follow 语数外物历化生地政');

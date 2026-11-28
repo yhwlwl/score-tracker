@@ -5782,7 +5782,7 @@ saveExam=async function saveExamV21(id,modal){
       .record-total-ranks-v26{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;padding-top:9px;border-top:1px solid var(--line)}
       .score-grid-v26{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,calc(148px * var(--ui-scale,1))),1fr));gap:8px;min-width:0}
       .score-total-strip-v26+.score-grid-v26:not(:empty){margin-top:8px}
-      .score-cell-v26{background:var(--cell,#f6f7fa);border:1px solid transparent;border-radius:12px;padding:10px;min-width:0;display:grid;grid-template-rows:auto auto 1fr auto;align-content:start;gap:4px}
+      .score-cell-v26{background:var(--cell,#f6f7fa);border:1px solid transparent;border-radius:12px;padding:10px;min-width:0;display:flex;flex-direction:column;gap:5px}
       .score-cell-v26.combo{background:var(--combo-cell,#f6f9ff);border-color:var(--combo-line,#d8e4fd)}
       .sc-name-v26{display:flex;align-items:center;flex-wrap:wrap;gap:3px;font-weight:600;color:var(--muted);min-width:0;overflow-wrap:anywhere}
       .score-cell-v26.combo .sc-name-v26{color:var(--accent,#5d72e8)}
@@ -5790,8 +5790,8 @@ saveExam=async function saveExamV21(id,modal){
       .score-cell-v26 .sc-val-v26{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 2px;font-size:calc(21px * var(--ui-scale,1));font-weight:650;line-height:1.25;color:var(--text);font-variant-numeric:tabular-nums;min-width:0;overflow-wrap:anywhere}
       .score-cell-v26 .sc-val-v26 small{font-size:calc(12px * var(--ui-scale,1));font-weight:400;color:var(--muted);white-space:nowrap;max-width:100%}
       .record-subgrid-v26,.record-rankgrid-v26{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 8px;min-width:0;align-items:start}
-      .record-subgrid-v26{min-height:0;align-self:start}
-      .record-rankgrid-v26{border-top:1px solid var(--line);padding-top:7px;margin-top:3px}
+      .record-subgrid-v26{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;min-height:0}.record-subgrid-v26 .record-metric-v26{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 4px}
+      .record-rankgrid-v26{border-top:1px solid var(--line);padding-top:7px;margin-top:auto}.score-cell-v26 .record-rankgrid-v26{margin-top:auto}.record-rankgrid-v26:has(>.record-metric-v26:only-child),.record-total-ranks-v26:has(>.record-metric-v26:only-child){grid-template-columns:minmax(0,1fr)}
       .record-metric-v26{display:grid;gap:1px;min-width:0}
       .record-metric-label-v26{font-size:calc(11px * var(--ui-scale,1));line-height:1.35;color:var(--muted);overflow-wrap:anywhere}
       .record-metric-value-v26{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 1px;font-size:calc(14px * var(--ui-scale,1));line-height:1.35;font-variant-numeric:tabular-nums;color:var(--text);min-width:0}
@@ -5799,7 +5799,6 @@ saveExam=async function saveExamV21(id,modal){
       .record-metric-value-v26 small{font-size:calc(11px * var(--ui-scale,1));color:var(--muted);font-weight:400;white-space:normal;overflow-wrap:anywhere;min-width:0}
       .record-subgrid-v26 .record-metric-value-v26{font-size:calc(13px * var(--ui-scale,1));font-weight:500;color:var(--muted)}
       .record-total-ranks-v26 .record-metric-value-v26{font-size:calc(17px * var(--ui-scale,1))}
-      .record-metric-empty-v26 .record-metric-value-v26{color:var(--muted)}
       .records-empty-v26{font-size:var(--ui-caption,12px);color:var(--muted)}
       @container record-scores (min-width:500px){
         .record-total-ranks-v26{grid-template-columns:repeat(auto-fit,minmax(min(100%,calc(96px * var(--ui-scale,1))),1fr))}
@@ -5829,23 +5828,25 @@ saveExam=async function saveExamV21(id,modal){
     }catch(e){return{};}
   }
   function presentV26(v){return v!==null&&v!==undefined&&v!=='';}
-  function metricV26(label,value,denominator,empty){
-    return '<div class="record-metric-v26'+(empty?' record-metric-empty-v26':'')+'"><span class="record-metric-label-v26">'+escapeHtml(label)+'</span><span class="record-metric-value-v26"><strong>'+escapeHtml(value)+'</strong>'+(presentV26(denominator)?'<small>/'+escapeHtml(denominator)+'</small>':'')+'</span></div>';
+  function metricV26(label,value,denominator){
+    return '<div class="record-metric-v26"><span class="record-metric-label-v26">'+escapeHtml(label)+'</span><span class="record-metric-value-v26"><strong>'+escapeHtml(value)+'</strong>'+(presentV26(denominator)?'<small>/'+escapeHtml(denominator)+'</small>':'')+'</span></div>';
   }
-  function rankMetricV26(info,label,withEmpty){
-    if(info&&info.directPercent&&presentV26(info.positionPercent))return metricV26(label+'位比','前 '+formatPercent(info.positionPercent),null,false);
-    if(info&&presentV26(info.rank))return metricV26(label+'排名',formatScore(info.rank),presentV26(info.participants)?formatScore(info.participants):null,false);
-    return withEmpty?metricV26(label+'排名','—',null,true):'';
+  function rankMetricV26(info,label){
+    if(info&&info.directPercent&&presentV26(info.positionPercent))return metricV26(label+'位比','前 '+formatPercent(info.positionPercent),null);
+    if(info&&presentV26(info.rank))return metricV26(label+'排名',formatScore(info.rank),presentV26(info.participants)?formatScore(info.participants):null);
+    return '';
   }
   function rankPairV26(year,cls){
-    if(!rankMetricV26(year,'年级',false)&&!rankMetricV26(cls,'班级',false))return '';
-    return '<div class="record-rankgrid-v26">'+rankMetricV26(year,'年级',true)+rankMetricV26(cls,'班级',true)+'</div>';
+    var ranks=rankMetricV26(year,'年级')+rankMetricV26(cls,'班级');
+    return ranks?'<div class="record-rankgrid-v26">'+ranks+'</div>':'';
   }
   function subGridV26(raw,target,single){
-    return '<div class="record-subgrid-v26">'+(single?'':metricV26('原始',presentV26(raw)?formatScore(raw):'—',null,!presentV26(raw)))+metricV26('目标',presentV26(target)?formatScore(target):'—',null,!presentV26(target))+'</div>';
+    var metrics=(!single&&presentV26(raw)?metricV26('原始',formatScore(raw),null):'')+(presentV26(target)?metricV26('目标',formatScore(target),null):'');
+    return metrics?'<div class="record-subgrid-v26">'+metrics+'</div>':'';
   }
   function scoreValueV26(value,max){
-    return '<div class="sc-val-v26"><span>'+escapeHtml(presentV26(value)?formatScore(value):'—')+'</span>'+(presentV26(value)&&presentV26(max)&&Number(max)>0?'<small>/'+escapeHtml(formatScore(max))+'</small>':'')+'</div>';
+    if(!presentV26(value))return '';
+    return '<div class="sc-val-v26"><span>'+escapeHtml(formatScore(value))+'</span>'+(presentV26(max)&&Number(max)>0?'<small>/'+escapeHtml(formatScore(max))+'</small>':'')+'</div>';
   }
   function subjectCellV26(exam,name){
     var row=(exam.scores&&exam.scores[name])||{};
@@ -5886,12 +5887,12 @@ saveExam=async function saveExamV21(id,modal){
     if(finalOnlyExamV62(exam)||(raw!==null&&fin!==null&&Math.abs(Number(fin)-Number(raw))<0.000001))raw=null;
     var year=rankInfoByScopeV16(exam,'总分','year'),cls=rankInfoByScopeV16(exam,'总分','class');
     var city=typeof window.ScoreRecordCityRanksV33==='function'?window.ScoreRecordCityRanksV33(exam):{};
-    var ranks=rankMetricV26(year,'年级',false)+rankMetricV26(cls,'班级',false)
-      +rankMetricV26({rank:num(city.cityRank),participants:num(city.cityParticipants)},'市级',false)
-      +rankMetricV26({rank:num(city.districtRank),participants:num(city.districtParticipants)},'区级',false);
+    var ranks=rankMetricV26(year,'年级')+rankMetricV26(cls,'班级')
+      +rankMetricV26({rank:num(city.cityRank),participants:num(city.cityParticipants)},'市级')
+      +rankMetricV26({rank:num(city.districtRank),participants:num(city.districtParticipants)},'区级');
     if(fin===null&&raw===null&&!ranks)return '';
     return '<div class="score-total-strip-v26"><div class="record-total-head-v26"><span class="t-label">总分</span>'
-      +'<span class="t-big">'+escapeHtml(fin===null?'—':formatScore(fin))+'</span>'
+      +(presentV26(fin)?'<span class="t-big">'+escapeHtml(formatScore(fin))+'</span>':'')
       +(raw!==null?'<span class="t-sub">原始总分 '+escapeHtml(formatScore(raw))+'</span>':'')
       +'</div>'+(ranks?'<div class="record-total-ranks-v26">'+ranks+'</div>':'')+'</div>';
   }
