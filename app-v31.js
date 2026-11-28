@@ -74,6 +74,14 @@ function injectStylesV31(){
       '.rank-legend-v7{display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;padding:0 0 6px;scrollbar-width:none;-webkit-overflow-scrolling:touch;touch-action:pan-x;overscroll-behavior-x:contain}' +
       '.rank-legend-v7::-webkit-scrollbar{display:none}' +
       '.rank-legend-v7 .label{margin-left:14px}' +
+      /* Keep mobile trend legends on one row; only the legend itself scrolls. */
+      '.chart-card .trend-legend-row-v25{display:block;overflow:visible;padding:0;cursor:auto}' +
+      '.chart-card :is(.overview-legend,.rank-legend-v7,.trend-legend-row-v25 .legend){display:flex;flex-wrap:nowrap;gap:6px;max-width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;padding-bottom:2px;scrollbar-width:none;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y}' +
+      '.chart-card :is(.overview-legend,.rank-legend-v7,.trend-legend-row-v25 .legend)>span{flex:0 0 auto;white-space:nowrap;word-break:keep-all;overflow-wrap:normal}' +
+      '.chart-card :is(.overview-legend .overview-pill,.rank-legend-v7 span:not(.lg-hint-v31)){display:inline-flex;align-items:center;gap:5px;padding:5px 8px;line-height:1.4;min-height:28px;box-sizing:border-box}' +
+      '.chart-card :is(.overview-legend,.rank-legend-v7,.trend-legend-row-v25 .legend)>span>i{flex:none}' +
+      '.chart-card :is(.overview-legend,.rank-legend-v7,.trend-legend-row-v25 .legend)>span::after{flex:none}' +
+      '.chart-card .trend-legend-row-v25 .trend-scroll-hint-v19{margin:4px 0 0;text-align:right}' +
     '}'
   ].join('\n');
   var st=document.createElement('style');
