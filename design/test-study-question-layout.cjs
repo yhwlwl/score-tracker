@@ -75,6 +75,11 @@ async function main(){
         detail:'2026-10-'+(12+i),value:i===0?75:80+i}));
       stream.emit('result',{status:200,data:{
         id:stream.q.requestId,answer:'**数学**比上次多拿了几分。\n\n排名也更靠前了。',chartAfter:[1],takeaway:'复盘两场数学里进步最大的题型。',
+        widgets:[
+          {type:'sparkline',title:'最近趋势',after:2,series:[{label:'数学',metric:'rate',dimension:'exams',points},{label:'物理',metric:'rate',dimension:'exams',points:points.map((p,i)=>({...p,value:72+i}))}]},
+          {type:'bars',title:'最近成绩对比',after:2,series:[{label:'数学',metric:'rateChange',dimension:'exams',points:points.map((p,i)=>({...p,value:i-3}))}]},
+          {type:'actions',title:'复习安排',after:2,items:[{label:'复盘错题',detail:'检查重复失分'}]}
+        ],
         charged:2,next:'物理也有变化吗？',evidence:[{kind:'change',label:'数学分差',value:'+5 分',source:'月考一 → 月考二'}],
         chart:{type:'line',title:'历次得分率与位置',series:[
           {label:'数学',metric:'rate',dimension:'exams',points},
@@ -90,6 +95,11 @@ async function main(){
       });
       assert.deepEqual(answerStyle,{weight:'400',spacing:'pre-line'});
       assert.equal(await page.locator('.sq-answer strong').textContent(),'数学');
+      assert.equal(await page.locator('.sq-mini-card svg').count(),2);
+      assert.equal(await page.locator('.sq-bar-fill').count(),7);
+      assert.equal(await page.locator('.sq-action-item').count(),1);
+      await page.locator('.sq-mini-data summary').first().click();
+      assert.equal(await page.locator('.sq-mini-data').first().locator('.sq-mini-value').count(),7);
       assert.deepEqual(await page.locator('.sq-turn').evaluate(el=>Array.from(el.children).filter(x=>x.matches('.sq-answer,.sq-chart')).map(x=>x.classList.contains('sq-chart')?'chart':'text')),['text','chart','text']);
       assert.equal(await page.locator('#sq-input').inputValue(),'下一条草稿');
       assert.equal(await page.locator('.sq-chart tbody tr').count(),7);
