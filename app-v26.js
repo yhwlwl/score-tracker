@@ -155,7 +155,14 @@
     var modNames=moduleNamesV26();
     var selected=new Set((exam.moduleIds||[]).map(String));
     var ranksMap=moduleRanksForV26(exam);
-    var names=Object.keys(exam.scores||{}).filter(function(n){return !modNames.has(n);});
+    var rawNames=Object.keys(exam.scores||{}).filter(function(n){return !modNames.has(n);});
+    var orderFallback=['语文','数学','英语','物理','历史','化学','生物','地理','政治'];
+    var names=(typeof window!=='undefined'&&typeof window.sortSubjectNames==='function')
+      ?window.sortSubjectNames(rawNames)
+      :rawNames.slice().sort(function(a,b){
+        var ai=orderFallback.indexOf(a),bi=orderFallback.indexOf(b);
+        return (ai>=0?ai:1000+rawNames.indexOf(a))-(bi>=0?bi:1000+rawNames.indexOf(b));
+      });
     var cells=names.map(function(n){return subjectCellV26(exam,n);}).filter(Boolean).join('');
     var combos=modules.filter(function(m){return m&&m.name&&selected.has(String(m.id));})
       .map(function(m){return comboCellV26(exam,m,ranksMap);}).filter(Boolean).join('');

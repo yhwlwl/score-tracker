@@ -50,7 +50,7 @@ function deriveExamSubjectsV10(exams, templates = []) {
       if (name && !seen.has(name)) { seen.add(name); names.push(name); }
     }
   }
-  return names;
+  return typeof sortSubjectNamesV3 === 'function' ? sortSubjectNamesV3(names) : names;
 }
 
 function applyExamSubjectsV10(exams, templates = []) {

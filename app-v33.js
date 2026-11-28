@@ -54,7 +54,7 @@ function activeSubjects(){
       });
     });
   });
-  return out;
+  return typeof window.sortSubjectNames==="function"?window.sortSubjectNames(out):out;
 }
 function latestScore(name){
   var ex=examSource().slice().sort(function(a,b){
