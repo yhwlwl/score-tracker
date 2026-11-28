@@ -1599,6 +1599,15 @@ state.trendMetric = state.trendMetric || 'score';
 })();
 
 async function dataApiV7(action, payload = {}) {
+  // Private in-memory handoff from a successful save; never serialize it.
+  if (action === 'list_exams' && payload._savedExamSnapshot) {
+    const { _savedExamSnapshot: snapshot, ...rest } = payload;
+    payload = rest;
+    if (state.token && snapshot.owner === state.token && snapshot.data?.user?.id && snapshot.data.user.id === state.user?.id &&
+        snapshot.data.examGoalVersion === 1 && Array.isArray(snapshot.data.exams) &&
+        Array.isArray(snapshot.data.subjects) && Array.isArray(snapshot.data.modules) &&
+        snapshot.data.exams.some(e => e.id === snapshot.examId)) return snapshot.data;
+  }
   const res = await fetch(DATA_API_V7, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -3008,8 +3017,8 @@ applyGradeFilterV13=function applyCategoryFilterV14(){
   state.radarSelection=(state.radarSelection||[]).filter(id=>state.exams.some(e=>e.id===id)); ensureRadarSelection();
 };
 
-loadExams=async function loadExamsV14(){
-  const data=await dataApiV7('list_exams');
+loadExams=async function loadExamsV14(snapshot){
+  const data=await dataApiV7('list_exams',snapshot?{_savedExamSnapshot:snapshot}:undefined);
   state.allExams=data.exams||[]; state.subjectConfigs=data.subjects||[];
   state.classification=data.classification||state.classification||{label:'年级',options:['高一','高二','高三']};
   state.unfilteredVisibleExamsV13=state.allExams.filter(e=>!e.is_hidden);
@@ -3643,7 +3652,7 @@ if(typeof applyExamSubjectsV10==='function'){
   applyExamSubjectsV10=function applyExamSubjectsV18(exams,templates){applyExamSubjectsBeforeV18(exams,templates);appendModulesV18();};
 }
 var loadExamsBeforeV18=loadExams;
-loadExams=async function loadExamsV18(){await loadExamsBeforeV18();await loadModulesV18();if(typeof applyExamSubjectsV10==='function')applyExamSubjectsV10(state.exams||[],state.subjectConfigs||[]);else appendModulesV18();};
+loadExams=async function loadExamsV18(){await loadExamsBeforeV18.apply(this,arguments);await loadModulesV18();if(typeof applyExamSubjectsV10==='function')applyExamSubjectsV10(state.exams||[],state.subjectConfigs||[]);else appendModulesV18();};
 
 function moduleCompleteSumV18(exam,module,key,reader){
   if(!module||!Array.isArray(module.subjects)||module.subjects.length<2)return null;
@@ -4248,7 +4257,7 @@ function cleanSubjectAxisV21(){
   if(!['总览','总分',...SUBJECTS].includes(state.subject))state.subject='总分';
 }
 var loadExamsBeforeV21=loadExams;
-loadExams=async function loadExamsV21(){await loadExamsBeforeV21();cleanSubjectAxisV21();};
+loadExams=async function loadExamsV21(){await loadExamsBeforeV21.apply(this,arguments);cleanSubjectAxisV21();};
 
 moduleSummaryV18=function moduleSummaryV21(exam){
   var selected=new Set((exam?.moduleIds||[]).map(String));
@@ -4330,7 +4339,15 @@ saveExam=async function saveExamV21(id,modal){
   var exam={id:id,name:modal.querySelector('#examName').value.trim(),exam_date:modal.querySelector('#examDate').value,grade_level:modal.querySelector('#gradeLevelV14')?.value||'',total_rank:mode==='rank'?(modal.querySelector('#totalRankV16')?.value||''):'',total_participants:mode==='rank'?(modal.querySelector('#totalParticipantsV16')?.value||''):'',total_class_rank:mode==='rank'?(modal.querySelector('#totalClassRankV16')?.value||''):'',total_class_participants:mode==='rank'?(modal.querySelector('#totalClassParticipantsV16')?.value||''):'',total_year_position_percent:mode==='percent'?(modal.querySelector('.total-year-position-v17')?.value||''):'',total_class_position_percent:mode==='percent'?(modal.querySelector('.total-class-position-v17')?.value||''):'',is_hidden:modal.querySelector('#examHiddenV16')?.value==='1',moduleIds:[...(modal._moduleIdsV21||[])],scores:{}};
   var configured=new Set(configuredSubjectsV21()),seen=new Set();
   for(var card of modal.querySelectorAll('.exam-subject-card-v10')){var name=cardNameV21(card);if(!name)return toast('请选择科目');if(seen.has(name))return toast(`科目「${name}」重复了`);seen.add(name);var historical=!configured.has(name);exam.scores[name]={target:card.querySelector('.target-v16')?.value||'',raw:card.querySelector('.raw-v16')?.value||'',actual:card.querySelector('.actual-v16')?.value||'',rawMax:card.querySelector('.rawmax-v16')?.value||'',max:card.querySelector('.max-v16')?.value||'',rank:mode==='rank'?(card.querySelector('.year-rank-v16')?.value||''):'',participants:mode==='rank'?(card.querySelector('.year-participants-v16')?.value||''):'',classRank:mode==='rank'?(card.querySelector('.class-rank-v16')?.value||''):'',classParticipants:mode==='rank'?(card.querySelector('.class-participants-v16')?.value||''):'',yearPositionPercent:mode==='percent'?(card.querySelector('.year-position-v17')?.value||''):'',classPositionPercent:mode==='percent'?(card.querySelector('.class-position-v17')?.value||''):'',excludeFromTotal:historical?!!card.querySelector('.exclude-total-check-v17')?.checked:false};}
-  if(!exam.name||!exam.exam_date)return toast('请填写考试名称和日期');var error=validateExam(exam);if(error)return toast(error);button.disabled=true;button.textContent='保存中…';try{await dataApiV7('save_exam',{exam:exam});await loadExams();modal.remove();state.modal=null;render();toast(id?'已保存修改':'考试已记录');}catch(e){toast(e.message);button.disabled=false;button.textContent=id?'保存修改':'保存考试';}
+  if(!exam.name||!exam.exam_date)return toast('请填写考试名称和日期');var error=validateExam(exam);if(error)return toast(error);button.disabled=true;button.textContent='保存中…';const owner=state.token;let saved;
+  try{saved=await dataApiV7('save_exam',{exam:exam,return_exam_snapshot:1,exam_goal_version:1});}
+  catch(e){if(state.token===owner){toast(e.message);button.disabled=false;button.textContent=id?'保存修改':'保存考试';}return;}
+  if(state.token!==owner)return;
+  // The write has succeeded; a failed refresh must not invite a duplicate save.
+  const snapshot=saved?.examSnapshot?{owner,examId:saved.id,data:saved.examSnapshot}:undefined;
+  try{await loadExams(snapshot);}catch(e){if(state.token===owner){modal.remove();if(state.modal===modal)state.modal=null;toast('考试已保存，刷新页面查看最新数据');}return;}
+  if(state.token!==owner)return;
+  modal.remove();if(state.modal===modal)state.modal=null;render();toast(id?'已保存修改':'考试已记录');
 };
 
 ;(function(){var s=document.createElement('style');s.textContent='.exam-subject-card-v10[data-final-only-v62="1"] .score-compact-v14{grid-template-columns:minmax(0,1fr) minmax(0,1.65fr)}.exam-subject-card-v10[data-final-only-v62="1"] .target-box-v14{grid-column:auto}.exam-subject-card-v10[data-final-only-v62="1"] :is(.raw-box-v14,.graded-label-v62,.score-entry-tip-v16),.combo-card-v21[data-final-only-v62="1"] .combo-score-v21>span:has([data-combo-raw]),.modal-backdrop[data-final-only-v62="1"] :is(.score-total-box-v13:has(#rawTotalV16),.manual-total-field-v24:has(.total-raw-override-v24)){display:none!important}.modal-backdrop[data-final-only-v62="1"] :is(.score-total-preview-v13,.manual-total-grid-v24){grid-template-columns:minmax(0,1fr)}.modal-backdrop[data-final-only-v62="1"] .score-total-preview-v13 .score-total-box-v13{grid-column:1/-1}@media(max-width:380px){.exam-subject-card-v10[data-final-only-v62="1"] .score-compact-v14{grid-template-columns:minmax(0,1fr)}.exam-subject-card-v10[data-final-only-v62="1"] .target-box-v14{grid-column:1/-1}}';document.head.appendChild(s);})();
@@ -15622,6 +15639,8 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     try {
       var result = await entryApi.apply(this, arguments);
       if (eligible && result && result.ok && result.id && !result.planned && owner() === user && state.token === token && value !== snapshot.base) {
+        // Reflection persists separately, so any earlier snapshot is no longer authoritative.
+        delete result.examSnapshot;
         var saved = await window.ScoreExamReflection.saveEntry({userId:user,token:token,examId:result.id,owns:function(){return owner()===user&&state.token===token;}},snapshot,value);
         if (!saved.ok) entryWarnings.set(modal,saved.local?'成绩已保存，反思草稿已保留，可在考试详情继续同步':'成绩已保存，反思暂未同步，请在详情中重试（暂存于当前页面）');
       }

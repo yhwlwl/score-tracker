@@ -490,6 +490,8 @@
     try {
       var result = await entryApi.apply(this, arguments);
       if (eligible && result && result.ok && result.id && !result.planned && owner() === user && state.token === token && value !== snapshot.base) {
+        // Reflection persists separately, so any earlier snapshot is no longer authoritative.
+        delete result.examSnapshot;
         var saved = await window.ScoreExamReflection.saveEntry({userId:user,token:token,examId:result.id,owns:function(){return owner()===user&&state.token===token;}},snapshot,value);
         if (!saved.ok) entryWarnings.set(modal,saved.local?'成绩已保存，反思草稿已保留，可在考试详情继续同步':'成绩已保存，反思暂未同步，请在详情中重试（暂存于当前页面）');
       }

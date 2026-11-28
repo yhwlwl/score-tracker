@@ -56,6 +56,15 @@ state.trendMetric = state.trendMetric || 'score';
 })();
 
 async function dataApiV7(action, payload = {}) {
+  // Private in-memory handoff from a successful save; never serialize it.
+  if (action === 'list_exams' && payload._savedExamSnapshot) {
+    const { _savedExamSnapshot: snapshot, ...rest } = payload;
+    payload = rest;
+    if (state.token && snapshot.owner === state.token && snapshot.data?.user?.id && snapshot.data.user.id === state.user?.id &&
+        snapshot.data.examGoalVersion === 1 && Array.isArray(snapshot.data.exams) &&
+        Array.isArray(snapshot.data.subjects) && Array.isArray(snapshot.data.modules) &&
+        snapshot.data.exams.some(e => e.id === snapshot.examId)) return snapshot.data;
+  }
   const res = await fetch(DATA_API_V7, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

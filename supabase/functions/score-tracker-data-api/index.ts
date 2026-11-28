@@ -913,15 +913,30 @@ Deno.serve(async (req: Request) => {
       catch (e) { return out({ error: e instanceof Error ? e.message : "默认人数格式不正确" }, 400); }
       const r = await saveExam(user.id, body.exam ?? {});
       if(!r.error&&!r.planned&&body.quick_entry===true){const growth=await db.rpc('score_tracker_growth_observe',{p_user:user.id,p_event:'quick_entry_saved',p_metadata:{exam_id:r.id},p_at:new Date().toISOString()});if(growth.error)console.error('quick_growth_failed',growth.error.code);}
-      if(!r.error && !r.planned){await refreshGrowth(user.id);}
-      if (!r.error && r.created && Object.keys(defaults).length) {
-        try { return out({ ...r, participantDefaults: await saveParticipantDefaults(user.id, defaults, true) }); }
-        catch (e) {
+      if (r.error) return out({ error: r.error }, r.status);
+      // A successful write must remain successful even if an optional read fails.
+      const wantsSnapshot = body.return_exam_snapshot === 1 && body.exam_goal_version === 1;
+      const growth = !r.planned ? refreshGrowth(user.id) : Promise.resolve();
+      if (!wantsSnapshot) await growth;
+      let response: any = r;
+      let snapshotUser = user;
+      if (r.created && Object.keys(defaults).length) {
+        try {
+          const participantDefaults = await saveParticipantDefaults(user.id, defaults, true);
+          response = { ...r, participantDefaults };
+          snapshotUser = { ...user, participant_defaults: participantDefaults };
+        } catch (e) {
           console.error("participant_defaults_remember_failed", e);
-          return out({ ...r, participantDefaultsWarning: "考试已保存，默认人数暂未记住，可在科目设置中保存。" });
+          response = { ...r, participantDefaultsWarning: "考试已保存，默认人数暂未记住，可在科目设置中保存。" };
         }
       }
-      return r.error ? out({ error: r.error }, r.status) : out(r);
+      // Opt-in only: existing clients retain the original response contract.
+      if (wantsSnapshot && !response.participantDefaultsWarning) {
+        try { response = { ...response, examSnapshot: await list(snapshotUser, true) }; }
+        catch (_) { console.error("save_exam_snapshot_failed"); }
+      }
+      await growth;
+      return out(response);
     }
     if (action === "change_password") {
       const r = await changePassword(user.id, body.newPassword);
