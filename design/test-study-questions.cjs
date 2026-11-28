@@ -407,6 +407,22 @@ async function checkAgentCompleteness(snapshot) {
   assert.equal(charts.charts[0].series[0].metric,'rate');
   assert.equal(charts.charts[1].series[0].metric,'rank');
   assert.deepEqual(charts.chartAfter,[1,2]);
+  let miniCalls=0;
+  const compact=await explore(rich,'分析我的数学和物理，给我几个复习建议',[],async messages=>{
+    if(miniCalls++===0)return {tool:'results',scopes:['s:数学','s:物理'],range:'all'};
+    const {results:[result]}=JSON.parse(messages.at(-1).content);
+    const ids=result.series.filter(s=>s.metric==='rate'&&s.dimension==='exams'&&s.points?.filter(p=>Number.isFinite(p.value)).length>=2).map(s=>s.id);
+    assert.ok(ids.length>=2);
+    return {answer:'先看近期状态。\n\n接下来优先复盘。',refs:[result.facts[0].id],components:[
+      {type:'sparkline',series:[...ids,99999],title:'两科走势',after:1},
+      {type:'bars',series:[ids[0]],title:'分数对照',after:1},
+      {type:'actions',title:'复习安排',items:[{label:'复盘近期错题',detail:'优先检查重复失分',refs:[result.facts[0].id]}],after:2}
+    ]};
+  });
+  assert.equal(compact.widgets.find(w=>w.type==='sparkline').series.length,2);
+  assert.equal(compact.widgets.find(w=>w.type==='bars').series.length,1);
+  assert.equal(compact.widgets.find(w=>w.type==='actions').items[0].label,'复盘近期错题');
+  assert.equal(compact.widgets.find(w=>w.type==='actions').after,2);
   let attempt=0;
   const unavailable={...rich,async details(){throw Error('private upstream error')}};
   const partial=await explore(unavailable,'结合数学成绩和考试反思',[],async messages=>{
