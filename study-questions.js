@@ -1,4 +1,4 @@
-// Analysis navigation owns the launcher. The conversation survives a stats-page redraw.
+// Shared, contextual study-question entry points. The conversation survives page redraws.
 (function () {
   'use strict';
   const api = '/api/score-tracker-study-api';
@@ -15,7 +15,7 @@
   const thinkingLabels={low:'低',standard:'标准',high:'高'};
   const thinkingKey=()=> 'st.study.thinking.'+String(state.user?.id||'local');
   function savedThinking(){try{const v=localStorage.getItem(thinkingKey());if(Object.hasOwn(thinkingLabels,v))return v;}catch(_){}return 'standard';}
-  let session, launcher, dialog;
+  let session, launcher, dialog, queued=false, recentSave=null;
   function current() { return typeof state !== 'undefined' && state.user && state.token; }
   function reset() {
     session?.pending?.controller?.abort();
@@ -24,6 +24,8 @@
     dialog?.remove();
     dialog = null;
     session = null;
+    recentSave = null;
+    document.querySelectorAll('[data-sq-entry]').forEach(el=>el.remove());
     launcher?.remove();
     launcher = null;
   }
@@ -39,8 +41,165 @@
     el.addEventListener('click',handler);
     return el;
   }
-  function track(event) {
-    try { window.__stTrack?.(event,{surface:'stats'}); } catch (_) {}
+  function track(event, surface) {
+    try { window.__stTrack?.(event,{surface:surface || session?.surface || 'stats'}); } catch (_) {}
+  }
+  function sparkle() {
+    const el=element('span','sq-entry-spark');
+    el.setAttribute('aria-hidden','true');
+    el.innerHTML='<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.5 2.5c1.2 5.4 2.8 7 8.3 8.3-5.5 1.2-7.1 2.8-8.3 8.3-1.3-5.5-2.9-7.1-8.3-8.3 5.4-1.3 7-2.9 8.3-8.3Z"/><path opacity=".6" d="M19 2c.5 2.4 1.3 3.2 3.7 3.7C20.3 6.2 19.5 7 19 9.4c-.5-2.4-1.3-3.2-3.7-3.7C17.7 5.2 18.5 4.4 19 2Z"/></svg>';
+    return el;
+  }
+  function records() { return Array.isArray(state.allExams)?state.allExams:(Array.isArray(state.exams)?state.exams:[]); }
+  function hasScore(e) {
+    return Object.values(e?.scores||{}).some(s=>s?.actual!=null && s.actual!=='' && Number.isFinite(Number(s.actual))) ||
+      (e?.total_score!=null && e.total_score!=='' && Number.isFinite(Number(e.total_score)));
+  }
+  function homePrompts() {
+    const exams=records().filter(hasScore).sort((a,b)=>String(b.exam_date||'').localeCompare(String(a.exam_date||'')));
+    if(!exams.length)return [];
+    if(exams.length===1)return ['这次考试表现如何？','我的优势科目是什么？'];
+    const a=exams[0],b=exams[1];
+    const same=Object.keys(a.scores||{}).filter(k=>[a,b].every(e=>e.scores?.[k]?.actual!=null && e.scores[k].actual!=='' && Number.isFinite(Number(e.scores[k].actual)) && Number(e.scores[k].max)>0));
+    const moves=same.map(k=>({k,d:100*(Number(a.scores[k].actual)/Number(a.scores[k].max)-Number(b.scores[k].actual)/Number(b.scores[k].max))})).sort((x,y)=>Math.abs(y.d)-Math.abs(x.d));
+    const top=moves.find(x=>/^[\u4e00-\u9fa5]{1,5}$/.test(x.k) && Math.abs(x.d)>=5);
+    return [top?('最近'+top.k+'有什么变化？'):'最近进步了吗？',exams.length>=3?'下一场表现预测':'哪科最值得关注？'];
+  }
+  function entryButton(label, cls, surface, question) {
+    const b=button('',cls,()=>open(surface,typeof question==='function'?question():question));
+    b.append(sparkle(),element('span','',label));
+    b.dataset.sqEntry=surface;
+    return b;
+  }
+  function ensureSession() {
+    const token=current();
+    if(session && token!==session.token)reset();
+    if(!token)return false;
+    if(session?.unavailableAt && Date.now()-session.unavailableAt>60000)reset();
+    if(!session) {
+      const s=session={token,charts:[],pending:null,lastAnswer:null,cap:null,thinking:'standard',thinkingModes:null,surface:'stats'};
+      request(s,{action:'study_status'}).then(value=>{
+        if(s!==session||token!==current())return;
+        if(!value.enabled){s.unavailableAt=Date.now();return;}
+        s.cap=value.cap;
+        if(value.thinkingModes&&Object.keys(thinkingLabels).every(k=>Number.isFinite(value.thinkingModes[k])&&value.thinkingModes[k]>0)){
+          s.thinkingModes=value.thinkingModes;s.thinking=savedThinking();
+        }
+        scheduleEntries();
+      }).catch(()=>{if(s===session)s.unavailableAt=Date.now();});
+    }
+    return session.cap!=null;
+  }
+  function examQuestion(name,date) {
+    return ('请分析'+(date?date+'的':'')+'「'+String(name||'本次考试').slice(0,100)+'」表现，结合历史成绩、排名与考试难度。').slice(0,300);
+  }
+  function homeEntry(content) {
+    const prompts=homePrompts();
+    const key=prompts.join('|');
+    let host=content.querySelector('[data-sq-entry="home"]');
+    if(!prompts.length){host?.remove();return;}
+    if(host?.dataset.key===key)return;
+    host?.remove();
+    host=element('section','sq-home-entry');host.dataset.sqEntry='home';host.dataset.key=key;
+    const heading=element('div','sq-home-heading');
+    heading.append(sparkle(),element('strong','','AI 学情助手'));
+    const start=button('','sq-home-input',()=>open('home'));
+    start.append(element('span','','关于成绩，想问点什么？'),element('span','sq-home-arrow','↑'));
+    const suggestions=element('div','sq-home-suggestions');
+    prompts.forEach(q=>{const b=button(q,'sq-home-prompt',()=>open('home_suggestion',q));suggestions.append(b);});
+    host.append(heading,start,suggestions);
+    const hero=content.querySelector(':scope > .hero');
+    if(hero)hero.after(host);else content.prepend(host);
+    track('study_entry_mounted','home');
+  }
+  const chartPrompts=[
+    [/成绩含金量/,'请解读我的成绩含金量，实际分数与历史难度等效成绩有什么区别？'],
+    [/学习状态预测/,'结合我的历史记录，解读下一场考试的预测及波动范围。'],
+    [/相似轨迹/,'请解读我的相似轨迹，有哪些值得参考的信息？'],
+    [/目标校准|目标分析/,'请分析我的目标达成情况，哪些目标值得调整？'],
+    [/趋势与进步|成绩与排名|成绩趋势/,'请解读我的成绩和排名趋势，有哪些值得关注的变化？'],
+    [/学科定位|学科结构/,'请解读我的学科表现，哪些科目是优势或值得关注？']
+  ];
+  function chartQuestion(card,prompt) {
+    const selected=[...card.querySelectorAll('select')].filter(e=>!e.disabled&&e.offsetParent!==null).map(e=>e.selectedOptions?.[0]?.textContent?.trim()).filter(Boolean);
+    const chips=[...card.querySelectorAll('.chip.active, .chip[aria-pressed="true"]')].filter(e=>e.offsetParent!==null).map(e=>e.textContent.trim()).filter(Boolean);
+    const scope=[...new Set([...selected,...chips])].slice(0,6).join('、').slice(0,100);
+    return scope?prompt+' 当前图表筛选：'+scope+'。':prompt;
+  }
+  function chartEntries(page) {
+    if(!page)return;
+    for(const card of page.querySelectorAll(':scope > .card, :scope > section.card')) {
+      const title=card.querySelector('.card-title,.dsb-head > span,.dsb-head');
+      if(!title||card.querySelector('[data-sq-entry="chart"]'))continue;
+      const titleText=title.textContent.trim();
+      const match=chartPrompts.find(([rx])=>rx.test(titleText));
+      if(!match)continue;
+      const b=entryButton('解读','sq-chart-entry','chart',()=>chartQuestion(card,match[1]));
+      b.setAttribute('aria-label','AI 解读 '+titleText);
+      title.after(b);
+    }
+  }
+  function syncEntries() {
+    if(!ensureSession())return;
+    const content=document.getElementById('content');
+    if(!content)return;
+    const page=state.page;
+    const detail=content.querySelector('.ed-page');
+    const top=document.querySelector('#app .topbar');
+    const existingTop=top?.querySelector('[data-sq-entry="global"]');
+    if(page==='home'||page==='stats'||detail){existingTop?.remove();}
+    else if(top&&!existingTop){
+      const b=entryButton('问 AI','sq-global-entry','global');
+      b.setAttribute('aria-label','问 AI');
+      const nav=top.querySelector('.desktop-nav');
+      if(nav)nav.before(b);else top.append(b);
+      track('study_entry_mounted','global');
+    }
+    if(page==='home')homeEntry(content);
+    if(page==='stats'){
+      const analysis=content.querySelector('.an-layout');
+      attach(analysis,analysis?.querySelector(':scope > .an-navigation'));
+      chartEntries(analysis);
+    }
+    if(detail&&!detail.querySelector('[data-sq-entry="exam_detail"]')){
+      const overview=detail.querySelector('.ed-overview');
+      const heading=detail.querySelector('.ed-heading h1');
+      if(overview&&heading){
+        const b=entryButton('这次考得怎么样？','sq-context-entry','exam_detail',()=>examQuestion(heading.textContent.trim(),detail.querySelector('.ed-heading p')?.textContent.trim().split(' · ')[0]));
+        b.append(element('small','','结合历史表现分析'),element('span','sq-context-arrow','›'));
+        overview.after(b);
+        track('study_entry_mounted','exam_detail');
+      }
+    }
+    const existingSave=content.querySelector('[data-sq-entry="saved"]');
+    if(recentSave && recentSave.token===current() && recentSave.until>Date.now() && !detail && (page==='home'||page==='records')){
+      if(!existingSave){
+        const el=element('div','sq-saved-entry');el.dataset.sqEntry='saved';
+        el.append(entryButton('看看这次考试有哪些变化','sq-saved-action','saved_action',()=>examQuestion(recentSave.exam.name,recentSave.exam.exam_date)),button('×','sq-saved-dismiss',()=>{recentSave=null;el.remove();}));
+        el.lastChild.setAttribute('aria-label','关闭本次考试分析建议');
+        content.prepend(el);track('study_entry_mounted','saved');
+      }
+    }else existingSave?.remove();
+  }
+  function scheduleEntries(){
+    if(queued)return;queued=true;
+    requestAnimationFrame(()=>{queued=false;syncEntries();});
+  }
+  // Observe only successful new records, never draft edits or failed saves.
+  if(typeof saveExam==='function'){
+    const saveBefore=saveExam;
+    saveExam=async function(id,modal){
+      const token=current(),before=new Set(records().map(e=>String(e.id)));
+      const result=await saveBefore.apply(this,arguments);
+      if(!id&&token&&token===current()&&modal&&!modal.isConnected){
+        const added=records().filter(e=>!before.has(String(e.id))&&hasScore(e));
+        if(added.length===1){
+          recentSave={token,exam:added[0],until:Date.now()+120000};
+          scheduleEntries();
+        }
+      }
+      return result;
+    };
   }
   function apiResult(ok, value) {
     if (!ok || !value) {
@@ -84,34 +243,18 @@
     const value = await response.json().catch(()=>null);
     return apiResult(response.ok,value);
   }
-  function attach(page, anchor) {
-    const token = current();
-    if (session && token !== session.token) reset();
-    if (!page || !anchor || !token) return;
-    if (!session) {
-      const s = session = {token,charts:[],pending:null,lastAnswer:null,cap:null,thinking:'standard',thinkingModes:null};
-      request(s,{action:'study_status'}).then(value=>{
-        if (s!==session || token!==current() || !value.enabled) return;
-        s.cap=value.cap;
-        if(value.thinkingModes&&Object.keys(thinkingLabels).every(k=>Number.isFinite(value.thinkingModes[k])&&value.thinkingModes[k]>0)){
-          s.thinkingModes=value.thinkingModes;s.thinking=savedThinking();
-        }
-        const mounted=document.querySelector('#content .an-layout');
-        attach(mounted,mounted?.querySelector(':scope > .an-navigation'));
-      }).catch(()=>{ if (s===session) s.unavailableAt=Date.now(); });
-    }
-    if (session.unavailableAt && Date.now()-session.unavailableAt>60000) { reset(); attach(page,anchor); return; }
-    if (session.cap==null || launcher?.parentNode===page) return;
-    launcher = button('','an-study-open',open);
+  function attach(page,anchor) {
+    if(!page||!anchor||!ensureSession()||launcher?.parentNode===page)return;
+    launcher=entryButton('问 AI','an-study-open','stats');
+    // Retain the existing accessible label for compatibility with the current layout tests.
     launcher.setAttribute('aria-label','问成绩');
-    const icon=element('span','sq-spark','✦');
-    const arrow=element('span','sq-launch-arrow','→');
-    icon.setAttribute('aria-hidden','true');
-    arrow.setAttribute('aria-hidden','true');
-    const copy=element('span','sq-launch-copy');
-    copy.append(element('strong','','问成绩'),element('small','','趋势、排名、下一场，都可以问'));
-    launcher.append(icon,copy,arrow);
+    const label=launcher.querySelector('span:last-child');
+    label.className='sq-launch-copy';
+    label.textContent='';
+    label.append(element('strong','','问 AI'),element('small','','趋势、排名、下一场，都可以问'));
+    launcher.append(element('span','sq-launch-arrow','›'));
     anchor.after(launcher);
+    track('study_entry_mounted','stats');
   }
   function pick(text) {
     const input = dialog.querySelector('textarea');
@@ -445,7 +588,7 @@
       s.lastAnswer=reply.id;
       s.pending=null;
       if (following) article.scrollIntoView?.({block:'start',behavior:'instant'});
-      track('study_question_answered');
+      track('study_question_answered',pending.surface);
     } catch (error) {
       if (!active()) return;
       if (error.code==='retry' || error.code==='study_failed') pending.payload.requestId=crypto.randomUUID();
@@ -482,12 +625,14 @@
     feedback.append(status);
     article.append(element('p','sq-question',question),feedback);
     list.append(article);
-    const pending=s.pending={article,feedback,status,payload:{question,previous:s.lastAnswer,requestId:crypto.randomUUID(),...(s.thinkingModes?{thinking:s.thinking}:{})}};
+    const pending=s.pending={article,feedback,status,surface:s.surface,payload:{question,previous:s.lastAnswer,requestId:crypto.randomUUID(),...(s.thinkingModes?{thinking:s.thinking}:{})}};
+    track('study_question_sent',s.surface);
     send(s,pending);
     article.scrollIntoView?.({block:'nearest',behavior:'instant'});
   }
-  function open() {
-    if (!session || current()!==session.token) return;
+  function open(surface='stats',question='') {
+    if (!session || current()!==session.token || session.cap==null) return;
+    session.surface=surface;
     if (!dialog) {
       dialog=element('dialog','sq-dialog');
       dialog.setAttribute('aria-labelledby','sq-title');
@@ -509,15 +654,18 @@
       const welcome=element('section','sq-welcome');
       welcome.append(element('h3','','想聊哪门成绩？'));
       const choices=element('div','sq-choices');
-      starters.forEach(q=>choices.append(button(q,'sq-choice',()=>pick(q))));
+      const recommended=homePrompts();
+      [...new Set([...recommended,...starters])].slice(0,3).forEach(q=>choices.append(button(q,'sq-choice',()=>pick(q))));
       welcome.append(choices);
       dialog.querySelector('.sq-thread').append(welcome);
       controls();
     }
     if (!dialog.open) dialog.showModal();
-    track('study_question_open');
+    if(question && !session.pending?.running)pick(String(question).slice(0,300));
+    track('study_question_open',surface);
   }
-  window.ScoreStudyQuestions={attach};
+  window.ScoreStudyQuestions={attach,open};
   const root=document.getElementById('app') || document.body;
-  new MutationObserver(()=>{if(session && current()!==session.token)reset();}).observe(root,{childList:true,subtree:true});
+  new MutationObserver(scheduleEntries).observe(root,{childList:true,subtree:true});
+  scheduleEntries();
 })();
