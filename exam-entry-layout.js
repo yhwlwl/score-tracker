@@ -20,7 +20,7 @@
     '.st-entry-layout .score-compact-v14 .target-box-v14:not([hidden]){grid-column:1/-1}',
     '.st-entry-layout .score-compact-v14 .mini-field-v10{min-width:0;padding:0!important;background:transparent!important;border:0!important;border-radius:0!important;margin:0!important}',
     '.st-entry-layout .score-compact-v14 .mini-field-v10 label{white-space:normal;margin:0 0 5px;font-size:11px;line-height:1.4}',
-    '.st-entry-layout .score-entry-tip-v16{display:none!important}',
+    '.st-entry-layout .score-entry-tip-v16{display:block;color:var(--muted);font-size:10px;font-weight:400;line-height:1.35;margin:2px 0 0}',
     '.st-entry-layout .score-with-max-v14{grid-template-columns:minmax(0,1fr) auto minmax(42px,.65fr)!important;gap:5px!important}',
     '.st-entry-layout .score-with-max-v14 input{min-width:0!important;width:100%;min-height:38px;padding:7px 6px!important;text-align:center;box-sizing:border-box}',
     '.st-entry-layout .subject-ranks-v16{margin:0!important;gap:6px!important;padding:2px 0 4px}',
