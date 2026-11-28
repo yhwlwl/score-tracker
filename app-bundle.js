@@ -5858,7 +5858,7 @@ saveExam=async function saveExamV21(id,modal){
     var single=finalOnlySubjectV62(name),rawShown=raw!==null&&(a===null||Number(raw)!==Number(a))?raw:null;
     return '<div class="score-cell-v26">'
       +'<div class="sc-name-v26" title="'+escapeHtml(name)+'">'+escapeHtml(name)+(row.excludeFromTotal?'<span class="stat-badge-v17">统计项</span>':'')+'</div>'
-      +scoreValueV26(eff,single?(a===null?(row.rawMax??row.max):row.max):null)
+      +scoreValueV26(eff,a===null?(num(row.rawMax)??num(row.max)):num(row.max))
       +subGridV26(rawShown,t,single)
       +rank
       +'</div>';

@@ -22,6 +22,12 @@ function check(source,citySource,run){
     const graded=env.recordHtml({id:'graded',name:'赋分',scores:{[subject]:{actual:86,max:100,raw:72,rawMax:100,target:90}},total:86,rawTotal:72});
     assert.ok(graded.includes('>86<')&&graded.includes('>72<')&&graded.includes('原始总分 72'),subject+' must retain both scores');
   }
+  const distinctMax=env.recordHtml({id:'scale',name:'不同满分',scores:{物理:{actual:80,max:100,raw:55,rawMax:70},化学:{raw:64,rawMax:70,max:100},生物:{actual:0,max:80},地理:{actual:65,max:120},政治:{actual:70}}});
+  assert.ok(distinctMax.includes('<span>80</span><small>/100</small>'));
+  assert.ok(distinctMax.includes('<span>64</span><small>/70</small>'));
+  assert.ok(distinctMax.includes('<span>0</span><small>/80</small>'));
+  assert.ok(distinctMax.includes('<span>65</span><small>/120</small>'));
+  assert.ok(distinctMax.includes('<span>70</span></div>'),'unknown max stays unknown');
   const rankOnly=env.recordHtml({id:'r',name:'仅排名',scores:{},city_rank:77,city_participants:100});
   assert.ok(rankOnly.includes('市级排名')&&rankOnly.includes('<strong>77</strong><small>/100</small>'));
   const empty=env.recordHtml({id:'e',name:'空记录',scores:{}});
