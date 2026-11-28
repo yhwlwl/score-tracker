@@ -11,7 +11,7 @@ const instant=v=>new Date(typeof v==='string'?v.replace(/^(\d{4}-\d{2}-\d{2}) /,
 const date=(v,dayOnly=false)=>{if(!v)return'—';const d=instant(v);return Number.isFinite(d.getTime())?new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit',...(dayOnly?{}:{hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'})}).format(d):'—'};
 function user(){try{return state.user&&state.token&&state.user.id&&state.user.id!=='guest'?{id:String(state.user.id),token:state.token}:null}catch(_){return null}}
 function key(u){return u?u.id+':'+u.token:''}
-let owner='',data=null,dialog=null,entry=null,inflight=false,last=0,shown=false,generation=0,seenPending=false,controller=null,ackPending=false,updateOpenDialog=null;
+let owner='',data=null,dialog=null,entry=null,inflight=false,last=0,shown=false,generation=0,seenPending=false,controller=null,ackPending=false,updateOpenDialog=null,initialFailures=0;
 function track(event,meta={}){try{(g.__scoreTrackerTrack||g.__stTrack)?.(event,{notice_id:NOTICE_ID,...meta})}catch(_){}}
 function current(k){return !!k&&key(user())===k&&owner===k}
 async function api(action,u,signal){
@@ -21,16 +21,17 @@ async function api(action,u,signal){
  finally{clearTimeout(timer);signal?.removeEventListener('abort',abort)}
 }
 function close(){updateOpenDialog=null;if(dialog){const old=dialog;dialog=null;try{old.close()}catch(_){}old.remove()}}
-function reset(k){if(g.ScoreAchievementUI?.centenaryOpen?.())g.ScoreAchievementUI.close();generation++;controller?.abort();controller=null;owner=k;data=null;last=0;shown=false;inflight=false;seenPending=false;ackPending=false;close();entry?.remove();entry=null}
+function reset(k){if(g.ScoreAchievementUI?.centenaryOpen?.())g.ScoreAchievementUI.close();generation++;controller?.abort();controller=null;owner=k;data=null;last=0;initialFailures=0;shown=false;inflight=false;seenPending=false;ackPending=false;close();entry?.remove();entry=null}
 // Shared modal guard: existing dialogs and onboarding always take precedence.
+function onboarding(){try{return !!(state.onboarding||state.setupGuideLoading)}catch(_){return false}}
 function occupied(){
- try{if(state.onboarding||state.setupGuideLoading||state.modal&&state.modal.isConnected!==false)return true}catch(_){}
+ try{if(onboarding()||state.modal&&state.modal.isConnected!==false)return true}catch(_){}
  return document.visibilityState!=='visible'||Array.from(document.querySelectorAll('dialog[open],.rn-back,.modal-backdrop,.fv36-back,.st-fb-back,.pwa-back,.school-back,.gmodal-backdrop.open,.first-run-setup-overlay,.setup-overlay')).some(x=>x.getClientRects().length);
 }
 function centenaryPending(){
  const u=user();if(!u)return false;
  if(key(u)!==owner||!last)return true;
- return shouldPrompt(data,shown)||(!data&&inflight&&Date.now()-last<11000);
+ return shouldPrompt(data,shown)||(!data&&initialFailures<2);
 }
 g.ScoreModalGuard={occupied,centenaryPending};
 function blocked(){return occupied()}
@@ -110,10 +111,10 @@ function open(manual=false){const u=user(),k=key(u),gen=generation;if(!current(k
  if(typeof IntersectionObserver==='function'&&!matchMedia('(prefers-reduced-motion: reduce)').matches){const observer=new IntersectionObserver(entries=>{for(const item of entries)if(item.isIntersecting){item.target.classList.add('in-view');observer.unobserve(item.target)}},{root:$('scroll'),threshold:.12});for(const section of shadow.querySelectorAll('.journey,.letter,.wall')){section.classList.add('scroll-reveal');observer.observe(section)}el.addEventListener('close',()=>observer.disconnect(),{once:true})}
  shown=true;track('centenary_view',{source:manual?'account':'automatic'});seenPending=!d.seen_at;acknowledge(u,k,gen)}catch(_){close();return}
 }
-async function refresh(u,k){if(inflight||!current(k)||document.visibilityState!=='visible')return;inflight=true;last=Date.now();const gen=generation,ac=new AbortController();controller=ac;
- try{const d=await api('centenary_status',u,ac.signal);if(!current(k)||gen!==generation)return;data=d;if(!eligible(d)){if(g.ScoreAchievementUI?.centenaryOpen?.())g.ScoreAchievementUI.close();close();entry?.remove();entry=null;seenPending=false;return}if(updateOpenDialog)updateOpenDialog(d);mount();if(seenPending)acknowledge(u,k,gen);if(shouldPrompt(d,shown)&&!blocked())open()}
- catch(_){}finally{if(gen===generation){inflight=false;controller=null}}
+async function refresh(u,k){if(inflight||!current(k)||document.visibilityState!=='visible'||onboarding())return;inflight=true;last=Date.now();const gen=generation,ac=new AbortController();controller=ac;
+ try{const d=await api('centenary_status',u,ac.signal);if(!current(k)||gen!==generation)return;data=d;initialFailures=0;if(!eligible(d)){if(g.ScoreAchievementUI?.centenaryOpen?.())g.ScoreAchievementUI.close();close();entry?.remove();entry=null;seenPending=false;return}if(updateOpenDialog)updateOpenDialog(d);mount();if(seenPending)acknowledge(u,k,gen);if(shouldPrompt(d,shown)&&!blocked())open()}
+ catch(_){if(gen===generation&&!data)initialFailures++}finally{if(gen===generation){inflight=false;controller=null}}
 }
-function tick(force=false){const u=user(),k=key(u);if(k!==owner)reset(k);if(!u||document.visibilityState!=='visible')return;mount();if(shouldPrompt(data,shown)&&!blocked())open();if(force||Date.now()-last>=(dialog||g.ScoreAchievementUI?.centenaryOpen?.()?LIVE_PERIOD:PERIOD))refresh(u,k)}
-setInterval(()=>tick(),2000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')tick(true)});g.addEventListener('online',()=>tick(true));g.addEventListener('storage',()=>tick());tick(true);
+function tick(force=false){const u=user(),k=key(u);if(k!==owner)reset(k);if(!u||document.visibilityState!=='visible'||onboarding())return;mount();if(shouldPrompt(data,shown)&&!blocked())open();if(force||(!data&&initialFailures<2&&Date.now()-last>=1000)||Date.now()-last>=(dialog||g.ScoreAchievementUI?.centenaryOpen?.()?LIVE_PERIOD:PERIOD))refresh(u,k)}
+setInterval(()=>tick(),500);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')tick(true)});g.addEventListener('online',()=>tick(true));g.addEventListener('storage',()=>tick());tick(true);
 })(globalThis);
