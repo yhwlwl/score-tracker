@@ -46,6 +46,7 @@ const FILES = [
   "analysis-density.js",
   "supabase/functions/_shared/exam-goals.js",
   "exam-goal-lifecycle.js",
+  "exam-entry-compact.js",
   "exam-goal-review.js",
   "page-display-goals.css",
   "study-planner-promo.webp",

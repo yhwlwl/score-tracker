@@ -166,8 +166,8 @@
   // (e.g. a subject's full marks or a combination's membership changed).
   function referenceSummary(exam,name){
     var api=window.ScoreAverages,key=api?.key(name)||(name==='总分'?'total':'s:'+name),saved=exam.averages?.[key];if(!saved)return '';
-    var list=[['year','年级均分'],['yearMax','年级最高分'],['class','班级均分'],['classMax','班级最高分']].map(function(p){
-      var v=number(saved[p[0]]);return v===null?'':'<span class="ed-saved-item"><span>'+p[1]+'</span> <b>'+esc(String(v))+'</b></span>';
+    var list=[['year','年级均分'],['yearMax','年级最高分'],['class','班级均分'],['classMax','班级最高分'],['undergraduate','本科线'],['specialCutoff','特控线']].map(function(p){
+      var v=number(saved[p[0]]);if(v===null)return '';var cutoff=p[0]==='undergraduate'||p[0]==='specialCutoff',personal=cutoff&&api?api.finalScore(exam,name):null,line=cutoff&&api?api.value(exam,name,p[0],false):null;var gap=personal!==null&&line!==null?signed(personal-line)+' 分':'';return '<span class="ed-saved-item"><span>'+p[1]+'</span> <b>'+esc(String(v))+'</b>'+(gap?' <small>（'+esc(gap)+'）</small>':'')+'</span>';
     }).filter(Boolean);
     if(!list.length)return '';
     var comparable=!!api&&saved.basis===api.basis(exam,name);

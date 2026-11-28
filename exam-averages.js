@@ -39,7 +39,7 @@
   function series() {
     if (state.trendMetric !== 'score' || state.scoreBasis === 'raw' || state.subject === '总览') return [];
     var subject = state.subject, percent = state.scoreViewV25 === 'percent';
-    return [{label:'班级均分',scope:'class',color:'#d38429'},{label:'年级均分',scope:'year',color:'#8f62db'},{label:'班级最高分',scope:'classMax',color:'#7893a9'},{label:'年级最高分',scope:'yearMax',color:'#369b85'}].map(function (s) {
+    return [{label:'班级均分',scope:'class',color:'#d38429'},{label:'年级均分',scope:'year',color:'#8f62db'},{label:'班级最高分',scope:'classMax',color:'#7893a9'},{label:'年级最高分',scope:'yearMax',color:'#369b85'},{label:'本科线',scope:'undergraduate',color:'#c58b36'},{label:'特控线',scope:'specialCutoff',color:'#cf647f'}].map(function (s) {
       return {label:s.label,color:s.color,dash:'3 5',value:function (e) { return value(e,subject,s.scope,percent); }};
     }).filter(function (s) { return (state.exams || []).some(function (e) { return s.value(e) !== null; }); });
   }
@@ -48,7 +48,7 @@
     var complete = finalScore(exam,subject);
     if (actual == null || complete === null || Math.abs(complete - actual) > 0.000001) return '';
     var parts = [];
-    [['class','班级均分'],['year','年级均分']].forEach(function (pair) {
+    [['class','班级均分'],['year','年级均分'],['undergraduate','本科线'],['specialCutoff','特控线']].forEach(function (pair) {
       var avg = value(exam,subject,pair[0],false); if (avg === null) return;
       var d = Math.round((actual - avg) * 100) / 100;
       parts.push(d === 0 ? '持平' + pair[1] : (d > 0 ? '高于' : '低于') + pair[1] + ' ' + format(Math.abs(d)) + ' 分');
@@ -72,11 +72,12 @@
       if (block) block.remove();
       block = document.createElement('details'); block.className = 'exam-averages'; block.dataset.averageKey = key;
       var summary=document.createElement('summary'),heading=document.createElement('span'),excerpt=document.createElement('small'),fields=document.createElement('div');
-      heading.textContent='参考分数（选填：平均分，最高分）';summary.append(heading,excerpt);block.append(summary,fields);fields.className='reference-fields';
-      var labels={class:'班级均分',year:'年级均分',classMax:'班级最高分',yearMax:'年级最高分'};
-      function updateSummary(){var draft=modal._averageDraft[key]||{};excerpt.textContent=['classMax','yearMax','class','year'].filter(function(s){return number(draft[s])!==null;}).map(function(s){return labels[s]+' '+draft[s];}).join(' · ');}
+      heading.textContent='参考分数（选填）';summary.append(heading,excerpt);block.append(summary,fields);fields.className='reference-fields';
+      var labels={class:'班级均分',year:'年级均分',classMax:'班级最高分',yearMax:'年级最高分',undergraduate:'本科线',specialCutoff:'特控线'};
+      function updateSummary(){var draft=modal._averageDraft[key]||{};excerpt.textContent=['classMax','yearMax','class','year','undergraduate','specialCutoff'].filter(function(s){return number(draft[s])!==null;}).map(function(s){return labels[s]+' '+draft[s];}).join(' · ');}
       updateSummary();
-      ['class','year','classMax','yearMax'].forEach(function (scope) {
+      ['class','year','classMax','yearMax','undergraduate','specialCutoff'].forEach(function (scope) {
+        if(scope==='undergraduate'){var group=document.createElement('div');group.className='reference-cutoff-heading';group.textContent='考试分数线 · 按本次考试划线填写';fields.appendChild(group);}
         var label = document.createElement('label'); label.className = 'average-field';
         var title = document.createElement('span'); title.textContent = labels[scope]; label.appendChild(title);
         var input = document.createElement('input'); input.dataset.averageRow = key; input.dataset.averageScope = scope;
@@ -94,7 +95,7 @@
       if (total) decorate(total,'total','总分','.score-total-preview-v13');
       modal.querySelectorAll('.exam-subject-card-v10').forEach(function (card) {
         var name = card.querySelector('.exam-subject-name-v10').value.trim();
-        if (name) decorate(card,'s:' + name,name,'.score-compact-v14');
+        if (name) decorate(card,'s:' + name,name,'.subject-ranks-v16');
       });
       modal.querySelectorAll('.combo-card-v21').forEach(function (card) {
         var m = (state.modulesV18 || []).find(function (m) { return String(m.id) === card.dataset.comboId; });
@@ -121,16 +122,17 @@
         }
         var row = averages[input.dataset.averageRow] || (averages[input.dataset.averageRow] = {}); row[input.dataset.averageScope] = n;
       });
-      payload = Object.assign({},payload,{exam:Object.assign({},payload.exam,{averages:averages,reference_scores_version:1})});
+      payload = Object.assign({},payload,{exam:Object.assign({},payload.exam,{averages:averages,reference_scores_version:1,cutoff_scores_version:1})});
       var refMeta={row_count:Object.keys(averages).length,mean_count:0,highest_count:0};
       Object.values(averages).forEach(function(r){refMeta.mean_count+=Number(r.class!==undefined)+Number(r.year!==undefined);refMeta.highest_count+=Number(r.classMax!==undefined)+Number(r.yearMax!==undefined);});
       function saveAndTrack(self){return Promise.resolve(apiBefore.call(self,action,payload)).then(function(result){if(result&&!result.error&&refMeta.row_count){try{window.__scoreTrackerTrack?.('reference_scores_saved',refMeta,'records');}catch(_){}}return result;});}
       // Older server versions silently discarded highest scores. Check capability before writing.
       var hasHighest=Object.values(averages).some(function(r){return r.classMax!==undefined||r.yearMax!==undefined;});
-      if(hasHighest){
+      var hasCutoffs=Object.values(averages).some(function(r){return r.undergraduate!==undefined||r.specialCutoff!==undefined;});
+      if(hasHighest||hasCutoffs){
         var self=this;
-        return Promise.resolve().then(function(){return apiBefore.call(self,'reference_scores_capability',{});}).catch(function(){throw new Error('最高分暂不能保存，请保留本次录入并稍后重试');}).then(function(cap){
-          if(!cap||cap.reference_scores_version!==1)throw new Error('最高分保存服务尚未更新，请保留本次录入');
+        return Promise.resolve().then(function(){return apiBefore.call(self,'reference_scores_capability',{});}).catch(function(){throw new Error('参考分数暂不能保存，请保留本次录入并稍后重试');}).then(function(cap){
+          if(!cap||(hasHighest&&cap.reference_scores_version!==1)||(hasCutoffs&&cap.cutoff_scores_version!==1))throw new Error('参考分数保存服务尚未更新，请保留本次录入');
           return saveAndTrack(self);
         });
       }
@@ -151,6 +153,6 @@
     return Object.assign({},metric,{comparison:comparison(metric.exam,subject,metric.value)});
   };
   var style = document.createElement('style');
-  style.textContent = '.exam-averages{margin-top:10px;border-top:1px solid var(--line);padding-top:9px}.exam-averages summary{cursor:pointer;font-size:12px;color:var(--text);line-height:1.5}.exam-averages summary small{display:block;margin:4px 0;color:var(--muted);font-weight:normal;overflow-wrap:anywhere}.exam-averages summary small:empty{display:none}.reference-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}.average-field{display:grid;gap:5px;min-width:0;font-size:11px;color:var(--muted)}.average-field input{width:100%;min-width:0;box-sizing:border-box;min-height:38px;border:1px solid var(--input-line,var(--line));border-radius:10px;padding:9px 8px;background:var(--input-bg,#fff);color:var(--text);font:inherit;font-size:12px}.average-field input:focus-visible{outline:2px solid var(--focus,var(--accent));outline-offset:1px}.average-field [aria-invalid=true]{border-color:var(--danger)}.hero-average{font-size:11px;color:var(--muted);line-height:1.7}';
+  style.textContent = '.exam-averages{margin-top:10px;border-top:1px solid var(--line);padding-top:9px}.exam-averages summary{cursor:pointer;font-size:12px;color:var(--text);line-height:1.5}.exam-averages summary small{display:block;margin:4px 0;color:var(--muted);font-weight:normal;overflow-wrap:anywhere}.exam-averages summary small:empty{display:none}.reference-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}.reference-cutoff-heading{grid-column:1/-1;font-size:11px;font-weight:600;color:var(--accent);margin:6px 0 0;padding-top:8px;border-top:1px solid var(--line)}.average-field{display:grid;gap:5px;min-width:0;font-size:11px;color:var(--muted)}.average-field input{width:100%;min-width:0;box-sizing:border-box;min-height:38px;border:1px solid var(--input-line,var(--line));border-radius:10px;padding:9px 8px;background:var(--input-bg,#fff);color:var(--text);font:inherit;font-size:12px}.average-field input:focus-visible{outline:2px solid var(--focus,var(--accent));outline-offset:1px}.average-field [aria-invalid=true]{border-color:var(--danger)}.hero-average{font-size:11px;color:var(--muted);line-height:1.7}';
   document.head.appendChild(style);
 })();
