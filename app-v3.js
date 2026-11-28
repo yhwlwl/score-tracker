@@ -1,7 +1,19 @@
 const API = '/api/score-tracker-api';
-const SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治'];
-const SUBJECT_SHORT = { 语文: '语', 数学: '数', 英语: '英', 物理: '物', 化学: '化', 生物: '生', 历史: '史', 地理: '地', 政治: '政' };
-const SUBJECT_MAX = { 语文: 150, 数学: 150, 英语: 150, 物理: 100, 化学: 100, 生物: 100, 历史: 100, 地理: 100, 政治: 100 };
+const SUBJECTS = ['语文', '数学', '英语', '物理', '历史', '化学', '生物', '地理', '政治'];
+const SUBJECT_ORDER_V3 = Object.fromEntries(SUBJECTS.map((name, index) => [name, index]));
+function sortSubjectNamesV3(list) {
+  return [...(list || [])]
+    .map((item, index) => ({ item, index, name: typeof item === 'string' ? item : item && item.name }))
+    .sort((a, b) => {
+      const ai = Object.prototype.hasOwnProperty.call(SUBJECT_ORDER_V3, a.name) ? SUBJECT_ORDER_V3[a.name] : 1000 + a.index;
+      const bi = Object.prototype.hasOwnProperty.call(SUBJECT_ORDER_V3, b.name) ? SUBJECT_ORDER_V3[b.name] : 1000 + b.index;
+      return ai !== bi ? ai - bi : a.index - b.index;
+    })
+    .map((x) => x.item);
+}
+if (typeof window !== 'undefined') window.sortSubjectNames = sortSubjectNamesV3;
+const SUBJECT_SHORT = { 语文: '语', 数学: '数', 英语: '英', 物理: '物', 历史: '历', 化学: '化', 生物: '生', 地理: '地', 政治: '政' };
+const SUBJECT_MAX = { 语文: 150, 数学: 150, 英语: 150, 物理: 100, 历史: 100, 化学: 100, 生物: 100, 地理: 100, 政治: 100 };
 const RADAR_COLORS = ['#5d72e8', '#32a77a', '#e59b45', '#df5f68', '#8f62db'];
 const state = {
   token: localStorage.getItem('st_token') || '',

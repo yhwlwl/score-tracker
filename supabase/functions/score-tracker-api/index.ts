@@ -3,8 +3,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const U=Deno.env.get("SUPABASE_URL")??"",S=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")??"";
 const db=createClient(U,S,{auth:{persistSession:false,autoRefreshToken:false}});
-const subjects=["语文","数学","英语","物理","化学","生物","历史","地理","政治"];
-const subjectMax:Record<string,number>={"语文":150,"数学":150,"英语":150,"物理":100,"化学":100,"生物":100,"历史":100,"地理":100,"政治":100};
+const subjects=["语文","数学","英语","物理","历史","化学","生物","地理","政治"];
+const subjectMax:Record<string,number>={"语文":150,"数学":150,"英语":150,"物理":100,"历史":100,"化学":100,"生物":100,"地理":100,"政治":100};
 const adjectives=["bright","calm","clever","fresh","happy","kind","lucky","neat","quick","sunny"],nouns=["panda","fox","kite","maple","river","star","cloud","leaf","moon","pine"];
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const out=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...cors,"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});

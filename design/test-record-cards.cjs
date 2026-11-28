@@ -26,6 +26,9 @@ function check(source,citySource,run){
   assert.ok(rankOnly.includes('市级排名')&&rankOnly.includes('<strong>77</strong><small>/100</small>'));
   const empty=env.recordHtml({id:'e',name:'空记录',scores:{}});
   assert.ok(empty.includes('尚未填写分数或排名')&&!empty.includes('record-total-ranks-v26'));
+  const unordered=env.recordHtml({id:'order',name:'顺序',scores:{化学:{actual:92},地理:{actual:93},数学:{actual:133},物理:{actual:91},英语:{actual:135},语文:{actual:132},政治:{actual:88},生物:{actual:90},历史:{actual:89}}});
+  const orderIdx=['语文','数学','英语','物理','历史','化学','生物','地理','政治'].map(s=>unordered.indexOf('>'+s+'<'));
+  assert.ok(orderIdx.every((pos,i)=>pos>0&&(i===0||pos>orderIdx[i-1])),'record subjects must follow 语数外物历化生地政');
   assert.ok(citySource.includes('window.ScoreRecordCityRanksV33=citySourceV33')&&citySource.includes("if(html.indexOf('data-record-structured-v26=')>=0)return html"));
   assert.ok(css.includes('container:record-scores / inline-size')&&css.includes('var(--ui-scale')&&css.includes('flex-wrap:wrap'));
 }

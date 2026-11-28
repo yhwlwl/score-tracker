@@ -35,7 +35,7 @@ function configuredSubjectsV32(){
 function subjectListV32(exams){
   var out=configuredSubjectsV32(),seen={};out.forEach(function(s){seen[s]=1;});
   (exams||[]).forEach(function(e){Object.keys(e.scores||{}).forEach(function(s){if(s&&!seen[s]){seen[s]=1;out.push(s);}});});
-  return out;
+  return typeof sortSubjectNamesV3==="function"?sortSubjectNamesV3(out):out;
 }
 function rowV32(e,s){return (e&&e.scores&&e.scores[s])||{};}
 /* 个人最佳状态标签:ok=在最好附近;warn=连续偏离待找回;acc 再按差距细分(≤5≈接近,>5=刚偏离) */

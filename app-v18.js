@@ -63,8 +63,8 @@ function moduleSubjectOptionsV18(){
   function add(name){name=String(name||'').trim();if(!name||moduleNames.has(name)||seen.has(name))return;seen.add(name);out.push(name);}
   (state.subjectConfigs||[]).forEach(function(x){add(x.name)});
   (state.allExams||[]).forEach(function(exam){Object.keys(exam.scores||{}).forEach(add)});
-  ['语文','数学','英语','物理','历史','化学','生物','政治','地理'].forEach(add);
-  return out;
+  ['语文','数学','英语','物理','历史','化学','生物','地理','政治'].forEach(add);
+  return typeof sortSubjectNamesV3==='function'?sortSubjectNamesV3(out):out;
 }
 function appendModulesV18(){
   (state.modulesV18||[]).forEach(function(m){

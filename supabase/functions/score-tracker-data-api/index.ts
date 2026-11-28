@@ -16,9 +16,9 @@ const DEF = [
   { name: "数学", default_max: 150, sort_order: 2 },
   { name: "英语", default_max: 150, sort_order: 3 },
   { name: "物理", default_max: 100, sort_order: 4 },
-  { name: "化学", default_max: 100, sort_order: 5 },
-  { name: "生物", default_max: 100, sort_order: 6 },
-  { name: "历史", default_max: 100, sort_order: 7 },
+  { name: "历史", default_max: 100, sort_order: 5 },
+  { name: "化学", default_max: 100, sort_order: 6 },
+  { name: "生物", default_max: 100, sort_order: 7 },
   { name: "地理", default_max: 100, sort_order: 8 },
   { name: "政治", default_max: 100, sort_order: 9 },
 ];
