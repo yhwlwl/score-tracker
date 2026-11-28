@@ -317,9 +317,9 @@ function chartHtml() {
   const vals = points.flatMap((p) => [p.actual, p.target, ...extra.map((s) => s.value(p.exam))]).filter((v) => v !== null);
   if (!vals.length) return `<div class="empty-chart"><div><div class="empty-icon">⌁</div>这个科目还没有成绩数据</div></div>`;
   let max = Math.max(...vals), min = Math.min(...vals);
-  const pad = Math.max(10, (max - min) * 0.18);
-  max = Math.ceil((max + pad) / 10) * 10;
-  min = Math.max(0, Math.floor((min - pad) / 10) * 10);
+  const pad = Math.max(7.5, (max - min) * 0.18);
+  max = Math.ceil((max + pad) / 5) * 5;
+  min = Math.max(0, Math.floor((min - pad) / 5) * 5);
   if (max === min) max = min + 100;
   const W = 760, H = 300, L = 46, R = 18, T = 20, B = 46;
   const cw = W - L - R, ch = H - T - B;
