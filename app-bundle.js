@@ -13194,7 +13194,8 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     var controller=new AbortController(),timeout=setTimeout(function(){controller.abort();},10000);
     try { var url=new URL('index.html',location.href);url.searchParams.set('__cb',Date.now());var r=await fetch(url.href,{cache:'no-store',signal:controller.signal});if(!r.ok)throw new Error('版本检查失败');var doc=new DOMParser().parseFromString(await r.text(),'text/html'),m=doc.querySelector('meta[name="application-version"]');if(!m||!/^v?\d+(\.\d+){0,2}$/i.test(m.content))throw new Error('暂时未找到版本信息');return {version:version(m.content),build:build(doc)}; } finally {clearTimeout(timeout);}
   }
-  function blocking() { try{if(state.onboarding)return true;}catch(_){}return document.visibilityState!=='visible'||!!document.querySelector('dialog.st-centenary-dialog[open],.modal-backdrop,.fv36-back,.st-fb-back,.pwa-back,.school-back,.gmodal-backdrop.open'); }
+  function blocking() {
+ if(window.ScoreModalGuard)return window.ScoreModalGuard.occupied()||window.ScoreModalGuard.centenaryPending(); try{if(state.onboarding)return true;}catch(_){}return document.visibilityState!=='visible'||!!document.querySelector('dialog.st-centenary-dialog[open],.modal-backdrop,.fv36-back,.st-fb-back,.pwa-back,.school-back,.gmodal-backdrop.open'); }
   function injectStyle() {
     if(document.getElementById('release-notices-style'))return;
     var s=document.createElement('style');s.id='release-notices-style';s.textContent=
@@ -13855,6 +13856,8 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
   }
   function blocked() {
+
+    if(window.ScoreModalGuard)return window.ScoreModalGuard.occupied()||window.ScoreModalGuard.centenaryPending();
     return state.onboarding || state.setupGuideLoading || document.visibilityState !== 'visible' || document.querySelector('.modal-backdrop,.rn-back,.fv36-back,.st-fb-back,.pwa-back,.gmodal-backdrop.open');
   }
   function refreshCard() { if (state.user && state.page === 'account') renderPage(); }
@@ -14176,7 +14179,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     try { window.__scoreTrackerTrack?.(event, metadata); } catch (_) {}
   };
   const signedIn = () => typeof state !== 'undefined' && !!state.user && !!state.token;
-  const blocked = () => document.visibilityState !== 'visible' || !!document.querySelector('.modal-backdrop,.rn-back,.pwa-back,.school-back,.fv36-back,.st-fb-back,.gmodal-backdrop.open');
+  const blocked = () => window.ScoreModalGuard?.occupied() || document.visibilityState !== 'visible' || !!document.querySelector('.modal-backdrop,.rn-back,.pwa-back,.school-back,.fv36-back,.st-fb-back,.gmodal-backdrop.open');
   const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const text = key => esc(copy[key] || '');
 
@@ -14523,7 +14526,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     if(!available()||Date.now()-lastSuccess>=5*60000)await load(true,'open');
     if(!available()){track('community_open_unavailable',{source:source});if(typeof toast==='function')toast(authFailed?'登录已失效，请重新登录后查看交流群。':'交流群暂时无法打开，请稍后再试；仍可通过反馈联系我。');return false;}
     if(modal)return true;
-    if(document.querySelector('.modal-backdrop,.rn-back,.support-back,.st-fb-back'))return false;
+    if(window.ScoreModalGuard?.occupied()||document.querySelector('.modal-backdrop,.rn-back,.support-back,.st-fb-back'))return false;
     track('community_opened',{source:source});
     var c=config,back=document.createElement('div');back.className='community-back modal-backdrop';
     var url=safeLink(c.join_url);

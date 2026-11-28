@@ -16,7 +16,7 @@
     try { window.__scoreTrackerTrack?.(event, metadata); } catch (_) {}
   };
   const signedIn = () => typeof state !== 'undefined' && !!state.user && !!state.token;
-  const blocked = () => document.visibilityState !== 'visible' || !!document.querySelector('.modal-backdrop,.rn-back,.pwa-back,.school-back,.fv36-back,.st-fb-back,.gmodal-backdrop.open');
+  const blocked = () => window.ScoreModalGuard?.occupied() || document.visibilityState !== 'visible' || !!document.querySelector('.modal-backdrop,.rn-back,.pwa-back,.school-back,.fv36-back,.st-fb-back,.gmodal-backdrop.open');
   const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const text = key => esc(copy[key] || '');
 

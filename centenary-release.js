@@ -22,7 +22,19 @@ async function api(action,u,signal){
 }
 function close(){updateOpenDialog=null;if(dialog){const old=dialog;dialog=null;try{old.close()}catch(_){}old.remove()}}
 function reset(k){if(g.ScoreAchievementUI?.centenaryOpen?.())g.ScoreAchievementUI.close();generation++;controller?.abort();controller=null;owner=k;data=null;last=0;shown=false;inflight=false;seenPending=false;ackPending=false;close();entry?.remove();entry=null}
-function blocked(){try{if(state.onboarding)return true}catch(_){}return document.visibilityState!=='visible'||Array.from(document.querySelectorAll('dialog[open],.rn-back,.modal-backdrop,.fv36-back,.st-fb-back,.pwa-back,.school-back,.gmodal-backdrop.open,.first-run-setup-overlay')).some(x=>x.getClientRects().length)}
+// Shared modal guard: existing dialogs and onboarding always take precedence.
+function occupied(){
+ try{if(state.onboarding||state.setupGuideLoading||state.modal&&state.modal.isConnected!==false)return true}catch(_){}
+ return document.visibilityState!=='visible'||Array.from(document.querySelectorAll('dialog[open],.rn-back,.modal-backdrop,.fv36-back,.st-fb-back,.pwa-back,.school-back,.gmodal-backdrop.open,.first-run-setup-overlay,.setup-overlay')).some(x=>x.getClientRects().length);
+}
+function centenaryPending(){
+ const u=user();if(!u)return false;
+ if(key(u)!==owner||!last)return true;
+ return shouldPrompt(data,shown)||(!data&&inflight&&Date.now()-last<11000);
+}
+g.ScoreModalGuard={occupied,centenaryPending};
+function blocked(){return occupied()}
+
 function mount(){if(!eligible(data)){entry?.remove();entry=null;return}
  let card;try{if(state.page==='account')card=document.querySelector('#content .account-grid .account-card')}catch(_){}
  if(!card){entry?.remove();entry=null;return}

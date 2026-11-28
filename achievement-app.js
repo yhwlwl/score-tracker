@@ -32,6 +32,7 @@
   const data=await r.json();if(!r.ok)throw Error('achievement unavailable');return data;
  }
  function blocked(){
+  if(window.ScoreModalGuard)return window.ScoreModalGuard.occupied()||window.ScoreModalGuard.centenaryPending();
   try{return !!(state.modal&&state.modal.isConnected!==false)||Array.from(document.querySelectorAll('dialog[open],.modal-backdrop,.fv36-back,.first-run-setup-overlay')).some(x=>x.getClientRects().length)}catch(_){return true}
  }
  function mount(){
