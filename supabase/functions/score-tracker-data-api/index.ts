@@ -2,6 +2,7 @@ import { aiReleaseCapabilities } from '../_shared/ai-release.ts';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { examReflection } from "./reflection.ts";
+import { achievements } from "./achievements.ts";
 import "../_shared/exam-goals.js";
 const examGoals = (globalThis as any).ScoreExamGoals;
 
@@ -15,9 +16,9 @@ const DEF = [
   { name: "数学", default_max: 150, sort_order: 2 },
   { name: "英语", default_max: 150, sort_order: 3 },
   { name: "物理", default_max: 100, sort_order: 4 },
-  { name: "化学", default_max: 100, sort_order: 5 },
-  { name: "生物", default_max: 100, sort_order: 6 },
-  { name: "历史", default_max: 100, sort_order: 7 },
+  { name: "历史", default_max: 100, sort_order: 5 },
+  { name: "化学", default_max: 100, sort_order: 6 },
+  { name: "生物", default_max: 100, sort_order: 7 },
   { name: "地理", default_max: 100, sort_order: 8 },
   { name: "政治", default_max: 100, sort_order: 9 },
 ];
@@ -843,6 +844,7 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return out({ error: "Method not allowed" }, 405);
   try {
     const body = await req.json().catch(() => ({}));
+    if(body.action==='achievement_release_status'){const r=await db.rpc('score_tracker_achievement_live_stats');const enabled=(Deno.env.get('SCORE_TRACKER_ACHIEVEMENTS_V2_ENABLED')??'true')==='true';const ready=!r.error&&r.data?.ready===true&&Number(r.data?.total)>0&&enabled;return out({achievement_release:2,ready,enabled},ready?200:503);}
     if(body.action==='release_capabilities'){const c=await aiReleaseCapabilities(db);return out(c,c.migration_ready?200:503);}
     if (String(body.action ?? "") === "login_v2") {
       const r = await loginV2(body);
@@ -851,6 +853,10 @@ Deno.serve(async (req: Request) => {
     const user = await auth(String(body.token ?? ""));
     if (!user) return out({ error: "登录已失效，请重新登录", code: "UNAUTHORIZED" }, 401);
     const action = String(body.action ?? "");
+    if(['achievement_overview','achievement_refresh','achievement_ack','achievement_favorites','achievement_admin_grant'].includes(action)){
+      try{return out(await achievements(db,user.id,body));}
+      catch(e){console.error('achievement_service_failed', (e as any)?.code||'internal');return out({error:'成就服务暂不可用',code:'achievement_unavailable'},503);}
+    }
     if(action==='account_status'){
       const r=await db.rpc('score_tracker_ai_account',{p_user:user.id});if(r.error)return out({error:'成长与AI额度服务暂不可用',code:'account_benefits_unavailable'},503);return out({account:r.data});
     }
@@ -860,7 +866,7 @@ Deno.serve(async (req: Request) => {
     if (action === "reference_scores_capability") return out({ reference_scores_version: 1 });
     if (action === "get_exam_reflection" || action === "save_exam_reflection") {
       const result = await examReflection(db, user.id, body);
-      if(action==='save_exam_reflection'&&result.status<400)await refreshGrowth(user.id);
+      if(action==='save_exam_reflection'&&result.status<400){await refreshGrowth(user.id);}
       return out(result.data, result.status);
     }
     if (action === "save_participant_defaults") {
@@ -894,7 +900,7 @@ Deno.serve(async (req: Request) => {
       catch (e) { return out({ error: e instanceof Error ? e.message : "默认人数格式不正确" }, 400); }
       const r = await saveExam(user.id, body.exam ?? {});
       if(!r.error&&!r.planned&&body.quick_entry===true){const growth=await db.rpc('score_tracker_growth_observe',{p_user:user.id,p_event:'quick_entry_saved',p_metadata:{exam_id:r.id},p_at:new Date().toISOString()});if(growth.error)console.error('quick_growth_failed',growth.error.code);}
-      if(!r.error && !r.planned)await refreshGrowth(user.id);
+      if(!r.error && !r.planned){await refreshGrowth(user.id);}
       if (!r.error && r.created && Object.keys(defaults).length) {
         try { return out({ ...r, participantDefaults: await saveParticipantDefaults(user.id, defaults, true) }); }
         catch (e) {
@@ -911,7 +917,7 @@ Deno.serve(async (req: Request) => {
     if (action === "get_goal") return out(await getGoal(user.id));
     if (action === "save_goal") {
       const r = await saveGoal(user.id, body.goal ?? {});
-      if(!r.error)await refreshGrowth(user.id);
+      if(!r.error){await refreshGrowth(user.id);}
       return r.error ? out({ error: r.error }, r.status) : out(r);
     }
     if (action === "toggle_exam_hidden") {
@@ -926,6 +932,7 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
       if (r.error) throw r.error;
       if (!r.data) return out({ error: "没有找到这次考试" }, 404);
+      
       return out({ ok: true, examId: id, is_hidden: !!r.data.is_hidden });
     }
     if (action === "delete_exam") {
@@ -933,6 +940,7 @@ Deno.serve(async (req: Request) => {
       if (!id) return out({ error: "缺少考试编号" }, 400);
       const r = await db.from("score_tracker_exams").delete().eq("id", id).eq("user_id", user.id);
       if (r.error) throw r.error;
+      
       return out({ ok: true });
     }
     return out({ error: "Unknown action" }, 400);

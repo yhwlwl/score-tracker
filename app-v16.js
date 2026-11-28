@@ -200,13 +200,19 @@ function finalOnlyRowV62(row){
   if(num(next.raw)===null)next.rawMax=next.max;
   return next;
 }
+function sortScoreEntriesV16(scores){
+  var entries=Object.entries(scores||{});
+  if(typeof sortSubjectNamesV3!=='function')return entries;
+  var map=new Map(entries);
+  return sortSubjectNamesV3(entries.map(function(e){return e[0];})).map(function(k){return [k,map.get(k)];});
+}
 function seedRowsV16(exam){
-  if(exam) return Object.entries(exam.scores||{}).map(function(entry){
+  if(exam) return sortScoreEntriesV16(exam.scores).map(function(entry){
     var name=entry[0],row=entry[1]||{};if(finalOnlySubjectV62(name))row=finalOnlyRowV62(row);
     return {name:name,target:row.target??'',raw:row.raw??'',actual:row.actual??'',rawMax:row.rawMax??row.max??defaultMax(name),max:row.max??defaultMax(name),rank:row.rank??'',participants:row.participants??'',classRank:row.classRank??'',classParticipants:row.classParticipants??''};
   });
   var source=state.exams&&state.exams.length?state.exams[state.exams.length-1]:((state.unfilteredVisibleExamsV13||[]).length?state.unfilteredVisibleExamsV13[state.unfilteredVisibleExamsV13.length-1]:null);
-  if(source&&Object.keys(source.scores||{}).length) return Object.entries(source.scores).map(function(entry){
+  if(source&&Object.keys(source.scores||{}).length) return sortScoreEntriesV16(source.scores).map(function(entry){
     var name=entry[0],row=entry[1]||{};
     return {name:name,target:'',raw:'',actual:'',rawMax:row.rawMax??row.max??defaultMax(name),max:row.max??defaultMax(name),rank:'',participants:'',classRank:'',classParticipants:''};
   });

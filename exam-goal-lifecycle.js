@@ -59,7 +59,9 @@ function planDialog(ex){
  function setMode(v){mode=v;modal.dataset.egMode=v;modal.querySelectorAll('[data-eg-mode]').forEach(b=>{const active=b.dataset.egMode===v;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});}
  function draw(){
   list.innerHTML=Array.from(selected).map(n=>itemFields('s:'+n,draft['s:'+n],scores[n]?.max||100,n)).join('');
-  pick.innerHTML=Array.from(new Set([...cfg.map(s=>s.name),...Object.keys(scores)])).map(n=>'<label class="eg-choice"><input type="checkbox" data-eg-sub="'+esc(n)+'" '+(selected.has(n)?'checked':'')+'>'+esc(n)+'</label>').join('');
+  const pickNames=Array.from(new Set([...cfg.map(s=>s.name),...Object.keys(scores)]));
+  const orderedPick=typeof window.sortSubjectNames==='function'?window.sortSubjectNames(pickNames):pickNames;
+  pick.innerHTML=orderedPick.map(n=>'<label class="eg-choice"><input type="checkbox" data-eg-sub="'+esc(n)+'" '+(selected.has(n)?'checked':'')+'>'+esc(n)+'</label>').join('');
   const names=Array.from(selected).filter(n=>!scores[n]?.excludeFromTotal);
   total.innerHTML=itemFields('total',draft.total,sumMax(names)||1,'总分');
   if(draft.total?.score!=null&&draft.total?.max!=null)total.querySelector('[data-eg-max]').dataset.manual='1';

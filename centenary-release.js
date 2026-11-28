@@ -11,6 +11,7 @@ const date=(v,dayOnly=false)=>{if(!v)return'—';const d=new Date(v);return Numb
 function user(){try{return state.user&&state.token&&state.user.id&&state.user.id!=='guest'?{id:String(state.user.id),token:state.token}:null}catch(_){return null}}
 function key(u){return u?u.id+':'+u.token:''}
 let owner='',data=null,dialog=null,entry=null,inflight=false,last=0,shown=false,generation=0,seenPending=false,controller=null,ackPending=false,updateOpenDialog=null;
+function track(event,meta={}){try{(g.__scoreTrackerTrack||g.__stTrack)?.(event,{notice_id:NOTICE_ID,...meta})}catch(_){}}
 function current(k){return !!k&&key(user())===k&&owner===k}
 async function api(action,u,signal){
  const c=new AbortController(),timer=setTimeout(()=>c.abort(),10000);
@@ -41,7 +42,7 @@ function open(manual=false){const u=user(),k=key(u),gen=generation;if(!current(k
  const hits=[!!d.day_at&&Date.parse(d.day_at)<=Date.now(),!!d.account_hit_at,!!d.event_hit_at];
  const labels=['上线百日','注册破万','交互破百万'];
  const hitDates=[d.day_at,d.account_hit_at,d.event_hit_at];
- 
+
  milestones.forEach((m,i)=>{m.dataset.hit=String(hits[i]);m.querySelector('.milestone-state').textContent=hits[i]?'✦ 已达成':'目标 · 尚未点亮'});
  milestones[1].querySelector('.progress-track')?.remove();if(!hits[1]&&d.account_count!=null&&Number.isFinite(Number(d.account_count))){const bar=document.createElement('div');bar.className='progress-track';bar.setAttribute('role','progressbar');bar.setAttribute('aria-label','注册目标进度');bar.setAttribute('aria-valuemin','0');bar.setAttribute('aria-valuemax','10000');const count=Math.max(0,Math.min(10000,Number(d.account_count)));bar.setAttribute('aria-valuenow',String(count));const fill=document.createElement('i');fill.style.width=(count/100)+'%';bar.append(fill);milestones[1].append(bar)}
  // Product dates below are verified Git commit dates, not claimed release dates.
@@ -65,18 +66,18 @@ function open(manual=false){const u=user(),k=key(u),gen=generation;if(!current(k
  draw('相遇 '+num(d.days_together)+' 天  ·  '+num(d.personal_events)+' 次交互',763,40,'#e4edff',600);
  const img=shadow.querySelector('.mini-badge img');if(img.complete&&img.naturalWidth)c.drawImage(img,465,825,150,150);
  draw(d.published?'纪念于 '+date(d.published_at,true):'预览 · 尚未正式发布',1050,28,'#c7d6ee');draw('每一份记录，都算数。',1170,38,'#f4dcaa',600);draw('SCORE TRACKER',1235,23,'#a6b9d6');
- const a=document.createElement('a');a.download='score-tracker-三百纪念.png';a.href=canvas.toDataURL('image/png');document.body.append(a);a.click();a.remove();
+ const a=document.createElement('a');a.download='score-tracker-三百纪念.png';a.href=canvas.toDataURL('image/png');document.body.append(a);a.click();a.remove();track('centenary_card_saved');
  }catch(_){save.textContent='暂无法保存';setTimeout(()=>{save.textContent='保存纪念卡'},1800)}};
  const animateNumbers=()=>{if(matchMedia('(prefers-reduced-motion: reduce)').matches||typeof requestAnimationFrame!=='function')return;milestones.forEach((m,i)=>{if(m.dataset.hit!=='true')return;const n=m.querySelector('[data-count]'),target=Number(n.dataset.count);if(!Number.isFinite(target))return;const start=performance.now(),delay=100+i*130;const frame=now=>{if(!el.isConnected)return;const p=Math.max(0,Math.min(1,(now-start-delay)/850));n.textContent=num(Math.round(target*(1-Math.pow(1-p,3))));if(p<1)requestAnimationFrame(frame)};requestAnimationFrame(frame)})};
  const conf=$('confetti');for(let i=0;i<28;i++){const n=document.createElement('i');n.style.left=(3+i*43%93)+'%';n.style.top=(3+i*29%87)+'%';n.style.setProperty('--r',(i*79%140-70)+'deg');n.style.setProperty('--d',(i%6*.055)+'s');n.style.setProperty('--c',['#a5b5e9','#9fc8bb','#d5bd8a','#c9bce8'][i%4]);conf.append(n)}
  const finish=()=>{if(current(k))acknowledge(u,k,gen);close()};
- $('close').onclick=finish;
+ $('close').onclick=()=>{track('centenary_dismiss',{source:'close'});finish()};
  $('done').onclick=async()=>{
   if(!current(k)){close();return}
   const status=$('awardStatus'),button=$('done');
   if(!badge||!achievementUI){status.hidden=false;status.textContent='徽章组件暂不可用，请刷新后重试。';return}
-  
-  button.disabled=true;status.hidden=false;status.textContent='正在读取纪念徽章…';
+
+  track('centenary_badge_open');button.disabled=true;status.hidden=false;status.textContent='正在读取纪念徽章…';
   const ac=new AbortController(),timeout=setTimeout(()=>ac.abort(),8000);
   try{
    const res=await fetch('/api/score-tracker-data-api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'achievement_overview',token:u.token,achievement_release:2}),signal:ac.signal,cache:'no-store'});
@@ -84,18 +85,18 @@ function open(manual=false){const u=user(),k=key(u),gen=generation;if(!current(k
    const awards=Array.isArray(overview.awards)?overview.awards:[];
    const award=awards.find(a=>a.badge_id==='triple');
    if(!res.ok||overview.enabled!==true||!award)throw Error('award unavailable');
-   finish();
+   track('centenary_badge_view');finish();
    achievementUI.show(badge,award,{stats:overview.stats,play:true,autoFlip:true,centenaryLive:{...d},onGallery:()=>{if(current(k))achievementUI.openGallery(awards,{stats:overview.stats,favorites:overview.favorites})}});
-  }catch(_){if(current(k)&&el.isConnected){status.hidden=false;status.textContent='暂时无法读取纪念徽章，请重试。';button.disabled=false}}
+  }catch(_){if(current(k)&&el.isConnected){status.hidden=false;track('centenary_badge_failed');status.textContent='暂时无法读取纪念徽章，请重试。';button.disabled=false}}
   finally{clearTimeout(timeout)}
  };
- el.addEventListener('cancel',e=>{e.preventDefault();finish()});
- $('discussion').onclick=async()=>{if(!current(k))return;const openDiscussion=g.__releaseNotices?.openCentenaryDiscussion;if(!openDiscussion)return;finish();try{await openDiscussion()}catch(_){}};
+ el.addEventListener('cancel',e=>{e.preventDefault();track('centenary_dismiss',{source:'cancel'});finish()});
+ $('discussion').onclick=async()=>{if(!current(k))return;const openDiscussion=g.__releaseNotices?.openCentenaryDiscussion;if(!openDiscussion)return;track('centenary_discussion_open');finish();try{await openDiscussion()}catch(_){}};
  $('discussion').hidden=typeof g.__releaseNotices?.openCentenaryDiscussion!=='function';
  document.body.append(el);dialog=el;
  try{el.showModal();$('modal').focus({preventScroll:true});$('modal').classList.add('launch');if(!manual&&!d.seen_at)animateNumbers();
  if(typeof IntersectionObserver==='function'&&!matchMedia('(prefers-reduced-motion: reduce)').matches){const observer=new IntersectionObserver(entries=>{for(const item of entries)if(item.isIntersecting){item.target.classList.add('in-view');observer.unobserve(item.target)}},{root:$('scroll'),threshold:.12});for(const section of shadow.querySelectorAll('.journey,.evolution,.letter,.wall')){section.classList.add('scroll-reveal');observer.observe(section)}el.addEventListener('close',()=>observer.disconnect(),{once:true})}
- shown=true;seenPending=!d.seen_at;acknowledge(u,k,gen)}catch(_){close();return}
+ shown=true;track('centenary_view',{source:manual?'account':'automatic'});seenPending=!d.seen_at;acknowledge(u,k,gen)}catch(_){close();return}
 }
 async function refresh(u,k){if(inflight||!current(k)||document.visibilityState!=='visible')return;inflight=true;last=Date.now();const gen=generation,ac=new AbortController();controller=ac;
  try{const d=await api('centenary_status',u,ac.signal);if(!current(k)||gen!==generation)return;data=d;if(!eligible(d)){if(g.ScoreAchievementUI?.centenaryOpen?.())g.ScoreAchievementUI.close();close();entry?.remove();entry=null;seenPending=false;return}if(updateOpenDialog)updateOpenDialog(d);g.ScoreAchievementUI?.updateCentenaryLive?.(d);mount();if(seenPending)acknowledge(u,k,gen);if(shouldPrompt(d,shown)&&!blocked())open()}

@@ -36,7 +36,15 @@
   }
   function model(exam) {
     var moduleNames = new Set((state.modulesV18 || []).map(function (m) { return m.name; }));
-    var rows = Object.keys(exam.scores || {}).filter(function (name) { return !moduleNames.has(name); }).map(function (name) {
+    var rawKeys = Object.keys(exam.scores || {}).filter(function (name) { return !moduleNames.has(name); });
+    var orderFallback = ['语文', '数学', '英语', '物理', '历史', '化学', '生物', '地理', '政治'];
+    var keys = typeof window !== 'undefined' && typeof window.sortSubjectNames === 'function'
+      ? window.sortSubjectNames(rawKeys)
+      : rawKeys.slice().sort(function (a, b) {
+          var ai = orderFallback.indexOf(a), bi = orderFallback.indexOf(b);
+          return (ai >= 0 ? ai : 1000 + rawKeys.indexOf(a)) - (bi >= 0 ? bi : 1000 + rawKeys.indexOf(b));
+        });
+    var rows = keys.map(function (name) {
       var s = exam.scores[name], actual = number(examScore(exam, name, 'actual')), max = number(examMax(exam, name));
       if(finalOnlySubjectV62(name)&&number(s.actual)===null&&number(s.raw)!==null)max=number(s.rawMax)||max;
       return { name: name, actual: actual, max: max, raw: number(s.raw), rawMax: number(s.rawMax) || max,

@@ -27,7 +27,8 @@ const badges=[
     "quote": "从零散的数字，到完整的自己。",
     "motif": "grid",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 2
   },
   {
     "id": "rank-aware",
@@ -39,7 +40,8 @@ const badges=[
     "quote": "分数之外，你看见了更多。",
     "motif": "lens",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 2
   },
   {
     "id": "new-best",
@@ -51,7 +53,8 @@ const badges=[
     "quote": "昨天的纪录，成为今天的历史。",
     "motif": "spark",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "three-days",
@@ -63,7 +66,8 @@ const badges=[
     "quote": "成长开始有迹可循。",
     "motif": "trail",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "reflection",
@@ -75,7 +79,8 @@ const badges=[
     "quote": "考试已经结束，收获仍在继续。",
     "motif": "quill",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "goal-set",
@@ -87,7 +92,8 @@ const badges=[
     "quote": "远方有了名字，脚下便有了方向。",
     "motif": "compass",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "step-up",
@@ -99,7 +105,8 @@ const badges=[
     "quote": "比上一次，更进一步。",
     "motif": "arrow",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "five-days",
@@ -111,7 +118,8 @@ const badges=[
     "quote": "每一场考试，都留下成长的印记。",
     "motif": "steps",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "time-witness",
@@ -123,7 +131,8 @@ const badges=[
     "quote": "时间经过，而成长留下。",
     "motif": "calendar",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "half-year",
@@ -135,7 +144,8 @@ const badges=[
     "quote": "半载光阴，皆有迹可寻。",
     "motif": "half",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "getting-better",
@@ -147,7 +157,8 @@ const badges=[
     "quote": "向好的变化，正在逐渐发生。",
     "motif": "stairs",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "beyond-score",
@@ -159,7 +170,8 @@ const badges=[
     "quote": "分数落下了，进步却没有。",
     "motif": "dual",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "steady",
@@ -171,7 +183,8 @@ const badges=[
     "quote": "不必每一步都惊艳，向前就有意义。",
     "motif": "wave",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "double-proof",
@@ -183,7 +196,8 @@ const badges=[
     "quote": "两种衡量方式，见证了同一次进步。",
     "motif": "merge",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "hold-peak",
@@ -195,7 +209,8 @@ const badges=[
     "quote": "曾经的最高点，如今成为新的起点。",
     "motif": "peak",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "ten-days",
@@ -207,7 +222,8 @@ const badges=[
     "quote": "十场考试，十段故事，一条属于自己的轨迹。",
     "motif": "ten",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "unexpected",
@@ -219,7 +235,8 @@ const badges=[
     "quote": "算法给出了答案，而你给出了另一个。",
     "motif": "forecast-one",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "long-road",
@@ -231,7 +248,8 @@ const badges=[
     "quote": "一路走来，每一步都有迹可循。",
     "motif": "road",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "comeback",
@@ -243,7 +261,8 @@ const badges=[
     "quote": "回落不是终章，你让轨迹重新向上。",
     "motif": "comeback",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "chorus",
@@ -255,7 +274,8 @@ const badges=[
     "quote": "不同的光芒，在同一刻交汇。",
     "motif": "stars-three",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "harder",
@@ -267,7 +287,8 @@ const badges=[
     "quote": "难度提高了，而你依然站稳了脚步。",
     "motif": "shield",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 2
   },
   {
     "id": "accumulation",
@@ -279,7 +300,8 @@ const badges=[
     "quote": "积累已久的改变，终于有了回响。",
     "motif": "crystal",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "year-trace",
@@ -307,7 +329,8 @@ const badges=[
     "quote": "四季轮转，成长有迹。",
     "motif": "seasons",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "plateau",
@@ -319,7 +342,8 @@ const badges=[
     "quote": "那条曾经难以跨越的线，已经留在身后。",
     "motif": "break-ring",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "cocoon",
@@ -331,7 +355,8 @@ const badges=[
     "quote": "曾经难以跨越的地方，如今也能成为你的优势。",
     "motif": "butterfly",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "puzzle",
@@ -343,7 +368,8 @@ const badges=[
     "quote": "缺失的那一块，终于被你亲手补上。",
     "motif": "puzzle",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "headwind",
@@ -355,7 +381,8 @@ const badges=[
     "quote": "难度升高了，你的脚步却没有停下。",
     "motif": "sail",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 2
   },
   {
     "id": "resonance",
@@ -367,7 +394,8 @@ const badges=[
     "quote": "这一次，不止一颗星在闪耀。",
     "motif": "stars-five",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "more-than-score",
@@ -379,7 +407,8 @@ const badges=[
     "quote": "分数记录了结果，却不是成长的全部答案。",
     "motif": "prism",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "time-kept",
@@ -410,7 +439,8 @@ const badges=[
     "quote": "一次超越是意外，三次超越，是新的可能。",
     "motif": "forecast-three",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "outside-range",
@@ -422,7 +452,8 @@ const badges=[
     "quote": "预测区间之外，依然有属于你的坐标。",
     "motif": "range",
     "hidden": true,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 2
   },
   {
     "id": "twenty-days",
@@ -434,7 +465,8 @@ const badges=[
     "quote": "二十章已落笔，你的故事仍未完结。",
     "motif": "book-twenty",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "unique-path",
@@ -446,7 +478,8 @@ const badges=[
     "quote": "算法找到了与你相似的过去，却没能找到与你相同的未来。",
     "motif": "branch",
     "hidden": false,
-    "mode": "snapshot"
+    "mode": "snapshot",
+    "ruleVersion": 2
   },
   {
     "id": "rings",
@@ -492,7 +525,8 @@ const badges=[
     "quote": "从遥望山巅，到亲自抵达。",
     "motif": "mountain",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "rewrite",
@@ -504,7 +538,8 @@ const badges=[
     "quote": "预测写下了剧本，而你写出了另一种结局。",
     "motif": "shatter",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "break-limit",
@@ -516,7 +551,8 @@ const badges=[
     "quote": "那是算法预测的边界，不是你的边界。",
     "motif": "diamond",
     "hidden": true,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 2
   },
   {
     "id": "phase-shift",
@@ -528,7 +564,8 @@ const badges=[
     "quote": "这一次，不只是超越预测，而是改变了轨迹本身。",
     "motif": "phase",
     "hidden": true,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 2
   },
   {
     "id": "new-horizon",
@@ -540,7 +577,8 @@ const badges=[
     "quote": "回首来路，才发现自己已经走了这么远。",
     "motif": "horizon",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "undefined",
@@ -552,7 +590,8 @@ const badges=[
     "quote": "算法可以计算你的过去，却没有资格定义你的未来。",
     "motif": "infinity",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "chronicle",
@@ -564,7 +603,8 @@ const badges=[
     "quote": "那些平凡的日子，最终汇成了属于你的星河。",
     "motif": "scroll",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "early",
@@ -576,7 +616,8 @@ const badges=[
     "quote": "故事开始的时候，你已经在场。",
     "motif": "flag",
     "hidden": false,
-    "mode": "auto"
+    "mode": "auto",
+    "ruleVersion": 1
   },
   {
     "id": "triple",
@@ -588,7 +629,8 @@ const badges=[
     "quote": "三个数字，一段共同写下的历史。",
     "motif": "triple",
     "hidden": false,
-    "mode": "event"
+    "mode": "event",
+    "ruleVersion": 1
   },
   {
     "id": "creator",
@@ -600,7 +642,8 @@ const badges=[
     "quote": "这个产品的故事里，也有你亲手写下的一笔。",
     "motif": "idea",
     "hidden": false,
-    "mode": "manual"
+    "mode": "manual",
+    "ruleVersion": 1
   },
   {
     "id": "pioneer",
@@ -612,7 +655,8 @@ const badges=[
     "quote": "在新篇章正式开启之前，你已参与其中。",
     "motif": "rocket",
     "hidden": false,
-    "mode": "manual"
+    "mode": "manual",
+    "ruleVersion": 1
   },
   {
     "id": "spark-support",
@@ -624,7 +668,8 @@ const badges=[
     "quote": "感谢你的支持，让这个想法得以继续生长。",
     "motif": "flame",
     "hidden": false,
-    "mode": "manual"
+    "mode": "manual",
+    "ruleVersion": 1
   },
   {
     "id": "annual",
@@ -636,7 +681,8 @@ const badges=[
     "quote": "这一年，所有走过的路，都值得被记住。",
     "motif": "year",
     "hidden": false,
-    "mode": "manual"
+    "mode": "manual",
+    "ruleVersion": 1
   }
 ];
 const catalog={version:1,denominator:9936,referenceDay:'2026-11-27',referenceExams:19768,referenceScores:135552,legacyReferenceTotal:9938,legacyReferenceDay:'2026-11-27',tiers:{common:'普通',rare:'稀有',epic:'史诗',legendary:'传说',mythic:'至臻',limited:'限定'},badges};

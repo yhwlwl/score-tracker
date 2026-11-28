@@ -433,9 +433,21 @@
 
 /* ===== app-v3.js ===== */
 const API = '/api/score-tracker-api';
-const SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治'];
-const SUBJECT_SHORT = { 语文: '语', 数学: '数', 英语: '英', 物理: '物', 化学: '化', 生物: '生', 历史: '史', 地理: '地', 政治: '政' };
-const SUBJECT_MAX = { 语文: 150, 数学: 150, 英语: 150, 物理: 100, 化学: 100, 生物: 100, 历史: 100, 地理: 100, 政治: 100 };
+const SUBJECTS = ['语文', '数学', '英语', '物理', '历史', '化学', '生物', '地理', '政治'];
+const SUBJECT_ORDER_V3 = Object.fromEntries(SUBJECTS.map((name, index) => [name, index]));
+function sortSubjectNamesV3(list) {
+  return [...(list || [])]
+    .map((item, index) => ({ item, index, name: typeof item === 'string' ? item : item && item.name }))
+    .sort((a, b) => {
+      const ai = Object.prototype.hasOwnProperty.call(SUBJECT_ORDER_V3, a.name) ? SUBJECT_ORDER_V3[a.name] : 1000 + a.index;
+      const bi = Object.prototype.hasOwnProperty.call(SUBJECT_ORDER_V3, b.name) ? SUBJECT_ORDER_V3[b.name] : 1000 + b.index;
+      return ai !== bi ? ai - bi : a.index - b.index;
+    })
+    .map((x) => x.item);
+}
+if (typeof window !== 'undefined') window.sortSubjectNames = sortSubjectNamesV3;
+const SUBJECT_SHORT = { 语文: '语', 数学: '数', 英语: '英', 物理: '物', 历史: '历', 化学: '化', 生物: '生', 地理: '地', 政治: '政' };
+const SUBJECT_MAX = { 语文: 150, 数学: 150, 英语: 150, 物理: 100, 历史: 100, 化学: 100, 生物: 100, 地理: 100, 政治: 100 };
 const RADAR_COLORS = ['#5d72e8', '#32a77a', '#e59b45', '#df5f68', '#8f62db'];
 const state = {
   token: localStorage.getItem('st_token') || '',
@@ -751,9 +763,9 @@ function chartHtml() {
   const vals = points.flatMap((p) => [p.actual, p.target, ...extra.map((s) => s.value(p.exam))]).filter((v) => v !== null);
   if (!vals.length) return `<div class="empty-chart"><div><div class="empty-icon">⌁</div>这个科目还没有成绩数据</div></div>`;
   let max = Math.max(...vals), min = Math.min(...vals);
-  const pad = Math.max(10, (max - min) * 0.18);
-  max = Math.ceil((max + pad) / 10) * 10;
-  min = Math.max(0, Math.floor((min - pad) / 10) * 10);
+  const pad = Math.max(7.5, (max - min) * 0.18);
+  max = Math.ceil((max + pad) / 5) * 5;
+  min = Math.max(0, Math.floor((min - pad) / 5) * 5);
   if (max === min) max = min + 100;
   const W = 760, H = 300, L = 46, R = 18, T = 20, B = 46;
   const cw = W - L - R, ch = H - T - B;
@@ -1622,8 +1634,10 @@ function applySubjectConfigsV7(configs) {
     }))
     .filter((item) => item.name && Number.isFinite(item.defaultMax) && item.defaultMax > 0);
   if (!clean.length) return;
-  state.subjectConfigs = clean;
-  SUBJECTS.splice(0, SUBJECTS.length, ...clean.map((item) => item.name));
+  const ordered = (typeof sortSubjectNamesV3 === 'function' ? sortSubjectNamesV3(clean) : clean)
+    .map((item, index) => ({ ...item, sortOrder: index + 1 }));
+  state.subjectConfigs = ordered;
+  SUBJECTS.splice(0, SUBJECTS.length, ...ordered.map((item) => item.name));
   clean.forEach((item) => {
     SUBJECT_MAX[item.name] = item.defaultMax;
     SUBJECT_SHORT[item.name] = subjectShortV7(item.name);
@@ -2240,7 +2254,7 @@ function deriveExamSubjectsV10(exams, templates = []) {
       if (name && !seen.has(name)) { seen.add(name); names.push(name); }
     }
   }
-  return names;
+  return typeof sortSubjectNamesV3 === 'function' ? sortSubjectNamesV3(names) : names;
 }
 
 function applyExamSubjectsV10(exams, templates = []) {
@@ -3332,13 +3346,19 @@ function finalOnlyRowV62(row){
   if(num(next.raw)===null)next.rawMax=next.max;
   return next;
 }
+function sortScoreEntriesV16(scores){
+  var entries=Object.entries(scores||{});
+  if(typeof sortSubjectNamesV3!=='function')return entries;
+  var map=new Map(entries);
+  return sortSubjectNamesV3(entries.map(function(e){return e[0];})).map(function(k){return [k,map.get(k)];});
+}
 function seedRowsV16(exam){
-  if(exam) return Object.entries(exam.scores||{}).map(function(entry){
+  if(exam) return sortScoreEntriesV16(exam.scores).map(function(entry){
     var name=entry[0],row=entry[1]||{};if(finalOnlySubjectV62(name))row=finalOnlyRowV62(row);
     return {name:name,target:row.target??'',raw:row.raw??'',actual:row.actual??'',rawMax:row.rawMax??row.max??defaultMax(name),max:row.max??defaultMax(name),rank:row.rank??'',participants:row.participants??'',classRank:row.classRank??'',classParticipants:row.classParticipants??''};
   });
   var source=state.exams&&state.exams.length?state.exams[state.exams.length-1]:((state.unfilteredVisibleExamsV13||[]).length?state.unfilteredVisibleExamsV13[state.unfilteredVisibleExamsV13.length-1]:null);
-  if(source&&Object.keys(source.scores||{}).length) return Object.entries(source.scores).map(function(entry){
+  if(source&&Object.keys(source.scores||{}).length) return sortScoreEntriesV16(source.scores).map(function(entry){
     var name=entry[0],row=entry[1]||{};
     return {name:name,target:'',raw:'',actual:'',rawMax:row.rawMax??row.max??defaultMax(name),max:row.max??defaultMax(name),rank:'',participants:'',classRank:'',classParticipants:''};
   });
@@ -3607,8 +3627,8 @@ function moduleSubjectOptionsV18(){
   function add(name){name=String(name||'').trim();if(!name||moduleNames.has(name)||seen.has(name))return;seen.add(name);out.push(name);}
   (state.subjectConfigs||[]).forEach(function(x){add(x.name)});
   (state.allExams||[]).forEach(function(exam){Object.keys(exam.scores||{}).forEach(add)});
-  ['语文','数学','英语','物理','历史','化学','生物','政治','地理'].forEach(add);
-  return out;
+  ['语文','数学','英语','物理','历史','化学','生物','地理','政治'].forEach(add);
+  return typeof sortSubjectNamesV3==='function'?sortSubjectNamesV3(out):out;
 }
 function appendModulesV18(){
   (state.modulesV18||[]).forEach(function(m){
@@ -5004,7 +5024,7 @@ saveExam=async function saveExamV21(id,modal){
     points.forEach(function(p){extra.forEach(function(s){var v=s.value(p.exam);if(v!==null)vals.push(v);});});
     if(!vals.length)return '<div class="empty-chart"><div><div class="empty-icon">⌁</div>这个科目还没有成绩数据</div></div>';
     // 动态纵轴，与主成绩图同算法（v3 chartHtml）
-    var axis=fullTrendAxisV25(vals,'scoreFinal');
+    var axis=fullTrendAxisV25(vals,'rate');
     var W=760,H=300,L=46,R=18,T=20,B=46;
     var cw=W-L-R,ch=H-T-B;
     var x=function(i){return points.length===1?L+cw/2:L+(i/(points.length-1))*cw;};
@@ -5191,9 +5211,9 @@ saveExam=async function saveExamV21(id,modal){
     if(!nums.length)return{min:0,max:100,ticks:5};
     var min=Math.min.apply(null,nums),max=Math.max.apply(null,nums),pad;
     if(kind==='scoreFinal'){
-      pad=Math.max(10,(max-min)*0.18);
-      max=Math.ceil((max+pad)/10)*10;
-      min=Math.max(0,Math.floor((min-pad)/10)*10);
+      pad=Math.max(7.5,(max-min)*0.18);
+      max=Math.ceil((max+pad)/5)*5;
+      min=Math.max(0,Math.floor((min-pad)/5)*5);
       if(max===min)max=min+100;
       return{min:min,max:max,ticks:5};
     }
@@ -5210,6 +5230,7 @@ saveExam=async function saveExamV21(id,modal){
         ?calcDynamicAxisRangeV6(nums,{minLimit:0,maxLimit:100,step:5,minSpan:20,padRatio:.16})
         :{min:0,max:100,ticks:5};
     }
+    if(kind==='rankPercent')return dynamicRangeV7(nums);
     if(kind==='rankRaw'){
       return (typeof rawRankAxisV11==='function')?rawRankAxisV11(nums):{min:Math.min.apply(null,nums),max:Math.max.apply(null,nums),ticks:5};
     }
@@ -5272,7 +5293,7 @@ saveExam=async function saveExamV21(id,modal){
     var points=exams.map(function(e){return{exam:e,values:visible.map(function(s){return s.value(e);})};});
     var flat=[];
     points.forEach(function(p){p.values.forEach(function(v){if(v!==null)flat.push(v);});});
-    var axisKind = scorePercent?'scoreFinal':(subject==='总览'
+    var axisKind = scorePercent?'rate':(subject==='总览'
       ? (isRawRank?'rankRaw':(isPercent?'rankPercent':'rate'))
       : (isRawRank?'rankRaw':(isPercent?'rankPercent':(basis==='raw'?'scoreRaw':'scoreFinal'))));
     var axis=fullTrendAxisV25(flat,axisKind);
@@ -5882,7 +5903,14 @@ saveExam=async function saveExamV21(id,modal){
     var modNames=moduleNamesV26();
     var selected=new Set((exam.moduleIds||[]).map(String));
     var ranksMap=moduleRanksForV26(exam);
-    var names=Object.keys(exam.scores||{}).filter(function(n){return !modNames.has(n);});
+    var rawNames=Object.keys(exam.scores||{}).filter(function(n){return !modNames.has(n);});
+    var orderFallback=['语文','数学','英语','物理','历史','化学','生物','地理','政治'];
+    var names=(typeof window!=='undefined'&&typeof window.sortSubjectNames==='function')
+      ?window.sortSubjectNames(rawNames)
+      :rawNames.slice().sort(function(a,b){
+        var ai=orderFallback.indexOf(a),bi=orderFallback.indexOf(b);
+        return (ai>=0?ai:1000+rawNames.indexOf(a))-(bi>=0?bi:1000+rawNames.indexOf(b));
+      });
     var cells=names.map(function(n){return subjectCellV26(exam,n);}).filter(Boolean).join('');
     var combos=modules.filter(function(m){return m&&m.name&&selected.has(String(m.id));})
       .map(function(m){return comboCellV26(exam,m,ranksMap);}).filter(Boolean).join('');
@@ -6800,7 +6828,7 @@ function subjectsUnionV30(exams){
   exams.forEach(function(ex){Object.keys(ex.scores||{}).forEach(function(n){
     if(!seen[n]){seen[n]=1;out.push(n);}
   });});
-  return out;
+  return typeof sortSubjectNamesV3==='function'?sortSubjectNamesV3(out):out;
 }
 function sumTotalV30(ex,field){
   var sum=null;
@@ -7552,6 +7580,14 @@ function injectStylesV31(){
       '.rank-legend-v7{display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;padding:0 0 6px;scrollbar-width:none;-webkit-overflow-scrolling:touch;touch-action:pan-x;overscroll-behavior-x:contain}' +
       '.rank-legend-v7::-webkit-scrollbar{display:none}' +
       '.rank-legend-v7 .label{margin-left:14px}' +
+      /* Keep mobile trend legends on one row; only the legend itself scrolls. */
+      '.chart-card .trend-legend-row-v25{display:block;overflow:visible;padding:0;cursor:auto}' +
+      '.chart-card :is(.overview-legend,.rank-legend-v7,.trend-legend-row-v25 .legend){display:flex;flex-wrap:nowrap;gap:6px;max-width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;padding-bottom:2px;scrollbar-width:none;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y}' +
+      '.chart-card :is(.overview-legend,.rank-legend-v7,.trend-legend-row-v25 .legend)>span{flex:0 0 auto;white-space:nowrap;word-break:keep-all;overflow-wrap:normal}' +
+      '.chart-card :is(.overview-legend .overview-pill,.rank-legend-v7 span:not(.lg-hint-v31)){display:inline-flex;align-items:center;gap:5px;padding:5px 8px;line-height:1.4;min-height:28px;box-sizing:border-box}' +
+      '.chart-card :is(.overview-legend,.rank-legend-v7,.trend-legend-row-v25 .legend)>span>i{flex:none}' +
+      '.chart-card :is(.overview-legend,.rank-legend-v7,.trend-legend-row-v25 .legend)>span::after{flex:none}' +
+      '.chart-card .trend-legend-row-v25 .trend-scroll-hint-v19{margin:4px 0 0;text-align:right}' +
     '}'
   ].join('\n');
   var st=document.createElement('style');
@@ -7717,7 +7753,7 @@ function configuredSubjectsV32(){
 function subjectListV32(exams){
   var out=configuredSubjectsV32(),seen={};out.forEach(function(s){seen[s]=1;});
   (exams||[]).forEach(function(e){Object.keys(e.scores||{}).forEach(function(s){if(s&&!seen[s]){seen[s]=1;out.push(s);}});});
-  return out;
+  return typeof sortSubjectNamesV3==="function"?sortSubjectNamesV3(out):out;
 }
 function rowV32(e,s){return (e&&e.scores&&e.scores[s])||{};}
 /* 个人最佳状态标签:ok=在最好附近;warn=连续偏离待找回;acc 再按差距细分(≤5≈接近,>5=刚偏离) */
@@ -9407,7 +9443,7 @@ function activeSubjects(){
       });
     });
   });
-  return out;
+  return typeof window.sortSubjectNames==="function"?window.sortSubjectNames(out):out;
 }
 function latestScore(name){
   var ex=examSource().slice().sort(function(a,b){
@@ -13292,7 +13328,7 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
     }
     async function load(append){if(loading)return;loading=true;more.disabled=true;status.textContent='正在加载评论…';try{var data=await call('announcement_comments',{notice_id:item.id,before:append?next:null},item.user);if(!current())return;if(!append&&!item.commentsEnabled&&!(data.rows||[]).length&&!(data.pinned||[]).length){section.remove();return;}threadsEnabled=data.threads_enabled===true;if(threadsEnabled){section.classList.add('rn-threads-enabled');form.querySelector('label').hidden=true;input.placeholder='说说你的想法…';submit.textContent='发送';if(!compact&&!item.commentsReadOnly&&data.comments_enabled!==false){compact=true;panel.classList.add('rn-compact-thread-modal');form.classList.add('rn-compact-composer');var line=node('div',null,'rn-compact-line');line.append(input,submit);form.append(line);panel.append(form);back.querySelector('.rn-actions').hidden=true;restoreDraft();}}if(data.read_only===true)archiveComments();if(!append){list.innerHTML='';var pins=section.querySelector('.rn-pinned-list');pins.innerHTML='';(data.pinned||[]).forEach(function(row){appendRow(row,pins);});}if(data.comments_enabled===false)hideCommentForm();(data.rows||[]).forEach(function(row){appendRow(row);});if(!list.children.length)list.textContent=item.commentsReadOnly?'这条公告还没有评论。':'还没有评论，欢迎说说你的想法。';next=data.next;more.hidden=!next;status.textContent='';}catch(e){if(current())status.textContent=e.message;}finally{loading=false;more.disabled=false;}}
     more.onclick=function(){load(true);};
-    form.onsubmit=async function(e){e.preventDefault();if(!current()||item.commentsReadOnly||!item.commentsEnabled||submit.disabled)return;var content=input.value.trim(),chosen=replyTarget;if(!content){status.textContent='写点内容再发送吧';return;}if(chosen&&content.length>300){status.textContent='回复最多300字';return;}submit.disabled=true;status.textContent='正在发送…';try{if(chosen){var result=await chosen.thread.send('announcement_thread_add',{parent_id:chosen.parent,content:content});if(!current())return;replyDrafts.delete(keyFor(chosen));input.value='';resetTarget();flash('回复已发送');try{await chosen.thread.afterSend(result,content,chosen.parent);}catch(e){status.textContent='已发送，可重新展开查看。';}}else{await call('announcement_comment_add',{notice_id:item.id,content:content},item.user);if(!current())return;replyDrafts.delete(keyFor(null));input.value='';resizeInput();var sc=scrollBody(),y=sc.scrollTop;await load(false);sc.scrollTop=y;if(!status.textContent)flash('评论已发送');}}catch(e){if(current())status.textContent=e.message;}finally{submit.disabled=false;}};
+    form.onsubmit=async function(e){e.preventDefault();if(!current()||item.commentsReadOnly||!item.commentsEnabled||submit.disabled)return;var content=input.value.trim(),chosen=replyTarget;if(!content){status.textContent='写点内容再发送吧';return;}if(chosen&&content.length>300){status.textContent='回复最多300字';return;}submit.disabled=true;status.textContent='正在发送…';try{if(chosen){var result=await chosen.thread.send('announcement_thread_add',{parent_id:chosen.parent,content:content});if(!current())return;if(item.id==='63656e74656e617279323032')track('centenary_comment_sent',{notice_id:item.id,kind:'reply'});replyDrafts.delete(keyFor(chosen));input.value='';resetTarget();flash('回复已发送');try{await chosen.thread.afterSend(result,content,chosen.parent);}catch(e){status.textContent='已发送，可重新展开查看。';}}else{await call('announcement_comment_add',{notice_id:item.id,content:content},item.user);if(!current())return;if(item.id==='63656e74656e617279323032')track('centenary_comment_sent',{notice_id:item.id,kind:'comment'});replyDrafts.delete(keyFor(null));input.value='';resizeInput();var sc=scrollBody(),y=sc.scrollTop;await load(false);sc.scrollTop=y;if(!status.textContent)flash('评论已发送');}}catch(e){if(current())status.textContent=e.message;}finally{submit.disabled=false;}};
     if(item.focusedThreadNotification){
       hideCommentForm();section.querySelector('h3').textContent='收到的回复';var n=item.focusedThreadNotification;
       var target=node('article',null,'rn-comment');target.append(node('div',n.target_author||'我的评论','rn-comment-meta'),node('div',n.target_content,'rn-comment-text'));
@@ -15040,7 +15076,15 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   }
   function model(exam) {
     var moduleNames = new Set((state.modulesV18 || []).map(function (m) { return m.name; }));
-    var rows = Object.keys(exam.scores || {}).filter(function (name) { return !moduleNames.has(name); }).map(function (name) {
+    var rawKeys = Object.keys(exam.scores || {}).filter(function (name) { return !moduleNames.has(name); });
+    var orderFallback = ['语文', '数学', '英语', '物理', '历史', '化学', '生物', '地理', '政治'];
+    var keys = typeof window !== 'undefined' && typeof window.sortSubjectNames === 'function'
+      ? window.sortSubjectNames(rawKeys)
+      : rawKeys.slice().sort(function (a, b) {
+          var ai = orderFallback.indexOf(a), bi = orderFallback.indexOf(b);
+          return (ai >= 0 ? ai : 1000 + rawKeys.indexOf(a)) - (bi >= 0 ? bi : 1000 + rawKeys.indexOf(b));
+        });
+    var rows = keys.map(function (name) {
       var s = exam.scores[name], actual = number(examScore(exam, name, 'actual')), max = number(examMax(exam, name));
       if(finalOnlySubjectV62(name)&&number(s.actual)===null&&number(s.raw)!==null)max=number(s.rawMax)||max;
       return { name: name, actual: actual, max: max, raw: number(s.raw), rawMax: number(s.rawMax) || max,
@@ -15696,8 +15740,8 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
   var levelTable='<div class="ag-table" tabindex="0" role="region" aria-label="等级与 AI 月额度"><table><thead><tr><th>等级</th><th>成长分</th><th>额外要求</th><th>月积分</th></tr></thead><tbody>'+(g.levels||[]).map(function(l){return '<tr'+(l.level===g.level?' class="ag-current"':'')+'><td>Lv.'+l.level+'</td><td>'+l.threshold+'</td><td>'+esc([l.level>1?'有效考试':'',l.min_days?l.min_days+'天':'',l.min_months?l.min_months+'个有效月':''].filter(Boolean).join(' · ')||'—')+'</td><td>'+l.monthly_credits+'</td></tr>';}).join('')+'</tbody></table></div>';
   return '<div class="ag-summary"><div><span class="ag-level">Lv.'+g.level+'</span><span>成长分 <b>'+number(g.points)+'</b></span></div><button type="button" class="ag-refresh">刷新</button></div><p class="ag-progress">'+esc(requirements)+'</p><div class="ag-wallet"><div><b>'+number(c.available)+'</b><span>可用 AI 积分</span></div><div><b>'+number(c.monthly)+'</b><span>每月发放</span></div>'+(c.held?'<div><b>'+number(c.held)+'</b><span>任务预留</span></div>':'')+'</div>'+
    (!a.enabled?'<p class="ag-note">账号等级对所有账号显示；AI 功能暂未开放。</p>':a.budget_status==='paused'?'<p class="ag-note">本月 AI 预算不足，未扣积分</p>':'')+
-   '<details><summary>积分怎么用</summary><div class="ag-rules"><p><b>按实际用量扣分，失败不扣。</b>手动核对与保存免费。</p><div class="ag-table"><table aria-label="识别选项与开始所需积分"><thead><tr><th>功能 / 页面选项</th><th>开始需可用积分</th></tr></thead><tbody><tr><td>成绩图片识别</td><td>13 分（通常约 13 分 / 次）</td></tr></tbody></table></div><p>识图按实际用量扣分；提交时预留部分积分，完成后释放余量。试卷识别和题型分析暂未开放。</p><p>首次赠送 <b>'+number(c.welcome)+'</b> 分；Lv.2 起每月自动发放，升级补差。可累积至 <b>'+number(c.cap)+'</b> 分。</p></div></details>'+
-   '<details><summary>如何升级</summary><div class="ag-rules"><ul><li>首次有效体验：按功能加分</li><li>有效使用月：<b>+60</b>，无需每天签到</li><li>不同日期的有效考试：每场 <b>+20</b>，每月最多 3 场</li><li>结合考试查看趋势、雷达、含金量或匹配：每场每月最多 <b>+10</b>，全账号每月最多 <b>+20</b></li></ul><p>重复点击不加分，等级累计保留。</p><details><summary>12 级门槛与月额度</summary>'+levelTable+'</details><details><summary>首次体验成长分</summary><div class="ag-features">'+(g.features||[]).filter(function(f){return f.earned||!['planner','types','paper','report'].includes(f.feature);}).map(function(f){return '<span>'+esc(names[f.feature]||f.feature)+' <b>+'+f.points+'</b> '+(f.earned?'已获得':'')+'</span>';}).join('')+'</div><p>历史仅按已保存的有效记录补记。</p></details></div></details><button type="button" class="ag-usage">最近 AI 用量</button><div class="ag-history" aria-live="polite"></div>';
+   '<div class="ag-actions"><details><summary>积分怎么用</summary><div class="ag-rules"><p><b>按实际用量扣分，失败不扣。</b>手动核对与保存免费。</p><div class="ag-table"><table aria-label="识别选项与开始所需积分"><thead><tr><th>功能 / 页面选项</th><th>开始需可用积分</th></tr></thead><tbody><tr><td>成绩图片识别</td><td>13 分（通常约 13 分 / 次）</td></tr></tbody></table></div><p>识图按实际用量扣分；提交时预留部分积分，完成后释放余量。试卷识别和题型分析暂未开放。</p><p>首次赠送 <b>'+number(c.welcome)+'</b> 分；Lv.2 起每月自动发放，升级补差。可累积至 <b>'+number(c.cap)+'</b> 分。</p></div></details>'+
+   '<details><summary>如何升级</summary><div class="ag-rules"><ul><li>首次有效体验：按功能加分</li><li>有效使用月：<b>+60</b>，无需每天签到</li><li>不同日期的有效考试：每场 <b>+20</b>，每月最多 3 场</li><li>结合考试查看趋势、雷达、含金量或匹配：每场每月最多 <b>+10</b>，全账号每月最多 <b>+20</b></li></ul><p>重复点击不加分，等级累计保留。</p><details><summary>12 级门槛与月额度</summary>'+levelTable+'</details><details><summary>首次体验成长分</summary><div class="ag-features">'+(g.features||[]).filter(function(f){return f.earned||!['planner','types','paper','report'].includes(f.feature);}).map(function(f){return '<span>'+esc(names[f.feature]||f.feature)+' <b>+'+f.points+'</b> '+(f.earned?'已获得':'')+'</span>';}).join('')+'</div><p>历史仅按已保存的有效记录补记。</p></details></div></details><button type="button" class="ag-usage">最近 AI 用量</button></div><div class="ag-history" aria-live="polite"></div>';
  }
  function paint(){var host=document.getElementById('accountGrowth');if(!host||cachedToken!==state.token||!cached)return;host.innerHTML=view(cached);host.querySelector('.ag-refresh').onclick=function(){trackGrowth('account_growth_refresh');load(true);};host.querySelector('.ag-usage').onclick=async function(){var box=host.querySelector('.ag-history');trackGrowth('account_ai_usage_opened');this.disabled=true;try{var j=await request('account_usage');if(!host.isConnected)return;box.innerHTML=(j.usage||[]).map(function(r){var feature={vision:'成绩识图',paper_entry:'试题识别',probe:'连接测试',admin_test:'模型测试'}[r.feature]||'AI 调用';return '<p>'+esc(feature)+' · '+esc(new Date(r.created_at).toLocaleString())+' · '+number(r.charged_credits)+' 分 · '+esc({active:'进行中',succeeded:'已完成',failed:'失败未扣分',expired:'已释放预留'}[r.status]||r.status)+'</p>';}).join('')||'<p>暂无 AI 使用记录</p>';}catch(e){box.textContent=e.message;}finally{this.disabled=false;}};}
  async function load(force){
@@ -15711,5 +15755,5 @@ window.PAL2 = PAL2NS; /* 主源码经 window.PAL2 取内核 */
  var oldBind=bindPage;bindPage=function(){var result=oldBind.apply(this,arguments);if(state.page==='account'&&state.token){if(viewToken!==state.token){viewToken=state.token;trackGrowth('account_growth_view');}load(false);}else viewToken='';return result;};
  if(typeof dataApiV7==='function'){var oldApi=dataApiV7;dataApiV7=async function(action,payload){if(action==='save_exam'&&state.modal&&state.modal.dataset&&state.modal.dataset.quickEntryApplied)payload=Object.assign({},payload,{quick_entry:true});var r=await oldApi.call(this,action,payload);if(/^save_|^import/.test(action)){loadedAt=0;cached=null;}return r;};}
  window.ScoreAccountBenefits={refresh:function(){return load(true);},invalidate:function(){cached=null;loadedAt=0;}};
- var style=document.createElement('style');style.textContent='.account-growth{margin:12px 0 8px;padding:16px;border:1px solid var(--line,#e2e8f0);border-radius:14px;background:var(--panel-solid,#fff);font-size:13px;line-height:1.7;max-width:100%;box-sizing:border-box;min-width:0;text-align:left}.ag-summary,.ag-summary>div{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.ag-summary{justify-content:space-between}.ag-level{font-size:15px;font-weight:750;color:var(--accent,#5269d8);background:var(--accent-soft,#edf1ff);border-radius:8px;padding:2px 10px}.ag-progress,.ag-note{color:var(--muted,#687386);font-size:12px;margin:10px 0}.ag-wallet{display:flex;gap:24px;flex-wrap:wrap;margin:14px 0}.ag-wallet>div{display:flex;flex-direction:column}.ag-wallet b{font-size:24px;line-height:1.2}.ag-wallet span{font-size:12px;color:var(--muted,#687386);margin-top:5px}.account-growth summary{cursor:pointer;color:var(--accent,#5269d8);padding:7px 0}.ag-rules{padding-top:4px}.ag-rules p{font-size:12px;color:var(--muted,#687386);margin:8px 0}.ag-table{width:100%;overflow:auto}.ag-table table{border-collapse:collapse;width:100%;font-size:12px}.ag-table th,.ag-table td{text-align:left;padding:8px 5px;border-bottom:1px solid var(--line,#e2e8f0)}.ag-current{color:var(--accent,#5269d8);font-weight:650}.ag-features{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ag-features span{padding:6px;background:var(--soft,#f7f8fb);border-radius:6px;font-size:12px}.ag-refresh,.ag-usage{font:inherit;padding:6px 10px;color:var(--accent,#5269d8);border:1px solid var(--line,#e2e8f0);border-radius:8px;background:transparent;cursor:pointer;min-height:36px}.ag-usage{margin-top:12px}.ag-history p{border-bottom:1px solid var(--line,#e2e8f0);padding:8px 0;overflow-wrap:anywhere}@media(max-width:420px){.account-growth{padding:12px}.ag-features{grid-template-columns:1fr}.ag-table th,.ag-table td{padding:7px 3px}}';document.head.appendChild(style);
+ var style=document.createElement('style');style.textContent='.account-growth{margin:12px 0 8px;padding:16px;border:1px solid var(--line,#e2e8f0);border-radius:14px;background:var(--panel-solid,#fff);font-size:13px;line-height:1.7;max-width:100%;box-sizing:border-box;min-width:0;text-align:left}.ag-summary,.ag-summary>div{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.ag-summary{justify-content:space-between}.ag-level{font-size:15px;font-weight:750;color:var(--accent,#5269d8);background:var(--accent-soft,#edf1ff);border-radius:8px;padding:2px 10px}.ag-progress,.ag-note{color:var(--muted,#687386);font-size:12px;margin:8px 0}.ag-wallet{display:flex;gap:24px;flex-wrap:wrap;margin:10px 0 8px}.ag-wallet>div{display:flex;flex-direction:column}.ag-wallet b{font-size:24px;line-height:1.2}.ag-wallet span{font-size:12px;color:var(--muted,#687386);margin-top:4px}.ag-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin-top:4px}.ag-actions>details{margin:0}.ag-actions>details[open]{flex:1 1 100%;order:2}.account-growth summary{cursor:pointer;color:var(--accent,#5269d8);padding:3px 0;font-size:12.5px}.ag-actions>details>summary{white-space:nowrap}.ag-rules{padding-top:4px}.ag-rules p{font-size:12px;color:var(--muted,#687386);margin:8px 0}.ag-table{width:100%;overflow:auto}.ag-table table{border-collapse:collapse;width:100%;font-size:12px}.ag-table th,.ag-table td{text-align:left;padding:8px 5px;border-bottom:1px solid var(--line,#e2e8f0)}.ag-current{color:var(--accent,#5269d8);font-weight:650}.ag-features{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ag-features span{padding:6px;background:var(--soft,#f7f8fb);border-radius:6px;font-size:12px}.ag-refresh,.ag-usage{font:inherit;padding:5px 10px;color:var(--accent,#5269d8);border:1px solid var(--line,#e2e8f0);border-radius:8px;background:transparent;cursor:pointer;min-height:32px;font-size:12.5px}.ag-usage{margin-top:0;margin-left:auto}.ag-history p{border-bottom:1px solid var(--line,#e2e8f0);padding:8px 0;overflow-wrap:anywhere}@media(max-width:420px){.account-growth{padding:12px}.ag-actions{gap:6px 10px}.ag-features{grid-template-columns:1fr}.ag-table th,.ag-table td{padding:7px 3px}}';document.head.appendChild(style);
 })();

@@ -91,8 +91,10 @@ function applySubjectConfigsV7(configs) {
     }))
     .filter((item) => item.name && Number.isFinite(item.defaultMax) && item.defaultMax > 0);
   if (!clean.length) return;
-  state.subjectConfigs = clean;
-  SUBJECTS.splice(0, SUBJECTS.length, ...clean.map((item) => item.name));
+  const ordered = (typeof sortSubjectNamesV3 === 'function' ? sortSubjectNamesV3(clean) : clean)
+    .map((item, index) => ({ ...item, sortOrder: index + 1 }));
+  state.subjectConfigs = ordered;
+  SUBJECTS.splice(0, SUBJECTS.length, ...ordered.map((item) => item.name));
   clean.forEach((item) => {
     SUBJECT_MAX[item.name] = item.defaultMax;
     SUBJECT_SHORT[item.name] = subjectShortV7(item.name);

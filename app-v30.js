@@ -44,7 +44,7 @@ function subjectsUnionV30(exams){
   exams.forEach(function(ex){Object.keys(ex.scores||{}).forEach(function(n){
     if(!seen[n]){seen[n]=1;out.push(n);}
   });});
-  return out;
+  return typeof sortSubjectNamesV3==='function'?sortSubjectNamesV3(out):out;
 }
 function sumTotalV30(ex,field){
   var sum=null;

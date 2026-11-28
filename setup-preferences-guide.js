@@ -3,7 +3,7 @@
   'use strict';
   const VERSION = 2;
   const STEPS = ['欢迎','账号','科目','选科与组合','考试分类','学校','目标','外观','等级'];
-  const CORE = ['语文','数学','英语'], EXTRAS = ['物理','历史','化学','生物','政治','地理','技术'];
+  const CORE = ['语文','数学','英语'], EXTRAS = ['物理','历史','化学','生物','地理','政治','技术'];
   const BUILTINS = ['语数外','语数外 + 物理/历史（四科）','语数外 + 所选科（六科）'];
   const clone = v => JSON.parse(JSON.stringify(v));
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
