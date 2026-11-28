@@ -75,7 +75,7 @@
     if(!available()||Date.now()-lastSuccess>=5*60000)await load(true,'open');
     if(!available()){track('community_open_unavailable',{source:source});if(typeof toast==='function')toast(authFailed?'登录已失效，请重新登录后查看交流群。':'交流群暂时无法打开，请稍后再试；仍可通过反馈联系我。');return false;}
     if(modal)return true;
-    if(document.querySelector('.modal-backdrop,.rn-back,.support-back,.st-fb-back'))return false;
+    if(window.ScoreModalGuard?.occupied()||document.querySelector('.modal-backdrop,.rn-back,.support-back,.st-fb-back'))return false;
     track('community_opened',{source:source});
     var c=config,back=document.createElement('div');back.className='community-back modal-backdrop';
     var url=safeLink(c.join_url);

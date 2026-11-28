@@ -26,6 +26,8 @@
     } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
   }
   function blocked() {
+
+    if(window.ScoreModalGuard)return window.ScoreModalGuard.occupied()||window.ScoreModalGuard.centenaryPending();
     return state.onboarding || state.setupGuideLoading || document.visibilityState !== 'visible' || document.querySelector('.modal-backdrop,.rn-back,.fv36-back,.st-fb-back,.pwa-back,.gmodal-backdrop.open');
   }
   function refreshCard() { if (state.user && state.page === 'account') renderPage(); }

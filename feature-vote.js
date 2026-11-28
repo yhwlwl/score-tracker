@@ -216,6 +216,8 @@
   }
 
   function hasBlockingModal() {
+
+    if(window.ScoreModalGuard)return window.ScoreModalGuard.occupied()||window.ScoreModalGuard.centenaryPending();
     try { if (state && (state.onboarding || state.setupGuideLoading)) return true; } catch (e) {}
     return !!document.querySelector('.modal-backdrop,.rn-back,.st-fb-back,.pwa-back,.school-back,.gmodal-backdrop.open');
   }
